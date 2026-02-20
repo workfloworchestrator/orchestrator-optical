@@ -13,7 +13,7 @@
 
 from typing import ClassVar, Literal
 
-from .base import TL1BaseCommand
+from services.infinera.flexils.commands.base import TL1BaseCommand
 
 
 class IntoAdminMaintenance(TL1BaseCommand):

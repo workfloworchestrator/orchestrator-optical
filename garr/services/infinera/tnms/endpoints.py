@@ -11,13 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from copy import deepcopy
 from time import sleep
 from typing import TYPE_CHECKING, Any, Literal
 
-from .exceptions import ApiError
+from services.infinera.tnms.exceptions import ApiError
 
 if TYPE_CHECKING:
-    from .client import TnmsClient
+    from services.infinera.tnms.client import TnmsClient
 
 UUIDstr = str
 
@@ -148,9 +149,7 @@ class Operations:
                 }
             }
         """
-        endpoint = (
-            self.base_path + "/tapi-equipment-extensions-cli:get-cli-script-result/"
-        )
+        endpoint = self.base_path + "/tapi-equipment-extensions-cli:get-cli-script-result/"
         data = {"tapi-equipment-extensions-cli:input": {"id": job_id}}
 
         retries = 0
@@ -178,17 +177,29 @@ class Operations:
         error_policy: Literal["ABORT", "CONTINUE"] = "ABORT",
     ) -> dict[str, Any]:
         """Execute a list of commands on a list of devices."""
+        masked_command_list = deepcopy(command_list)
+        if command_list[0].startswith("ACT-USER"):
+            masked_command_list = command_list[1:]
+        if command_list[-1].startswith("CANC-USER"):
+            masked_command_list = masked_command_list[:-1]
+
+        body = {
+            "tapi-equipment-extensions-cli:input": {
+                "device-list": device_list,
+                "commands": command_list,
+                "channel": channel,
+                "error-policy": error_policy,
+            }
+        }
+
+        masked_body = deepcopy(body)
+        masked_body["tapi-equipment-extensions-cli:input"]["commands"] = masked_command_list
+
         response = self.client._request(
             "POST",
             self.base_path + "/tapi-equipment-extensions-cli:run-cli-script/",
-            json={
-                "tapi-equipment-extensions-cli:input": {
-                    "device-list": device_list,
-                    "commands": command_list,
-                    "channel": channel,
-                    "error-policy": error_policy,
-                }
-            },
+            log_mask=masked_body,
+            json=body,
         )
 
         job_id = response["tapi-equipment-extensions-cli:output"]["id"]

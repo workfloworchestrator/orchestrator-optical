@@ -200,7 +200,7 @@ def delete_db_entries(subscription_id: str) -> State:
 
 
 @workflow(
-    "purge_subscription_from_database",
+    "Purge subscription and all its blocks, values, relations and any processes tied to it from the database",
     target=Target.SYSTEM,
     initial_input_form=initial_input_form_generator,
 )

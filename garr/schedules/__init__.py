@@ -16,4 +16,6 @@ custom, durante l'esecuzione dell'orchestratore.
 
 from orchestrator.schedules import ALL_SCHEDULERS
 
-ALL_SCHEDULERS.extend([])
+from schedules.resume_waiting import our_run_resume_workflows
+
+ALL_SCHEDULERS.extend([our_run_resume_workflows])

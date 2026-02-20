@@ -17,11 +17,11 @@ from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 from pydantic import BaseModel, Field
 from pydantic._internal._model_construction import ModelMetaclass
 
-from ..exceptions import TL1CommandDeniedError
-from ..utils.fixed_params import DEFAULT_CTAG, TL1CompletionStatus
+from services.infinera.flexils.exceptions import TL1CommandDeniedError
+from services.infinera.flexils.utils import TL1CompletionStatus, generate_ctag
 
 if TYPE_CHECKING:
-    from ..client import FlexILSClient
+    from services.infinera.flexils.client import FlexilsClient
 
 T = TypeVar("T", bound="TL1BaseResponse")
 
@@ -51,25 +51,21 @@ class TL1CommandMeta(ModelMetaclass):
 class TL1BaseResponse(BaseModel):
     """Base class for TL1 responses."""
 
-    status: TL1CompletionStatus = Field(
-        ..., description="Response status (e.g., COMPLD, DENY)."
-    )
+    status: TL1CompletionStatus = Field(..., description="Response status (e.g., COMPLD, DENY).")
     raw_data: str = Field(..., description="Raw response data.")
     parsed_data: list[dict[str, Any]] = Field(..., description="Parsed response data.")
-    ctag: str = Field(DEFAULT_CTAG, description="Correlation Tag.")
+    ctag: str = Field(generate_ctag(), description="Correlation Tag.")
     sid: str | None = Field(None, description="Source Identifier.")
     tid: str | None = Field(None, description="Target Identifier.")
 
-    def rename_positional_params(
-        self, parsed_data: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def rename_positional_params(self, parsed_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform parsed data with command-specific field names.
         Override in subclasses to customize field names.
         """
         return parsed_data
 
     @classmethod
-    def from_raw_text(cls, message: str, tag: str = DEFAULT_CTAG) -> "TL1BaseResponse":
+    def from_raw_text(cls, message: str, tag: str) -> "TL1BaseResponse":
         """Parse a raw TL1 response into a structured response object."""
         index = message.rfind(tag)
         if index == -1:
@@ -153,22 +149,17 @@ class TL1BaseCommand(BaseModel, metaclass=TL1CommandMeta):
     response_class: ClassVar[type[TL1BaseResponse]] = TL1BaseResponse
     tid: str | None = Field(None, description="Target Identifier (optional).")
     aid: str | None = Field(None, description="Access Identifier (optional).")
-    ctag: str = Field(
-        DEFAULT_CTAG, description="Correlation Tag for tracking the response."
-    )
+    ctag: str = Field(generate_ctag(), description="Correlation Tag for tracking the response.")
 
-    def execute(self, client: "FlexILSClient") -> TL1BaseResponse:
+    def execute(self, client: "FlexilsClient") -> TL1BaseResponse:
         """
         Execute the command on the device and return the response.
         Raises ValueError if the command is denied.
         """
         command_str = self.to_string()
-        response_str = client._execute_raw_command(command_str)
-        if (
-            TL1CompletionStatus.DENY in response_str
-            and TL1CompletionStatus.ALREADY not in response_str
-        ):
-            raise TL1CommandDeniedError(client.device_uuid, command_str, response_str)
+        response_str = client.execute_raw_command(command_str, self.ctag)
+        if TL1CompletionStatus.DENY in response_str and TL1CompletionStatus.ALREADY not in response_str:
+            raise TL1CommandDeniedError(client.tid, command_str, response_str)
         return self.response_class.from_raw_text(response_str, self.ctag)
 
     def to_string(self) -> str:
@@ -204,9 +195,7 @@ class TL1BaseCommand(BaseModel, metaclass=TL1CommandMeta):
                         if isinstance(value, (list, tuple)):
                             if isinstance(value[0], (list, tuple)):
                                 # Handle list of tuples/lists - join tuples with '&-'
-                                value = "&-".join(
-                                    ["&".join(str(item) for item in v) for v in value]
-                                )
+                                value = "&-".join(["&".join(str(item) for item in v) for v in value])
                             else:
                                 # Handle single tuple/list - join elements with '&'
                                 value = "&".join(str(item) for item in value)

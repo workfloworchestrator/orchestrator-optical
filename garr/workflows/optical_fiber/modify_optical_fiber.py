@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import CustomerId, Divider
@@ -20,7 +19,8 @@ from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import set_status
 from orchestrator.workflows.utils import modify_workflow
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from pydantic_forms.validators import ReadOnlyField
+from pydantic_forms.validators import read_only_field
+from structlog import get_logger
 
 from products.product_types.optical_fiber import OpticalFiber, OpticalFiberProvisioning
 from workflows.shared import modify_summary_form
@@ -33,7 +33,7 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     return f"{subscription.product.name} subscription"
 
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
@@ -43,20 +43,18 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     # TODO fill in additional fields if needed
 
     class ModifyOpticalFiberForm(FormPage):
-        customer_id: CustomerId = subscription.customer_id  # type: ignore
+        customer_id: CustomerId = subscription.customer_id
 
         divider_1: Divider
 
-        name: ReadOnlyField(optical_fiber.name)
-        garrxdb_id: ReadOnlyField(optical_fiber.garrxdb_id)
+        name: read_only_field(optical_fiber.name)
+        garrxdb_id: read_only_field(optical_fiber.garrxdb_id)
 
     user_input = yield ModifyOpticalFiberForm
     user_input_dict = user_input.dict()
 
     summary_fields = ["name", "garrxdb_id"]
-    yield from modify_summary_form(
-        user_input_dict, subscription.optical_fiber, summary_fields
-    )
+    yield from modify_summary_form(user_input_dict, subscription.optical_fiber, summary_fields)
 
     return user_input_dict | {"subscription": subscription}
 
@@ -80,7 +78,7 @@ additional_steps = begin
 
 
 @modify_workflow(
-    "Modify optical_fiber",
+    "modify optical fiber",
     initial_input_form=initial_input_form_generator,
     additional_steps=additional_steps,
 )

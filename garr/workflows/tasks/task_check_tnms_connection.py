@@ -11,15 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import structlog
 from orchestrator import workflow
 from orchestrator.targets import Target
 from orchestrator.workflow import StepList, done, init, step
 from pydantic_forms.types import State
+from structlog import get_logger
 
 from services.infinera import tnms_client
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 @step("Check connection to TNMS API by retrieving name and uuid of all devices")
@@ -28,6 +28,6 @@ def check_conn() -> State:
     return {"devices": devices}
 
 
-@workflow("Check connection to TNMS API", target=Target.SYSTEM)
+@workflow("Check TNMS API server connection", target=Target.SYSTEM)
 def task_check_tnms_connection() -> StepList:
     return init >> check_conn >> done

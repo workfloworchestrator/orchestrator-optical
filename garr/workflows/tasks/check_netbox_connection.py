@@ -12,23 +12,21 @@
 # limitations under the License.
 
 
-import structlog
 from orchestrator import workflow
 from orchestrator.targets import Target
 from orchestrator.workflow import StepList, done, init, step
 from pydantic_forms.types import State
+from structlog import get_logger
 
 from services import netbox
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 @step("Checking the connection to Netbox by login via API token and retrieving regions")
 def check_netbox_conn() -> State:
     regions = netbox.api.dcim.regions.all()
-    region_list = []
-    for region in regions:
-        region_list.append(region.name)
+    region_list = [region.name for region in regions]
     return {"netbox_api_version": netbox.api.version, "netbox_regions": region_list}
 
 

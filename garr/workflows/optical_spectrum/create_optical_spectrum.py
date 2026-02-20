@@ -11,51 +11,63 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TypeAlias, cast
+from typing import Annotated
 
-import structlog
+from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import Divider
-from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
-from orchestrator.workflow import StepList, begin, step
+from orchestrator.workflow import (
+    StepList,
+    begin,
+    step,
+)
 from orchestrator.workflows.steps import set_status, store_process_subscription
 from orchestrator.workflows.utils import create_workflow
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
+from structlog import get_logger
 
 from products.product_blocks.optical_device import DeviceType
 from products.product_blocks.optical_fiber import (
-    OpticalDevicePortBlock,
     OpticalDevicePortBlockInactive,
-)
-from products.product_blocks.optical_spectrum_section import (
-    OpticalSpectrumSectionBlockInactive,
 )
 from products.product_types.optical_device import OpticalDevice
 from products.product_types.optical_fiber import OpticalFiber
 from products.product_types.optical_spectrum import (
-    OpticalSpectrum,
     OpticalSpectrumInactive,
     OpticalSpectrumProvisioning,
 )
-from products.services.optical_device import retrieve_ports_spectral_occupations
 from products.services.optical_device_port import (
     set_port_description,
 )
-from products.services.optical_spectrum import deploy_optical_circuit
+from products.services.optical_spectrum import (
+    deploy_optical_circuit,
+)
 from utils.custom_types.frequencies import Frequency, Passband
 from workflows.optical_device.shared import (
     multiple_optical_device_selector,
-    optical_port_selector,
+    optical_client_port_selector,
+    optical_device_selector_of_types,
 )
-from workflows.optical_spectrum.shared import find_constrained_shortest_path
-from workflows.shared import active_subscription_selector, create_summary_form
+from workflows.optical_fiber.shared import multiple_optical_fiber_selector
+from workflows.optical_spectrum.shared import (
+    NoOpticalPathFoundError,
+    optical_spectrum_path_selector,
+    store_list_of_ports_into_spectrum_sections,
+    update_used_passbands,
+)
+from workflows.shared import (
+    active_subscription_selector,
+    create_summary_form,
+)
+
+logger = get_logger(__name__)
 
 
 def subscription_description(
-    subscription: OpticalSpectrumInactive | OpticalSpectrumProvisioning | OpticalSpectrum,
+    subscription: SubscriptionModel,
 ) -> str:
     """Generate subscription description.
 
@@ -66,44 +78,8 @@ def subscription_description(
     return f"{spectrum.spectrum_name}"
 
 
-logger = structlog.get_logger(__name__)
-
-
 def initial_input_form_generator(product_name: str) -> FormGenerator:
-    PartnerChoice: TypeAlias = cast(
-        type[Choice], active_subscription_selector("Partner")
-    )
-    SrcOpticalDeviceChoice: TypeAlias = cast(
-        type[Choice],
-        active_subscription_selector(
-            "OpticalDevice", prompt="Select source Optical Device"
-        ),
-    )
-    DstOpticalDeviceChoice: TypeAlias = cast(
-        type[Choice],
-        active_subscription_selector(
-            "OpticalDevice", prompt="Select destination Optical Device"
-        ),
-    )
-    OPTICAL_DEVICE_TYPES = [
-        DeviceType.ROADM,
-        DeviceType.TransponderAndOADM,
-        DeviceType.Amplifier,
-    ]
-    ExcludeOpticalDeviceChoiceList: TypeAlias = cast(
-        type[list[Choice]],
-        multiple_optical_device_selector(
-            device_types=OPTICAL_DEVICE_TYPES,
-            prompt="Exclude these Optical Devices from the Optical Spectrum",
-        ),
-    )
-    ExcludeSpanChoiceList: TypeAlias = cast(
-        type[list[Choice]],
-        multiple_optical_device_selector(
-            device_types=OPTICAL_DEVICE_TYPES,
-            prompt="Exclude these Optical Fibers (Spans) from the Optical Spectrum",
-        ),
-    )
+    PartnerChoice = active_subscription_selector("Partner", prompt="Who is the user of this service?")
 
     class OpticalSpectrumInputForm(FormPage):
         """Form for inputing service name and min and max frequencies."""
@@ -112,54 +88,63 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
         optical_spectrum_name: str
         partner_id: PartnerChoice
-        frequency_min: Frequency
-        frequency_max: Frequency
+        frequency_min: Annotated[Frequency, Field(Title="Start frequency (THz)", multiple_of=12500)]
+        frequency_max: Annotated[Frequency, Field(Title="End frequency (THz)", multiple_of=12500)]
 
         @model_validator(mode="after")
         def validate_frequencies(self) -> "OpticalSpectrumInputForm":
             if self.frequency_min > self.frequency_max:
                 msg = "Max frequency must be greater than min frequency. Did you make a typo?"
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
             return self
 
     user_input = yield OpticalSpectrumInputForm
     user_input_dict = user_input.dict()
+
+    transceivers_types = [
+        DeviceType.ROADM,
+        DeviceType.TransponderAndOADM,
+    ]
+    NodeAChoice = optical_device_selector_of_types(
+        device_types=transceivers_types,
+        prompt="This service connects this node: ",
+    )
+
+    NodeBChoice = optical_device_selector_of_types(
+        device_types=transceivers_types,
+        prompt="...to this other node: ",
+    )
 
     class OpticalSpectrumSrcDstForm(FormPage):
         """Form for selecting source and destination optical devices."""
 
         model_config = ConfigDict(title=product_name)
 
-        src_optical_device_id: SrcOpticalDeviceChoice
-        dst_optical_device_id: DstOpticalDeviceChoice
+        src_optical_device_id: NodeAChoice
+        dst_optical_device_id: NodeBChoice
 
         @model_validator(mode="after")
         def validate_separate_nodes(self) -> "OpticalSpectrumSrcDstForm":
             if self.dst_optical_device_id == self.src_optical_device_id:
                 msg = "Destination Optical Device cannot be the same as Source Optical Device"
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
             return self
 
     user_input = yield OpticalSpectrumSrcDstForm
     user_input_dict.update(user_input.dict())
 
-    SrcOpticalPortSelector: TypeAlias = cast(
-        type[Choice],
-        optical_port_selector(
-            user_input_dict["src_optical_device_id"],
-            prompt="Select source Add/Drop Port",
-        ),
+    sub_node_a = OpticalDevice.from_subscription(user_input_dict["src_optical_device_id"])
+    optical_device_a = sub_node_a.optical_device
+    sub_node_b = OpticalDevice.from_subscription(user_input_dict["dst_optical_device_id"])
+    optical_device_b = sub_node_b.optical_device
+
+    SrcOpticalPortSelector = optical_client_port_selector(
+        user_input_dict["src_optical_device_id"],
+        prompt=f"Select the Add/Drop Port on {optical_device_a.fqdn}. Please be careful to select the correct port.",
     )
-    DstOpticalPortSelector: TypeAlias = cast(
-        type[Choice],
-        optical_port_selector(
-            user_input_dict["dst_optical_device_id"],
-            prompt="Select destination Add/Drop Port",
-        ),
+    DstOpticalPortSelector = optical_client_port_selector(
+        user_input_dict["dst_optical_device_id"],
+        prompt=f"Select the Add/Drop Port on {optical_device_b.fqdn}. Please be careful to select the correct port.",
     )
 
     class OpticalSpectrumAddDropForm(FormPage):
@@ -173,6 +158,21 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     user_input = yield OpticalSpectrumAddDropForm
     user_input_dict.update(user_input.dict())
 
+    line_system_types = [
+        DeviceType.ROADM,
+        DeviceType.TransponderAndOADM,
+        DeviceType.Amplifier,
+    ]
+
+    ExcludeOpticalDeviceChoiceList = multiple_optical_device_selector(
+        device_types=line_system_types,
+        prompt="Do *not* pass through these Optical Devices",
+    )
+
+    ExcludeSpanChoiceList = multiple_optical_fiber_selector(
+        prompt="Do *not* pass through these Optical Fibers",
+    )
+
     class OpticalSpectrumConstraintsForm(FormPage):
         """Form for specifying which optical device MUST or MUST NOT be traversed by the optical spectrum."""
 
@@ -185,6 +185,62 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     user_input = yield OpticalSpectrumConstraintsForm
     user_input_dict.update(user_input.dict())
 
+    passband = (user_input_dict["frequency_min"], user_input_dict["frequency_max"])
+
+    no_path_found_msg = (
+        "No optical path found, please adjust the routing constraints"
+        " in the previous step or validate fibers in the path."
+    )
+    try:
+        PathChoice = optical_spectrum_path_selector(
+            optical_device_a.subscription_instance_id,
+            optical_device_b.subscription_instance_id,
+            passband,
+            user_input_dict["exclude_devices_list"],
+            user_input_dict["exclude_fibers_list"],
+            prompt=(
+                "Select the optical path, if you don't see the desired path,"
+                " adjust constraints in previous step or validate fibers along the path."
+            ),
+        )
+    except NoOpticalPathFoundError:
+        logger.exception(
+            "No optical path found",
+            line_ports_a=user_input_dict["line_ports_a"],
+            line_ports_b=user_input_dict["line_ports_b"],
+            passband=passband,
+            exclude_devices_list=user_input_dict["exclude_devices_list"],
+            exclude_fibers_list=user_input_dict["exclude_fibers_list"],
+        )
+
+        PathChoice = Choice(
+            no_path_found_msg,
+            [
+                (no_path_found_msg, no_path_found_msg),
+            ],
+        )
+
+    class OdsForm3(FormPage):
+        class Config:
+            title = "Optical Path"
+
+        optical_path: PathChoice
+
+        @model_validator(mode="after")
+        def validate_data(self) -> "OdsForm3":
+            if self.optical_path == no_path_found_msg:
+                msg = (
+                    "No optical path found, please adjust the routing constraints "
+                    "in the previous step or update fibers in the path."
+                )
+                raise ValueError(msg)
+            return self
+
+    user_input = yield OdsForm3
+    user_input_dict.update(user_input.dict())
+
+    user_input_dict["optical_path"] = user_input_dict["optical_path"].split(";")
+
     summary_fields = [
         "partner_id",
         "optical_spectrum_name",
@@ -194,8 +250,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         "dst_optical_device_id",
         "src_optical_port_name",
         "dst_optical_port_name",
-        "exclude_devices_list",
-        "exclude_fibers_list",
+        "optical_path",
     ]
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 
@@ -241,35 +296,14 @@ def create_optical_spectrum_model(
     }
 
 
-@step("Computing the constrained shortest fiber route (Breadth-First Search)")
-def compute_constrained_shortest_path(
-    subscription: OpticalSpectrumInactive,
-    src_optical_device_id: UUIDstr,
-    dst_optical_device_id: UUIDstr,
-) -> State:
-    src_device_subscription = OpticalDevice.from_subscription(src_optical_device_id)
-    dst_device_subscription = OpticalDevice.from_subscription(dst_optical_device_id)
-    src_device = src_device_subscription.optical_device
-    dst_device = dst_device_subscription.optical_device
-    constraints = subscription.optical_spectrum.optical_spectrum_path_constraints
-    passband = subscription.optical_spectrum.passband
-    ports_route = find_constrained_shortest_path(
-        src_device, dst_device, passband, constraints
-    )
-
-    return {
-        "ports_route": ports_route,
-    }
-
-
-@step("Dividing the fiber route into single-device-family sections")
+@step("Dividing the optical path into single-device-family sections")
 def divide_path_into_sections(
     subscription: OpticalSpectrumInactive,
-    ports_route: list[dict],
-    src_optical_device_id: UUIDstr,
-    dst_optical_device_id: UUIDstr,
+    optical_path: list[UUIDstr],
     src_optical_port_name: str,
     dst_optical_port_name: str,
+    src_optical_device_id: UUIDstr,
+    dst_optical_device_id: UUIDstr,
 ) -> State:
     src_device_subscription = OpticalDevice.from_subscription(src_optical_device_id)
     dst_device_subscription = OpticalDevice.from_subscription(dst_optical_device_id)
@@ -281,58 +315,41 @@ def divide_path_into_sections(
         subscription_id=subscription.subscription_id,
         port_name=src_optical_port_name,
         optical_device=src_device,
-        port_description=f"Remotely connected to {dst_device.fqdn} {dst_optical_port_name} via {subscription.optical_spectrum.spectrum_name}. ",
+        port_description=(
+            f"Remotely connected to {dst_device.fqdn} {dst_optical_port_name} "
+            f"via {subscription.optical_spectrum.spectrum_name}. "
+        ),
     )
+    src_port.save(subscription_id=subscription.subscription_id, status=SubscriptionLifecycle.INITIAL)
     # Destination Add/Drop Port
     dst_port = OpticalDevicePortBlockInactive.new(
         subscription_id=subscription.subscription_id,
         port_name=dst_optical_port_name,
         optical_device=dst_device,
-        port_description=f"Remotely connected to {src_device.fqdn} {src_optical_port_name} via {subscription.optical_spectrum.spectrum_name}. ",
+        port_description=(
+            f"Remotely connected to {src_device.fqdn} {src_optical_port_name} "
+            f"via {subscription.optical_spectrum.spectrum_name}. "
+        ),
     )
+    dst_port.save(subscription_id=subscription.subscription_id, status=SubscriptionLifecycle.INITIAL)
 
-    def split_into_platform_sections(
-        port_instance_ids: list[OpticalDevicePortBlock],
-        source_port: OpticalDevicePortBlockInactive,
-        destination_port: OpticalDevicePortBlockInactive,
-    ) -> list[list[OpticalDevicePortBlock]]:
-        """Split ports into sections based on device platform."""
-        ports.append(destination_port)
+    optical_path.insert(0, src_port.subscription_instance_id)
+    optical_path.append(dst_port.subscription_instance_id)
 
-        sections: list[list[OpticalDevicePortBlock]] = []
-        current_section = [source_port]
-        previous_port = source_port
-        for current_port in ports:
-            if (
-                current_port.optical_device.platform
-                != previous_port.optical_device.platform
-            ):
-                sections.append(current_section)
-                current_section = []
-            current_section.append(current_port)
-            previous_port = current_port
-
-        if current_section:
-            sections.append(current_section)
-
-        return sections
-
-    ports = []
-    for port in ports_route:
-        port = OpticalDevicePortBlock.from_db(port["subscription_instance_id"])
-        ports.append(port)
-    platform_sections = split_into_platform_sections(ports, src_port, dst_port)
-
-    optical_spectrum_sections = subscription.optical_spectrum.optical_spectrum_sections
-    for section in platform_sections:
-        s = OpticalSpectrumSectionBlockInactive.new(
-            subscription_id=subscription.subscription_id,
-            add_drop_ports=[section[0], section[-1]],
-            optical_path=section[1:-1],
-        )
-        optical_spectrum_sections.append(s)
+    store_list_of_ports_into_spectrum_sections(optical_path, subscription.optical_spectrum)
 
     return {
+        "subscription": subscription,
+    }
+
+
+@step("Updating the subscription description")
+def update_subscription_description(
+    subscription: OpticalSpectrumProvisioning,
+) -> State:
+    subscription.description = subscription_description(subscription)
+    return {
+        "subscription_description": subscription.description,
         "subscription": subscription,
     }
 
@@ -347,12 +364,10 @@ def configure_add_drop_ports_description(
 
     outputs = []
     for port in (src_port, dst_port):
-        command_output = set_port_description(
-            port.optical_device, port.port_name, port.port_description
-        )
+        command_output = set_port_description(port.optical_device, port.port_name, port.port_description)
         outputs.append(command_output)
 
-    return {"commands_outputs": outputs, "subscription": subscription}
+    return {"configuration_results": outputs, "subscription": subscription}
 
 
 @step("Provisioning optical spectrum sections")
@@ -364,32 +379,23 @@ def provision_optical_sections(subscription: OpticalSpectrumProvisioning) -> Sta
     for section in subscription.optical_spectrum.optical_spectrum_sections:
         src_device = section.add_drop_ports[0].optical_device
         results[src_device.platform] = deploy_optical_circuit(
-            src_device, section, spectrum_name, passband, carrier
+            src_device,
+            section,
+            spectrum_name,
+            passband,
+            carrier,
+            label="SpectrumService",
         )
 
     return {
-        "configured_optical_xcon": results,
-        "subscription": subscription,
+        "configuration_results": results,
     }
 
 
 @step("Updating the available passbands of any Open Line System port in the path")
-def update_used_passbands(subscription: OpticalSpectrumProvisioning) -> State:
-    passbands_by_device = {}
-    for section in subscription.optical_spectrum.optical_spectrum_sections:
-        for port in section.optical_path:
-            device = port.optical_device
-            if device.device_type in [
-                DeviceType.ROADM,
-                DeviceType.TransponderAndOADM,
-            ]:
-                if device.fqdn not in passbands_by_device:
-                    passbands_by_device[device.fqdn] = (
-                        retrieve_ports_spectral_occupations(device)
-                    )
-                port.used_passbands = passbands_by_device[device.fqdn].get(
-                    port.port_name, []
-                )
+def update_used_passbands_step(subscription: OpticalSpectrumProvisioning) -> State:
+    spectrum = subscription.optical_spectrum
+    update_used_passbands(spectrum)
 
     return {"subscription": subscription}
 
@@ -398,7 +404,7 @@ additional_steps = begin
 
 
 @create_workflow(
-    "Create Optical Spectrum",
+    "create optical spectrum service",
     initial_input_form=initial_input_form_generator,
     additional_steps=additional_steps,
 )
@@ -406,11 +412,11 @@ def create_optical_spectrum() -> StepList:
     return (
         begin
         >> create_optical_spectrum_model
-        >> store_process_subscription(Target.CREATE)
-        >> compute_constrained_shortest_path
+        >> store_process_subscription()
         >> divide_path_into_sections
         >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> update_subscription_description
         >> configure_add_drop_ports_description
         >> provision_optical_sections
-        >> update_used_passbands
+        >> update_used_passbands_step
     )

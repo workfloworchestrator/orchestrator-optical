@@ -13,7 +13,6 @@
 
 from uuid import uuid4
 
-import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.targets import Target
@@ -23,6 +22,7 @@ from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import create_workflow
 from pydantic import ConfigDict
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+from structlog import get_logger
 
 from products.product_blocks.partner import PartnerType
 from products.product_types.partner import PartnerInactive, PartnerProvisioning
@@ -37,7 +37,7 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     return f"{subscription.partner.partner_name} (Partner Institution)"
 
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
@@ -90,9 +90,9 @@ additional_steps = begin
 
 
 @create_workflow(
-    "Create a Partner",
+    "create Partner",
     initial_input_form=initial_input_form_generator,
     additional_steps=additional_steps,
 )
 def create_partner() -> StepList:
-    return begin >> construct_partner_model >> store_process_subscription(Target.CREATE)
+    return begin >> construct_partner_model >> store_process_subscription()

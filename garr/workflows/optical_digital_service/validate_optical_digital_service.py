@@ -228,10 +228,10 @@ Labels are sorted alphabetically and joined with `+`.
 </details>
 """
 
-import structlog
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.utils import validate_workflow
 from pydantic_forms.types import State
+from structlog import get_logger
 
 from products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
 from products.product_types.optical_digital_service import OpticalDigitalService
@@ -246,7 +246,7 @@ from workflows.optical_digital_service.create_optical_digital_service import (
     subscription_description,
 )
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 @step("Loading initial state")
@@ -358,7 +358,7 @@ def verify_optical_transport_channels(subscription: OpticalDigitalService) -> St
     return
 
 
-@validate_workflow("Validate optical_digital_service")
+@validate_workflow("validate optical digital service")
 def validate_optical_digital_service() -> StepList:
     return (
         begin

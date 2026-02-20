@@ -18,22 +18,21 @@ class FlexILSClientError(Exception):
     """Base exception for FlexILS client errors."""
 
 
-
 class TL1CommandDeniedError(FlexILSClientError):
     """Exception raised when a TL1 command is denied by the device."""
 
-    def __init__(self, device_uuid: str, command: str, response: str):
-        self.device_uuid = device_uuid
+    def __init__(self, tid: str, command: str, response: str):
+        self.tid = tid
         self.response = response
-        message = f"Command denied on {device_uuid}:\n{command}\n{response}"
+        message = f"Command denied on {tid}:\n{command}\n{response}"
         super().__init__(message)
 
 
 # class TL1CommandAlreadyError(FlexILSClientError):
 #     """Exception raised when a TL1 command is denied by the device because entity is already present."""
 
-#     def __init__(self, device_uuid: str, command: str, response: str):
-#         self.device_uuid = device_uuid
+#     def __init__(self, tid: str, command: str, response: str):
+#         self.tid = tid
 #         self.response = response
-#         message = f"Command denied on {device_uuid}:\n{command}\n{response}"
+#         message = f"Command denied on {tid}:\n{command}\n{response}"
 #         super().__init__(message)

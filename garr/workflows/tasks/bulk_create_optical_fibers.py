@@ -285,7 +285,7 @@ def start_sub_workflows(workflow_input_forms: list[State]) -> State:
 
 
 @workflow(
-    "bulk_create_optical_fibers",
+    "Create optical fibers in bulk from CSV data",
     target=Target.SYSTEM,
     initial_input_form=initial_input_form_generator,
 )

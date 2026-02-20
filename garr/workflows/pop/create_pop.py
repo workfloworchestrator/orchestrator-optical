@@ -13,7 +13,6 @@
 
 from re import match
 
-import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.targets import Target
@@ -23,6 +22,7 @@ from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import create_workflow
 from pydantic import ConfigDict, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+from structlog import get_logger
 
 from products.product_types.pop import PopInactive, PopProvisioning
 from utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
@@ -39,7 +39,7 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     return f"{subscription.pop.full_name} (Point of Presence)"
 
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
@@ -143,9 +143,9 @@ additional_steps = begin
 
 
 @create_workflow(
-    "Create a Point of Presence",
+    "create Point of Presence",
     initial_input_form=initial_input_form_generator,
     additional_steps=additional_steps,
 )
 def create_pop() -> StepList:
-    return begin >> construct_pop_model >> store_process_subscription(Target.CREATE)
+    return begin >> construct_pop_model >> store_process_subscription()

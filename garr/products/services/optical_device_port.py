@@ -17,14 +17,13 @@ from typing import Any, Literal
 
 from products.product_blocks.optical_device import OpticalDeviceBlock, Platform
 from products.product_blocks.optical_device_port import OpticalDevicePortBlock
-from services.infinera import TL1CommandDeniedError, g30_client, g42_client, tnms_client
+from products.services.optical_device import get_optical_device_client
+from services.infinera import TL1CommandDeniedError
 from utils.attributedispatch import attribute_dispatch_base, attributedispatch
 
 
 @attributedispatch("platform")
-def retrieve_transceiver_modes(
-    optical_device: OpticalDeviceBlock, port_name: str
-) -> list[str]:
+def retrieve_transceiver_modes(optical_device: OpticalDeviceBlock, port_name: str) -> list[str]:
     """
     Retrieve the list of supported modulations for a specific port on an optical device.
 
@@ -38,9 +37,7 @@ def retrieve_transceiver_modes(
     Returns:
         List[str]: A list of supported modes for the specified port.
     """
-    return attribute_dispatch_base(
-        retrieve_transceiver_modes, "platform", optical_device.platform
-    )
+    return attribute_dispatch_base(retrieve_transceiver_modes, "platform", optical_device.platform)
 
 
 @retrieve_transceiver_modes.register(Platform.Groove_G30)
@@ -67,7 +64,7 @@ def _(optical_device: OpticalDeviceBlock, port_name: str) -> list[str]:
     ids = port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
     shelf_id, slot_id, _ = ids.split("/")  # 1/2/3 -> 1, 2, 3
 
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     card = g30.data.ne.shelf(shelf_id).slot(slot_id).card.retrieve(depth=2)
     card_type = card["required-type"]
 
@@ -348,10 +345,8 @@ def _(optical_device: OpticalDeviceBlock, port_name: str) -> list[str]:
 
     shelf_id, slot_id, _ = port_name.split("-")  # 1-4-L1 --> 1, 4, L1
 
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
-    card = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").retrieve(
-        depth=2, content="config"
-    )
+    g42 = get_optical_device_client(optical_device)
+    card = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").retrieve(depth=2, content="config")
     card_type = card["required-subtype"]
 
     supported_modes = mapping.get(card_type)
@@ -378,34 +373,20 @@ def get_device_ports_names(optical_device: OpticalDeviceBlock) -> list[str]:
         TypeError: in case a specific implementation could not be found. The domain model it was called for will be
             part of the error message.
     """
-    return attribute_dispatch_base(
-        get_device_ports_names, "platform", optical_device.platform
-    )
+    return attribute_dispatch_base(get_device_ports_names, "platform", optical_device.platform)
 
 
 @get_device_ports_names.register(Platform.FlexILS)
 def _(optical_device: OpticalDeviceBlock) -> list[str]:
-    if optical_device.nms_uuid is None:
-        msg = "NMS UUID is required for FlexILS device but is None"
-        raise ValueError(msg)
-    device = tnms_client.data.equipment.device(optical_device.nms_uuid)
-    access_ports = device.access_ports.retrieve(fields=["name", "uuid"])
-    ports = []
-    for port in access_ports:
-        port_name = port["name"][0]["value"]
-        # port_uuid = port["uuid"]
-        if ( (("Line" in port_name) and ("-A-" in port_name)) or
-            "Tributary" in port_name or "System" in port_name
-        ):
-            port_name = port_name.split(" ")[-1]
-            port_name = port_name.replace(".", "-")
-            ports.append(port_name)
-    return ports
+    flex = get_optical_device_client(optical_device)
+    scg_aids = [x["AID"] for x in flex.rtrv_scg().parsed_data]
+    ots_aids = [x["AID"] for x in flex.rtrv_ots().parsed_data]
+    return scg_aids + ots_aids
 
 
 @get_device_ports_names.register(Platform.Groove_G30)
 def _(optical_device: OpticalDeviceBlock) -> list[str]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     shelves = g30.data.ne.shelf.retrieve(depth=8, content="config")
 
     ports = []
@@ -428,7 +409,7 @@ def _(optical_device: OpticalDeviceBlock) -> list[str]:
 
 @get_device_ports_names.register(Platform.GX_G42)
 def _(optical_device: OpticalDeviceBlock) -> list[str]:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
     cards = g42.data.ne.equipment.card.retrieve(depth=5)
     ports = []
     for card in cards:
@@ -456,52 +437,44 @@ def get_device_client_ports_names(optical_device: OpticalDeviceBlock) -> list[st
         TypeError: in case a specific implementation could not be found. The domain model it was called for will be
             part of the error message.
     """
-    return attribute_dispatch_base(
-        get_device_client_ports_names, "platform", optical_device.platform
-    )
+    return attribute_dispatch_base(get_device_client_ports_names, "platform", optical_device.platform)
 
 
 @get_device_client_ports_names.register(Platform.FlexILS)
 def _(optical_device: OpticalDeviceBlock) -> list[str]:
-    if optical_device.nms_uuid is None:
-        msg = "NMS UUID is required for FlexILS device but is None"
-        raise ValueError(msg)
-    device = tnms_client.data.equipment.device(optical_device.nms_uuid)
-    access_ports = device.access_ports.retrieve(fields=["name", "uuid"])
-    ports = []
-    for port in access_ports:
-        port_name = port["name"][0]["value"]
-        # port_uuid = port["uuid"]
-        if "Tributary" in port_name:
-            port_name = port_name.split(" ")[-1]
-            port_name = port_name.replace(".", "-")
-            ports.append(port_name)
-    return ports
+    flex = get_optical_device_client(optical_device)
+    return [x["AID"] for x in flex.rtrv_scg().parsed_data]
 
 
 @get_device_client_ports_names.register(Platform.Groove_G30)
 def _(optical_device: OpticalDeviceBlock) -> list[str]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
-    shelves = g30.data.ne.shelf.retrieve(depth=5, content="config")
+    g30 = get_optical_device_client(optical_device)
+    shelves = g30.data.ne.shelf.retrieve(depth=8, content="config")
+
     ports = []
     for shelf in shelves:
         for slot in shelf.get("slot", []):
             if int(slot.get("slot-id")) > 4:
                 continue
 
-            card = slot.get("card", {})
-            for port in card.get("port", []):
+            for port in slot.get("card", {}).get("port", []):
                 port_id = int(port["port-id"])
-                if port_id < 2 or port_id > 12:
+                if "." not in port.get("alias-name") and (port_id < 2 or port_id > 12):
                     continue
                 ports.append(port.get("alias-name"))
+
+            for subslot in slot.get("card", {}).get("subslot", []):
+                for port in subslot.get("subcard", {}).get("port", []):
+                    ports.append(port.get("alias-name"))
+                    for subport in port.get("subport", []):
+                        ports.append(subport.get("alias-name"))
 
     return ports
 
 
 @get_device_client_ports_names.register(Platform.GX_G42)
 def _(optical_device: OpticalDeviceBlock) -> list[str]:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
     cards = g42.data.ne.equipment.card.retrieve(depth=5)
     ports = []
     for card in cards:
@@ -529,32 +502,18 @@ def get_device_line_ports_names(optical_device: OpticalDeviceBlock) -> list[str]
         TypeError: in case a specific implementation could not be found. The domain model it was called for will be
             part of the error message.
     """
-    return attribute_dispatch_base(
-        get_device_line_ports_names, "platform", optical_device.platform
-    )
+    return attribute_dispatch_base(get_device_line_ports_names, "platform", optical_device.platform)
 
 
 @get_device_line_ports_names.register(Platform.FlexILS)
 def _(optical_device: OpticalDeviceBlock) -> list[str]:
-    if optical_device.nms_uuid is None:
-        msg = "NMS UUID is required for FlexILS device but is None"
-        raise ValueError(msg)
-    device = tnms_client.data.equipment.device(optical_device.nms_uuid)
-    access_ports = device.access_ports.retrieve(fields=["name", "uuid"])
-    ports = []
-    for port in access_ports:
-        port_name = port["name"][0]["value"]
-        # port_uuid = port["uuid"]
-        if ("Line" in port_name) and ("-A-" in port_name):
-            port_name = port_name.split(" ")[-1]
-            port_name = port_name.replace(".", "-")
-            ports.append(port_name)
-    return ports
+    flex = get_optical_device_client(optical_device)
+    return [x["AID"] for x in flex.rtrv_ots().parsed_data]
 
 
 @get_device_line_ports_names.register(Platform.Groove_G30)
 def _(optical_device: OpticalDeviceBlock) -> list[str]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     shelves = g30.data.ne.shelf.retrieve(depth=5, content="config")
     ports = []
     for shelf in shelves:
@@ -571,7 +530,7 @@ def _(optical_device: OpticalDeviceBlock) -> list[str]:
 
 @get_device_line_ports_names.register(Platform.GX_G42)
 def _(optical_device: OpticalDeviceBlock) -> list[str]:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
     cards = g42.data.ne.equipment.card.retrieve(depth=5)
     ports = []
     for card in cards:
@@ -584,9 +543,7 @@ def _(optical_device: OpticalDeviceBlock) -> list[str]:
 
 
 @attributedispatch("platform")
-def set_port_description(
-    optical_device: OpticalDeviceBlock, port_name: str, port_description: str
-) -> dict[str, Any]:
+def set_port_description(optical_device: OpticalDeviceBlock, port_name: str, port_description: str) -> dict[str, Any]:
     """
     Set the description of an optical port on an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
@@ -604,21 +561,12 @@ def set_port_description(
             part of the error message.
         ValueError: in case the configuration failed
     """
-    return attribute_dispatch_base(
-        set_port_description, "platform", optical_device.platform
-    )
+    return attribute_dispatch_base(set_port_description, "platform", optical_device.platform)
 
 
 @set_port_description.register(Platform.FlexILS)
-def _(
-    optical_device: OpticalDeviceBlock, port_name: str, port_description: str
-) -> dict[str, Any]:
-    if optical_device.nms_uuid is None:
-        msg = "NMS UUID is required for FlexILS device but is None"
-        raise ValueError(msg)
-    flex = tnms_client.flexils(
-        optical_device.nms_uuid, optical_device.fqdn.replace(".garr.net", "")
-    )
+def _(optical_device: OpticalDeviceBlock, port_name: str, port_description: str) -> dict[str, Any]:
+    flex = get_optical_device_client(optical_device)
     if "L" in port_name:
         flex.ed_ots(aid=port_name, label=rf'"{port_description}"')
         return flex.rtrv_ots(aid=port_name)
@@ -626,42 +574,74 @@ def _(
     return flex.rtrv_scg(aid=port_name)
 
 
+def g30_obtain_port_endpoint_from_port_name(
+    g30_device_block: OpticalDeviceBlock, port_name: str
+) -> tuple[Any, str, str, str | None, str, str | None]:
+    """
+    Returns the endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id.
+
+    Args:
+        g30_device_block: OpticalDeviceBlock of the Groove G30 device
+        port_name: The name of the port to obtain the endpoint from
+
+    Returns:
+        Tuple containing the endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id
+
+    Example:
+        >>> g30_obtain_port_endpoint_from_port_name(g30_device_block, "port-1/2/3")
+        (endpoint, "1", "2", None, "3", None)
+        >>> t = g30_obtain_port_endpoint_from_port_name(g30_device_block, "port-1/3.1/1.4")
+        >>> t
+        (endpoint, "1", "3", "1", "1", "4")
+        >>> t[0].retrieve(depth=2)
+    """
+    g30 = get_optical_device_client(g30_device_block)
+
+    ids = port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3 or port-1/3.1/1.4 -> 1/3.1/1.4
+    shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3 or 1/3.1/1.4 -> 1, 3.1, 1.4
+
+    subslot_id = None
+    if "." in slot_id:
+        slot_id, subslot_id = slot_id.split(".")
+
+    subport_id = None
+    if "." in port_id:
+        port_id, subport_id = port_id.split(".")
+
+    if subport_id and not subslot_id:
+        msg = "Subport ID is not supported without subslot ID in Groove G30 configuration."
+        raise ValueError(msg)
+
+    if subslot_id and subport_id:
+        endpoint = (
+            g30.data.ne.shelf(shelf_id).slot(slot_id).card.subslot(subslot_id).subcard.port(port_id).subport(subport_id)
+        )
+    elif subslot_id and not subport_id:
+        endpoint = g30.data.ne.shelf(shelf_id).slot(slot_id).card.subslot(subslot_id).subcard.port(port_id)
+    else:
+        endpoint = g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
+
+    return endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id
+
+
 @set_port_description.register(Platform.Groove_G30)
-def _(
-    optical_device: OpticalDeviceBlock, port_name: str, port_description: str
-) -> dict[str, Any]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
-    ids = port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
-    shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3
-    g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id).modify(
-        service_label=port_description
-    )
-    return (
-        g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id).retrieve(depth=2)
-    )
+def _(optical_device: OpticalDeviceBlock, port_name: str, port_description: str) -> dict[str, Any]:
+    endpoint, _, _, _, _, _ = g30_obtain_port_endpoint_from_port_name(optical_device, port_name)
+    endpoint.modify(service_label=port_description)
+    return endpoint.retrieve(depth=2)
 
 
 @set_port_description.register(Platform.GX_G42)
-def _(
-    optical_device: OpticalDeviceBlock, port_name: str, port_description: str
-) -> dict[str, Any]:
+def _(optical_device: OpticalDeviceBlock, port_name: str, port_description: str) -> dict[str, Any]:
     shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
-    g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).modify(
-        label=port_description
-    )
-    port = (
-        g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}")
-        .port(port_id)
-        .retrieve(depth=2, content="config")
-    )
+    g42 = get_optical_device_client(optical_device)
+    g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).modify(label=port_description)
+    port = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).retrieve(depth=2, content="config")
     return port
 
 
 @attributedispatch("platform")
-def set_channel_description(
-    optical_device: OpticalDeviceBlock, facility_id: str, description: str
-) -> dict[str, Any]:
+def set_channel_description(optical_device: OpticalDeviceBlock, facility_id: str, description: str) -> dict[str, Any]:
     """
     Set the description of an optical channel on an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
@@ -679,34 +659,21 @@ def set_channel_description(
             part of the error message.
         ValueError: in case the configuration failed
     """
-    return attribute_dispatch_base(
-        set_channel_description, "platform", optical_device.platform
-    )
+    return attribute_dispatch_base(set_channel_description, "platform", optical_device.platform)
 
 
 @set_channel_description.register(Platform.Groove_G30)
-def _(
-    optical_device: OpticalDeviceBlock, facility_id: str, description: str
-) -> dict[str, Any]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+def _(optical_device: OpticalDeviceBlock, facility_id: str, description: str) -> dict[str, Any]:
+    g30 = get_optical_device_client(optical_device)
     ids = facility_id.split("-")[-1]  # och-os-1/2/3 -> 1/2/3
     shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3
-    g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os.modify(
-        service_label=description
-    )
-    return (
-        g30.data.ne.shelf(shelf_id)
-        .slot(slot_id)
-        .card.port(port_id)
-        .och_os.retrieve(depth=2)
-    )
+    g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os.modify(service_label=description)
+    return g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os.retrieve(depth=2)
 
 
 @set_channel_description.register(Platform.GX_G42)
-def _(
-    optical_device: OpticalDeviceBlock, facility_id: str, description: str
-) -> dict[str, Any]:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+def _(optical_device: OpticalDeviceBlock, facility_id: str, description: str) -> dict[str, Any]:
+    g42 = get_optical_device_client(optical_device)
     port_name = facility_id  # e.g. "1-4-L2"
 
     channel_name = None
@@ -721,9 +688,7 @@ def _(
 
     g42.data.ne.facilities.super_channel(channel_name).modify(label=description)
 
-    return g42.data.ne.facilities.super_channel(channel_name).retrieve(
-        depth=2, content="config"
-    )
+    return g42.data.ne.facilities.super_channel(channel_name).retrieve(depth=2, content="config")
 
 
 @attributedispatch("platform")
@@ -749,9 +714,7 @@ def set_port_admin_state(
             part of the error message.
         ValueError: in case the configuration failed
     """
-    return attribute_dispatch_base(
-        set_port_admin_state, "platform", optical_device.platform
-    )
+    return attribute_dispatch_base(set_port_admin_state, "platform", optical_device.platform)
 
 
 @set_port_admin_state.register(Platform.FlexILS)
@@ -764,22 +727,15 @@ def _(
     FlexILS has 3 admin states for the tributary ports: IS (in service), OOS (out of service), and MT (maintenance).
     Line ports (OTS) can only be in IS or MT state.
     It works as a finite state machine with the following transitions:
-    OOS <-edit---edit-> IS <-rst---put-> MT
+    OOS <-edit---edit-> IS <-rst---put-> MT.
     """
-    if optical_device.nms_uuid is None:
-        msg = "NMS UUID is required for FlexILS device but is None"
-        raise ValueError(msg)
-    flex = tnms_client.flexils(
-        optical_device.nms_uuid, optical_device.fqdn.replace(".garr.net", "")
-    )
+    flex = get_optical_device_client(optical_device)
 
     # Line ports (OTS)
     if "L" in port_name:
         if admin_state == "down":
             msg = "Line ports (OTS) can only be in service (IS) or maintenance (MT) state"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         if admin_state == "maintenance":
             flex.put_maintenance(aidtype="OTS", aid=port_name)
         elif admin_state == "up":
@@ -792,7 +748,7 @@ def _(
         flex.ed_scg(aid=port_name, is_oos="IS")
     except TL1CommandDeniedError as e:
         if "use RST command" not in e.response:
-            raise e
+            raise
         flex.rst_maintenance(aidtype="SCG", aid=port_name)
     ## from in-service state to desired state
     if admin_state == "up":
@@ -801,6 +757,7 @@ def _(
         flex.ed_scg(aid=port_name, is_oos="OOS")
     elif admin_state == "maintenance":
         flex.put_maintenance(aidtype="SCG", aid=port_name)
+
     return flex.rtrv_scg(aid=port_name)
 
 
@@ -820,7 +777,7 @@ def _(
     ids = port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
     shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3
 
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     port = g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
 
     port.modify(
@@ -845,7 +802,7 @@ def _(
 
     shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
 
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
     port = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
 
     port.modify(admin_state=status)
@@ -881,18 +838,36 @@ def configure_termination_when_attaching_new_fiber(
     )
 
 
+def flexils_check_port_is_in_manualmode2_else_set_it(
+    optical_device: OpticalDeviceBlock,
+    port_name: str,
+):
+    flex = get_optical_device_client(optical_device)
+    scg = flex.rtrv_scg(aid=port_name).parsed_data[0]
+
+    if scg["INTFTYP"] != "MANUALMODE-2":
+        card_aid = port_name.split("-")[:-1]
+        card_aid = "-".join(card_aid)
+        card = flex.rtrv_eqpt(aid=card_aid).parsed_data[0]
+
+        if card["TYPE"] in ["FSM", "FRM"]:
+            # tributary ports of FSM and system ports of FRM cards can only be unlocked or locked
+            set_port_admin_state(optical_device, port_name, "down")
+        else:
+            set_port_admin_state(optical_device, port_name, "maintenance")
+
+        flex.ed_scg(aid=port_name, intftyp="MANUALMODE-2")
+
+    set_port_admin_state(optical_device, port_name, "up")
+
+
 @configure_termination_when_attaching_new_fiber.register(Platform.FlexILS)
 def _(
     optical_device: OpticalDeviceBlock,
     port: OpticalDevicePortBlock,
     remote_port: OpticalDevicePortBlock,
 ) -> dict[str, Any]:
-    if optical_device.nms_uuid is None:
-        msg = "NMS UUID is required for FlexILS device but is None"
-        raise ValueError(msg)
-    flex = tnms_client.flexils(
-        optical_device.nms_uuid, optical_device.fqdn.replace(".garr.net", "")
-    )
+    flex = get_optical_device_client(optical_device)
     port_name = port.port_name
     description = port.port_description
 
@@ -903,30 +878,16 @@ def _(
         return flex.rtrv_ots(aid=port_name)
 
     # Handle FlexILS connections to other platform types
+    flexils_check_port_is_in_manualmode2_else_set_it(optical_device, port_name)
+
     remote_node_id = _get_remote_node_id(remote_port)
     remote_port_id = _extract_remote_port_id(remote_port)
     provowremptp = f"{remote_node_id}/{remote_port_id}"
-
-    card_aid = port_name.split("-")[:-1]
-    card_aid = "-".join(card_aid)
-    card = flex.rtrv_eqpt(aid=card_aid).parsed_data[0]
-
-    if card["TYPE"] == "FSM":
-        # tributary ports of FSM cards can only be unlocked or locked
-        set_port_admin_state(optical_device, port_name, "down")
-    else:
-        set_port_admin_state(optical_device, port_name, "maintenance")
-
-    # Configure with remote endpoint info
     flex.ed_scg(
         aid=port_name,
-        intftyp="MANUALMODE-2",
         provowremptp=provowremptp,
         label=rf'"{description}"',
     )
-
-    # Restore service
-    set_port_admin_state(optical_device, port_name, "up")
 
     return flex.rtrv_scg(aid=port_name)
 
@@ -936,32 +897,24 @@ def _get_remote_node_id(remote_port: OpticalDevicePortBlock) -> str:
     platform = remote_port.optical_device.platform
 
     if platform == Platform.Groove_G30:
-        g30 = g30_client(
-            remote_port.optical_device.lo_ip, remote_port.optical_device.mngmt_ip
-        )
+        g30 = get_optical_device_client(remote_port.optical_device)
         inventory = g30.data.ne.inventory_data.inventory.retrieve(depth=2)
         for item in inventory:
             if item.get("equipment-type") == "shelf" and item.get("shelf-id") == 1:
                 return item["serial-number"]
-        raise ValueError(
-            f"Could not find shelf serial number for G30 device {remote_port.optical_device.fqdn}"
-        )
+        raise ValueError(f"Could not find shelf serial number for G30 device {remote_port.optical_device.fqdn}")
 
     if platform == Platform.GX_G42:
         return remote_port.optical_device.fqdn.replace(".garr.net", "")
 
-    raise ValueError(
-        f"Unsupported remote platform for FlexILS connection: {platform}"
-    )
+    raise ValueError(f"Unsupported remote platform for FlexILS connection: {platform}")
 
 
 def _extract_remote_port_id(remote_port: OpticalDevicePortBlock) -> str:
     """Extract and format the port ID from the remote port name."""
     match = re.search(r"\d", remote_port.port_name)
     if not match:
-        raise ValueError(
-            f"Could not extract port identifier from remote port name: {remote_port.port_name}"
-        )
+        raise ValueError(f"Could not extract port identifier from remote port name: {remote_port.port_name}")
     port_id = remote_port.port_name[match.start() :]
     return re.sub(r"[^a-zA-Z0-9]", "-", port_id)
 
@@ -973,41 +926,7 @@ def _(
     remote_port: OpticalDevicePortBlock,
 ) -> dict[str, Any]:
     port_name = port.port_name
-    # port-1/2/3 -> 1/2/3 or port-1/3.1/1.4 -> 1/3.1/1.4
-    ids = port_name.split("-")[-1]
-    # 1/2/3 -> 1, 2, 3 or 1/3.1/1.4 -> 1, 3.1, 1.4
-    shelf_id, slot_id, port_id = ids.split("/")
-    subslot_id = None
-    if "." in slot_id:
-        slot_id, subslot_id = slot_id.split(".")
-    subport_id = None
-    if "." in port_id:
-        port_id, subport_id = port_id.split(".")
-
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
-
-    if subport_id and not subslot_id:
-        msg = "Subport ID is not supported without subslot ID in Groove G30 configuration."
-        raise ValueError(
-            msg
-        )
-    if subslot_id and subport_id:
-        endpoint = (
-            g30.data.ne.shelf(shelf_id)
-            .slot(slot_id)
-            .card.subslot(subslot_id)
-            .subcard.port(port_id)
-            .subport(subport_id)
-        )
-    elif subslot_id and not subport_id:
-        endpoint = (
-            g30.data.ne.shelf(shelf_id)
-            .slot(slot_id)
-            .card.subslot(subslot_id)
-            .subcard.port(port_id)
-        )
-    else:
-        endpoint = g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
+    endpoint, shelf_id, slot_id, subslot_id, _, _ = g30_obtain_port_endpoint_from_port_name(optical_device, port_name)
 
     if remote_port.optical_device.platform == Platform.FlexILS:
         endpoint.modify(
@@ -1018,10 +937,7 @@ def _(
         return endpoint.retrieve(depth=2)
 
     if remote_port.optical_device.platform == Platform.Groove_G30:
-        if (
-            remote_port.optical_device.subscription_instance_id
-            == optical_device.subscription_instance_id
-        ):
+        if remote_port.optical_device.subscription_instance_id == optical_device.subscription_instance_id:
             endpoint.modify(
                 external_connectivity="no",
                 connected_to=f"patched to {remote_port.port_name}",
@@ -1029,18 +945,9 @@ def _(
             )
             return endpoint.retrieve(depth=2)
         if slot_id == "3" and subslot_id == "3":  # link H4
-            booster = (
-                g30.data.ne.shelf(shelf_id)
-                .slot(slot_id)
-                .card.subslot("2")
-                .subcard.amplifier("ba")
-            )
-            preamp = (
-                g30.data.ne.shelf(shelf_id)
-                .slot(slot_id)
-                .card.subslot(subslot_id)
-                .subcard.amplifier("pa")
-            )
+            g30 = get_optical_device_client(optical_device)
+            booster = g30.data.ne.shelf(shelf_id).slot(slot_id).card.subslot("2").subcard.amplifier("ba")
+            preamp = g30.data.ne.shelf(shelf_id).slot(slot_id).card.subslot(subslot_id).subcard.amplifier("pa")
             booster.modify(
                 amplifier_name="ba",
                 admin_status="up",
@@ -1075,9 +982,7 @@ def _(
                 "preamp": preamp.retrieve(depth=2),
             }
         msg = "Unsupported fiber connection between provided ports of different Groove G30 devices."
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     raise ValueError(
         "Unsupported remote optical device platform when configuring Groove G30 remote port: "
@@ -1093,7 +998,7 @@ def _(
 ) -> dict[str, Any]:
     shelf_id, slot_id, port_id = port.port_name.split("-")
 
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
     endpoint = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
     endpoint.modify(
         external_connectivity="yes",
@@ -1112,9 +1017,7 @@ def factory_reset_port_configuration(
     """
     Prune the configuration of an optical port on an OpticalDevice.
     """
-    return attribute_dispatch_base(
-        factory_reset_port_configuration, "platform", optical_device.platform
-    )
+    return attribute_dispatch_base(factory_reset_port_configuration, "platform", optical_device.platform)
 
 
 @factory_reset_port_configuration.register(Platform.FlexILS)
@@ -1123,12 +1026,7 @@ def _(
     port: OpticalDevicePortBlock,
     remote_port: OpticalDevicePortBlock,
 ) -> dict[str, Any]:
-    if optical_device.nms_uuid is None:
-        msg = "NMS UUID is required for FlexILS device but is None"
-        raise ValueError(msg)
-    flex = tnms_client.flexils(
-        optical_device.nms_uuid, optical_device.fqdn.replace(".garr.net", "")
-    )
+    flex = get_optical_device_client(optical_device)
     port_name = port.port_name
 
     if remote_port.optical_device.platform == Platform.FlexILS:
@@ -1152,27 +1050,14 @@ def _(
     port: OpticalDevicePortBlock,
     remote_port: OpticalDevicePortBlock,
 ) -> dict[str, Any]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
-
     port_name = port.port_name
-    # port-1/2/3 -> 1/2/3 or port-1/3.1/1 -> 1/3.1/1
-    ids = port_name.split("-")[-1]
-    # 1/2/3 -> 1, 2, 3 or 1/3.1/1 -> 1, 3.1, 1
-    shelf_id, slot_id, port_id = ids.split("/")
+    endpoint, _, _, _, _, _ = g30_obtain_port_endpoint_from_port_name(optical_device, port_name)
 
-    if "." in slot_id:
-        slot_id, subslot_id = slot_id.split(".")
-        endpoint = (
-            g30.data.ne.shelf(shelf_id)
-            .slot(slot_id)
-            .card.subslot(subslot_id)
-            .subcard.port(port_id)
-        )
+    if "." in port_name:  # inside OCC2 card
         endpoint.modify(
             connected_to="",
         )
     else:
-        endpoint = g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
         endpoint.modify(
             external_connectivity="no",
             connected_to="",
@@ -1189,12 +1074,10 @@ def _(
     port: OpticalDevicePortBlock,
     remote_port: OpticalDevicePortBlock,
 ) -> dict[str, Any]:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
     shelf_id, slot_id, port_id = port.port_name.split("-")
     endpoint = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    endpoint.modify(
-        external_connectivity="no", connected_to="", admin_state="down", label=""
-    )
+    endpoint.modify(external_connectivity="no", connected_to="", admin_state="down", label="")
     return endpoint.retrieve(depth=2)
 
 
@@ -1220,9 +1103,7 @@ def check_fiber_terminating_port(
         TypeError: in case a specific implementation could not be found. The domain model it was called for will be
             part of the error message.
     """
-    return attribute_dispatch_base(
-        check_fiber_terminating_port, "platform", optical_device.platform
-    )
+    return attribute_dispatch_base(check_fiber_terminating_port, "platform", optical_device.platform)
 
 
 @check_fiber_terminating_port.register(Platform.FlexILS)
@@ -1231,9 +1112,7 @@ def _(
     port: OpticalDevicePortBlock,
     remote_port: OpticalDevicePortBlock,
 ) -> None:
-    flex = tnms_client.flexils(
-        optical_device.nms_uuid, optical_device.fqdn.replace(".garr.net", "")
-    )
+    flex = get_optical_device_client(optical_device)
     port_name = port.port_name
     description = port.port_description
 
@@ -1314,47 +1193,14 @@ def _(
             )
 
 
-
 @check_fiber_terminating_port.register(Platform.Groove_G30)
 def _(
     optical_device: OpticalDeviceBlock,
     port: OpticalDevicePortBlock,
     remote_port: OpticalDevicePortBlock,
 ) -> None:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
     port_name = port.port_name
-    ids = port_name.split("-")[-1]
-    shelf_id, slot_id, port_id = ids.split("/")
-    subslot_id = None
-    if "." in slot_id:
-        slot_id, subslot_id = slot_id.split(".")
-    subport_id = None
-    if "." in port_id:
-        port_id, subport_id = port_id.split(".")
-
-    if subport_id and not subslot_id:
-        msg = "Subport ID is not supported without subslot ID in Groove G30 configuration."
-        raise ValueError(
-            msg
-        )
-    if subslot_id and subport_id:
-        endpoint = (
-            g30.data.ne.shelf(shelf_id)
-            .slot(slot_id)
-            .card.subslot(subslot_id)
-            .subcard.port(port_id)
-            .subport(subport_id)
-        )
-    elif subslot_id and not subport_id:
-        endpoint = (
-            g30.data.ne.shelf(shelf_id)
-            .slot(slot_id)
-            .card.subslot(subslot_id)
-            .subcard.port(port_id)
-        )
-    else:
-        endpoint = g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
-
+    endpoint, _, _, _, _, _ = g30_obtain_port_endpoint_from_port_name(optical_device, port_name)
     port_data = endpoint.retrieve(depth=2)
     port_data = port_data[0]
     """ e.g. port_data looks like this:
@@ -1417,8 +1263,7 @@ def _(
 
     if (
         remote_port.optical_device.platform == Platform.Groove_G30
-        and remote_port.optical_device.subscription_instance_id
-        == optical_device.subscription_instance_id
+        and remote_port.optical_device.subscription_instance_id == optical_device.subscription_instance_id
     ):
         con_to_string = f"patched to {remote_port.port_name}"
         ext_connectivity = "no"
@@ -1454,14 +1299,13 @@ def _(
         )
 
 
-
 @check_fiber_terminating_port.register(Platform.GX_G42)
 def _(
     optical_device: OpticalDeviceBlock,
     port: OpticalDevicePortBlock,
     remote_port: OpticalDevicePortBlock,
 ) -> None:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
     shelf_id, slot_id, port_id = port.port_name.split("-")
     endpoint = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
     port_data = endpoint.retrieve(depth=2, content="config")
@@ -1485,8 +1329,7 @@ def _(
     checks = (
         port_data.get("admin-status") == "unlock"
         and port_data.get("external-connectivity") == "yes"
-        and port_data.get("connected-to")
-        == f"{remote_port.optical_device.fqdn} {remote_port.port_name}"
+        and port_data.get("connected-to") == f"{remote_port.optical_device.fqdn} {remote_port.port_name}"
     )
     if not checks:
         raise ValueError(
@@ -1508,4 +1351,3 @@ def _(
                 indent=4,
             )
         )
-

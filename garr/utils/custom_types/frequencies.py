@@ -19,7 +19,7 @@ from typing_extensions import Doc
 
 Frequency = Annotated[
     int,
-    Field(ge=191_312_500, le=196_137_500),
+    Field(ge=191_312_500, le=196_137_500, multiple_of=6_250),
     Doc("A frequency value in MHz."),
 ]
 
@@ -75,15 +75,10 @@ def disjoint_intervals_overlap_search(
         current_interval = intervals[mid]
 
         # Check for overlap:
-        if (
-            current_interval[0] < target_interval[1]
-            and target_interval[0] < current_interval[1]
-        ):
+        if current_interval[0] < target_interval[1] and target_interval[0] < current_interval[1]:
             return current_interval
 
-        if (
-            current_interval[0] > target_interval[1]
-        ):  # Current interval starts after the target ends
+        if current_interval[0] > target_interval[1]:  # Current interval starts after the target ends
             high = mid - 1
         else:  # current_interval[1] < target_interval[0] Current interval ends before the target starts
             low = mid + 1

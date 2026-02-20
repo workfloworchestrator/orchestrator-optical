@@ -23,7 +23,8 @@ from products.product_blocks.optical_device import (
 from products.product_blocks.optical_digital_service import (
     ClientSpeednType,
 )
-from services.infinera import g30_client, g42_client
+from products.services.optical_device import get_optical_device_client
+from services.infinera import G42Client
 from utils.attributedispatch import (
     attribute_dispatch_base,
     attributedispatch,
@@ -41,7 +42,7 @@ def get_signal_bandwidth(optical_device: OpticalDeviceBlock, port_name: str) -> 
 def _(optical_device: OpticalDeviceBlock, port_name: str) -> int:
     ids = port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
     shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     och_os = g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os.retrieve(depth=2, content="config")
     if och_os["fec-type"] == "SDFEC27ND":
         bw = 75_000
@@ -55,7 +56,7 @@ def _(optical_device: OpticalDeviceBlock, port_name: str) -> int:
 
 @get_signal_bandwidth.register(Platform.GX_G42)
 def _(optical_device: OpticalDeviceBlock, port_name: str) -> int:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
 
     channel = None
     channels = g42.data.ne.facilities.super_channel.retrieve(depth=2)
@@ -95,7 +96,7 @@ def _(
     modes: tuple[str],
     descriptions: tuple[str],
 ) -> dict[str, Any]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     configurations = {}
     for port_name, central_frequency, mode, description in zip(
         port_names,
@@ -139,7 +140,7 @@ def _(
         msg = f"All modes must be the same for GX_G42 transponder line configuration but got {modes}."
         raise ValueError(msg)
 
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
     configurations = {}
 
     # port
@@ -205,7 +206,7 @@ def _(
     description: str,
     service_type_n_speed: ClientSpeednType,
 ) -> dict[str, Any]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     ids = port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
     shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3
 
@@ -214,9 +215,11 @@ def _(
     if service_type_n_speed == ClientSpeednType.Ethernet100Gbps:
         port_mode = "100GBE"
         eth = port.eth100g
+        fec_type = "auto"
     elif service_type_n_speed == ClientSpeednType.Ethernet400Gbps:
         port_mode = "400GBE"
         eth = port.eth400g
+        fec_type = "enabled"
     else:
         msg = f"Unsupported service type and speed: {service_type_n_speed} for {optical_device.fqdn} {port_name}"
         raise ValueError(msg)
@@ -233,7 +236,7 @@ def _(
         loopback_enable="disabled",
         test_signal_enable="NONE",
         client_shutdown="no",
-        eth_fec_type="auto",
+        eth_fec_type=fec_type,
     )
 
     return g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id).retrieve(depth=3, content="config")
@@ -246,7 +249,7 @@ def _(
     description: str,
     service_type_n_speed: ClientSpeednType,
 ) -> dict[str, Any]:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
     shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
 
     if service_type_n_speed == ClientSpeednType.Ethernet100Gbps:
@@ -342,7 +345,7 @@ def _(
     line_port_names: list[str],
     xconn_description: str = "",
 ) -> dict[str, Any]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
 
     client_ids = client_port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
     shelf_id, slot_id, c_port_id = client_ids.split("/")  # 1/2/3 -> 1, 2, 3
@@ -352,7 +355,9 @@ def _(
         line_ids = lpn.split("-")[-1]
         l_shelf_id, l_slot_id, line_port_id = line_ids.split("/")
         if shelf_id != l_shelf_id or slot_id != l_slot_id:
-            msg = "Client and line ports should be on the same shelf and slot"
+            msg = (
+                f"Client and line ports should be on the same shelf and slot. Client: {client_port_name}, Line: {lpn}."
+            )
             raise ValueError(msg)
         line_port_ids.append(line_port_id)
 
@@ -408,17 +413,23 @@ def _(
             )
             otu_key = next((key for key in och_os if key.startswith("otu")), None)
             for odu in och_os[otu_key]["odu"]:
-                if not (
-                    odu.get("odutype-L1")
-                    and odu.get("oduid-L1")
-                    and odu.get("odutype-L2")
-                    and odu.get("oduid-L2")
-                    and odu.get("odutype-L3")
-                    and odu.get("oduid-L3")
-                    and odu.get("odutype-L4")
-                    and odu.get("oduid-L4")
-                ):
+                key_list = [
+                    "odutype-L1",
+                    "oduid-L1",
+                    "odutype-L2",
+                    "oduid-L2",
+                    "odutype-L3",
+                    "oduid-L3",
+                    "odutype-L4",
+                    "oduid-L4",
+                ]
+
+                if any(odu.get(key) is None for key in key_list):
                     continue
+
+                if all(odu.get(key) != "odu4" for key in key_list):
+                    continue
+
                 odu_string = (
                     f"/ne:ne/shelf[shelf-id='{shelf_id}']/slot[slot-id='{slot_id}']/card/port"
                     f"[port-id='{line_port_id}']/och-os/{otu_key}/odu[odutype-L1='{odu['odutype-L1']}']"
@@ -472,7 +483,7 @@ def _(
     line_port_names: list[str],
     xconn_description: str = "",
 ) -> dict[str, Any]:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
 
     client = f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
     och_key = _derive_optical_channel_key(line_port_names)
@@ -506,7 +517,7 @@ def _(
 
 
 def _find_xcon_g42(
-    g42: g42_client,
+    g42: G42Client,
     client: str,
     line: str,
     direction: str,
@@ -557,7 +568,7 @@ def _find_xcon_g42(
 
 
 def _create_xcon_g42(
-    g42: g42_client,
+    g42: G42Client,
     client: str,
     dst_parent_odu: str,
     direction: str,
@@ -615,7 +626,7 @@ def _derive_optical_channel_key(line_port_names: list[str]) -> str:
     raise ValueError(msg)
 
 
-def _retrieve_payload_type(g42: g42_client, client_port_name: str) -> Literal["100GBE", "400GBE"]:
+def _retrieve_payload_type(g42: G42Client, client_port_name: str) -> Literal["100GBE", "400GBE"]:
     trib_ptp = g42.data.ne.facilities.trib_ptp(client_port_name).retrieve(depth=2, content="config")
     payload_type = trib_ptp.get("service-type")
 
@@ -629,7 +640,7 @@ def _retrieve_payload_type(g42: g42_client, client_port_name: str) -> Literal["1
     return payload_type
 
 
-def _retrieve_time_slots(g42: g42_client, odu_name: str, speed: Literal["100GBE", "400GBE"]) -> str:
+def _retrieve_time_slots(g42: G42Client, odu_name: str, speed: Literal["100GBE", "400GBE"]) -> str:
     minimum_slots_required = 80 if speed == "100GBE" else 320
 
     odu = g42.data.ne.facilities.odu(odu_name).retrieve(depth=2)
@@ -677,7 +688,7 @@ def _(
     optical_device: OpticalDeviceBlock,
     client_port_name: str,
 ) -> dict[str, Any]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
 
     client_ids = client_port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
     shelf_id, slot_id, c_port_id = client_ids.split("/")  # 1/2/3 -> 1, 2, 3
@@ -731,7 +742,7 @@ def _(
     optical_device: OpticalDeviceBlock,
     client_port_name: str,
 ) -> dict[str, Any]:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
 
     client = f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
 
@@ -770,7 +781,7 @@ def _(
     optical_device: OpticalDeviceBlock,
     port_name: str,
 ) -> dict[str, Any]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     ids = port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
     shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3
 
@@ -790,7 +801,7 @@ def _(
     optical_device: OpticalDeviceBlock,
     port_name: str,
 ) -> dict[str, Any]:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
 
     # Reset Ethernet configuration
     endpoint = g42.data.ne.facilities.ethernet(port_name)
@@ -856,7 +867,7 @@ def _(
     optical_device: OpticalDeviceBlock,
     port_name: str,
 ) -> dict[str, Any]:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     ids = port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
     shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3
 
@@ -919,7 +930,7 @@ def _(
         msg = f"All modes must be the same but got {modes}."
         raise ValueError(msg)
 
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
 
     for port_name, central_frequency, mode, description in zip(
         port_names,
@@ -990,8 +1001,8 @@ def _(
         if diff["mismatched_value"] != {} or diff["missing_key"] != {}:
             msg = (
                 f"Configuration mismatch for {optical_device.fqdn} {port_name}:\n"
-                f"{diff['mismatched_value']}\n"
-                f"{diff['missing_key']}"
+                f"mismatch: {diff['mismatched_value']}\n"
+                f"missing: {diff['mismatched_value']}\n"
             )
             raise ValueError(msg)
 
@@ -1012,7 +1023,7 @@ def _(
         msg = f"All modes must be the same for GX_G42 validation but got {modes}."
         raise ValueError(msg)
 
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
 
     actual_config: dict[str, Any] = {
         "ports": {},
@@ -1142,8 +1153,8 @@ def _(
     if diff["mismatched_value"] != {} or diff["missing_key"] != {}:
         msg = (
             f"Configuration mismatch for {optical_device.fqdn} {port_names}:\n"
-            f"{diff['mismatched_value']}\n"
-            f"{diff['missing_key']}"
+            f"mismatch: {diff['mismatched_value']}\n"
+            f"missing: {diff['mismatched_value']}\n"
         )
         raise ValueError(msg)
 
@@ -1177,7 +1188,7 @@ def _(
     description: str,
     service_type_n_speed: ClientSpeednType,
 ) -> None:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     ids = port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
     shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3
 
@@ -1185,8 +1196,12 @@ def _(
 
     if service_type_n_speed == ClientSpeednType.Ethernet100Gbps:
         port_mode = "100GBE"
+        eth_name = "eth100g"
+        fec_type = "auto"
     elif service_type_n_speed == ClientSpeednType.Ethernet400Gbps:
         port_mode = "400GBE"
+        eth_name = "eth400g"
+        fec_type = "enabled"
     else:
         msg = f"Unsupported service type and speed: {service_type_n_speed} for {optical_device.fqdn} {port_name}"
         raise ValueError(msg)
@@ -1236,13 +1251,13 @@ def _(
     actual_config = actual_config[0]
 
     desired_config = {
-        "eth100g": {
+        eth_name: {
             "admin-status": "up",
             "service-label": description,
             "loopback-enable": "disabled",
             "test-signal-enable": "NONE",
             "client-shutdown": "no",
-            "eth-fec-type": "auto",
+            "eth-fec-type": fec_type,
             "mapping-mode": "GMP",
         },
         "pluggable": {
@@ -1257,8 +1272,8 @@ def _(
     if diff["mismatched_value"] != {} or diff["missing_key"] != {}:
         msg = (
             f"Configuration mismatch for {optical_device.fqdn} {port_name}:\n"
-            f"{diff['mismatched_value']}\n"
-            f"{diff['missing_key']}"
+            f"mismatch: {diff['mismatched_value']}\n"
+            f"missing: {diff['mismatched_value']}\n"
         )
         raise ValueError(msg)
 
@@ -1270,7 +1285,7 @@ def _(
     description: str,
     service_type_n_speed: ClientSpeednType,
 ) -> None:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
     shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
 
     if service_type_n_speed == ClientSpeednType.Ethernet100Gbps:
@@ -1391,8 +1406,8 @@ def _(
     if diff["mismatched_value"] != {} or diff["missing_key"] != {}:
         msg = (
             f"Configuration mismatch for {optical_device.fqdn} {port_name}:\n"
-            f"{diff['mismatched_value']}\n"
-            f"{diff['missing_key']}"
+            f"mismatch: {diff['mismatched_value']}\n"
+            f"missing: {diff['mismatched_value']}\n"
         )
         raise ValueError(msg)
 
@@ -1426,7 +1441,7 @@ def _(
     line_port_names: list[str],
     xconn_description: str = "",
 ) -> None:
-    g30 = g30_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g30 = get_optical_device_client(optical_device)
     crs_list = g30.data.ne.services.CRS.retrieve(depth=2, content="config")
     for c in crs_list:
         src_shelf_id, src_slot_id, src_port_id = _extract_shelf_slot_port_ids_from_odu_string(c["src-tp"])
@@ -1459,7 +1474,7 @@ def _(
     line_port_names: list[str],
     xconn_description: str = "",
 ) -> None:
-    g42 = g42_client(optical_device.lo_ip, optical_device.mngmt_ip)
+    g42 = get_optical_device_client(optical_device)
 
     client = f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
     och_key = _derive_optical_channel_key(line_port_names)
@@ -1506,7 +1521,157 @@ def _(
     if diff["mismatched_value"] != {} or diff["missing_key"] != {}:
         msg = (
             f"Configuration mismatch for {optical_device.fqdn} {client_port_name} to {line_port_names}:\n"
-            f"{diff['mismatched_value']}\n"
-            f"{diff['missing_key']}"
+            f"mismatch: {diff['mismatched_value']}\n"
+            f"missing: {diff['mismatched_value']}\n"
         )
         raise ValueError(msg)
+
+
+@attributedispatch("platform")
+def diff_btw_current_rx_power_and_target(
+    optical_device: OpticalDeviceBlock,
+    optical_spectrum_name: str,  # noqa: ARG001
+) -> float:
+    r"""
+    Return the difference $P_{current_rx} - P_{target_rx}$ in dB for the specified optical channel.
+
+    Args:
+        optical_device: The optical device to compute for.
+        optical_spectrum_name: The optical spectrum name.
+
+    Returns:
+        The delta target received power in dB.
+    """
+    return attribute_dispatch_base(diff_btw_current_rx_power_and_target, "platform", optical_device.platform)
+
+
+@diff_btw_current_rx_power_and_target.register(Platform.FlexILS)
+def _(
+    optical_device: OpticalDeviceBlock,
+    optical_spectrum_name: str,
+) -> float:
+    flex = get_optical_device_client(optical_device)
+    """
+    procedure:
+    >> RTRV-OCRS SIGTYPE=SIGNALED
+    >> find by CKTIDSUFFIX
+    >> save INTERMEDIATESCHCTP if card is not FSM else source AID
+    >> RTRV-SCH  AID=INTERMEDIATESCHCTP
+    >> save TARGETOPR
+    >> RTRV-OPM-SCH AID=INTERMEDIATESCHCTP RTRV-PM-SCH::1-E1-1-T2A-1:c:::;
+
+    RTRV-OCRS:::c:::;
+    flex.bo01 25-10-27 16:45:12
+    M  c COMPLD
+    "1-E1-1-T2A-1,1-A-1-L1-1:2WAY:LABEL=f099c99,SIGTYPE=SIGNALED,XCT=AddDrop,CKTIDSUFFIX=OCh099_bo01-ba01,CKTID=\"1752248030.MA4621080160.0.1.28.1.3.1:OCh099_bo01-ba01\",SUPCHNUM=SCH-NONE,CHANPLANTYPE=CHPLAN-NONE,FREQSLOTPLANTYPE=FREQ-SLOT-PLAN-NONE,OELAID=bo01-ba01,SCHOFFSET=0,LMSCH=,BAUDRATE=NA,RXSCHOFFSET=0,SERVICESTATEFWD=ENABLED,SERVICESTATEBWD=ENABLED,AUTORETUNELMSCH=DISABLED,MODULATIONCAT=NA,FWDACTSTATUS=ACTIVATED,BWDACTSTATUS=ACTIVATED,LASTDEACTREASONFWD=NOTAPPLICABLE,LASTDEACTREASONBWD=NOTAPPLICABLE,DLTINPRGRESS=FALSE,FWDASEIDLERSTATUS=NOTAPPLICABLE,BWDASEIDLERSTATUS=NOTAPPLICABLE,PATHSTATE=ACTIVEPATH,PROFSCHNUM=,SCHPROFID=,PGAID=,ROLE=NA,PASSBANDLIST=193450000&193550000,ACTIVEPASSBANDLIST=NULL,CARRIERLIST=193500000&37500,INTERMEDIATESCHCTP=1-A-1-S3-1,INTRACARRSPECSHAPING=ENABLED,FSGALIGNMENT=12.5GHZ:IS-NR"
+    ;
+
+    RTRV-SCH::1-A-1-S3-1:c:;
+    flex.bo01 25-10-27 16:45:20
+    M  c COMPLD
+    "1-A-1-S3-1:SCH:LABEL=,SUPCHNUM=SCH-NONE,CHANPLANTYPE=CHPLAN-NONE,FREQSLOTPLANTYPE=FREQ-SLOT-PLAN-NONE,SCHOFFSETOVERPROVISIONED=FALSE,CLIENTSCHCTP=,FWDACTSTATUS=UNKNOWN,BWDACTSTATUS=UNKNOWN,LASTDEACTREASONFWD=NOTAPPLICABLE,LASTDEACTREASONBWD=NOTAPPLICABLE,FWDASEIDLERSTATUS=UNKNOWN,BWDASEIDLERSTATUS=UNKNOWN,TPTYPE=INTERMEDIATE,ROLE=NA,TARGETOPR=-9.1721,MODULATIONCAT=NA,RXSCHPWROFFSET=0,MUXPWRCONTROLLOOP=MANUAL,DEMUXPWRCONTROLLOOP=ENABLED,DEMUXSHUTTERSTATE=CLOSED,OSNRADD=0,OSNRDROP=0,ALIENSCHTHPROFID=DFLT-SCH,PROVPBLIST=193450000&193550000:IS-NR"
+    ;
+
+    RTRV-PM-SCH::1-A-1-S3-1:c::OPR,,,,,,::;
+    flex.bo01 25-10-27 17:17:37
+    M  c COMPLD
+    "1-A-1-S3-1,SCH:OPR,-8.81938,,NEND,RCV,,"
+    ;
+    """
+    cktidsuffix = optical_spectrum_name.replace(" ", "_")
+
+    ocrs = flex.rtrv_ocrs(sigtype="SIGNALED")
+    ocrs = ocrs.parsed_data
+    ocr = next(
+        (o for o in ocrs if cktidsuffix in o["CKTIDSUFFIX"]),
+        None,
+    )
+
+    if ocr is None:
+        msg = (
+            f"Optical channel with CKTIDSUFFIX={cktidsuffix} not found on {optical_device.fqdn}. "
+            "Please ensure the optical channel exists and is correctly configured then retry."
+        )
+        raise ValueError(msg)
+
+    tributary_port = ocr.get("FROMAID") if "-T" in ocr.get("FROMAID") else ocr.get("TOAID")
+    card_aid = tributary_port.split("-")[:-2]
+    card_aid = "-".join(card_aid)
+    card = flex.rtrv_eqpt(aid=card_aid).parsed_data[0]
+    sch_aid = tributary_port if card["TYPE"] == "FSM" else ocr.get("INTERMEDIATESCHCTP")
+
+    sch = flex.rtrv_sch(aid=sch_aid)
+    sch = sch.parsed_data[0]
+    target_opr = float(sch["TARGETOPR"])
+
+    pm_sch = flex.rtrv_pm_sch(aid=sch_aid, montype="OPR")
+    pm_sch = pm_sch.parsed_data[0]
+    current_rx_power = float(pm_sch["positional_param_1_1"])
+
+    return round(current_rx_power - target_opr, 1)
+
+
+@attributedispatch("platform")
+def allign_tx_power_to_target(
+    optical_device: OpticalDeviceBlock,
+    line_port_name: str,  # noqa: ARG001
+    db_from_target: float,  # noqa: ARG001
+) -> str:
+    r"""
+    Subtract db_from_target decibels (dB) to the transmitted optical power, i.e. $P^{new}_{tx} = P^{old}_{tx} - \Delta P}$.
+
+    Args:
+        optical_device: The optical device to configure.
+        line_port_name: The line port name.
+        db_from_target: The difference between current and target transmit power in dB.
+
+    Returns:
+        Message indicating the old and new required transmit power.
+    """
+    return attribute_dispatch_base(allign_tx_power_to_target, "platform", optical_device.platform)
+
+
+@allign_tx_power_to_target.register(Platform.Groove_G30)
+def _(
+    optical_device: OpticalDeviceBlock,
+    line_port_name: str,
+    db_from_target: float,
+) -> str:
+    g30 = get_optical_device_client(optical_device)
+    ids = line_port_name.split("-")[-1]  # port-1/2/3 -> 1/2/3
+    shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3
+
+    port = g30.data.ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
+    och_os = port.och_os.retrieve(depth=2)
+    current_tx_power = float(och_os["actual-tx-optical-power"])
+    new_required_tx_power = round(current_tx_power - db_from_target, 1)
+
+    port.och_os.modify(
+        required_tx_optical_power=str(new_required_tx_power),
+    )
+
+    return (
+        f"Updated required TX power from {current_tx_power} dBm to "
+        f"{new_required_tx_power} dBm on {optical_device.fqdn} {line_port_name}."
+    )
+
+
+@allign_tx_power_to_target.register(Platform.GX_G42)
+def _(
+    optical_device: OpticalDeviceBlock,
+    line_port_name: str,
+    db_from_target: float,
+) -> str:
+    g42 = get_optical_device_client(optical_device)
+    optical_carrier = g42.data.ne.facilities.optical_carrier(f"{line_port_name}-1")
+    actual_config = optical_carrier.retrieve(depth=2, content="config")
+    current_tx_power = float(actual_config["tx-power"])
+    new_required_tx_power = round(current_tx_power - db_from_target, 1)
+    optical_carrier.modify(
+        tx_power=new_required_tx_power,
+    )
+
+    return (
+        f"Updated required TX power from {current_tx_power} dBm to "
+        f"{new_required_tx_power} dBm on {optical_device.fqdn} {line_port_name}."
+    )

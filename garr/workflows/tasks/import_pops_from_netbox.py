@@ -156,7 +156,7 @@ def start_sub_workflows(workflow_input_forms: list[State]) -> State:
 
 
 @workflow(
-    "import_pops_from_netbox",
+    "Import PoPs from Netbox",
     target=Target.SYSTEM,
     initial_input_form=initial_input_form_generator,
 )

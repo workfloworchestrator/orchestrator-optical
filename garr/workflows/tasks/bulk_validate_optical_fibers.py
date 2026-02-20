@@ -12,7 +12,6 @@
 # limitations under the License.
 
 
-import structlog
 from orchestrator.db import db
 from orchestrator.forms import FormPage
 from orchestrator.services.processes import start_process
@@ -21,6 +20,7 @@ from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, done, step, workflow
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+from structlog import get_logger
 
 from products.product_blocks.optical_device import DeviceType
 from products.product_types.optical_device import OpticalDevice
@@ -29,7 +29,7 @@ from workflows.optical_device.shared import (
     multiple_optical_device_selector,
 )
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def initial_input_form_generator() -> FormGenerator:
@@ -87,7 +87,7 @@ def start_sub_workflows(optical_fiber_subscriptions: set[UUIDstr]) -> State:
 
 
 @workflow(
-    "bulk_validate_optical_fibers",
+    "Update passbands (validate) of Optical Fibers attached to a list of ROADMs",
     target=Target.SYSTEM,
     initial_input_form=initial_input_form_generator,
 )

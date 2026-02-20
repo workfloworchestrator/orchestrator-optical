@@ -67,33 +67,35 @@ def fecth_fibers_from_tnms(
     for device in devices:
         device_name = device["name"][0]["value"]
         device_by_uuid[device["uuid"]] = device_name
+
         for port in device["access-port"]:
             port_name = port["name"][0]["value"]
-            port_name = port_name.split(" ")[
-                -1
-            ]  # Line PTP 1-A-1.L1 -> 1-A-1.L1 or Optical-TTP 1-1.1 -> 1-1.1
-            port_name = port_name.replace(".", "-")  # 1-1.1 -> 1-1-1
+            # e.g. Line PTP 1-A-1.L1 or Optical-TTP 1-1.1
+            port_name = port_name.split(" ")[-1]
+            # e.g. 1-A-1.L1 or 1-1.1
+            port_name = port_name.replace(".", "-")
+            # e.g. 1-A-1-L1 or 1-1-1
+
             if "flex" not in device_name:
                 port_name = port_name.replace("-", "/")
                 port_name = "port-" + port_name
+
             port_by_uuid[port["uuid"]] = port_name
 
     fetched_fibers = []
     for f in fibers:
         access_ports = f.get("access-port", [])
+
         if len(access_ports) != 2 or not isinstance(access_ports, list):
             continue
+
         src_device_nms_uuid = access_ports[0].get("device-uuid", None)
         dst_device_nms_uuid = access_ports[1].get("device-uuid", None)
         src_port_uuid = access_ports[0].get("access-port-uuid", None)
         dst_port_uuid = access_ports[1].get("access-port-uuid", None)
-        if (
-            not src_device_nms_uuid
-            or not dst_device_nms_uuid
-            or not src_port_uuid
-            or not dst_port_uuid
-        ):
+        if not src_device_nms_uuid or not dst_device_nms_uuid or not src_port_uuid or not dst_port_uuid:
             continue
+
         src_device_name = device_by_uuid[src_device_nms_uuid]
         src_port_name = port_by_uuid[src_port_uuid]
         dst_device_name = device_by_uuid[dst_device_nms_uuid]
@@ -106,6 +108,18 @@ def fecth_fibers_from_tnms(
             or not re.match(dst_port_re, dst_port_name)
         ):
             continue
+
+        reversed_fiber = {
+            "src_device_name": dst_device_name,
+            "src_port_name": dst_port_name,
+            "dst_device_name": src_device_name,
+            "dst_port_name": src_port_name,
+            "src_device_nms_uuid": dst_device_nms_uuid,
+            "dst_device_nms_uuid": src_device_nms_uuid,
+        }
+        if reversed_fiber in fetched_fibers:
+            continue
+
         fetched_fibers.append(
             {
                 "src_device_name": src_device_name,
@@ -132,9 +146,7 @@ def initial_input_form_generator() -> FormGenerator:
         def validate_csv(self) -> "WarningForm":
             if self.achtung != "IMPORT":
                 msg = "Read the ⚠️⚠️⚠️ ACHTUNG ⚠️⚠️⚠️ message!"
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
             return self
 
     user_input = yield WarningForm
@@ -173,14 +185,9 @@ def find_devices_subscriptions(fetched_fibers: list[dict[str, str]]) -> State:
                     nms_uuid,
                     status=[SubscriptionLifecycle.ACTIVE],
                 )
-                print(device_subscriptions)
                 if len(device_subscriptions) != 1:
-                    raise ValueError(
-                        f"Device with NMS UUID {nms_uuid} not found or not unique"
-                    )
-                device_sub_id_by_nms_uuid[nms_uuid] = device_subscriptions[
-                    0
-                ].subscription_id
+                    raise ValueError(f"Device with NMS UUID {nms_uuid} not found or not unique")
+                device_sub_id_by_nms_uuid[nms_uuid] = device_subscriptions[0].subscription_id
 
     return {"device_sub_id_by_nms_uuid": device_sub_id_by_nms_uuid}
 
@@ -213,9 +220,7 @@ def discard_already_created_fibers(fetched_fibers: list[dict[str, str]]) -> Stat
 
 
 @step("Create workflow input forms")
-def create_workflow_inputs(
-    sifted_fibers: list[dict[str, str]], device_sub_id_by_nms_uuid: dict[str, UUIDstr]
-) -> State:
+def create_workflow_inputs(sifted_fibers: list[dict[str, str]], device_sub_id_by_nms_uuid: dict[str, UUIDstr]) -> State:
     """
     Create the list of input forms for the sub-workflows as if they were filled
     by the user.
@@ -232,12 +237,8 @@ def create_workflow_inputs(
                 "total_loss": None,
                 "fiber_types": None,
                 "lengths": None,
-                "sub_id_device_a": device_sub_id_by_nms_uuid[
-                    fiber["src_device_nms_uuid"]
-                ],
-                "sub_id_device_b": device_sub_id_by_nms_uuid[
-                    fiber["dst_device_nms_uuid"]
-                ],
+                "sub_id_device_a": device_sub_id_by_nms_uuid[fiber["src_device_nms_uuid"]],
+                "sub_id_device_b": device_sub_id_by_nms_uuid[fiber["dst_device_nms_uuid"]],
             }
         )
         user_inputs.append(
@@ -247,7 +248,7 @@ def create_workflow_inputs(
             }
         )
         input_forms.append(user_inputs)
-        user_inputs.append({}) # empty dict for the summary/confirmation form step
+        user_inputs.append({})  # empty dict for the summary/confirmation form step
 
     return {"workflow_input_forms": input_forms}
 
@@ -258,9 +259,7 @@ def start_sub_workflows(workflow_input_forms: list[State]) -> State:
     while workflow_input_forms:
         user_inputs = workflow_input_forms[-1]
         with db.database_scope():
-            process_id = start_process(
-                "create_optical_fiber", user_inputs=user_inputs, user="SYSTEM"
-            )
+            process_id = start_process("create_optical_fiber", user_inputs=user_inputs, user="SYSTEM")
             process_ids.append(process_id)
         workflow_input_forms.pop()
         sleep(1)
@@ -269,7 +268,7 @@ def start_sub_workflows(workflow_input_forms: list[State]) -> State:
 
 
 @workflow(
-    "import_fibers_from_tnms",
+    "Import fibers from TNMS",
     target=Target.SYSTEM,
     initial_input_form=initial_input_form_generator,
 )

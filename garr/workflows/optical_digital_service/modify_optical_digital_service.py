@@ -214,9 +214,9 @@ Final step updates subscription lifecycle to ACTIVE.
 
 """
 
+from time import sleep
 from typing import Annotated
 
-import structlog
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import choice_list, unique_conlist
 from orchestrator.types import SubscriptionLifecycle
@@ -225,6 +225,7 @@ from orchestrator.workflows.steps import set_status
 from orchestrator.workflows.utils import modify_workflow
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+from structlog import get_logger
 
 from products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
 from products.product_types.optical_digital_service import (
@@ -245,12 +246,13 @@ from workflows.optical_digital_service.create_optical_digital_service import (
     configure_trx_client_side,
     configure_trx_crossconnects,
     configure_trx_line_side,
+    set_trx_transmitted_power,
 )
 from workflows.shared import (
     summary_form,
 )
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
@@ -392,7 +394,7 @@ additional_steps = begin
 
 
 @modify_workflow(
-    "Modify optical_digital_service",
+    "modify optical digital service",
     initial_input_form=initial_input_form_generator,
     additional_steps=additional_steps,
 )
@@ -405,5 +407,7 @@ def modify_optical_digital_service() -> StepList:
         >> configure_trx_client_side
         >> configure_trx_crossconnects
         >> modify_optical_sections
+        >> step("Sleeping for 10 seconds")(lambda: sleep(10))
+        >> set_trx_transmitted_power
         >> set_status(SubscriptionLifecycle.ACTIVE)
     )

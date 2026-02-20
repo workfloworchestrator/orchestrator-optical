@@ -222,7 +222,7 @@ class OpticalCarrierItem(BaseModel):
     )
     frequency: int | None = None
     frequency_offset: int | None = Field(None, alias="frequency-offset")
-    tx_power: int | None = Field(None, alias="tx-power")
+    tx_power: float | None = Field(None, alias="tx-power")
     pre_fec_q_sig_deg_threshold: str | None = Field(None, alias="pre-fec-q-sig-deg-threshold")
     pre_fec_q_sig_deg_hysteresis: str | None = Field(None, alias="pre-fec-q-sig-deg-hysteresis")
     tx_cd: str | None = Field(None, alias="tx-cd")

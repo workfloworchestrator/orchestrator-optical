@@ -1,4 +1,4 @@
-# Copyright 2025 GARR.  # noqa: D100
+# Copyright 2025 GARR.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,9 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from time import sleep
 from typing import Any
-
-from pydantic_forms.types import UUIDstr
 
 from products.product_blocks.optical_device import (
     DeviceType,
@@ -26,9 +25,9 @@ from products.product_blocks.optical_fiber import (
 from products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlock,
 )
-from products.services.optical_device_port import set_port_admin_state
-from services.infinera import TL1CommandDeniedError, tnms_client
-from services.infinera.flexils.client import FlexILSClient
+from products.services.optical_device import get_optical_device_client
+from products.services.optical_device_port import flexils_check_port_is_in_manualmode2_else_set_it
+from services.infinera import FlexilsClient, TL1CommandDeniedError
 from utils.attributedispatch import (
     attribute_dispatch_base,
     attributedispatch,
@@ -115,7 +114,7 @@ def _find_or_create_oel(
 
         explicit_route.append((src_node_name, src_port_name, dst_node_name, dst_port_name))
 
-    flex = tnms_client.flexils(source_device.nms_uuid, src_name)
+    flex = get_optical_device_client(source_device)
     flex.ent_oel(
         aid=oel_name,
         label=oel_label,
@@ -133,7 +132,7 @@ def _find_or_create_oel(
 def _oteintf_from_port_name(device: OpticalDeviceBlock, port_name: str) -> str:
     """Find the Optical Traffic Engineering Interface (OTEINTF) corresponding to the given physical port name."""
     device_name = device.fqdn.replace(".garr.net", "")
-    flex = tnms_client.flexils(device.nms_uuid, device_name)
+    flex = get_optical_device_client(device)
     ote_intfs = flex.rtrv_oteintf().parsed_data
     osc_port = port_name.replace("L", "O")
 
@@ -147,7 +146,7 @@ def _oteintf_from_port_name(device: OpticalDeviceBlock, port_name: str) -> str:
     raise ValueError(msg)
 
 
-def _find_fbm_port_if_fmm_port(flex: FlexILSClient, port_name: str) -> str:
+def _find_fbm_port_if_fmm_port(flex: FlexilsClient, port_name: str) -> str:
     card_aid = port_name.split("-")[:-1]
     card_aid = "-".join(card_aid)
     card = flex.rtrv_eqpt(aid=card_aid).parsed_data[0]
@@ -168,23 +167,23 @@ def _find_fbm_port_if_fmm_port(flex: FlexILSClient, port_name: str) -> str:
 
 
 def _find_or_create_osnc(
-    src_device_uuid: UUIDstr,
-    dst_device_uuid: UUIDstr,
+    src_device: OpticalDeviceBlock,
+    dst_device: OpticalDeviceBlock,
     osnc_name: str,
     osnc_label: str,
     oel_name: str,
-    src_node_name: str,
-    dst_node_name: str,
     src_port_name: str,
     dst_port_name: str,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth],
 ) -> dict[str, Any]:
-    src_flex = tnms_client.flexils(src_device_uuid, src_node_name)
-    dst_flex = tnms_client.flexils(dst_device_uuid, dst_node_name)
+    src_flex = get_optical_device_client(src_device)
+    dst_flex = get_optical_device_client(dst_device)
 
     src_port_name = _find_fbm_port_if_fmm_port(src_flex, src_port_name)
     dst_port_name = _find_fbm_port_if_fmm_port(dst_flex, dst_port_name)
+
+    dst_node_name = dst_device.fqdn.replace(".garr.net", "")
 
     existing_osncs = []
     try:
@@ -200,8 +199,8 @@ def _find_or_create_osnc(
             continue
 
         matches_config = (
-            osnc["LABEL"] == osnc_label
-            and osnc["OELAID"] == oel_name
+            osnc_label in osnc["LABEL"]
+            and osnc["OELAID"] == oel_name[:64]
             and osnc["CKTIDSUFFIX"] == osnc_name
             and osnc["REMNODETID"] == dst_node_name
         )
@@ -256,40 +255,18 @@ def _find_first_free_sch_id(flex, port_name: str) -> int:
     raise ValueError(msg)
 
 
-def _open_shutter(device_uuid: str, device_name: str, sch_aid: str):
-    flex = tnms_client.flexils(device_uuid, device_name)
+def _open_shutter(device: OpticalDeviceBlock, sch_aid: str):
+    flex = get_optical_device_client(device)
     flex.put_maintenance(aidtype="SCH", aid=sch_aid)
     flex.ed_sch(aid=sch_aid, shutterstate="OPEN")
     flex.rst_maintenance(aidtype="SCH", aid=sch_aid)
-
-
-def _config_add_drop_ports(
-    optical_device: OpticalDeviceBlock,
-    port_name: str,
-):
-    flex = tnms_client.flexils(optical_device.nms_uuid, optical_device.fqdn.replace(".garr.net", ""))
-    card_aid = port_name.split("-")[:-1]
-    card_aid = "-".join(card_aid)
-    card = flex.rtrv_eqpt(aid=card_aid).parsed_data[0]
-
-    if card["TYPE"] == "FSM":
-        # tributary ports of FSM cards can only be unlocked or locked
-        set_port_admin_state(optical_device, port_name, "down")
-    else:
-        set_port_admin_state(optical_device, port_name, "maintenance")
-
-    # Configure manual mode
-    flex.ed_scg(aid=port_name, intftyp="MANUALMODE-2")
-
-    # Restore service
-    set_port_admin_state(optical_device, port_name, "up")
 
 
 def _find_flexils_osnc(
     optical_spectrum_name: str,
     optical_spectrum_section: OpticalSpectrumSectionBlock,
     passband: Passband | None = None,
-) -> tuple[FlexILSClient, dict[str, Any]]:
+) -> tuple[FlexilsClient, dict[str, Any]]:
     """
     Helper function to find an existing OSNC between two FlexILS devices.
 
@@ -299,7 +276,7 @@ def _find_flexils_osnc(
         passband: passband of the optical spectrum
 
     Returns:
-        FlexILSClient: The FlexILS client for the device controlling the OSNC
+        FlexilsClient: The FlexILS client for the device controlling the OSNC
         dict[str, Any]: The OSNC configuration data if found
 
     Raises:
@@ -347,8 +324,8 @@ def _find_flexils_osnc(
     src_device_name = src_device.fqdn.replace(".garr.net", "")
     dst_device_name = dst_device.fqdn.replace(".garr.net", "")
 
-    flex_a = tnms_client.flexils(src_device.nms_uuid, src_device_name)
-    flex_z = tnms_client.flexils(dst_device.nms_uuid, dst_device_name)
+    flex_a = get_optical_device_client(src_device)
+    flex_z = get_optical_device_client(dst_device)
 
     src_port_name = optical_spectrum_section.add_drop_ports[0].port_name
     dst_port_name = optical_spectrum_section.add_drop_ports[1].port_name
@@ -487,7 +464,7 @@ def _(
     oel_name = "-".join(pops)
 
     osnc_name = optical_spectrum_name.replace(" ", "_")
-    osnc_label = f"{src_flexils_name}_{dst_flexils_name}" if label == "" else label
+    osnc_label = f"{src_flexils_name}_{dst_flexils_name}" if label == "" else label.strip()
 
     omses = _divide_path_into_omses(path)
     oel = _find_or_create_oel(
@@ -498,26 +475,26 @@ def _(
     )
 
     for port in optical_spectrum_section.add_drop_ports:
-        _config_add_drop_ports(port.optical_device, port.port_name)
+        flexils_check_port_is_in_manualmode2_else_set_it(port.optical_device, port.port_name)
 
     osnc = _find_or_create_osnc(
-        src_device_uuid=src_device.nms_uuid,
-        dst_device_uuid=dst_device.nms_uuid,
+        src_device=src_device,
+        dst_device=dst_device,
         osnc_name=osnc_name,
         osnc_label=osnc_label,
         oel_name=oel_name,
-        src_node_name=src_flexils_name,
-        dst_node_name=dst_flexils_name,
         src_port_name=optical_spectrum_section.add_drop_ports[0].port_name,
         dst_port_name=optical_spectrum_section.add_drop_ports[1].port_name,
         passband=passband,
         carrier=carrier,
     )
 
-    _open_shutter(src_device.nms_uuid, src_flexils_name, osnc["LOCENDPOINT"])
-    _open_shutter(dst_device.nms_uuid, dst_flexils_name, osnc["REMENDPOINT"])
+    sleep(5)
 
-    flex = tnms_client.flexils(src_device.nms_uuid, src_flexils_name)
+    _open_shutter(src_device, osnc["LOCENDPOINT"])
+    _open_shutter(dst_device, osnc["REMENDPOINT"])
+
+    flex = get_optical_device_client(src_device)
     osnc = flex.rtrv_osnc(aid=osnc["LOCENDPOINT"]).parsed_data[0]
 
     return {
@@ -547,6 +524,8 @@ def modify_optical_circuit(
     passband: Passband,  # noqa: ARG001
     carrier: tuple[Frequency, Bandwidth],  # noqa: ARG001
     label: str | None = None,  # noqa: ARG001
+    old_passband: Passband | None = None,  # noqa: ARG001
+    old_spectrum_name: str | None = None,  # noqa: ARG001
 ) -> dict[str, Any]:
     """
     Modify an optical circuit based on the platform type.
@@ -558,6 +537,8 @@ def modify_optical_circuit(
         passband: Frequency range allowed for transmission
         carrier: Tuple of (center frequency, bandwidth) for the carrier signal
         label: Optional label for the circuit
+        old_passband: The old passband of the optical circuit
+        old_spectrum_name: The old name of the optical circuit
 
     Returns:
         dict[str, Any]: Platform-specific deployment configuration
@@ -573,27 +554,30 @@ def _(
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth],
     label: str | None = None,
+    old_passband: Passband | None = None,
+    old_spectrum_name: str | None = None,
 ) -> dict[str, Any]:
+    osnc_name = optical_spectrum_name.replace(" ", "_")
+    old_osnc_name = old_spectrum_name.replace(" ", "_") if old_spectrum_name else None
+
     flex, osnc = _find_flexils_osnc(
-        optical_spectrum_name,
+        old_osnc_name if old_osnc_name else osnc_name,
         optical_spectrum_section,
+        old_passband,
     )
 
     for port in optical_spectrum_section.add_drop_ports:
         od = port.optical_device
-        if od.nms_uuid == flex.device_uuid:
+        if od.fqdn.startswith(flex.tid):
             continue
-        remote_flex = tnms_client.flexils(
-            od.nms_uuid,
-            od.fqdn.replace(".garr.net", ""),
-        )
+        remote_flex = get_optical_device_client(od)
 
     path = optical_spectrum_section.optical_path
     pops = [port.optical_device.pop.code.lower() for port in path[::2]]
     pops.append(path[-1].optical_device.pop.code.lower())
     oel_name = "-".join(pops)
 
-    matches_oel = osnc["OELAID"].strip(r"\" ") == oel_name
+    matches_oel = osnc["OELAID"].strip(r"\" ") == oel_name[:64]
     if not matches_oel:
         add_drop_ports = optical_spectrum_section.add_drop_ports
         dst_optical_device = add_drop_ports[1].optical_device
@@ -620,6 +604,7 @@ def _(
 
     flex.ed_osnc(
         aid=osnc["LOCENDPOINT"],
+        cktidsuffix=osnc_name,
         is_oos="IS",
         label=rf"{label}" if label else osnc["LABEL"],
     )
@@ -643,12 +628,14 @@ def _(
 
 @modify_optical_circuit.register(Platform.Groove_G30)
 def _(
-    source_optical_device: OpticalDeviceBlock, # noqa: ARG001
+    source_optical_device: OpticalDeviceBlock,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
     carrier: tuple[Frequency, Bandwidth],  # noqa: ARG001
     label: str | None = None,  # noqa: ARG001
+    old_passband: Passband | None = None,  # noqa: ARG001
+    old_spectrum_name: str | None = None,  # noqa: ARG001
 ) -> dict[str, Any]:
     """Modify an optical circuit specifically for Groove G30 platform devices."""
     return {"not-applicable": "Groove G30s (H4 links) do not have any internal optical crossconnections to modify"}
@@ -684,8 +671,10 @@ def _(
     passband: Passband,
 ) -> dict[str, Any]:
     """Delete an optical circuit specifically for FlexILS platform devices."""
+    osnc_name = optical_spectrum_name.replace(" ", "_")
+
     flex, osnc = _find_flexils_osnc(
-        optical_spectrum_name,
+        osnc_name,
         optical_spectrum_section,
         passband,
     )
@@ -753,12 +742,9 @@ def _(
 
     for port in optical_spectrum_section.add_drop_ports:
         od = port.optical_device
-        if od.nms_uuid == flex.device_uuid:
+        if od.fqdn.startswith(flex.tid):
             continue
-        remote_flex = tnms_client.flexils(
-            od.nms_uuid,
-            od.fqdn.replace(".garr.net", ""),
-        )
+        remote_flex = get_optical_device_client(od)
 
     errors = []
 
@@ -786,7 +772,7 @@ def _(
 
 @validate_optical_circuit.register(Platform.Groove_G30)
 def _(
-    optical_device: OpticalDeviceBlock, # noqa: ARG001
+    optical_device: OpticalDeviceBlock,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -849,7 +835,7 @@ def _(
         # let's use the system port as from_port
         to_port, from_port = from_port, to_port
 
-    flex = tnms_client.flexils(optical_device.nms_uuid, optical_device.fqdn.replace(".garr.net", ""))
+    flex = get_optical_device_client(optical_device)
 
     from_sch_id = _find_first_free_sch_id(flex, from_port)
     to_sch_id = _find_first_free_sch_id(flex, to_port)
@@ -924,7 +910,7 @@ def _(
         # let's use the system port as from_port
         to_port, from_port = from_port, to_port
 
-    flex = tnms_client.flexils(optical_device.nms_uuid, optical_device.fqdn.replace(".garr.net", ""))
+    flex = get_optical_device_client(optical_device)
 
     ocrs = flex.rtrv_ocrs().parsed_data
     for ocr in ocrs:

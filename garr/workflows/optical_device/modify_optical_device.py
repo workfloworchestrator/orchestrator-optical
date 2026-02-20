@@ -13,7 +13,6 @@
 
 from typing import Annotated, TypeAlias, cast
 
-import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.types import SubscriptionLifecycle
@@ -23,6 +22,7 @@ from orchestrator.workflows.utils import modify_workflow
 from pydantic import Field
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
+from structlog import get_logger
 
 from products.product_blocks.optical_device import DeviceType, Platform, Vendor
 from products.product_types.optical_device import (
@@ -49,20 +49,17 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     )
 
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
-    PartnerChoice: TypeAlias = cast(
-        type[Choice], active_subscription_selector("Partner")
-    )
+    PartnerChoice: TypeAlias = cast(type[Choice], active_subscription_selector("Partner"))
     PoPChoice: TypeAlias = cast(type[Choice], active_subscription_selector("PoP"))
 
     Instruction = Annotated[
         str,
         Field(
-            "Select or enter only the fields you want to modify. "
-            "The subscription will be updated with the new values.",
+            "Select or enter only the fields you want to modify. The subscription will be updated with the new values.",
             title="ℹ️ℹ️ℹ️ Instruction ℹ️ℹ️ℹ️",
             json_schema_extra={
                 "disabled": True,
@@ -113,13 +110,11 @@ def update_subscription(
         subscription.customer_id = partner_id
 
     if pop_id:
-        old_pop_code = optical_device.pop.code_lower()
+        old_pop_code = optical_device.pop.code.lower()
         pop_subscription = PoP.from_subscription(pop_id)
         optical_device.pop = pop_subscription.pop
         pop_code = pop_subscription.pop.code.lower()
-        optical_device.fqdn = optical_device.fqdn.replace(
-            f"{old_pop_code}.garr.net", f"{pop_code}.garr.net"
-        )
+        optical_device.fqdn = optical_device.fqdn.replace(f"{old_pop_code}.garr.net", f"{pop_code}.garr.net")
 
     if fqdn_prefix_before_pop:
         pop_code = optical_device.pop.code.lower()
@@ -166,7 +161,7 @@ additional_steps = begin
 
 
 @modify_workflow(
-    "Modify optical_device",
+    "modify optical device",
     initial_input_form=initial_input_form_generator,
     additional_steps=additional_steps,
 )

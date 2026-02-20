@@ -14,7 +14,6 @@
 from re import match
 from typing import Annotated
 
-import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.types import SubscriptionLifecycle
@@ -23,8 +22,10 @@ from orchestrator.workflows.steps import set_status
 from orchestrator.workflows.utils import modify_workflow
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+from structlog import get_logger
 
 from products.product_types.pop import PoP, PopProvisioning
+from services import netbox
 from utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
 
 
@@ -37,42 +38,41 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     return f"{subscription.pop.full_name} (Point of Presence)"
 
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
+
+Instruction = Annotated[
+    str,
+    Field(
+        "Fields are pre-filled with data pulled from Netbox. "
+        "Keep them unchanged if NetBox is correct. "
+        "The subscription will be updated with the new values.",
+        title="ℹ️ℹ️ℹ️ Instruction ℹ️ℹ️ℹ️",
+        json_schema_extra={
+            "disabled": True,
+        },
+    ),
+]
 
 
 def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     subscription = PoP.from_subscription(subscription_id)
+    netbox_pop = netbox.api.dcim.sites.get(subscription.pop.netbox_id)
 
-    Instruction = Annotated[
-        str,
-        Field(
-            "Select or enter only the fields you want to modify. "
-            "The subscription will be updated with the new values.",
-            title="ℹ️ℹ️ℹ️ Instruction ℹ️ℹ️ℹ️",
-            json_schema_extra={
-                "disabled": True,
-            },
-        ),
-    ]
-
-    # Updated form fields to be optional and modifiable
     class ModifyPopForm(FormPage):
         instruction: Instruction
 
-        garrxdb_id: int | None = None
-        netbox_id: int | None = None
-        code: str | None = None
-        full_name: str | None = None
-        latitude: LatitudeCoordinate | None = None
-        longitude: LongitudeCoordinate | None = None
+        garrxdb_id: int | None = netbox_pop.custom_fields["garrx_db_id"]
+        netbox_id: int | None = netbox_pop.id
+        code: str | None = netbox_pop.slug.upper()
+        full_name: str | None = netbox_pop.name
+        latitude: LatitudeCoordinate | None = str(netbox_pop.latitude)
+        longitude: LongitudeCoordinate | None = str(netbox_pop.longitude)
 
         @model_validator(mode="after")
         def validate_code(self) -> "ModifyPopForm":
             if self.code and not match(r"^[A-Z0-9]{4}$", self.code):
                 msg = "code must be 4 uppercase alphanumeric characters, e.g. 'AZ99'"
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
             return self
 
     user_input = yield ModifyPopForm
@@ -81,7 +81,6 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     return user_input_dict | {"subscription": subscription}
 
 
-# Updated step to accept and process modifications
 @step("Update subscription")
 def update_subscription(
     subscription: PopProvisioning,
@@ -116,13 +115,9 @@ def update_subscription_description(subscription: PoP) -> State:
     return {"subscription": subscription}
 
 
-additional_steps = begin
-
-
 @modify_workflow(
-    "Modify pop",
+    "modify Point of Presence",
     initial_input_form=initial_input_form_generator,
-    additional_steps=additional_steps,
 )
 def modify_pop() -> StepList:
     return (

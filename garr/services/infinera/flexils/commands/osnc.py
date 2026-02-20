@@ -13,7 +13,7 @@
 
 from typing import Any, ClassVar, Literal
 
-from .base import TL1BaseCommand, TL1BaseResponse
+from services.infinera.flexils.commands.base import TL1BaseCommand, TL1BaseResponse
 
 
 class EnterOsnc(TL1BaseCommand):

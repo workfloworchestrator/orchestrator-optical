@@ -11,14 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import structlog
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.utils import validate_workflow
 from pydantic_forms.types import State
+from structlog import get_logger
 
 from products.product_types.optical_device import OpticalDevice
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 @step("Load initial state")
@@ -28,6 +28,6 @@ def load_initial_state_optical_device(subscription: OpticalDevice) -> State:
     }
 
 
-@validate_workflow("Validate optical_device")
+@validate_workflow("validate optical device")
 def validate_optical_device() -> StepList:
     return begin >> load_initial_state_optical_device

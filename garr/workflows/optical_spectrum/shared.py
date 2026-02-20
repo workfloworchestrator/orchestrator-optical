@@ -14,21 +14,27 @@
 from collections import deque
 from typing import NewType
 
-import structlog
 from orchestrator.types import SubscriptionLifecycle
 from pydantic_forms.types import UUIDstr
 from pydantic_forms.validators import Choice
+from structlog import get_logger
 
-from products.product_blocks.optical_device import OpticalDeviceBlock, Platform
+from products.product_blocks.optical_device import DeviceType, OpticalDeviceBlock, Platform
 from products.product_blocks.optical_device_port import OpticalDevicePortBlock
+from products.product_blocks.optical_spectrum import OpticalSpectrumBlockInactive, OpticalSpectrumBlockProvisioning
 from products.product_blocks.optical_spectrum_path_constraints import (
     OpticalSpectrumPathConstraintsBlockProvisioning,
 )
+from products.product_blocks.optical_spectrum_section import (
+    OpticalSpectrumSectionBlockInactive,
+    OpticalSpectrumSectionBlockProvisioning,
+)
 from products.product_types.optical_fiber import OpticalFiber
+from products.services.optical_device import retrieve_ports_spectral_occupations
 from utils.custom_types.frequencies import Passband, disjoint_intervals_overlap_search
 from workflows.shared import subscriptions_by_product_type
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def find_constrained_shortest_path(
@@ -56,21 +62,12 @@ def find_constrained_shortest_path(
         raise ValueError(msg)
 
     # retrieve all active fiber subscriptions
-    fiber_subscriptions = subscriptions_by_product_type(
-        "OpticalFiber", [SubscriptionLifecycle.ACTIVE]
-    )
-    active_fibers = [
-        OpticalFiber.from_subscription(sub.subscription_id).optical_fiber
-        for sub in fiber_subscriptions
-    ]
+    fiber_subscriptions = subscriptions_by_product_type("OpticalFiber", [SubscriptionLifecycle.ACTIVE])
+    active_fibers = [OpticalFiber.from_subscription(sub.subscription_id).optical_fiber for sub in fiber_subscriptions]
 
     # filter out fibers that are excluded by the constraints
-    exclude_node_sub_id_set = {
-        x.owner_subscription_id for x in constraints.exclude_nodes
-    }
-    exclude_span_sub_id_set = {
-        x.owner_subscription_id for x in constraints.exclude_spans
-    }
+    exclude_node_sub_id_set = {x.owner_subscription_id for x in constraints.exclude_nodes}
+    exclude_span_sub_id_set = {x.owner_subscription_id for x in constraints.exclude_spans}
 
     def does_fiber_pass_exclusion(fiber):
         if fiber.owner_subscription_id in exclude_span_sub_id_set:
@@ -81,10 +78,7 @@ def find_constrained_shortest_path(
             if port.optical_device.platform == Platform.GX_G42:
                 # GX_G42 ports are not supported in this path computation
                 return False
-            if (
-                port.optical_device.platform == Platform.Groove_G30
-                and "." not in port.port_name
-            ):
+            if port.optical_device.platform == Platform.Groove_G30 and "." not in port.port_name:
                 # all ports with a dot are on OLS cards
                 # all ports without a dot are on transponder cards and must be excluded from path computation
                 return False
@@ -149,33 +143,38 @@ Node = NewType("Node", UUIDstr)  # OpticalDeviceBlock.subscription_instance_id
 Port = NewType("Port", UUIDstr)  # OpticalDevicePortBlock.subscription_instance_id
 Edge = tuple[Port, Port]  # (port_a_id, port_b_id)
 NeighborConnection = tuple[Node, Edge]
-Graph = dict[
-    Node, list[NeighborConnection]
-]  # {node_id: [(neighbor_id, (port_a_id, port_b_id)), ...]}
+Graph = dict[Node, list[NeighborConnection]]  # {node_id: [(neighbor_id, (port_a_id, port_b_id)), ...]}
 Path = list[Port]  # List of OpticalDevicePortBlock.subscription_instance_id
+
 
 class NoOpticalPathFoundError(RuntimeError):
     """Raised when no valid optical path exists between the specified devices or ports."""
+
     def __init__(self, src: str, dst: str):
         super().__init__(f"No valid optical path exists between source node '{src}' and destination node '{dst}'.")
 
-def find_all_valid_shortest_paths(
+
+def all_valid_shortest_paths_between_oadms(
+    src_optical_device_block_id: UUIDstr,
+    dst_optical_device_block_id: UUIDstr,
+    passband: Passband,
+    exclude_node_sub_ids: list[UUIDstr] = [],
+    exclude_span_sub_ids: list[UUIDstr] = [],
+) -> list[Path]:
+    """Find all shortest paths between two Optical Add-Drop Multiplexers, considering the specified passband and constraints."""
+    fiber_graph = build_constrained_graph_from_active_fibers(passband, exclude_node_sub_ids, exclude_span_sub_ids)
+    return compute_all_shortest_paths(fiber_graph, src_optical_device_block_id, dst_optical_device_block_id)
+
+
+def all_valid_shortest_paths_between_trxs(
     src_trx_port_block_id: UUIDstr,
     dst_trx_port_block_id: UUIDstr,
     passband: Passband,
     exclude_node_sub_ids: list[UUIDstr] = [],
     exclude_span_sub_ids: list[UUIDstr] = [],
 ) -> list[Path]:
-    """
-    Find all shortest paths between two transponder ports, considering the specified passband and constraints.
-    """
-    if not src_trx_port_block_id or not dst_trx_port_block_id:
-        msg = "Source and destination ports must be specified"
-        raise ValueError(msg)
-
-    src_add_drop_port, dst_add_drop_port = find_add_drop_ports(
-        src_trx_port_block_id, dst_trx_port_block_id
-    )
+    """Find all shortest paths between two transponder ports, considering the specified passband and constraints."""
+    src_add_drop_port, dst_add_drop_port = find_add_drop_ports(src_trx_port_block_id, dst_trx_port_block_id)
     if (
         str(src_add_drop_port.subscription_instance_id) == dst_trx_port_block_id
         and str(dst_add_drop_port.subscription_instance_id) == src_trx_port_block_id
@@ -185,24 +184,31 @@ def find_all_valid_shortest_paths(
 
     src_ols_dev_id = src_add_drop_port.optical_device.subscription_instance_id
     dst_ols_dev_id = dst_add_drop_port.optical_device.subscription_instance_id
-
-    fiber_graph = build_constrained_graph_from_active_fibers(
-        passband, exclude_node_sub_ids, exclude_span_sub_ids
+    paths = all_valid_shortest_paths_between_oadms(
+        src_ols_dev_id,
+        dst_ols_dev_id,
+        passband,
+        exclude_node_sub_ids,
+        exclude_span_sub_ids,
     )
-
-    paths = compute_all_shortest_paths(fiber_graph, src_ols_dev_id, dst_ols_dev_id)
 
     valid_paths = []
     for path in paths:
         path.insert(0, src_add_drop_port.subscription_instance_id)
         path.append(dst_add_drop_port.subscription_instance_id)
-        if is_path_valid(path):
+        if are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path):
             valid_paths.append(path)
+
+    if not valid_paths:
+        raise NoOpticalPathFoundError(
+            src=src_trx_port_block_id,
+            dst=dst_trx_port_block_id,
+        )
 
     return valid_paths
 
 
-def is_path_valid(path: Path) -> bool:
+def are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path: Path) -> bool:
     """
     Validates whether the given path represents a valid connection between optical device ports.
     The function iterates through the path and checks if ports on the same Groove G30 are on the
@@ -284,20 +290,17 @@ def build_constrained_graph_from_active_fibers(
           platform) are excluded.
     """
     # retrieve all active fiber subscriptions
-    fiber_subscriptions = subscriptions_by_product_type(
-        "OpticalFiber", [SubscriptionLifecycle.ACTIVE]
-    )
-    active_fibers = [
-        OpticalFiber.from_subscription(sub.subscription_id).optical_fiber
-        for sub in fiber_subscriptions
-    ]
+    fiber_subscriptions = subscriptions_by_product_type("OpticalFiber", [SubscriptionLifecycle.ACTIVE])
+    active_fibers = [OpticalFiber.from_subscription(sub.subscription_id).optical_fiber for sub in fiber_subscriptions]
 
     # filter out fibers that are excluded by the constraints
     exclude_node_sub_id_set = set(exclude_node_sub_ids)
     exclude_span_sub_id_set = set(exclude_span_sub_ids)
-    logger.debug("Exclusion sets for path computation",
-                 exclude_node_sub_ids=exclude_node_sub_id_set,
-                 exclude_span_sub_ids=exclude_span_sub_id_set)
+    logger.debug(
+        "Exclusion sets for path computation",
+        exclude_node_sub_ids=exclude_node_sub_id_set,
+        exclude_span_sub_ids=exclude_span_sub_id_set,
+    )
 
     def does_fiber_pass_exclusion(fiber):
         if str(fiber.owner_subscription_id) in exclude_span_sub_id_set:
@@ -307,10 +310,7 @@ def build_constrained_graph_from_active_fibers(
                 return False
             if disjoint_intervals_overlap_search(port.used_passbands, passband):
                 return False
-            if (
-                port.optical_device.platform == Platform.Groove_G30
-                and "." not in port.port_name
-            ):
+            if port.optical_device.platform == Platform.Groove_G30 and "." not in port.port_name:
                 # all ports with a dot are on OLS cards
                 # all ports without a dot are on transponder cards and must be excluded from path computation
                 return False
@@ -391,9 +391,7 @@ def compute_all_shortest_paths(graph: Graph, src: Node, dst: Node) -> list[Path]
     # Queue stores (current_node, src_to_current_node_path, current_path_length)
     # The path length is crucial for determining 'shortest' and 'equal cost'.
     # We use a tuple for path_segments to make it hashable if needed, though not strictly here.
-    queue = deque(
-        [(src, [], 0)]
-    )  # (node, src_to_node_path, hop_count)
+    queue = deque([(src, [], 0)])  # (node, src_to_node_path, hop_count)
 
     # Store the minimum distance found to a node so far.
     # This is key for optimizing and pruning longer paths early.
@@ -419,9 +417,7 @@ def compute_all_shortest_paths(graph: Graph, src: Node, dst: Node) -> list[Path]
             # If this is the first time we reach the destination, or it's an equally short path
             if current_path_length < min_overall_path_length:
                 min_overall_path_length = current_path_length
-                all_shortest_paths = [
-                    src_to_current_node_path
-                ]  # Start new list for shorter paths
+                all_shortest_paths = [src_to_current_node_path]  # Start new list for shorter paths
             elif current_path_length == min_overall_path_length:
                 all_shortest_paths.append(src_to_current_node_path)
             # We don't 'continue' here, as other paths might reach DST with the same length
@@ -452,7 +448,72 @@ def compute_all_shortest_paths(graph: Graph, src: Node, dst: Node) -> list[Path]
 
     return all_shortest_paths
 
-def optical_path_selector(
+
+def human_readable_optical_spectrum_path_selector(
+    paths: list[Path],
+    prompt: str = "Select an optical path.",
+) -> Choice:
+    """Convert paths to string representations for the choice options."""
+    paths_dict = {}
+    for path in paths:
+        human_readable_path = ""
+        first_port = OpticalDevicePortBlock.from_db(path[0])
+        ne_name = first_port.optical_device.fqdn
+        ne_name = ne_name.removesuffix(".garr.net")
+        human_readable_path += f"{ne_name} ({first_port.port_name}) ⇋ "
+
+        for i in range(1, len(path) - 1):
+            if i % 2 == 0:
+                continue
+
+            port_i = OpticalDevicePortBlock.from_db(path[i])
+            port_ii = OpticalDevicePortBlock.from_db(path[i + 1])
+            ne_name = port_i.optical_device.fqdn
+            ne_name = ne_name.removesuffix(".garr.net")
+            human_readable_path += f"{ne_name} ({port_i.port_name} × {port_ii.port_name}) ⇋ "
+
+        last_port = OpticalDevicePortBlock.from_db(path[-1])
+        ne_name = last_port.optical_device.fqdn
+        ne_name = ne_name.removesuffix(".garr.net")
+        human_readable_path += f"{ne_name} ({last_port.port_name})"
+
+        path_subscription_ids = ";".join(str(port_id) for port_id in path)
+        paths_dict[path_subscription_ids] = human_readable_path
+
+    return Choice(prompt, zip(paths_dict.keys(), paths_dict.items(), strict=False))
+
+
+def human_readable_transport_channel_path_selector(
+    paths: list[Path],
+    prompt: str = "Select an optical path.",
+) -> Choice:
+    """Convert paths to string representations for the choice options."""
+    paths_dict = {}
+    for path in paths:
+        if path == []:
+            paths_dict["direct_connection"] = "Direct connection between transceivers (no line system in between)"
+            continue
+
+        human_readable_path = ""
+        for i in range(len(path) - 1):
+            if i % 2 == 1:
+                continue
+
+            port_i = OpticalDevicePortBlock.from_db(path[i])
+            port_ii = OpticalDevicePortBlock.from_db(path[i + 1])
+            ne_name = port_i.optical_device.fqdn
+            ne_name = ne_name.removesuffix(".garr.net")
+            human_readable_path += f"{ne_name} ({port_i.port_name} × {port_ii.port_name}) ⇋ "
+            # g30.na01 (port-1/3.1/1 × port-1/3.3/1.1) ⇋ flex.na01 (1-E1-1-T2A × 1-A-1-L1) ⇋ flex.bo01 (2-A-1-L1 × ...
+
+        human_readable_path = human_readable_path.removesuffix(" ⇋ ")
+        path_subscription_ids = ";".join(str(port_id) for port_id in path)
+        paths_dict[path_subscription_ids] = human_readable_path
+
+    return Choice(prompt, zip(paths_dict.keys(), paths_dict.items(), strict=False))
+
+
+def transport_channel_path_selector(
     src_trx_port_block_id: UUIDstr,
     dst_trx_port_block_id: UUIDstr,
     passband: Passband,
@@ -478,38 +539,132 @@ def optical_path_selector(
     Notes:
         - The function finds valid equal-cost shortest paths between the source and destination transceiver port blocks.
         - Each path is converted into a human-readable string format for user selection.
-        - The paths are internally represented as sequences of subscription IDs delimited by #.
-          e.g. "<subscription_instance_id>#<subscription_instance_id>#<subscription_instance_id>#".
+        - The paths are internally represented as sequences of subscription IDs delimited by ;.
+          e.g. "<subscription_instance_id>;<subscription_instance_id>;<subscription_instance_id>;".
     """
-    paths = find_all_valid_shortest_paths(
+    paths = all_valid_shortest_paths_between_trxs(
         src_trx_port_block_id,
         dst_trx_port_block_id,
         passband,
         exclude_node_sub_ids,
         exclude_span_sub_ids,
     )
+    return human_readable_transport_channel_path_selector(paths, prompt)
 
-    paths_dict = {}
-    # Convert paths to string representations for the choice options
-    for path in paths:
-        if path == []:
-            paths_dict["direct_connection"] = "Direct connection between transceivers (no line system in between)"
-            continue
 
-        human_readable_path = ""
-        for i in range(len(path) - 1):
-            if i % 2 == 1:
-                continue
-            port_i = OpticalDevicePortBlock.from_db(path[i])
-            port_ii = OpticalDevicePortBlock.from_db(path[i + 1])
-            ne_name = port_i.optical_device.fqdn
-            ne_name = ne_name.replace(".garr.net", "")
-            human_readable_path += f"{ne_name} ({port_i.port_name} × {port_ii.port_name}) ⇋ "
-            # g30.na01 (port-1/3.1/1 × port-1/3.3/1.1) ⇋ flex.na01 (1-E1-1-T2A × 1-A-1-L1) ⇋ flex.bo01 (2-A-1-L1 × 3-A-1-L1) ⇋ ...
-        human_readable_path = human_readable_path.strip(" ⇋ ")
+def optical_spectrum_path_selector(
+    src_optical_device_block_id: UUIDstr,
+    dst_optical_device_block_id: UUIDstr,
+    passband: Passband,
+    exclude_node_sub_ids: list[UUIDstr] = [],
+    exclude_span_sub_ids: list[UUIDstr] = [],
+    prompt: str = "Select an optical path.",
+) -> Choice:
+    """
+    Selects an optical path between two optical devices based on the given parameters.
+    The selected path MUST then be parsed using path.split(";") to obtain the sequence
+    of subscription instance IDs of the OpticalDevicePortBlock.
 
-        path_subscription_ids = ";".join(str(port_id) for port_id in path)
+    Args:
+        src_optical_device_block_id (UUIDstr): The UUID of the source optical device block.
+        dst_optical_device_block_id (UUIDstr): The UUID of the destination optical device block.
+        passband (Passband): The passband configuration for the optical path.
+        exclude_node_sub_ids (List[UUIDstr], optional): A list of node subscription IDs to exclude from the path.
+            Defaults to an empty list.
+        exclude_span_sub_ids (List[UUIDstr], optional): A list of span subscription IDs to exclude from the path.
+            Defaults to an empty list.
+        prompt (str, optional): A prompt message for the user to select an optical path.
+            Defaults to "Select an optical path.".
 
-        paths_dict[path_subscription_ids] = human_readable_path
+    Returns:
+        Choice: A Choice object containing the prompt and a list of valid optical paths represented as
+        subscription IDs and human-readable strings.
 
-    return Choice(prompt, zip(paths_dict.keys(), paths_dict.items(), strict=False))
+    Notes:
+        - The function finds valid equal-cost shortest paths between the source and destination transceiver port blocks.
+        - Each path is converted into a human-readable string format for user selection.
+        - The paths are internally represented as sequences of subscription IDs delimited by ;.
+          e.g. "<subscription_instance_id>;<subscription_instance_id>;<subscription_instance_id>;".
+    """
+    paths = all_valid_shortest_paths_between_oadms(
+        src_optical_device_block_id,
+        dst_optical_device_block_id,
+        passband,
+        exclude_node_sub_ids,
+        exclude_span_sub_ids,
+    )
+    return human_readable_optical_spectrum_path_selector(paths, prompt)
+
+
+def store_list_of_ports_into_spectrum_sections(
+    optical_path: list[UUIDstr],
+    optical_spectrum: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning,
+) -> None:
+    """
+    Decomposes a continuous list of optical ports into platform-specific sections and
+    saves them to the provided optical spectrum block.
+
+    The function groups the provided optical path into "sections" based on the device platform.
+    Whenever the platform changes between two adjacent ports in the path, a new section is
+    started. Each section is then stored as an `OpticalSpectrumSectionBlockInactive`.
+
+    For each section:
+    - The first and last ports are designated as `add_drop_ports`.
+    - Any ports in between the first and last are stored in the `optical_path` field.
+
+    Args:
+        optical_path: A sequence of port UUIDs representing the full end-to-end
+            optical route.
+        optical_spectrum: The spectrum block domain model where the resulting
+            sections will be appended.
+
+    Returns:
+        None: The function modifies the `optical_spectrum` object in place.
+    """
+    ports = []
+    for port_id in optical_path:
+        port = OpticalDevicePortBlock.from_db(port_id)
+        ports.append(port)
+
+    sections: list[list[OpticalDevicePortBlock]] = []
+    current_section = [ports[0]]
+    previous_port = ports[0]
+    for current_port in ports[1:]:
+        if current_port.optical_device.platform != previous_port.optical_device.platform:
+            sections.append(current_section)
+            current_section = []
+        current_section.append(current_port)
+        previous_port = current_port
+
+    if current_section:
+        sections.append(current_section)
+
+    subscription_id = optical_spectrum.subscription.subscription_id
+    optical_spectrum_sections = optical_spectrum.optical_spectrum_sections
+    if isinstance(optical_spectrum, OpticalSpectrumBlockProvisioning):
+        optical_spectrum_sections = []
+        block = OpticalSpectrumSectionBlockProvisioning
+    else:
+        block = OpticalSpectrumSectionBlockInactive
+
+    for section in sections:
+        s = block.new(
+            subscription_id=subscription_id,
+            add_drop_ports=[section[0], section[-1]],
+            optical_path=section[1:-1],
+        )
+        optical_spectrum_sections.append(s)
+
+
+def update_used_passbands(optical_spectrum: OpticalSpectrumBlockProvisioning) -> None:
+    passbands_by_device = {}
+    for section in optical_spectrum.optical_spectrum_sections:
+        for port in section.optical_path:
+            device = port.optical_device
+            if device.device_type in [
+                DeviceType.ROADM,
+                DeviceType.TransponderAndOADM,
+            ]:
+                if device.fqdn not in passbands_by_device:
+                    passbands_by_device[device.fqdn] = retrieve_ports_spectral_occupations(device)
+                port.used_passbands = passbands_by_device[device.fqdn].get(port.port_name, [])

@@ -17,16 +17,16 @@ from functools import singledispatch
 from ipaddress import IPv4Interface, IPv6Interface
 from typing import Any
 
-import structlog
 from pynetbox import api as pynetbox_api
 from pynetbox.core.endpoint import Endpoint
 from pynetbox.core.query import RequestError
 from pynetbox.models.ipam import IpAddresses, Prefixes
+from structlog import get_logger
 
 from settings import garr_settings
 from utils.singledispatch import single_dispatch_base
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 api = pynetbox_api(url=garr_settings.NETBOX_URL, token=garr_settings.NETBOX_TOKEN)
 

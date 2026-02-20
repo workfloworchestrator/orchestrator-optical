@@ -11,19 +11,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import structlog
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.utils import validate_workflow
 from pydantic_forms.types import State
+from structlog import get_logger
 
 from products.product_blocks.optical_device import DeviceType
 from products.product_types.optical_fiber import OpticalFiber
 from products.services.optical_device import retrieve_ports_spectral_occupations
 from products.services.optical_device_port import check_fiber_terminating_port
 
-from products.services.optical_device_port import check_fiber_terminating_port
-
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 @step("Load initial state")
@@ -59,6 +57,6 @@ def retrieve_used_passbands(subscription: OpticalFiber) -> State:
     return {"subscription": subscription}
 
 
-@validate_workflow("Validate optical_fiber")
+@validate_workflow("validate optical fiber")
 def validate_optical_fiber() -> StepList:
     return begin >> load_initial_state_optical_fiber >> retrieve_used_passbands

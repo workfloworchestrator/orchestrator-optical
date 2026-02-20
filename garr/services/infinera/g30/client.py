@@ -18,7 +18,8 @@ from typing import Any
 
 import requests
 
-from .endpoints import Data, Operations
+from services.infinera.g30.data import Data
+from services.infinera.g30.operations import Operations
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -27,47 +28,38 @@ log.addHandler(logging.NullHandler())
 
 
 class G30Client:
-    """G30 API client with automatic authentication handling."""
-
     def __init__(self, lo_ip: str | None = None, mngmt_ip: str | None = None):
-        self.url = None
-        self.fallback_url = None
-
-        if mngmt_ip:
-            self.url = f"https://{mngmt_ip}:8181/restconf"
-        if lo_ip:
-            self.fallback_url = self.url
-            self.url = f"https://{lo_ip}:8181/restconf"
-        if not self.url:
-            msg = "Either lo_ip or mngmt_ip must be provided"
-            raise ValueError(msg)
-
-        self._session = requests.Session()
-        self._session.verify = False
-        self._session.headers.update(
-            {
-                "Content-Type": "application/yang-data+json",
-                # removed auth info for sharing on public repo
-            }
-        )
-        self.data = Data(self)
-        self.operations = Operations(self)
+        """G30 API client with automatic authentication handling."""
+        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons. Ask GARR team for details.")
 
     def _request(self, method: str, path: str, **kwargs: Any) -> dict:
         """Make authenticated API request."""
 
         def _helper(base_url: str):
             url = base_url + path
-            log.debug(f"{method} {url} {kwargs}")
-            response = self._session.request(method, url, **kwargs)
-            log.debug(f"Response: {response.text}")
+            msg = f"{method} {url} {kwargs}"
+            log.debug(msg)
+            response = self._session.request(method, url, timeout=(10, 2400), **kwargs)
+            msg = f"Response: {response.text}"
+            log.debug(msg)
             response.raise_for_status()
             return response.json() if response.text else {}
 
         try:
             result = _helper(self.url)
-        except requests.RequestException as e:
+
+        except (requests.ConnectionError, requests.Timeout):
             if not self.fallback_url:
-                raise e
+                raise
             result = _helper(self.fallback_url)
+
+        except (requests.HTTPError, requests.RequestException) as e:
+            msg = f"{e.response.status_code} Client Error: {e.response.text}"
+            error = requests.HTTPError(msg) if isinstance(e, requests.HTTPError) else requests.RequestException(msg)
+
+            if hasattr(e, "response"):
+                error.response = e.response
+
+            raise error from e
+
         return result

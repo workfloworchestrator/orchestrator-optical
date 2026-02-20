@@ -13,7 +13,6 @@
 
 from typing import TypeAlias, cast
 
-import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.targets import Target
@@ -24,6 +23,7 @@ from orchestrator.workflows.utils import create_workflow
 from pydantic import ConfigDict, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
+from structlog import get_logger
 
 from products.product_blocks.optical_device import DeviceType, Platform, Vendor
 from products.product_types.optical_device import (
@@ -40,6 +40,8 @@ from workflows.shared import (
     subscriptions_by_product_type_and_instance_value,
 )
 
+logger = get_logger(__name__)
+
 
 def subscription_description(subscription: SubscriptionModel) -> str:
     """Generate subscription description.
@@ -54,13 +56,8 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     )
 
 
-logger = structlog.get_logger(__name__)
-
-
 def initial_input_form_generator(product_name: str) -> FormGenerator:
-    PartnerChoice: TypeAlias = cast(
-        type[Choice], active_subscription_selector("Partner")
-    )
+    PartnerChoice: TypeAlias = cast(type[Choice], active_subscription_selector("Partner"))
     PoPChoice: TypeAlias = cast(type[Choice], active_subscription_selector("PoP"))
 
     class CreateOpticalDeviceForm(FormPage):
@@ -98,9 +95,8 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
                     ],
                 )
                 if subs:
-                    raise ValueError(
-                        f"{resource} {value} already in use by subscription {subs[0].subscription_id}"
-                    )
+                    msg = f"{resource} {value} already in use by subscription {subs[0].subscription_id}"
+                    raise ValueError(msg)
 
             return self
 
@@ -155,9 +151,7 @@ def construct_optical_device_model(
     subscription.optical_device.nms_uuid = nms_uuid
     subscription.optical_device.netbox_id = netbox_id  # TODO: add actual call to NetBox
 
-    subscription = OpticalDeviceProvisioning.from_other_lifecycle(
-        subscription, SubscriptionLifecycle.PROVISIONING
-    )
+    subscription = OpticalDeviceProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
     subscription.description = subscription_description(subscription)
 
     return {
@@ -178,7 +172,7 @@ additional_steps = begin
 
 
 @create_workflow(
-    "Create optical_device",
+    "create optical device",
     initial_input_form=initial_input_form_generator,
     additional_steps=additional_steps,
 )
@@ -186,6 +180,6 @@ def create_optical_device() -> StepList:
     return (
         begin
         >> construct_optical_device_model
-        >> store_process_subscription(Target.CREATE)
+        >> store_process_subscription()
         >> find_nms_uuid
     )

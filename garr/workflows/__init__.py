@@ -15,15 +15,17 @@ from orchestrator.workflows import LazyWorkflowInstance
 LazyWorkflowInstance("workflows.tasks.bulk_create_optical_devices", "bulk_create_optical_devices")
 LazyWorkflowInstance("workflows.tasks.bulk_create_optical_fibers", "bulk_create_optical_fibers")
 LazyWorkflowInstance("workflows.tasks.check_netbox_connection", "task_check_netbox_connection")
-LazyWorkflowInstance("workflows.tasks.clean_old_tasks","task_clean_old_tasks")
 LazyWorkflowInstance("workflows.tasks.import_fibers_from_tnms", "import_fibers_from_tnms")
 LazyWorkflowInstance("workflows.tasks.import_pops_from_netbox", "import_pops_from_netbox")
 LazyWorkflowInstance("workflows.tasks.purge_subscription_from_database", "purge_subscription_from_database")
 LazyWorkflowInstance("workflows.tasks.task_check_tnms_connection", "task_check_tnms_connection")
 LazyWorkflowInstance("workflows.tasks.bulk_validate_optical_fibers", "bulk_validate_optical_fibers")
 LazyWorkflowInstance("workflows.tasks.execute_tl1_commands_on_flexils", "execute_tl1_commands_on_flexils")
+LazyWorkflowInstance("workflows.tasks.upgrade_g30_from_452_to_480", "upgrade_g30_from_452_to_480")
+LazyWorkflowInstance("workflows.tasks.upgrade_g42_from_600_to_802", "upgrade_g42_from_600_to_802")
 
 LazyWorkflowInstance("workflows.partner.create_partner", "create_partner")
+LazyWorkflowInstance("workflows.partner.modify_partner", "modify_partner")
 LazyWorkflowInstance("workflows.partner.terminate_partner", "terminate_partner")
 LazyWorkflowInstance("workflows.partner.validate_partner", "validate_partner")
 
@@ -44,10 +46,18 @@ LazyWorkflowInstance("workflows.optical_fiber.validate_optical_fiber", "validate
 
 LazyWorkflowInstance("workflows.optical_spectrum.create_optical_spectrum", "create_optical_spectrum")
 LazyWorkflowInstance("workflows.optical_spectrum.modify_optical_spectrum", "modify_optical_spectrum")
-LazyWorkflowInstance("workflows.optical_spectrum.terminate_optical_spectrum","terminate_optical_spectrum")
+LazyWorkflowInstance("workflows.optical_spectrum.terminate_optical_spectrum", "terminate_optical_spectrum")
 LazyWorkflowInstance("workflows.optical_spectrum.validate_optical_spectrum", "validate_optical_spectrum")
 
-LazyWorkflowInstance("workflows.optical_digital_service.create_optical_digital_service","create_optical_digital_service")
-LazyWorkflowInstance("workflows.optical_digital_service.modify_optical_digital_service","modify_optical_digital_service")
-LazyWorkflowInstance("workflows.optical_digital_service.terminate_optical_digital_service","terminate_optical_digital_service")
-LazyWorkflowInstance("workflows.optical_digital_service.validate_optical_digital_service","validate_optical_digital_service")
+LazyWorkflowInstance(
+    "workflows.optical_digital_service.create_optical_digital_service", "create_optical_digital_service"
+)
+LazyWorkflowInstance(
+    "workflows.optical_digital_service.modify_optical_digital_service", "modify_optical_digital_service"
+)
+LazyWorkflowInstance(
+    "workflows.optical_digital_service.terminate_optical_digital_service", "terminate_optical_digital_service"
+)
+LazyWorkflowInstance(
+    "workflows.optical_digital_service.validate_optical_digital_service", "validate_optical_digital_service"
+)

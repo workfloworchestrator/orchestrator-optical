@@ -13,10 +13,10 @@
 
 from typing import TYPE_CHECKING, Any, Literal
 
-from .models import get_data_model
+from services.infinera.g30.data_models import get_data_model
 
 if TYPE_CHECKING:
-    from .client import G30Client
+    from services.infinera.g30.client import G30Client
 import urllib.parse
 
 UUIDstr = str
@@ -148,9 +148,3 @@ class Data(Endpoint):
                 section,
                 Endpoint(client=client, current_path=path, parent_path=self._full_path),
             )
-
-
-class Operations:
-    def __init__(self, client: "G30Client"):
-        self.client = client
-        self.base_path = "/operations"

@@ -12,18 +12,17 @@
 # limitations under the License.
 from typing import Annotated
 
-import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
-from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import create_workflow
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+from structlog import get_logger
 
-from products.product_blocks.optical_device import DeviceType
+from products.product_blocks.optical_device import DeviceType, Platform
 from products.product_blocks.optical_fiber import (
     ListOfFiberTypes,
     ListOfLengths,
@@ -55,7 +54,7 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     return f"{subscription.optical_fiber.fiber_name}"
 
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
@@ -206,6 +205,11 @@ def configure_fiber_terminations(
     subscription: OpticalFiberProvisioning,
 ) -> State:
     port_a, port_b = subscription.optical_fiber.terminations
+
+    if port_b.optical_device.platform == Platform.FlexILS and port_a.optical_device.platform != Platform.FlexILS:
+        # Swap ports to configure FlexILS first
+        port_a, port_b = port_b, port_a
+
     key_a = f"{port_a.optical_device.fqdn} {port_a.port_name}"
     key_b = f"{port_b.optical_device.fqdn} {port_b.port_name}"
 
@@ -231,7 +235,7 @@ additional_steps = begin
 
 
 @create_workflow(
-    "Create optical_fiber",
+    "create optical fiber",
     initial_input_form=initial_input_form_generator,
     additional_steps=additional_steps,
 )
@@ -239,7 +243,7 @@ def create_optical_fiber() -> StepList:
     return (
         begin
         >> construct_optical_fiber_model
-        >> store_process_subscription(Target.CREATE)
+        >> store_process_subscription()
         >> configure_fiber_terminations
         >> retrieve_used_passbands
     )

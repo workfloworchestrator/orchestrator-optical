@@ -13,13 +13,11 @@
 
 from typing import Any, ClassVar, Literal
 
-from .base import TL1BaseCommand, TL1BaseResponse
+from services.infinera.flexils.commands.base import TL1BaseCommand, TL1BaseResponse
 
 
 class SchResponse(TL1BaseResponse):
-    def rename_positional_params(
-        self, parsed_data: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def rename_positional_params(self, parsed_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for record in parsed_data:
             record["AID"] = record.pop("positional_param_0_0", "")
             record["RESOURCETYPE"] = record.pop("positional_param_1_0", "")
@@ -113,3 +111,19 @@ class RestoreAdminStateSch(TL1BaseCommand):
     aid: str
     mode: str | None = None
     state: str | None = None
+
+
+class RetrieveSchPm(TL1BaseCommand):
+    help_text: ClassVar[str] = (
+        "RTRV-PM-SCH:[<TID>]:<AID>:<CTAG>::[<montype>],[1-UP],[NEND|FEND|NA],[RCV|TRMT|NA],[15-MIN|1-DAY],[<mondat>],[<montm>]::;"
+    )
+    verb: ClassVar[str] = "RTRV"
+    modifier: ClassVar[str] = "PM-SCH"
+    aid: str
+    montype: str | None = None
+    mondat: str | None = None
+    montm: str | None = None
+    one_up: Literal["1-UP"] | None = None
+    nend_fend_na: Literal["NEND", "FEND", "NA"] | None = None
+    rcv_trmt_na: Literal["RCV", "TRMT", "NA"] | None = None
+    time_interval: Literal["15-MIN", "1-DAY"] | None = None

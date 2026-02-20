@@ -197,7 +197,7 @@ For existing channels: Links to existing OpticalTransportChannelBlock instances.
 ---
 
 ### Step 6: Store Subscription
-**Function**: `store_process_subscription(Target.CREATE)`
+**Function**: `store_process_subscription()`
 **What**: Persists subscription to database
 **Traffic Impact**: None (database only)
 
@@ -490,13 +490,12 @@ Path finding algorithm:
 </details>
 """
 
+from time import sleep
 from typing import Annotated
 
-import structlog
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import Choice, Divider, Label, choice_list, unique_conlist
-from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import (
     StepList,
@@ -508,13 +507,11 @@ from orchestrator.workflows.steps import set_status, store_process_subscription
 from orchestrator.workflows.utils import create_workflow
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+from structlog import get_logger
 
-from products.product_blocks.optical_device import DeviceType
+from products.product_blocks.optical_device import DeviceType, Platform
 from products.product_blocks.optical_device_port import OpticalDevicePortBlock
 from products.product_blocks.optical_digital_service import ClientSpeednType
-from products.product_blocks.optical_spectrum_section import (
-    OpticalSpectrumSectionBlockInactive,
-)
 from products.product_blocks.transport_channel import (
     OpticalTransportChannelBlock,
     OpticalTransportChannelBlockInactive,
@@ -528,16 +525,18 @@ from products.product_types.optical_digital_service import (
 from products.product_types.optical_fiber import OpticalFiber
 from products.services.optical_device import retrieve_ports_spectral_occupations
 from products.services.optical_digital_service import (
+    allign_tx_power_to_target,
     configure_line_transceivers,
     configure_transceiver_client,
     configure_transponder_crossconnect,
+    diff_btw_current_rx_power_and_target,
     get_signal_bandwidth,
 )
 from products.services.optical_spectrum import (
     append_optical_circuit_label,
     deploy_optical_circuit,
 )
-from utils.custom_types.frequencies import Bandwidth, Frequency
+from utils.custom_types.frequencies import Frequency
 from workflows.optical_device.shared import (
     multiple_optical_device_selector,
     optical_device_selector_of_types,
@@ -551,13 +550,19 @@ from workflows.optical_fiber.shared import multiple_optical_fiber_selector
 from workflows.optical_spectrum.shared import (
     NoOpticalPathFoundError,
     find_add_drop_ports,
-    optical_path_selector,
+    store_list_of_ports_into_spectrum_sections,
+    transport_channel_path_selector,
+    update_used_passbands,
 )
 from workflows.shared import (
     active_subscription_selector,
     subscription_instances_by_block_type_and_resource_value,
     subscriptions_by_product_type_and_instance_value,
 )
+
+logger = get_logger(__name__)
+
+FlexBandwidth = Annotated[int, Field(ge=37_500, multiple_of=12_500)]
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:
@@ -568,9 +573,6 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     """
     ods = subscription.optical_digital_service
     return f"{ods.service_name} ({ods.service_type})"
-
-
-logger = structlog.get_logger(__name__)
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
@@ -591,10 +593,9 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         prompt="...to this other node: ",
     )
 
-    ServiceTypeChoice = Choice(
-        "What service do you want?",
-        [(speed, speed.value) for speed in ClientSpeednType]
-    )
+    ServiceTypeChoice = Choice("What service do you want?", [(speed, speed.value) for speed in ClientSpeednType])
+
+    och_id_annotated_type = Annotated[int, Field(ge=1, le=999)]
 
     class OdsForm0(FormPage):
         class Config:
@@ -604,33 +605,24 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         service_type: ServiceTypeChoice = ClientSpeednType.Ethernet100Gbps
         id_node_a: NodeAChoice
         id_node_b: NodeBChoice
-        fX_flow_id: Annotated[int, Field(title="This type of service is identified with ID fXcY. Enter number X")] = 1
-        cY_client_id: Annotated[int, Field(title="Enter number Y")] = 1
-        och_ids: Annotated[unique_conlist(int, min_items=1, max_items=2), Field(title="Optical Channel ID(s)")] = [1]
+        fx_flow_id: Annotated[
+            int, Field(title="This type of service is identified with ID fXcY. Enter number X", ge=1, le=999)
+        ] = 1
+        cy_client_id: Annotated[int, Field(title="Enter number Y", ge=1, le=16)] = 1
+        och_ids: Annotated[
+            unique_conlist(och_id_annotated_type, min_items=1, max_items=2), Field(title="Optical Channel ID(s)")
+        ] = [1]
 
         @model_validator(mode="after")
         def validate_data(self) -> "OdsForm0":
-            if self.fX_flow_id < 1:
-                msg = "Flow ID must be a positive integer"
-                raise ValueError(msg)
-
-            if self.cY_client_id < 1:
-                msg = "Client ID must be a positive integer"
-                raise ValueError(msg)
-
             if self.id_node_a == self.id_node_b:
                 msg = "Only different devices can be connected"
                 raise ValueError(msg)
 
-            for och_id in self.och_ids:
-                if och_id < 1:
-                    msg = "OCh ID must be a positive integer"
-                    raise ValueError(msg)
-
             subs = subscriptions_by_product_type_and_instance_value(
                 product_type="OpticalDigitalService",
                 resource_type="flow_id",
-                value=str(self.fX_flow_id),
+                value=str(self.fx_flow_id),
                 status=[
                     SubscriptionLifecycle.INITIAL,
                     SubscriptionLifecycle.PROVISIONING,
@@ -639,31 +631,45 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
             )
             for sub in subs:
                 ods = OpticalDigitalService.from_subscription(sub.subscription_id).optical_digital_service
-                if ods.client_id == self.cY_client_id:
-                    msg = f"f{self.fX_flow_id}c{self.cY_client_id} already in use by subscription {sub.subscription_id}"
+                if ods.client_id == self.cy_client_id:
+                    msg = f"f{self.fx_flow_id}c{self.cy_client_id} already in use by subscription {sub.subscription_id}"
                     raise ValueError(msg)
 
-            if len(self.och_ids) > 1:
-                owner_ids = set()
-                for och_id in self.och_ids:
-                    existing_channels = subscription_instances_by_block_type_and_resource_value(
-                        product_block_type="OpticalTransportChannel",
-                        resource_type="och_id",
-                        resource_value=str(och_id),
-                    )
-                    if not existing_channels:
-                        current_owner_id = None
-                    if existing_channels:
-                        current_owner_id = existing_channels[0].subscription_id
-                    owner_ids.add(current_owner_id)
+            owner_ids = set()
+            for och_id in self.och_ids:
+                existing_channel = subscription_instances_by_block_type_and_resource_value(
+                    product_block_type="OpticalTransportChannel",
+                    resource_type="och_id",
+                    resource_value=str(och_id),
+                )
 
-                if len(owner_ids) > 1:
-                    msg = (
-                        "It seems like the provided OCh IDs are already in use by two different services. "
-                        "A digital service can only be transported over one channel or two coupled channels."
-                        "Please correct this inconsistency before proceeding."
-                    )
-                    raise ValueError(msg)
+                if existing_channel == []:
+                    current_owner_id = None
+
+                else:
+                    current_owner_id = existing_channel[0].subscription_id
+                    block = OpticalTransportChannelBlock.from_db(existing_channel[0].subscription_instance_id)
+                    existing_id_node_a = str(block.line_ports[0].optical_device.owner_subscription_id)
+                    existing_id_node_b = str(block.line_ports[1].optical_device.owner_subscription_id)
+                    if existing_id_node_a == self.id_node_b and existing_id_node_b == self.id_node_a:
+                        self.id_node_a, self.id_node_b = self.id_node_b, self.id_node_a
+                    elif existing_id_node_a != self.id_node_a and existing_id_node_b != self.id_node_b:
+                        msg = (
+                            f"Terminations mismatch for OCh ID {och_id}. Source and destination nodes "
+                            f"must be {block.line_ports[0].optical_device.fqdn} and "
+                            f"{block.line_ports[1].optical_device.fqdn} respectively."
+                        )
+                        raise ValueError(msg)
+
+                owner_ids.add(current_owner_id)
+
+            if len(owner_ids) > 1:
+                msg = (
+                    "It seems like the provided OCh IDs are already in use by two different services. "
+                    "A digital service can only be transported over one channel or two coupled channels."
+                    "Please correct this inconsistency before proceeding."
+                )
+                raise ValueError(msg)
 
             return self
 
@@ -753,7 +759,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         ]
 
         BandwidthsChoice = Annotated[
-            choice_list(Bandwidth, min_items=num_carriers, max_items=num_carriers, unique_items=False),
+            choice_list(FlexBandwidth, min_items=num_carriers, max_items=num_carriers, unique_items=False),
             Field(title="Spectral width (MHz), including guardbands, reserved for each transport channel"),
         ]
 
@@ -787,18 +793,6 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
             exclude_devices_list: ExcludeOpticalDeviceChoiceList | None = []
             exclude_fibers_list: ExcludeSpanChoiceList | None = []
 
-            @model_validator(mode="after")
-            def validate_data(self) -> "OdsForm2":
-                for f in self.frequencies:
-                    if f % 6_250 != 0:
-                        msg = "Frequency must be a multiple of 6_250 MHz"
-                        raise ValueError(msg)
-                for bw in self.bandwidths:
-                    if bw % 12_500 != 0:
-                        msg = "Bandwidth must be a multiple of 12_500 MHz"
-                        raise ValueError(msg)
-                return self
-
         user_input = yield OdsForm2
         user_input_dict.update(user_input.dict())
 
@@ -812,7 +806,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
             " in the previous step or validate fibers in the path."
         )
         try:
-            PathChoice = optical_path_selector(
+            PathChoice = transport_channel_path_selector(
                 user_input_dict["line_ports_a"][0],
                 user_input_dict["line_ports_b"][0],
                 passband,
@@ -870,14 +864,14 @@ def construct_optical_digital_service_model(
     user_id: UUIDstr,
     id_node_a: UUIDstr,
     id_node_b: UUIDstr,
-    fX_flow_id: int,
-    cY_client_id: int,
+    fx_flow_id: int,
+    cy_client_id: int,
     service_type: ClientSpeednType,
     name_client_port_a: str,
     name_client_port_b: str,
     och_ids: list[int],
     frequencies: list[Frequency],
-    bandwidths: list[Bandwidth],
+    bandwidths: list[FlexBandwidth],
     mode: str,
     line_ports_a: list[UUIDstr],
     line_ports_b: list[UUIDstr],
@@ -897,14 +891,14 @@ def construct_optical_digital_service_model(
     device_b = sub_device_b.optical_device
     code_pop_a = device_a.pop.code.lower()
     code_pop_b = device_b.pop.code.lower()
-    ods.service_name = f"f{fX_flow_id:03d}c{cY_client_id:02d} "
+    ods.service_name = f"f{fx_flow_id:03d}c{cy_client_id:02d} "
     ods.service_name += "+".join([f"OCh{och_id:03d}" for och_id in och_ids])
     ods.service_name += f" {code_pop_a}-{code_pop_b}"
 
     ods.service_type = service_type
 
-    ods.flow_id = fX_flow_id
-    ods.client_id = cY_client_id
+    ods.flow_id = fx_flow_id
+    ods.client_id = cy_client_id
 
     ods.client_ports[0].port_name = name_client_port_a
     ods.client_ports[0].port_description = f"{ods.service_name} remote:{device_b.fqdn} {name_client_port_b}"
@@ -977,62 +971,26 @@ def divide_path_into_sections(
     line_ports_a: list[UUIDstr],
     line_ports_b: list[UUIDstr],
 ) -> State:
-    def split_into_platform_sections(
-        sequence_of_ports: list[OpticalDevicePortBlock],
-    ) -> list[list[OpticalDevicePortBlock]]:
-        """Split ports into sections based on device platform."""
-        sections: list[list[OpticalDevicePortBlock]] = []
-        current_section = [sequence_of_ports[0]]
-        previous_port = sequence_of_ports[0]
-        for current_port in sequence_of_ports[1:]:
-            if current_port.optical_device.platform != previous_port.optical_device.platform:
-                sections.append(current_section)
-                current_section = []
-            current_section.append(current_port)
-            previous_port = current_port
-
-        if current_section:
-            sections.append(current_section)
-
-        return sections
-
     if optical_path == ["direct_connection"]:
         # direct connection between transceivers without any managed line system in the middle
         return {
             "subscription": subscription,
         }
 
-    ports = []
-    for port_id in optical_path:
-        port = OpticalDevicePortBlock.from_db(port_id)
-        ports.append(port)
-
-    platform_sections = split_into_platform_sections(ports)
-
     ods = subscription.optical_digital_service
     channels = ods.transport_channels
-    optical_spectrum_sections = channels[0].optical_spectrum.optical_spectrum_sections
-    for section in platform_sections:
-        s = OpticalSpectrumSectionBlockInactive.new(
-            subscription_id=subscription.subscription_id,
-            add_drop_ports=[section[0], section[-1]],
-            optical_path=section[1:-1],
-        )
-        optical_spectrum_sections.append(s)
+    optical_spectrum = channels[0].optical_spectrum
+    store_list_of_ports_into_spectrum_sections(optical_path, optical_spectrum)
 
     if len(channels) == 2:
-        optical_spectrum_sections = channels[1].optical_spectrum.optical_spectrum_sections
+        optical_spectrum = channels[1].optical_spectrum
         first_add_drop_port, last_add_drop_port = find_add_drop_ports(
             line_ports_a[-1],
             line_ports_b[-1],
         )
-        for section in platform_sections:
-            s = OpticalSpectrumSectionBlockInactive.new(
-                subscription_id=subscription.subscription_id,
-                add_drop_ports=[first_add_drop_port, last_add_drop_port],
-                optical_path=section[1:-1],
-            )
-        optical_spectrum_sections.append(s)
+        optical_path[0] = first_add_drop_port
+        optical_path[-1] = last_add_drop_port
+        store_list_of_ports_into_spectrum_sections(optical_path, optical_spectrum)
 
     return {
         "subscription": subscription,
@@ -1143,7 +1101,7 @@ def provision_optical_sections(
                 spectrum_name,
                 passband,
                 carrier,
-                label=f"f{flow_id:03d}c{client_id:02d} ",
+                label=f"f{flow_id:03d}c{client_id:02d}",
             )
 
     return {
@@ -1179,21 +1137,57 @@ def update_optical_spectrum_sections_label(
 
 
 @step("Updating the available passbands of any Open Line System port in the path")
-def update_used_passbands(subscription: OpticalDigitalServiceProvisioning) -> State:
-    passbands_by_device = {}
-    for channel in subscription.optical_digital_service.transport_channels:
-        for section in channel.optical_spectrum.optical_spectrum_sections:
-            for port in section.optical_path:
-                device = port.optical_device
-                if device.device_type in [
-                    DeviceType.ROADM,
-                    DeviceType.TransponderAndOADM,
-                ]:
-                    if device.fqdn not in passbands_by_device:
-                        passbands_by_device[device.fqdn] = retrieve_ports_spectral_occupations(device)
-                    port.used_passbands = passbands_by_device[device.fqdn].get(port.port_name, [])
+def update_used_passbands_step(subscription: OpticalDigitalServiceProvisioning) -> State:
+    spectrum = subscription.optical_digital_service.transport_channels[0].optical_spectrum
+    update_used_passbands(spectrum)
 
     return {"subscription": subscription}
+
+
+@step("Setting the transmitted optical power to match the line system target")
+def set_trx_transmitted_power(
+    subscription: OpticalDigitalServiceProvisioning,
+) -> State:
+    ods = subscription.optical_digital_service
+    results = {}
+
+    for channel in ods.transport_channels:
+        line_ports = channel.line_ports
+        optical_spectrum = channel.optical_spectrum
+        spectrum_name = optical_spectrum.spectrum_name
+
+        add_drop_ports: list[OpticalDevicePortBlock] = []
+        for section in optical_spectrum.optical_spectrum_sections:
+            section_platform = section.add_drop_ports[0].optical_device.platform
+            if section_platform == Platform.FlexILS:
+                add_drop_ports = section.add_drop_ports
+                break
+
+        if add_drop_ports == []:
+            continue
+
+        for i, trib_port in enumerate(add_drop_ports):
+            db_from_target = diff_btw_current_rx_power_and_target(trib_port.optical_device, spectrum_name)
+
+            min_acceptable_diff = 0.0
+            max_acceptable_diff = 1.5
+            if min_acceptable_diff <= db_from_target <= max_acceptable_diff:
+                result_key = f"{trib_port.optical_device.fqdn} {trib_port.port_name}"
+                results[result_key] = (
+                    f"Received optical power is {db_from_target} dB from target. "
+                    "Within margins. No need to adjust transmitted power."
+                )
+                continue
+
+            trx_line_port = line_ports[i]
+            trx = trx_line_port.optical_device
+            trx_port_name = trx_line_port.port_name
+            result_key = f"{trx.fqdn} {trx_port_name}"
+            results[result_key] = allign_tx_power_to_target(trx, trx_port_name, db_from_target)
+
+    return {
+        "configuration_results": results,
+    }
 
 
 additional_steps = begin
@@ -1214,7 +1208,7 @@ def create_optical_digital_service() -> StepList:
     return (
         begin
         >> construct_optical_digital_service_model
-        >> store_process_subscription(Target.CREATE)
+        >> store_process_subscription()
         >> conditional(are_channels_yet_to_be_provisioned)(divide_path_into_sections)
         >> set_status(SubscriptionLifecycle.PROVISIONING)
         >> update_subscription_description
@@ -1222,8 +1216,10 @@ def create_optical_digital_service() -> StepList:
         >> configure_trx_client_side
         >> configure_trx_crossconnects
         >> conditional(are_channels_yet_to_be_provisioned)(provision_optical_sections)
-        >> conditional(are_channels_yet_to_be_provisioned)(update_used_passbands)
+        >> conditional(are_channels_yet_to_be_provisioned)(update_used_passbands_step)
         >> conditional(lambda state: not are_channels_yet_to_be_provisioned(state))(
             update_optical_spectrum_sections_label
         )
+        >> conditional(are_channels_yet_to_be_provisioned)(step("Sleeping for 30 seconds")(lambda: sleep(30)))
+        >> conditional(are_channels_yet_to_be_provisioned)(set_trx_transmitted_power)
     )

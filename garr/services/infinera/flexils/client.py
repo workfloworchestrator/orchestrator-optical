@@ -11,107 +11,163 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
+import logging
 import os
-from typing import TYPE_CHECKING, Any, TypeVar
+import time
+from typing import Any, ClassVar, TypeVar
 
-from .commands.base import TL1BaseCommand, TL1BaseResponse, TL1CommandRegistry
+import paramiko
 
-if TYPE_CHECKING:
-    from ..core.client import TnmsClient
+# Assuming these exist in your project structure
+from services.infinera.flexils.commands.base import TL1BaseCommand, TL1BaseResponse, TL1CommandRegistry
+from services.infinera.flexils.utils import generate_ctag
 
 T = TypeVar("T", bound=TL1BaseCommand)
+logger = logging.getLogger(__name__)
 
+class FlexilsClient:
+    _cache: ClassVar[dict[tuple[str, str], "FlexilsClient"]] = {}
 
-# Define class attributes at module level
-# removed auth info for sharing on public repo
+    @classmethod
+    def get_instance(cls, tid: str, gne_ip: str, timeout: int = 30) -> "FlexilsClient":
+        key = (tid.lower(), gne_ip)
+        if key not in cls._cache:
+            client = cls(tid, gne_ip, timeout)
+            cls._cache[key] = client
+        return cls._cache[key]
 
+    @classmethod
+    def close_all(cls):
+        for client in list(cls._cache.values()):
+            client.close()
+        cls._cache.clear()
 
-class FlexILSClient:
-    """Client for executing TL1 commands on FlexILS devices through TNMS.
+    def __init__(self, tid: str, gne_ip: str, timeout: int = 30):
+        """
+        Synchronous TL1 Client for Infinera FlexILS.
+        Maintains a persistent SSH subsystem connection.
+        """
+        self.tid = tid
+        self.gne_ip = gne_ip
+        self.timeout = timeout
 
-    Note:
-        Command methods are created dynamically during initialization based on
-        the commands registered in TL1CommandRegistry. See their attributes in
-        the respective command module under commands folder.
-    """
+        self._client: paramiko.SSHClient | None = None
+        self._channel: paramiko.Channel | None = None
 
-    def __init__(self, tnms_client: "TnmsClient", tnms_device_uuid: str, device_tid: str):
-        self.device_uuid = tnms_device_uuid
-        self.device_tid = device_tid
-        self.tnms_client = tnms_client
+        # Eagerly bind commands
         self._init_command_methods()
 
-    def __getattr__(self, name: str) -> Any:
+    def _authenticate(self):
+        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons. Ask GARR team for details.")
+
+    def _connect(self):
+        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons. Ask GARR team for details.")
+
+    def _close(self):
+        """Closes channel and client."""
+        if self._channel:
+            with contextlib.suppress(Exception):
+                self._channel.close()
+            self._channel = None
+
+        if self._client:
+            with contextlib.suppress(Exception):
+                self._client.close()
+            self._client = None
+
+    def _send_and_receive_until(self, command: str, until_strings: list[str]) -> str:
+        """Internal logic to write to socket and read buffer."""
+        if not self._channel or not self._channel.active:
+            self._connect()
+
+        if isinstance(until_strings, str):
+            until_strings = [until_strings]
+
+        # Write
+        if command.startswith("ACT-USER"):
+            msg = f"Logging in to {self.gne_ip} ({self.tid})..."
+            logger.info(msg)
+        else:
+            msg = f"Sending: {command.strip()}"
+            logger.info(msg)
+        if isinstance(command, str):
+            command = command.encode("utf-8")
+
+        try:
+            self._channel.sendall(command)
+        except (OSError, paramiko.SSHException):
+            logger.warning(f"Connection lost during send to {self.tid}. Reconnecting...")  # noqa: G004
+            self._connect()
+            self._channel.sendall(command)
+
+        # Read loop
+        buffer = b""
+        has_last_msg_started = False
+        start_time = time.time()
+        timeout_time = start_time + self.timeout
+
+        encoded_until_strings = [s.encode("utf-8") for s in until_strings]
+        encoded_tl1_prompt = b"TL1>>"
+
+        while True:
+            if time.time() > timeout_time:
+                msg = f"Timeout waiting for response to {command}"
+                raise TimeoutError(msg)
+
+            # Read available data
+            chunk = self._channel.recv(4096)
+            if not chunk:
+                # Connection closed remotely
+                raise EOFError("Socket closed during read")
+
+            buffer += chunk
+
+            # Check for termination logic
+            # 1. Must contain one of the markers (COMPLD, DENY, etc)
+            # 2. Must end with 'TL1>>' (TL1 prompt)
+            if any(marker in buffer for marker in encoded_until_strings):
+                has_last_msg_started = True
+
+            if has_last_msg_started and buffer.endswith(encoded_tl1_prompt):
+                buffer = buffer.decode("utf-8")
+                if buffer.startswith("ACT-USER"):
+                    buffer = buffer.replace(_username, "")
+                msg = f"Command output: {buffer}"
+                logger.info(msg)
+                return buffer
+
+    def execute_raw_command(self, command: str, correlation_tag: str) -> str:
         """
-        Fallback dynamic method factory for TL1 commands.
-
-        When an attribute is not found on the instance (i.e. not bound in
-        __init__), this hook looks up `name` in the TL1CommandRegistry. If a
-        matching command class exists, it returns a thin wrapper that will
-        build and dispatch the TL1 command on demand. Otherwise it raises
-        AttributeError as usual.
-
-        Relation to _init_command_methods:
-        - __getattr__ ensures that *all* registered commands can be invoked,
-          even if they weren't bound up front.
-        - Together with _init_command_methods, it provides both eager binding
-          (for discoverability) and lazy fallback (for completeness).
+        Sends a raw TL1 command and waits for the specific termination sequence.
+        Handles auto-reconnection on failure.
         """
-        cmd_cls = TL1CommandRegistry.commands.get(name)
-        if cmd_cls:
-
-            def method(**kwargs: Any) -> TL1BaseResponse:
-                return self._execute_command(cmd_cls, **kwargs)
-
-            return method
-        raise AttributeError(f"{self.__class__.__name__!r} has no attribute {name!r}")
-
-    def _execute_raw_commands(self, commands: list[str], error_policy: str = "ABORT") -> list[str]:
-        """Execute a list of TL1 commands on a device."""
-        full_commands = [
-            # removed auth info for sharing on public repo
-            *commands,
-            # removed auth info for sharing on public repo
+        last_msg_markers = [
+            f"{correlation_tag} COMPLD",
+            f"{correlation_tag} DENY",
+            f"{correlation_tag} PRTL",
+            "M  0 DENY",
         ]
-        response = self.tnms_client.operations.run_cli_script(
-            [self.device_uuid], full_commands, channel="TL1", error_policy=error_policy
-        )
-        return [resp["output"] for resp in response["device-results"][0]["responses"][1:-1]]
+        stdout = self._send_and_receive_until(command, last_msg_markers)
 
-    def _execute_raw_command(self, command: str) -> str:
-        """Execute a TL1 command on a device."""
-        commands = [
-            # removed auth info for sharing on public repo
-            command,
-            # removed auth info for sharing on public repo
-        ]
-        response = self.tnms_client.operations.run_cli_script(
-            [self.device_uuid], commands, channel="TL1", error_policy="CONTINUE"
-        )
-        return response["device-results"][0]["responses"][1]["output"]
+        if "PRIVILEGE, LOGIN NOT ACTIVE"[::-1] in stdout[::-1]:
+            self._authenticate()
+            stdout = self._send_and_receive_until(command, last_msg_markers)
+
+        stdout = stdout.removeprefix(f"{command}\r\n")
+        return stdout.removesuffix("TL1>>")
 
     def _execute_command(self, command_cls: type[T], **kwargs: Any) -> TL1BaseResponse:
-        """Execute a TL1 command using its Pydantic model"""
-        command = command_cls(tid=self.device_tid, **kwargs)
+        """Execute a TL1 command using its Pydantic model."""
+        # Note: 'tid' usually needs to be passed to the command model if strictly required
+        # or the command class handles it. Assuming device_tid logic maps to self.tid
+        command = command_cls(tid=self.tid, **kwargs)
         return command.execute(self)
 
     def _init_command_methods(self) -> None:
-        """
-        Eagerly bind TL1 command methods on this instance.
-
-        Iterates through all commands registered in TL1CommandRegistry and
-        creates a real bound method on `self` for each. This:
-          - Improves discoverability (dir(), IDE auto‐complete).
-          - Avoids the tiny overhead of __getattr__ on common paths.
-          - Still delegates actual execution via _execute_command.
-
-        Relation to __getattr__:
-        - Commands bound here will bypass __getattr__ entirely.
-        - __getattr__ remains as a safety net for any future or dynamic
-          commands added after initialization.
-        """
+        """Dynamically binds methods from the Registry to this instance."""
         for method_name, command_class in TL1CommandRegistry.commands.items():
-            # Create a closure to capture command_class
+
             def create_method(cmd_class):
                 def method(**kwargs):
                     return self._execute_command(cmd_class, **kwargs)
@@ -122,3 +178,18 @@ class FlexILSClient:
             bound_method.__name__ = method_name
             bound_method.__qualname__ = f"{self.__class__.__name__}.{method_name}"
             setattr(self, method_name, bound_method)
+
+    def close(self):
+        """Public method to close the connection explicitly."""
+        self._close()
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit, ensures connection closure."""
+        self.close()
+
+    def __del__(self):  # noqa: D105
+        self.close()

@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import structlog
 from orchestrator.forms import FormPage
 from orchestrator.forms.validators import (
     DisplaySubscription,
@@ -20,6 +19,7 @@ from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, conditional, step
 from orchestrator.workflows.utils import terminate_workflow
 from pydantic_forms.types import InputForm, State, UUIDstr
+from structlog import get_logger
 
 from products.product_blocks.optical_device import DeviceType
 from products.product_blocks.transport_channel import (
@@ -36,7 +36,7 @@ from products.services.optical_digital_service import (
 )
 from products.services.optical_spectrum import delete_optical_circuit
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def terminate_initial_input_form_generator(
@@ -163,7 +163,7 @@ additional_steps = begin
 
 
 @terminate_workflow(
-    "Terminate Optical Digital Service",
+    "terminate optical digital service",
     initial_input_form=terminate_initial_input_form_generator,
     additional_steps=additional_steps,
 )

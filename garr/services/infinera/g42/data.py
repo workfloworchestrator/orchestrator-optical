@@ -13,10 +13,10 @@
 
 from typing import TYPE_CHECKING, Any, Literal
 
-from .data_models import get_data_model
+from services.infinera.g42.data_models import get_data_model
 
 if TYPE_CHECKING:
-    from .client import G42Client
+    from services.infinera.g42.client import G42Client
 from urllib.parse import quote, unquote
 
 UUIDstr = str
