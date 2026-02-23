@@ -1,8 +1,0 @@
-#!/bin/sh
-export PYTHONPATH=$PWD
-export ENABLE_WEBSOCKETS=False
-if [ -z "$1" ]; then
-    python main.py scheduler run
-else
-    python main.py scheduler "$1" "$2"
-fi

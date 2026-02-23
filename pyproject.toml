@@ -1,0 +1,187 @@
+[project]
+name = "orchestrator-extra-optical"
+version = "0.0.1rc1"
+description = "Addon module for Workflow Orchestrator installations that includes product models for optical equipment."
+authors = [
+    { name = "Consortium GARR" },
+    { name = "GÉANT Orchestration and Automation Team", email = "goat@geant.org" }
+]
+license = "Apache-2.0"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "asyncssh~=2.22.0",
+    "orchestrator-core>=4",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Web Environment",
+    "Framework :: AsyncIO",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Telecommunications Industry",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://workfloworchestrator.org"
+Documentation = "https://github.com/workfloworchestrator/orchestrator-extra-optical"
+Source = "https://github.com/workfloworchestrator/orchestrator-extra-optical"
+
+[dependency-groups]
+dev = []
+
+[build-system]
+requires = ["uv_build>=0.9.3,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+prerelease = "if-necessary"
+
+[tool.uv.build-backend]
+module-name = "orchestrator_extra_optical"
+module-root = ""
+
+[tool.mypy]
+exclude = [
+    "test",
+    "docs",
+    ".venv"
+]
+ignore_missing_imports = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_optional = true
+namespace_packages = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_no_return = true
+warn_unreachable = true
+implicit_reexport = false
+strict_equality = true
+show_error_codes = true
+show_column_numbers = true
+disable_error_code = "annotation-unchecked"
+enable_error_code = "ignore-without-code"
+
+[tool.ruff]
+exclude = [
+    "venv",
+    ".venv",
+]
+line-length = 120
+indent-width = 4
+target-version = "py313"
+
+[tool.ruff.lint]
+ignore = [
+    "B901",
+    "C901",
+    "COM812",
+    "D203",
+    "D213",
+    "ISC001",
+    "N805",
+    "PLC2801",
+    "PLR0913",
+    "PLR0904",
+    "PLW1514",
+    "FURB118",
+    "S311",
+]
+select = [
+    "A",
+    "ARG",
+    "B",
+    "BLE",
+    "C",
+    "COM",
+    "C4",
+    "C90",
+    "D",
+    "DTZ",
+    "E",
+    "EM",
+    "ERA",
+    "F",
+    "FA",
+    "FBT",
+    "FLY",
+    "FURB",
+    "G",
+    "I",
+    "ICN",
+    "INP",
+    "ISC",
+    "LOG",
+    "N",
+    "PERF",
+    "PGH",
+    "PIE",
+    "PL",
+    "PT",
+    "PTH",
+    "PYI",
+    "Q",
+    "RET",
+    "R",
+    "RET",
+    "RSE",
+    "RUF",
+    "S",
+    "SIM",
+    "SLF",
+    "T",
+    "T20",
+    "TID",
+    "TRY",
+    "UP",
+    "W",
+    "YTT"
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+"orchestrator_extra_optical/workflows/*" = ["PLR0917", "PLR0914"]
+"test/*" = ["ARG001", "D", "S101", "PLR2004", "PLR0917", "PLR0914", "PLC0415", "PLC2701"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["pydantic", "migrations"]
+known-first-party = ["test", "docs"]
+
+[tool.pytest.ini_options]
+markers = ["noautofixt"]
+filterwarnings = ["ignore", "default:::orchestrator_extra_optical"]
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["test"]
+
+[tool.pytest_env]
+TRANSLATIONS_DIR = "orchestrator_extra_optical/translations"
+
+[tool.coverage.run]
+branch = true
+fail_under = 90
+omit = ["orchestrator_extra_optical/migrations/*"]

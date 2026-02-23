@@ -1,9 +1,23 @@
+# Copyright 2019-2020 SURF, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 
 from alembic import context
+from sqlalchemy import engine_from_config, pool
+
 from orchestrator.db.database import BaseModel
 from orchestrator.settings import app_settings
-from sqlalchemy import engine_from_config, pool
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -27,6 +41,14 @@ target_metadata = BaseModel.metadata
 # ... etc.
 
 
+def include_object(object, name, type_, reflected, compare_to):
+    """Determines if an object should be included."""
+
+    if type_ == "table" and object.info.get("materialized_view", False):
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -45,6 +67,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -62,7 +85,7 @@ def run_migrations_online() -> None:
     # this callback is used to prevent an auto-migration from being generated
     # when there are no changes to the schema
     # reference: http://alembic.zzzcomputing.com/en/latest/cookbook.html
-    def process_revision_directives(context, revision, directives):  # type: ignore
+    def process_revision_directives(context, revision, directives):
         if getattr(config.cmd_opts, "autogenerate", False):
             script = directives[0]
             if script.upgrade_ops.is_empty():
@@ -70,9 +93,7 @@ def run_migrations_online() -> None:
                 logger.info("No changes in schema detected.")
 
     engine = engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+        config.get_section(config.config_ini_section, default={}), prefix="sqlalchemy.", poolclass=pool.NullPool
     )
 
     connection = engine.connect()
@@ -81,7 +102,9 @@ def run_migrations_online() -> None:
         target_metadata=target_metadata,
         process_revision_directives=process_revision_directives,
         compare_type=True,
+        include_object=include_object,
     )
+
     try:
         with context.begin_transaction():
             context.run_migrations()

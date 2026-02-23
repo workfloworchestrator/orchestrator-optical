@@ -14,7 +14,7 @@
 """add task to upgrade G30 devices from FP4.5.2 to FP4.8.0.
 
 Revision ID: e3d84c9722c1
-Revises: 5aa98e9a9b21
+Revises: 43ec72c4b513
 Create Date: 2025-10-23 10:10:00.000000
 
 """
@@ -26,7 +26,7 @@ from orchestrator.targets import Target
 
 # revision identifiers, used by Alembic.
 revision = "e3d84c9722c1"
-down_revision = "5aa98e9a9b21"
+down_revision = "43ec72c4b513"
 branch_labels = None
 depends_on = None
 

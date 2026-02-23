@@ -1,15 +1,16 @@
-GARR Orchestrator
+Workflow Orchestrator Optical Module
 
-Copyright (c) [2025] GARR.
+Copyright (c) [2025-2026] GARR, GÉANT.
 
 This product includes software developed at
 GARR (https://garr.it)
+GÉANT (https://geant.org)
 
 
 This software utilizes the following third-party libraries and frameworks,
 each governed by its own respective license:
 * **Workflow Orchestrator**
-    Copyright [2018-2025] SURF, ESnet, GÉANT
+    Copyright [2018-2026] SURF, ESnet, GÉANT
     Licensed under the Apache License, Version 2.0.
     (https://workfloworchestrator.org)
 
