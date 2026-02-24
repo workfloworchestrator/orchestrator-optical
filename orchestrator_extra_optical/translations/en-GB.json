@@ -12,8 +12,6 @@
       "create_optical_digital_service": "create optical digital service",
       "create_optical_fiber": "create optical fiber",
       "create_optical_spectrum": "create optical spectrum service",
-      "create_partner": "create Partner",
-      "create_pop": "create Point of Presence",
       "execute_tl1_commands_on_flexils": "Execute a sequence of raw TL1 commands on a FlexILS node",
       "import_fibers_from_tnms": "Import fibers from TNMS",
       "import_pops_from_netbox": "Import PoPs from Netbox",
@@ -21,8 +19,6 @@
       "modify_optical_digital_service": "modify optical digital service",
       "modify_optical_fiber": "modify optical fiber",
       "modify_optical_spectrum": "modify optical spectrum service",
-      "modify_partner": "modify Partner",
-      "modify_pop": "modify Point of Presence",
       "purge_subscription_from_database": "Purge subscription and all its blocks, values, relations and any processes tied to it from the database",
       "task_bulk_create_optical_devices_workflow": "Create optical devices in bulk from CSV data (workflow)",
       "task_check_netbox_connection": "Check connection to NetBox API server",
@@ -32,15 +28,11 @@
       "terminate_optical_digital_service": "terminate optical digital service",
       "terminate_optical_fiber": "terminate optical fiber",
       "terminate_optical_spectrum": "terminate optical spectrum service",
-      "terminate_partner": "terminate Partner",
-      "terminate_pop": "terminate Point of Presence",
       "upgrade_g42_from_600_to_802": "Upgrade G42 from release R6.0 to R8.0.2",
       "upgrade_g30_from_452_to_480": "Upgrade G30 from release FP4.5.2 to FP4.8.0",
       "validate_optical_device": "validate optical device",
       "validate_optical_digital_service": "validate optical digital service",
       "validate_optical_fiber": "validate optical fiber",
       "validate_optical_spectrum": "validate optical spectrum service",
-      "validate_partner": "validate Partner",
-      "validate_pop": "validate Point of Presence"
    }
 }

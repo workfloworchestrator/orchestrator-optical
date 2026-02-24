@@ -18,12 +18,12 @@ from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 from pydantic import computed_field
 
-from products.product_blocks.optical_device import (
+from orchestrator_extra_optical.products.product_blocks.optical_device import (
     OpticalDeviceBlock,
     OpticalDeviceBlockInactive,
     OpticalDeviceBlockProvisioning,
 )
-from utils.custom_types.frequencies import Passband
+from orchestrator_extra_optical.utils.custom_types.frequencies import Passband
 
 ListOfPassbands = Annotated[list[Passband], Len(min_length=0, max_length=128)]
 

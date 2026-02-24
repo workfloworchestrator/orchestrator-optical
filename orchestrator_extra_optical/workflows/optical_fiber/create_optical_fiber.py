@@ -22,23 +22,22 @@ from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
 
-from products.product_blocks.optical_device import DeviceType, Platform
-from products.product_blocks.optical_fiber import (
+from orchestrator_extra_optical.products.product_blocks.optical_device import DeviceType, Platform
+from orchestrator_extra_optical.products.product_blocks.optical_fiber import (
     ListOfFiberTypes,
     ListOfLengths,
 )
-from products.product_types.optical_device import OpticalDevice
-from products.product_types.optical_fiber import (
+from orchestrator_extra_optical.products.product_types.optical_device import OpticalDevice
+from orchestrator_extra_optical.products.product_types.optical_fiber import (
     OpticalFiberInactive,
     OpticalFiberProvisioning,
 )
-from products.services.optical_device import retrieve_ports_spectral_occupations
-from products.services.optical_device_port import (
+from orchestrator_extra_optical.products.services.optical_device import retrieve_ports_spectral_occupations
+from orchestrator_extra_optical.products.services.optical_device_port import (
     configure_termination_when_attaching_new_fiber,
 )
-from workflows.optical_device.shared import unused_optical_port_selector
-from workflows.partner.shared import get_partner_subscription_by_name
-from workflows.shared import (
+from orchestrator_extra_optical.workflows.optical_device.shared import unused_optical_port_selector
+from orchestrator_extra_optical.workflows.shared import (
     active_subscription_selector,
     create_summary_form,
     subscription_instance_values_by_block_type_depending_on_instance_id,
@@ -157,8 +156,7 @@ def construct_optical_fiber_model(
     fiber_types: ListOfFiberTypes | None,
     lengths: ListOfLengths | None,
 ) -> State:
-    partner_id = get_partner_subscription_by_name("GARR").subscription_id
-    partner_id = str(partner_id)
+    partner_id = NotImplementedError("Not implemented")
     subscription = OpticalFiberInactive.from_product_id(
         product_id=product,
         customer_id=partner_id,

@@ -53,8 +53,8 @@ logger = get_logger(__name__)
 
 
 def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
-    PartnerChoice: TypeAlias = cast(type[Choice], active_subscription_selector("Partner"))
-    PoPChoice: TypeAlias = cast(type[Choice], active_subscription_selector("PoP"))
+    PartnerChoice = NotImplementedError("Not implemented")
+    PoPChoice = NotImplementedError("Not implemented")
 
     Instruction = Annotated[
         str,

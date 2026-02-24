@@ -27,10 +27,9 @@ from orchestrator.workflow import StepList, begin, done, step, workflow
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
-from products.product_blocks.optical_device import DeviceType, Platform, Vendor
-from utils.custom_types.ip_address import IPAddress
-from workflows.partner.shared import get_partner_subscription_by_name
-from workflows.shared import subscriptions_by_product_type_and_instance_value
+from orchestrator_extra_optical.products.product_blocks.optical_device import DeviceType, Platform, Vendor
+from orchestrator_extra_optical.utils.custom_types.ip_address import IPAddress
+from orchestrator_extra_optical.workflows.shared import subscriptions_by_product_type_and_instance_value
 
 achtung = (
     "This task will launch a sub-workflow for each device. "
@@ -156,7 +155,7 @@ def initial_input_form_generator() -> FormGenerator:
 def find_pops_and_duplicate_addresses(
     csv_data: list[dict[str, str]],
 ) -> State:
-    partner_id = get_partner_subscription_by_name("GARR").subscription_id
+    partner_id = NotImplementedError("Not implemented")
 
     input_data = []
     pops_ids = {}

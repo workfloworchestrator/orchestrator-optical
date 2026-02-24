@@ -576,7 +576,7 @@ def subscription_description(subscription: SubscriptionModel) -> str:
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
-    PartnerChoice = active_subscription_selector("Partner", prompt="Who is the user of this service?")
+    PartnerChoice = NotImplementedError("Not implemented")
 
     transceivers_types = [
         DeviceType.Transceiver,

@@ -14,7 +14,7 @@
 """Add optical_device product.
 
 Revision ID: b0ecb1a9b6d0
-Revises: a5c6e2ea6d8d
+Revises:
 Create Date: 2024-11-28 19:12:50.072516
 
 """
@@ -33,9 +33,9 @@ from orchestrator.targets import Target
 
 # revision identifiers, used by Alembic.
 revision = "b0ecb1a9b6d0"
-down_revision = "a5c6e2ea6d8d"
-branch_labels = None
-depends_on = None
+down_revision = None
+branch_labels = ("data",)
+depends_on = "da5c9f4cce1c"
 
 new_products = {
     "products": {

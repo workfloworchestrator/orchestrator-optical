@@ -24,16 +24,6 @@ LazyWorkflowInstance("workflows.tasks.execute_tl1_commands_on_flexils", "execute
 LazyWorkflowInstance("workflows.tasks.upgrade_g30_from_452_to_480", "upgrade_g30_from_452_to_480")
 LazyWorkflowInstance("workflows.tasks.upgrade_g42_from_600_to_802", "upgrade_g42_from_600_to_802")
 
-LazyWorkflowInstance("workflows.partner.create_partner", "create_partner")
-LazyWorkflowInstance("workflows.partner.modify_partner", "modify_partner")
-LazyWorkflowInstance("workflows.partner.terminate_partner", "terminate_partner")
-LazyWorkflowInstance("workflows.partner.validate_partner", "validate_partner")
-
-LazyWorkflowInstance("workflows.pop.create_pop", "create_pop")
-LazyWorkflowInstance("workflows.pop.modify_pop", "modify_pop")
-LazyWorkflowInstance("workflows.pop.terminate_pop", "terminate_pop")
-LazyWorkflowInstance("workflows.pop.validate_pop", "validate_pop")
-
 LazyWorkflowInstance("workflows.optical_device.create_optical_device", "create_optical_device")
 LazyWorkflowInstance("workflows.optical_device.modify_optical_device", "modify_optical_device")
 LazyWorkflowInstance("workflows.optical_device.terminate_optical_device", "terminate_optical_device")

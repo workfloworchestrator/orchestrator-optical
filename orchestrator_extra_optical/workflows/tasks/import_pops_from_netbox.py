@@ -25,8 +25,8 @@ from orchestrator.workflow import StepList, begin, done, step, workflow
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
-from services import netbox
-from workflows.shared import subscriptions_by_product_type_and_instance_value
+from orchestrator_extra_optical.services import netbox
+from orchestrator_extra_optical.workflows.shared import subscriptions_by_product_type_and_instance_value
 
 achtung = (
     "Make sure there is a partner subscription for GARR! "

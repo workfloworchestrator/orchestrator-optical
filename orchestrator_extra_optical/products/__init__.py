@@ -18,13 +18,9 @@ from products.product_types.optical_device import OpticalDevice
 from products.product_types.optical_digital_service import OpticalDigitalService
 from products.product_types.optical_fiber import OpticalFiber
 from products.product_types.optical_spectrum import OpticalSpectrum
-from products.product_types.partner import Partner
-from products.product_types.pop import PoP
 
 SUBSCRIPTION_MODEL_REGISTRY.update(
     {
-        "partner": Partner,
-        "pop": PoP,
         "optical_device": OpticalDevice,
         "optical_fiber": OpticalFiber,
         "optical_spectrum": OpticalSpectrum,

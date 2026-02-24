@@ -18,9 +18,9 @@ from orchestrator.types import SubscriptionLifecycle
 from pydantic import computed_field
 from pydantic_forms.types import UUIDstr
 
-from products.product_blocks.pop import PoPBlock, PoPBlockInactive, PoPBlockProvisioning
-from utils.custom_types.fqdn import FQDN
-from utils.custom_types.ip_address import IPAddress
+from orchestrator_extra_optical.products.product_blocks.pop import PoPBlock, PoPBlockInactive, PoPBlockProvisioning
+from orchestrator_extra_optical.utils.custom_types.fqdn import FQDN
+from orchestrator_extra_optical.utils.custom_types.ip_address import IPAddress
 
 
 class Vendor(StrEnum):

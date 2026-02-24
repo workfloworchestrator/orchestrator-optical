@@ -57,8 +57,8 @@ def subscription_description(subscription: SubscriptionModel) -> str:
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
-    PartnerChoice: TypeAlias = cast(type[Choice], active_subscription_selector("Partner"))
-    PoPChoice: TypeAlias = cast(type[Choice], active_subscription_selector("PoP"))
+    PartnerChoice = NotImplementedError("Not implemented")
+    PoPChoice = NotImplementedError("Not implemented")
 
     class CreateOpticalDeviceForm(FormPage):
         model_config = ConfigDict(title=product_name)

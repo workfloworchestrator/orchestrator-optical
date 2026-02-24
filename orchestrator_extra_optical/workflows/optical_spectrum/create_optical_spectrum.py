@@ -79,7 +79,7 @@ def subscription_description(
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
-    PartnerChoice = active_subscription_selector("Partner", prompt="Who is the user of this service?")
+    PartnerChoice = NotImplementedError("Not implemented")
 
     class OpticalSpectrumInputForm(FormPage):
         """Form for inputing service name and min and max frequencies."""

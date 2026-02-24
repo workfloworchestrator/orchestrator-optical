@@ -14,7 +14,7 @@
 """add Netbox health check task.
 
 Revision ID: 57fbb3cbadfb
-Revises: 2b2650c11dfb
+Revises: d946c20663d3
 Create Date: 2025-01-27 15:52:00.000000
 
 
@@ -31,7 +31,7 @@ from orchestrator.targets import Target
 
 # revision identifiers, used by Alembic.
 revision = "57fbb3cbadfb"
-down_revision = "2b2650c11dfb"
+down_revision = "d946c20663d3"
 branch_labels = None
 depends_on = None
 

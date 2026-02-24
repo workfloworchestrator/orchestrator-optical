@@ -1,6 +1,7 @@
 [project]
 name = "orchestrator-extra-optical"
 version = "0.0.1rc1"
+readme = "README.md"
 description = "Addon module for Workflow Orchestrator installations that includes product models for optical equipment."
 authors = [
     { name = "Consortium GARR" },
@@ -47,7 +48,7 @@ Source = "https://github.com/workfloworchestrator/orchestrator-extra-optical"
 dev = []
 
 [build-system]
-requires = ["uv_build>=0.9.3,<0.10.0"]
+requires = ["uv_build>=0.10.5,<0.11.0"]
 build-backend = "uv_build"
 
 [tool.uv]
@@ -56,6 +57,7 @@ prerelease = "if-necessary"
 [tool.uv.build-backend]
 module-name = "orchestrator_extra_optical"
 module-root = ""
+source-include = ["orchestrator_extra_optical/migrations/alembic.ini"]
 
 [tool.mypy]
 exclude = [
