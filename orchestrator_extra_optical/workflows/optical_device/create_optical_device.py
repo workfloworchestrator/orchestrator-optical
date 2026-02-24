@@ -57,8 +57,8 @@ def subscription_description(subscription: SubscriptionModel) -> str:
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
-    PartnerChoice = NotImplementedError("Not implemented")
-    PoPChoice = NotImplementedError("Not implemented")
+    PartnerChoice = NotImplementedError("Not implemented")  # FIXME
+    PoPChoice = NotImplementedError("Not implemented")  # FIXME
 
     class CreateOpticalDeviceForm(FormPage):
         model_config = ConfigDict(title=product_name)

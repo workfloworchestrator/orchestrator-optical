@@ -86,7 +86,7 @@ class TnmsClient:
         )
 
     def _authenticate(self) -> None:
-        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons. Ask GARR team for details.")
+        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons.")  # FIXME
 
     @requires_auth
     def _request(self, method: str, path: str, log_mask: dict | None = None, **kwargs: Any) -> dict:

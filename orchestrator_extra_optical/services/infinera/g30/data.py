@@ -123,7 +123,7 @@ class Endpoint:
 
     def replace(self, **kwargs: Any) -> None:
         """Replace a resource"""
-        raise NotImplementedError
+        raise NotImplementedError  # FIXME
 
     def delete(self) -> None:
         """Delete a resource"""

@@ -79,7 +79,7 @@ def subscription_description(
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
-    PartnerChoice = NotImplementedError("Not implemented")
+    PartnerChoice = NotImplementedError("Not implemented")  # FIXME
 
     class OpticalSpectrumInputForm(FormPage):
         """Form for inputing service name and min and max frequencies."""

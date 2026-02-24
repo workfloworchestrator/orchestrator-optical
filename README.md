@@ -20,6 +20,8 @@ repo. An example file is given below.
 add_optical_module_migrations(config)
 ```
 
+4. Subclass some of the models given in this module that contain properties or methods that are not implemented.
+> Tip: These are marked with `#FIXME` comments.
 
 
 ## Development

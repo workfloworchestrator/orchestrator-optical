@@ -54,7 +54,7 @@ class OpticalDeviceBlockInactive(ProductBlockModel, ABC, product_block_name="Opt
     @abstractmethod
     def location(self):
         msg = "Class BaseOpticalDeviceBlockInactive must be subclassed to set custom properties."
-        raise NotImplementedError(msg)
+        raise NotImplementedError(msg)  # FIXME
 
 
 class OpticalDeviceBlockProvisioning(
@@ -73,7 +73,7 @@ class OpticalDeviceBlockProvisioning(
     @abstractmethod
     def location(self):
         msg = "Class BaseOpticalDeviceBlockProvisioning must be subclassed to set custom properties."
-        raise NotImplementedError(msg)
+        raise NotImplementedError(msg)  # FIXME
 
     @computed_field
     @property
@@ -97,4 +97,4 @@ class OpticalDeviceBlock(
     @abstractmethod
     def location(self):
         msg = "Class BaseOpticalDeviceBlock must be subclassed to set custom properties."
-        raise NotImplementedError(msg)
+        raise NotImplementedError(msg)  # FIXME

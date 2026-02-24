@@ -29,7 +29,7 @@ class G42Client:
     """G42 API client with automatic authentication handling."""
 
     def __init__(self, lo_ip: str | None = None, mngmt_ip: str | None = None):
-        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons. Ask GARR team for details.")
+        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons.")  # FIXME
 
     def _request(self, method: str, path: str, **kwargs: Any) -> dict:
         """Make authenticated API request."""

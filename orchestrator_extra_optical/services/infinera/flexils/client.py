@@ -59,10 +59,10 @@ class FlexilsClient:
         self._init_command_methods()
 
     def _authenticate(self):
-        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons. Ask GARR team for details.")
+        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons.")  # FIXME
 
     def _connect(self):
-        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons. Ask GARR team for details.")
+        raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons.")  # FIXME
 
     def _close(self):
         """Closes channel and client."""

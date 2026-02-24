@@ -53,8 +53,8 @@ logger = get_logger(__name__)
 
 
 def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
-    PartnerChoice = NotImplementedError("Not implemented")
-    PoPChoice = NotImplementedError("Not implemented")
+    PartnerChoice = NotImplementedError("Not implemented")  # FIXME
+    PoPChoice = NotImplementedError("Not implemented")  # FIXME
 
     Instruction = Annotated[
         str,

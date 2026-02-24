@@ -194,7 +194,7 @@ async def _async_wrapper_for_step_patch_uboot_of_g30_chassis(
     through shelves to check for flawed u-boot versions. Applies the patch if needed
     and verifies the fix.
     """
-    raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons. Ask GARR team for details.")
+    raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons.")  # FIXME
 
 
 @step("Patching the uboot of G30 chasses (Infinera's FSB_240110)")
@@ -204,7 +204,7 @@ def patch_uboot_of_g30_chassis(lo_ip: str, mngmt_ip: str) -> State:
     Uses async SSH to chassis and shelves: downloads patch, checks for flawed u-boot
     on each shelf, applies fix if svn5399 detected, reports status per shelf.
     """
-    raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons. Ask GARR team for details.")
+    raise NotImplementedError("Connection logic is not implemented in this snippet for security reasons.")  # FIXME
 
 
 @step("Check swload version G30")

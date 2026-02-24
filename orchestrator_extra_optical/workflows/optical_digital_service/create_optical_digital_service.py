@@ -576,7 +576,7 @@ def subscription_description(subscription: SubscriptionModel) -> str:
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
-    PartnerChoice = NotImplementedError("Not implemented")
+    PartnerChoice = NotImplementedError("Not implemented")  # FIXME
 
     transceivers_types = [
         DeviceType.Transceiver,

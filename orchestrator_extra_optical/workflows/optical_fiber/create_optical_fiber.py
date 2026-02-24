@@ -156,7 +156,7 @@ def construct_optical_fiber_model(
     fiber_types: ListOfFiberTypes | None,
     lengths: ListOfLengths | None,
 ) -> State:
-    partner_id = NotImplementedError("Not implemented")
+    partner_id = NotImplementedError("Not implemented")  # FIXME
     subscription = OpticalFiberInactive.from_product_id(
         product_id=product,
         customer_id=partner_id,

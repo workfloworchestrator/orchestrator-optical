@@ -887,7 +887,7 @@ def _(
     port_name: str,
 ) -> dict[str, Any]:
     msg = "Factory reset for transponder line side on GX G42 is not implemented yet."
-    raise NotImplementedError(msg)
+    raise NotImplementedError(msg)  # FIXME
 
 
 @attributedispatch("platform")
