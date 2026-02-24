@@ -14,10 +14,10 @@
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 
-from products.product_types.optical_device import OpticalDevice
-from products.product_types.optical_digital_service import OpticalDigitalService
-from products.product_types.optical_fiber import OpticalFiber
-from products.product_types.optical_spectrum import OpticalSpectrum
+from orchestrator_extra_optical.products.product_types.optical_device import OpticalDevice
+from orchestrator_extra_optical.products.product_types.optical_digital_service import OpticalDigitalService
+from orchestrator_extra_optical.products.product_types.optical_fiber import OpticalFiber
+from orchestrator_extra_optical.products.product_types.optical_spectrum import OpticalSpectrum
 
 SUBSCRIPTION_MODEL_REGISTRY.update(
     {

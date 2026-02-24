@@ -14,7 +14,7 @@
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
-from products.product_blocks.optical_digital_service import (
+from orchestrator_extra_optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlock,
     OpticalDigitalServiceBlockInactive,
     OpticalDigitalServiceBlockProvisioning,

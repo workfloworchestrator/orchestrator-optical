@@ -20,12 +20,12 @@ from orchestrator.types import SI, SubscriptionLifecycle
 from pydantic import computed_field
 from pydantic_forms.types import UUIDstr
 
-from products.product_blocks.optical_device_port import (
+from orchestrator_extra_optical.products.product_blocks.optical_device_port import (
     OpticalDevicePortBlock,
     OpticalDevicePortBlockInactive,
     OpticalDevicePortBlockProvisioning,
 )
-from products.product_blocks.transport_channel import (
+from orchestrator_extra_optical.products.product_blocks.transport_channel import (
     OpticalTransportChannelBlock,
     OpticalTransportChannelBlockInactive,
     OpticalTransportChannelBlockProvisioning,

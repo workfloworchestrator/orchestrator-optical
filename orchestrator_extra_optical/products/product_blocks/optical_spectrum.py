@@ -17,17 +17,17 @@ from annotated_types import Len
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
 
-from products.product_blocks.optical_spectrum_path_constraints import (
+from orchestrator_extra_optical.products.product_blocks.optical_spectrum_path_constraints import (
     OpticalSpectrumPathConstraintsBlock,
     OpticalSpectrumPathConstraintsBlockInactive,
     OpticalSpectrumPathConstraintsBlockProvisioning,
 )
-from products.product_blocks.optical_spectrum_section import (
+from orchestrator_extra_optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlock,
     OpticalSpectrumSectionBlockInactive,
     OpticalSpectrumSectionBlockProvisioning,
 )
-from utils.custom_types.frequencies import Passband
+from orchestrator_extra_optical.utils.custom_types.frequencies import Passband
 
 OpticalSpectrumSectionsList = Annotated[list[SI], Len(min_length=0, max_length=9)]
 

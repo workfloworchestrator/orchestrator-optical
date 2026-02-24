@@ -17,12 +17,12 @@ from annotated_types import Len
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
 
-from products.product_blocks.optical_device import (
+from orchestrator_extra_optical.products.product_blocks.optical_device import (
     OpticalDeviceBlock,
     OpticalDeviceBlockInactive,
     OpticalDeviceBlockProvisioning,
 )
-from products.product_blocks.optical_fiber import (
+from orchestrator_extra_optical.products.product_blocks.optical_fiber import (
     OpticalFiberBlock,
     OpticalFiberBlockInactive,
     OpticalFiberBlockProvisioning,

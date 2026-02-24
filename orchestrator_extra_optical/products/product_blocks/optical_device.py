@@ -11,14 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import StrEnum
-
+from enum import StrEnum, property
+from abc import ABC, abstractmethod
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 from pydantic import computed_field
 from pydantic_forms.types import UUIDstr
 
-from orchestrator_extra_optical.products.product_blocks.pop import PoPBlock, PoPBlockInactive, PoPBlockProvisioning
 from orchestrator_extra_optical.utils.custom_types.fqdn import FQDN
 from orchestrator_extra_optical.utils.custom_types.ip_address import IPAddress
 
@@ -41,9 +40,8 @@ class DeviceType(StrEnum):
     TransponderAndOADM = "Transponder+OADM"
 
 
-class OpticalDeviceBlockInactive(ProductBlockModel, product_block_name="OpticalDevice"):
+class OpticalDeviceBlockInactive(ProductBlockModel, ABC, product_block_name="OpticalDevice"):
     fqdn: FQDN | None = None
-    pop: PoPBlockInactive | None = None
     vendor: Vendor | None = None
     platform: Platform | None = None
     device_type: DeviceType | None = None
@@ -52,12 +50,17 @@ class OpticalDeviceBlockInactive(ProductBlockModel, product_block_name="OpticalD
     nms_uuid: UUIDstr | None = None
     netbox_id: int | None = None
 
+    @property
+    @abstractmethod
+    def location(self):
+        msg = "Class BaseOpticalDeviceBlockInactive must be subclassed to set custom properties."
+        raise NotImplementedError(msg)
+
 
 class OpticalDeviceBlockProvisioning(
-    OpticalDeviceBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    OpticalDeviceBlockInactive, ABC, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     fqdn: FQDN
-    pop: PoPBlockProvisioning
     vendor: Vendor
     platform: Platform
     device_type: DeviceType
@@ -65,6 +68,12 @@ class OpticalDeviceBlockProvisioning(
     mngmt_ip: IPAddress | None = None
     nms_uuid: UUIDstr | None = None
     netbox_id: int | None = None
+
+    @property
+    @abstractmethod
+    def location(self):
+        msg = "Class BaseOpticalDeviceBlockProvisioning must be subclassed to set custom properties."
+        raise NotImplementedError(msg)
 
     @computed_field
     @property
@@ -73,10 +82,9 @@ class OpticalDeviceBlockProvisioning(
 
 
 class OpticalDeviceBlock(
-    OpticalDeviceBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OpticalDeviceBlockProvisioning, ABC, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     fqdn: FQDN
-    pop: PoPBlock
     vendor: Vendor
     platform: Platform
     device_type: DeviceType
@@ -84,3 +92,9 @@ class OpticalDeviceBlock(
     mngmt_ip: IPAddress | None = None
     nms_uuid: UUIDstr | None = None
     netbox_id: int | None = None
+
+    @property
+    @abstractmethod
+    def location(self):
+        msg = "Class BaseOpticalDeviceBlock must be subclassed to set custom properties."
+        raise NotImplementedError(msg)
