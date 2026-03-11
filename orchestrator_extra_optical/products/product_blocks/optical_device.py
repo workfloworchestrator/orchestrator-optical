@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import StrEnum, property
 from abc import ABC, abstractmethod
+from enum import StrEnum, property
+
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 from pydantic import computed_field
@@ -57,17 +58,15 @@ class OpticalDeviceBlockInactive(ProductBlockModel, ABC, product_block_name="Opt
         raise NotImplementedError(msg)  # FIXME
 
 
-class OpticalDeviceBlockProvisioning(
-    OpticalDeviceBlockInactive, ABC, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class OpticalDeviceBlockProvisioning(OpticalDeviceBlockInactive, ABC, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     fqdn: FQDN
     vendor: Vendor
     platform: Platform
     device_type: DeviceType
-    lo_ip: IPAddress | None = None
-    mngmt_ip: IPAddress | None = None
-    nms_uuid: UUIDstr | None = None
-    netbox_id: int | None = None
+    lo_ip: IPAddress | None
+    mngmt_ip: IPAddress | None
+    nms_uuid: UUIDstr | None
+    netbox_id: int | None
 
     @property
     @abstractmethod
@@ -81,17 +80,15 @@ class OpticalDeviceBlockProvisioning(
         return f"{self.vendor} {self.platform} {self.fqdn}"
 
 
-class OpticalDeviceBlock(
-    OpticalDeviceBlockProvisioning, ABC, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalDeviceBlock(OpticalDeviceBlockProvisioning, ABC, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     fqdn: FQDN
     vendor: Vendor
     platform: Platform
     device_type: DeviceType
-    lo_ip: IPAddress | None = None
-    mngmt_ip: IPAddress | None = None
-    nms_uuid: UUIDstr | None = None
-    netbox_id: int | None = None
+    lo_ip: IPAddress | None
+    mngmt_ip: IPAddress | None
+    nms_uuid: UUIDstr | None
+    netbox_id: int | None
 
     @property
     @abstractmethod

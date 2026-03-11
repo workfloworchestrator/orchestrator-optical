@@ -28,9 +28,7 @@ from orchestrator_extra_optical.utils.custom_types.frequencies import Passband
 ListOfPassbands = Annotated[list[Passband], Len(min_length=0, max_length=128)]
 
 
-class OpticalDevicePortBlockInactive(
-    ProductBlockModel, product_block_name="OpticalDevicePort"
-):
+class OpticalDevicePortBlockInactive(ProductBlockModel, product_block_name="OpticalDevicePort"):
     port_name: str | None = None
     port_description: str | None = None
     optical_device: OpticalDeviceBlockInactive | None = None
@@ -53,9 +51,7 @@ class OpticalDevicePortBlockProvisioning(
         return f"{self.optical_device.fqdn} {self.port_name}"
 
 
-class OpticalDevicePortBlock(
-    OpticalDevicePortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalDevicePortBlock(OpticalDevicePortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     port_name: str
     port_description: str
     optical_device: OpticalDeviceBlock

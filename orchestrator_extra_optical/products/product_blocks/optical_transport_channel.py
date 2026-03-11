@@ -16,30 +16,28 @@ from typing import Annotated
 from annotated_types import Len
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
-from pydantic import computed_field
+from pydantic import Field, computed_field
 
-from orchestrator_extra_optical.products.product_blocks.optical_device_port import (
+from orchestrator_extra_optical.products.product_blocks.optical_dark_spectrum import (
+    DarkSpectrumBlock,
+    DarkSpectrumBlockInactive,
+    DarkSpectrumBlockProvisioning,
+)
+from orchestrator_extra_optical.products.product_blocks.optical_port import (
     OpticalDevicePortBlock,
     OpticalDevicePortBlockInactive,
     OpticalDevicePortBlockProvisioning,
-)
-from orchestrator_extra_optical.products.product_blocks.optical_spectrum import (
-    OpticalSpectrumBlock,
-    OpticalSpectrumBlockInactive,
-    OpticalSpectrumBlockProvisioning,
 )
 
 LinePortList = Annotated[list[SI], Len(min_length=2, max_length=2)]
 
 
-class OpticalTransportChannelBlockInactive(
-    ProductBlockModel, product_block_name="OpticalTransportChannel"
-):
+class OpticalTransportChannelBlockInactive(ProductBlockModel, product_block_name="OpticalTransportChannel"):
     transport_channel_id: int | None = None
     central_frequency: int | None = None
     mode: str | None = None
-    line_ports: LinePortList[OpticalDevicePortBlockInactive]
-    optical_spectrum: OpticalSpectrumBlockInactive
+    line_ports: LinePortList[OpticalDevicePortBlockInactive] = Field(default_factory=list)
+    optical_spectrum: DarkSpectrumBlockInactive
 
 
 class OpticalTransportChannelBlockProvisioning(
@@ -49,7 +47,7 @@ class OpticalTransportChannelBlockProvisioning(
     central_frequency: int
     mode: str
     line_ports: LinePortList[OpticalDevicePortBlockProvisioning]
-    optical_spectrum: OpticalSpectrumBlockProvisioning
+    optical_spectrum: DarkSpectrumBlockProvisioning
 
     @computed_field
     @property
@@ -59,11 +57,9 @@ class OpticalTransportChannelBlockProvisioning(
         return f"och{self.transport_channel_id}_{first_code}-{second_code}"
 
 
-class OpticalTransportChannelBlock(
-    OpticalTransportChannelBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalTransportChannelBlock(OpticalTransportChannelBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     transport_channel_id: int
     central_frequency: int
     mode: str
     line_ports: LinePortList[OpticalDevicePortBlock]
-    optical_spectrum: OpticalSpectrumBlock
+    optical_spectrum: DarkSpectrumBlock

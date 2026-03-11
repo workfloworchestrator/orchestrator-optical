@@ -10,12 +10,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import Annotated
 
 from annotated_types import Len
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
+from pydantic import Field
 
 from orchestrator_extra_optical.products.product_blocks.optical_spectrum_path_constraints import (
     OpticalSpectrumPathConstraintsBlock,
@@ -32,31 +32,23 @@ from orchestrator_extra_optical.utils.custom_types.frequencies import Passband
 OpticalSpectrumSectionsList = Annotated[list[SI], Len(min_length=0, max_length=9)]
 
 
-class OpticalSpectrumBlockInactive(
-    ProductBlockModel, product_block_name="OpticalSpectrum"
-):
+class DarkSpectrumBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrum"):
     spectrum_name: str | None = None
     passband: Passband | None = None
-    optical_spectrum_sections: OpticalSpectrumSectionsList[
-        OpticalSpectrumSectionBlockInactive
-    ]
+    optical_spectrum_sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlockInactive] = Field(
+        default_factory=list
+    )
     optical_spectrum_path_constraints: OpticalSpectrumPathConstraintsBlockInactive
 
 
-class OpticalSpectrumBlockProvisioning(
-    OpticalSpectrumBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class DarkSpectrumBlockProvisioning(DarkSpectrumBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     spectrum_name: str | None = None
     passband: Passband
-    optical_spectrum_sections: OpticalSpectrumSectionsList[
-        OpticalSpectrumSectionBlockProvisioning
-    ]
+    optical_spectrum_sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlockProvisioning]
     optical_spectrum_path_constraints: OpticalSpectrumPathConstraintsBlockProvisioning
 
 
-class OpticalSpectrumBlock(
-    OpticalSpectrumBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class DarkSpectrumBlock(DarkSpectrumBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     spectrum_name: str
     passband: Passband
     optical_spectrum_sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlock]
