@@ -15,19 +15,19 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
 from orchestrator_extra_optical.products.product_blocks.optical_dark_spectrum import (
-    DarkSpectrumBlock,
-    DarkSpectrumBlockInactive,
-    DarkSpectrumBlockProvisioning,
+    OpticalDarkSpectrumBlock,
+    OpticalDarkSpectrumBlockInactive,
+    OpticalDarkSpectrumBlockProvisioning,
 )
 
 
-class DarkSpectrumServiceInactive(SubscriptionModel, is_base=True):
-    dark_spectrum: DarkSpectrumBlockInactive
+class OpticalDarkSpectrumInactive(SubscriptionModel, is_base=True):
+    dark_spectrum: OpticalDarkSpectrumBlockInactive
 
 
-class DarkSpectrumServiceProvisioning(DarkSpectrumServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    dark_spectrum: DarkSpectrumBlockProvisioning
+class OpticalDarkSpectrumProvisioning(OpticalDarkSpectrumInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    dark_spectrum: OpticalDarkSpectrumBlockProvisioning
 
 
-class DarkSpectrumService(DarkSpectrumServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    dark_spectrum: DarkSpectrumBlock
+class OpticalDarkSpectrum(OpticalDarkSpectrumProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    dark_spectrum: OpticalDarkSpectrumBlock

@@ -70,8 +70,7 @@ class OpticalDigitalServiceBlockProvisioning(
     @computed_field
     @property
     def title(self) -> str:
-        title = self.service_name
-        return title
+        return self.service_name
 
 
 class OpticalDigitalServiceBlock(

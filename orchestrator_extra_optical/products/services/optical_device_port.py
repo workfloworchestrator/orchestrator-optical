@@ -16,7 +16,7 @@ import re
 from typing import Any, Literal
 
 from orchestrator_extra_optical.products.product_blocks.optical_device import OpticalDeviceBlock, Platform
-from orchestrator_extra_optical.products.product_blocks.optical_port import OpticalDevicePortBlock
+from orchestrator_extra_optical.products.product_blocks.optical_device_port import OpticalDevicePortBlock
 from orchestrator_extra_optical.products.services.optical_device import get_optical_device_client
 from orchestrator_extra_optical.services.infinera import TL1CommandDeniedError
 from orchestrator_extra_optical.utils.attributedispatch import attribute_dispatch_base, attributedispatch
@@ -70,7 +70,8 @@ def _(optical_device: OpticalDeviceBlock, port_name: str) -> list[str]:
     supported_modes = mapping.get(card_type)
 
     if not supported_modes:
-        raise ValueError(f"Card {card_type} not supported")
+        msg = f"Card {card_type} not supported"
+        raise ValueError(msg)
 
     return supported_modes
 
@@ -351,7 +352,8 @@ def _(optical_device: OpticalDeviceBlock, port_name: str) -> list[str]:
     supported_modes = mapping.get(card_type)
 
     if not supported_modes:
-        raise ValueError(f"Card {card_type} not supported")
+        msg = f"Card {card_type} not supported"
+        raise ValueError(msg)
 
     return supported_modes
 
@@ -359,6 +361,7 @@ def _(optical_device: OpticalDeviceBlock, port_name: str) -> list[str]:
 @attributedispatch("platform")
 def get_device_ports_names(optical_device: OpticalDeviceBlock) -> list[str]:
     """Retrieve a list of optical ports of an OpticalDevice (generic function).
+
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -422,6 +425,7 @@ def _(optical_device: OpticalDeviceBlock) -> list[str]:
 @attributedispatch("platform")
 def get_device_client_ports_names(optical_device: OpticalDeviceBlock) -> list[str]:
     """Retrieve a list of optical ports of an OpticalDevice (generic function).
+
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -486,6 +490,7 @@ def _(optical_device: OpticalDeviceBlock) -> list[str]:
 @attributedispatch("platform")
 def get_device_line_ports_names(optical_device: OpticalDeviceBlock) -> list[str]:
     """Retrieve a list of optical ports of an OpticalDevice (generic function).
+
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -541,6 +546,7 @@ def _(optical_device: OpticalDeviceBlock) -> list[str]:
 @attributedispatch("platform")
 def set_port_description(optical_device: OpticalDeviceBlock, port_name: str, port_description: str) -> dict[str, Any]:
     """Set the description of an optical port on an OpticalDevice (generic function).
+
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -630,13 +636,14 @@ def _(optical_device: OpticalDeviceBlock, port_name: str, port_description: str)
     shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
     g42 = get_optical_device_client(optical_device)
     g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).modify(label=port_description)
-    port = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).retrieve(depth=2, content="config")
-    return port
+
+    return g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).retrieve(depth=2, content="config")
 
 
 @attributedispatch("platform")
 def set_channel_description(optical_device: OpticalDeviceBlock, facility_id: str, description: str) -> dict[str, Any]:
     """Set the description of an optical channel on an OpticalDevice (generic function).
+
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -672,12 +679,13 @@ def _(optical_device: OpticalDeviceBlock, facility_id: str, description: str) ->
     channel_name = None
     channels = g42.data.ne.facilities.super_channel.retrieve(depth=2, content="config")
     for ch in channels:
-        if any([carrier.startswith(port_name) for carrier in ch["carriers"]]):
+        if any(carrier.startswith(port_name) for carrier in ch["carriers"]):
             channel_name = ch["name"]
             break
 
     if channel_name is None:
-        raise ValueError(f"Channel with port {port_name} not found")
+        msg = f"Channel with port {port_name} not found"
+        raise ValueError(msg)
 
     g42.data.ne.facilities.super_channel(channel_name).modify(label=description)
 
@@ -691,6 +699,7 @@ def set_port_admin_state(
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
     """Set the administrative state of an optical port on an OpticalDevice (generic function).
+
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -716,6 +725,7 @@ def _(
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
     """FlexILS has 3 admin states for the tributary ports: IS (in service), OOS (out of service), and MT (maintenance).
+
     Line ports (OTS) can only be in IS or MT state.
     It works as a finite state machine with the following transitions:
     OOS <-edit---edit-> IS <-rst---put-> MT.
@@ -733,8 +743,8 @@ def _(
             flex.rst_maintenance(aidtype="OTS", aid=port_name)
         return flex.rtrv_ots(aid=port_name)
 
-    # Tributary ports (SCG)
-    # from any state to in-service state (we must know the current state of the finite state machine to move between states)
+    # Tributary ports (SCG) from any state to in-service state.
+    # We must know the current state of the finite state machine to move between states.
     try:
         flex.ed_scg(aid=port_name, is_oos="IS")
     except TL1CommandDeniedError as e:
@@ -808,6 +818,7 @@ def configure_termination_when_attaching_new_fiber(
     remote_port: OpticalDevicePortBlock,
 ) -> dict[str, Any]:
     """Configure an optical port on an OpticalDevice when attaching a fiber to it.
+
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -892,19 +903,22 @@ def _get_remote_node_id(remote_port: OpticalDevicePortBlock) -> str:
         for item in inventory:
             if item.get("equipment-type") == "shelf" and item.get("shelf-id") == 1:
                 return item["serial-number"]
-        raise ValueError(f"Could not find shelf serial number for G30 device {remote_port.optical_device.fqdn}")
+        msg = f"Could not find shelf serial number for G30 device {remote_port.optical_device.fqdn}"
+        raise ValueError(msg)
 
     if platform == Platform.GX_G42:
         return remote_port.optical_device.fqdn.replace(".garr.net", "")
 
-    raise ValueError(f"Unsupported remote platform for FlexILS connection: {platform}")
+    msg = f"Unsupported remote platform for FlexILS connection: {platform}"
+    raise ValueError(msg)
 
 
 def _extract_remote_port_id(remote_port: OpticalDevicePortBlock) -> str:
     """Extract and format the port ID from the remote port name."""
     match = re.search(r"\d", remote_port.port_name)
     if not match:
-        raise ValueError(f"Could not extract port identifier from remote port name: {remote_port.port_name}")
+        msg = f"Could not extract port identifier from remote port name: {remote_port.port_name}"
+        raise ValueError(msg)
     port_id = remote_port.port_name[match.start() :]
     return re.sub(r"[^a-zA-Z0-9]", "-", port_id)
 
@@ -974,10 +988,11 @@ def _(
         msg = "Unsupported fiber connection between provided ports of different Groove G30 devices."
         raise ValueError(msg)
 
-    raise ValueError(
+    msg = (
         "Unsupported remote optical device platform when configuring Groove G30 remote port: "
         f"{remote_port.optical_device.platform}"
     )
+    raise ValueError(msg)
 
 
 @configure_termination_when_attaching_new_fiber.register(Platform.GX_G42)
@@ -1076,6 +1091,7 @@ def check_fiber_terminating_port(
     remote_port: OpticalDevicePortBlock,
 ) -> None:
     """Check if an optical port on an OpticalDevice attached to a fiber is correctly configured.
+
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:

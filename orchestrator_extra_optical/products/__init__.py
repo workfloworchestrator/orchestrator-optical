@@ -13,17 +13,43 @@
 
 
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
+from pydantic_forms.types import strEnum
 
 from orchestrator_extra_optical.products.product_types.optical_device import OpticalDevice
 from orchestrator_extra_optical.products.product_types.optical_digital_service import OpticalDigitalService
-from orchestrator_extra_optical.products.product_types.optical_fiber import OpticalFiber
-from orchestrator_extra_optical.products.product_types.optical_spectrum import OpticalSpectrum
+from orchestrator_extra_optical.products.product_types.optical_pipe import OpticalPipe, OpticalPipeType
+from orchestrator_extra_optical.products.product_types.optical_dark_spectrum import OpticalDarkSpectrum
+
+
+class ProductName(strEnum):
+    """An enumerator of all product names defined in ``orchestrator-extra-optical``."""
+
+    DARK_FIBER = OpticalPipeType.DARK_FIBER
+    LEASED_DARK_SPECTRUM = OpticalPipeType.LEASED_DARK_SPECTRUM
+    OPTICAL_DARK_SPECTRUM = "Optical Dark Spectrum"
+    OPTICAL_DEVICE = "Optical Device"
+    OPTICAL_DIGITAL_SERVICE = "Optical Digital Service"
+
+
+class ProductType(strEnum):
+    """An enumerator of all available products in ``orchestrator-extra-optical``."""
+
+    DARK_FIBER = OpticalPipe.__name__
+    LEASED_DARK_SPECTRUM = OpticalPipe.__name__
+    OPTICAL_DARK_SPECTRUM = OpticalDarkSpectrum.__name__
+    OPTICAL_DEVICE = OpticalDevice.__name__
+    OPTICAL_DIGITAL_SERVICE = OpticalDigitalService.__name__
+
 
 SUBSCRIPTION_MODEL_REGISTRY.update(
     {
-        "optical_device": OpticalDevice,
-        "optical_fiber": OpticalFiber,
-        "optical_spectrum": OpticalSpectrum,
-        "optical_digital_service": OpticalDigitalService,
+        ProductName.DARK_FIBER.value: OpticalPipe,
+        ProductName.LEASED_DARK_SPECTRUM.name: OpticalPipe,
+        ProductName.OPTICAL_DARK_SPECTRUM.name: OpticalDarkSpectrum,
+        ProductName.OPTICAL_DEVICE.name: OpticalDevice,
+        ProductName.OPTICAL_DIGITAL_SERVICE.name: OpticalDigitalService,
     }
 )
+
+
+__all__ = ["ProductName", "ProductType"]

@@ -52,7 +52,7 @@ ListOfPorts = Annotated[list[SI], Len(min_length=2, max_length=2)]
 ListOfLengths = Annotated[list[int], Len(min_length=0, max_length=5)]
 ListOfFiberTypes = Annotated[list[FiberType], Len(min_length=0, max_length=5)]
 
-class OpticalFiberBlockInactive(ProductBlockModel, product_block_name="OpticalFiber"):
+class OpticalPipeBlockInactive(ProductBlockModel, product_block_name="OpticalPipe"):
     terminations: ListOfPorts[OpticalDevicePortBlockInactive]
     fiber_name: str | None = None
     garrxdb_id: int | None = None
@@ -61,8 +61,8 @@ class OpticalFiberBlockInactive(ProductBlockModel, product_block_name="OpticalFi
     fiber_types: ListOfFiberTypes | None = None
 
 
-class OpticalFiberBlockProvisioning(
-    OpticalFiberBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class OpticalPipeBlockProvisioning(
+    OpticalPipeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     terminations: ListOfPorts[OpticalDevicePortBlockProvisioning]
     fiber_name: str | None = None
@@ -72,8 +72,8 @@ class OpticalFiberBlockProvisioning(
     fiber_types: ListOfFiberTypes | None = None
 
 
-class OpticalFiberBlock(
-    OpticalFiberBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+class OpticalPipeBlock(
+    OpticalPipeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     terminations: ListOfPorts[OpticalDevicePortBlock]
     fiber_name: str

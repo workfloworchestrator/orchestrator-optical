@@ -32,7 +32,7 @@ from orchestrator_extra_optical.utils.custom_types.frequencies import Passband
 OpticalSpectrumSectionsList = Annotated[list[SI], Len(min_length=0, max_length=9)]
 
 
-class DarkSpectrumBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrum"):
+class OpticalDarkSpectrumBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrum"):
     spectrum_name: str | None = None
     passband: Passband | None = None
     optical_spectrum_sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlockInactive] = Field(
@@ -41,14 +41,14 @@ class DarkSpectrumBlockInactive(ProductBlockModel, product_block_name="OpticalSp
     optical_spectrum_path_constraints: OpticalSpectrumPathConstraintsBlockInactive
 
 
-class DarkSpectrumBlockProvisioning(DarkSpectrumBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class OpticalDarkSpectrumBlockProvisioning(OpticalDarkSpectrumBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     spectrum_name: str | None = None
     passband: Passband
     optical_spectrum_sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlockProvisioning]
     optical_spectrum_path_constraints: OpticalSpectrumPathConstraintsBlockProvisioning
 
 
-class DarkSpectrumBlock(DarkSpectrumBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalDarkSpectrumBlock(OpticalDarkSpectrumBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     spectrum_name: str
     passband: Passband
     optical_spectrum_sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlock]

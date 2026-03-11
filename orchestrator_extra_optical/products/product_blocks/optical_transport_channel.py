@@ -23,7 +23,7 @@ from orchestrator_extra_optical.products.product_blocks.optical_dark_spectrum im
     DarkSpectrumBlockInactive,
     DarkSpectrumBlockProvisioning,
 )
-from orchestrator_extra_optical.products.product_blocks.optical_port import (
+from orchestrator_extra_optical.products.product_blocks.optical_device_port import (
     OpticalDevicePortBlock,
     OpticalDevicePortBlockInactive,
     OpticalDevicePortBlockProvisioning,

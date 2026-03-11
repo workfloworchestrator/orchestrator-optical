@@ -32,7 +32,7 @@ from workflows.shared import (
 )
 
 
-def optical_port_selector(optical_device_subscription_id: UUIDstr, prompt: str = "") -> Choice:
+def optical_device_port_selector(optical_device_subscription_id: UUIDstr, prompt: str = "") -> Choice:
     """Return a Choice object for selecting an optical port of an OpticalDevice."""
     subscription = OpticalDevice.from_subscription(optical_device_subscription_id)
     ports = get_device_ports_names(subscription.optical_device)
@@ -41,7 +41,7 @@ def optical_port_selector(optical_device_subscription_id: UUIDstr, prompt: str =
     return Choice(prompt, zip(ports, ports, strict=False))
 
 
-def unused_optical_port_selector(optical_device_subscription_id: UUIDstr, prompt: str = "") -> Choice:
+def unused_optical_device_port_selector(optical_device_subscription_id: UUIDstr, prompt: str = "") -> Choice:
     """Return a Choice object for selecting an unused optical port of an OpticalDevice."""
     subscription = OpticalDevice.from_subscription(optical_device_subscription_id)
     ports = get_device_ports_names(subscription.optical_device)

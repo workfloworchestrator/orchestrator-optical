@@ -20,20 +20,20 @@ from typing import Any, ClassVar
 from orchestrator.domain.base import ProductBlockModel
 from pydantic_forms.types import UUIDstr
 
-from products.product_blocks.optical_device import (
+from orchestrator_extra_optical.products.product_blocks.optical_device import (
     OpticalDeviceBlock,
     OpticalDeviceBlockProvisioning,
     Platform,
     Vendor,
 )
-from services.infinera import FlexilsClient, G30Client, G42Client, tnms_client
-from utils.attributedispatch import (
+from orchestrator_extra_optical.services.infinera import FlexilsClient, G30Client, G42Client, tnms_client
+from orchestrator_extra_optical.utils.attributedispatch import (
     attribute_dispatch_base,
     attributedispatch,
 )
-from utils.custom_types.frequencies import available_to_used_passbands
-from utils.custom_types.ip_address import IPAddress
-from workflows.shared import subscription_instances_by_block_type_and_resource_value
+from orchestrator_extra_optical.utils.custom_types.frequencies import available_to_used_passbands
+from orchestrator_extra_optical.utils.custom_types.ip_address import IPAddress
+from orchestrator_extra_optical.workflows.shared import subscription_instances_by_block_type_and_resource_value
 
 logger = logging.getLogger(__name__)
 
@@ -183,8 +183,7 @@ def _(optical_device: OpticalDeviceBlockProvisioning) -> UUIDstr:
 def retrieve_omses_terminating_on_device(
     optical_device: OpticalDeviceBlock,
 ) -> list[dict[str, Any]]:
-    """
-    Retrieve all the Optical Muxed Sections terminating on a given Optical Device.
+    """Retrieve all the Optical Muxed Sections terminating on a given Optical Device.
 
     This function acts as a generic dispatcher based on the platform of the optical device.
     Specific implementations of this function must specify the platform they work on.
@@ -251,8 +250,7 @@ def _(optical_device: OpticalDeviceBlock) -> list[dict[str, Any]]:
 def retrieve_ports_spectral_occupations(
     optical_device: OpticalDeviceBlock,
 ) -> dict[str, list[list[int]]]:
-    """
-    Retrieve the spectral occupations of ports on a given Optical Device.
+    """Retrieve the spectral occupations of ports on a given Optical Device.
 
     This function acts as a generic dispatcher based on the platform of the optical device.
     Specific implementations of this function must specify the platform they work on.

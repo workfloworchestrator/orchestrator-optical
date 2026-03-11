@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from enum import StrEnum, property
+from enum import StrEnum
 
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle

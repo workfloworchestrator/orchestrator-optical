@@ -36,7 +36,7 @@ from orchestrator_extra_optical.products.services.optical_device import retrieve
 from orchestrator_extra_optical.products.services.optical_device_port import (
     configure_termination_when_attaching_new_fiber,
 )
-from orchestrator_extra_optical.workflows.optical_device.shared import unused_optical_port_selector
+from orchestrator_extra_optical.workflows.optical_device.shared import unused_optical_device_port_selector
 from orchestrator_extra_optical.workflows.shared import (
     active_subscription_selector,
     create_summary_form,
@@ -85,17 +85,17 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     user_input = yield SelectOpticalDevicesForm
     user_input_dict = user_input.model_dump()
 
-    SrcOpticalPortSelector = unused_optical_port_selector(user_input_dict["sub_id_device_a"])  # pyright: ignore[reportInvalidTypeForm]
-    DstOpticalPortSelector = unused_optical_port_selector(user_input_dict["sub_id_device_b"])  # pyright: ignore[reportInvalidTypeForm]
+    SrcOpticalDevicePortSelector = unused_optical_device_port_selector(user_input_dict["sub_id_device_a"])  # pyright: ignore[reportInvalidTypeForm]
+    DstOpticalDevicePortSelector = unused_optical_device_port_selector(user_input_dict["sub_id_device_b"])  # pyright: ignore[reportInvalidTypeForm]
 
-    class SelectOpticalPortsForm(FormPage):
+    class SelectOpticalDevicePortsForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        name_port_a: SrcOpticalPortSelector
-        name_port_b: DstOpticalPortSelector
+        name_port_a: SrcOpticalDevicePortSelector
+        name_port_b: DstOpticalDevicePortSelector
 
         @model_validator(mode="after")
-        def validate_data(self) -> "SelectOpticalPortsForm":
+        def validate_data(self) -> "SelectOpticalDevicePortsForm":
             for sub_id, port_name in (
                 (user_input_dict["sub_id_device_a"], self.name_port_a),
                 (user_input_dict["sub_id_device_b"], self.name_port_b),
@@ -126,7 +126,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
             return self
 
-    user_input = yield SelectOpticalPortsForm
+    user_input = yield SelectOpticalDevicePortsForm
     user_input_dict.update(user_input.model_dump())
 
     summary_fields = [

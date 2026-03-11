@@ -138,11 +138,11 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     sub_node_b = OpticalDevice.from_subscription(user_input_dict["dst_optical_device_id"])
     optical_device_b = sub_node_b.optical_device
 
-    SrcOpticalPortSelector = optical_client_port_selector(
+    SrcOpticalDevicePortSelector = optical_client_port_selector(
         user_input_dict["src_optical_device_id"],
         prompt=f"Select the Add/Drop Port on {optical_device_a.fqdn}. Please be careful to select the correct port.",
     )
-    DstOpticalPortSelector = optical_client_port_selector(
+    DstOpticalDevicePortSelector = optical_client_port_selector(
         user_input_dict["dst_optical_device_id"],
         prompt=f"Select the Add/Drop Port on {optical_device_b.fqdn}. Please be careful to select the correct port.",
     )
@@ -152,8 +152,8 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
         model_config = ConfigDict(title=product_name)
 
-        src_optical_port_name: SrcOpticalPortSelector
-        dst_optical_port_name: DstOpticalPortSelector
+        src_optical_device_port_name: SrcOpticalDevicePortSelector
+        dst_optical_device_port_name: DstOpticalDevicePortSelector
 
     user_input = yield OpticalSpectrumAddDropForm
     user_input_dict.update(user_input.dict())
@@ -248,8 +248,8 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         "frequency_max",
         "src_optical_device_id",
         "dst_optical_device_id",
-        "src_optical_port_name",
-        "dst_optical_port_name",
+        "src_optical_device_port_name",
+        "dst_optical_device_port_name",
         "optical_path",
     ]
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
@@ -300,8 +300,8 @@ def create_optical_spectrum_model(
 def divide_path_into_sections(
     subscription: OpticalSpectrumInactive,
     optical_path: list[UUIDstr],
-    src_optical_port_name: str,
-    dst_optical_port_name: str,
+    src_optical_device_port_name: str,
+    dst_optical_device_port_name: str,
     src_optical_device_id: UUIDstr,
     dst_optical_device_id: UUIDstr,
 ) -> State:
@@ -313,10 +313,10 @@ def divide_path_into_sections(
     # Source Add/Drop Port
     src_port = OpticalDevicePortBlockInactive.new(
         subscription_id=subscription.subscription_id,
-        port_name=src_optical_port_name,
+        port_name=src_optical_device_port_name,
         optical_device=src_device,
         port_description=(
-            f"Remotely connected to {dst_device.fqdn} {dst_optical_port_name} "
+            f"Remotely connected to {dst_device.fqdn} {dst_optical_device_port_name} "
             f"via {subscription.optical_spectrum.spectrum_name}. "
         ),
     )
@@ -324,10 +324,10 @@ def divide_path_into_sections(
     # Destination Add/Drop Port
     dst_port = OpticalDevicePortBlockInactive.new(
         subscription_id=subscription.subscription_id,
-        port_name=dst_optical_port_name,
+        port_name=dst_optical_device_port_name,
         optical_device=dst_device,
         port_description=(
-            f"Remotely connected to {src_device.fqdn} {src_optical_port_name} "
+            f"Remotely connected to {src_device.fqdn} {src_optical_device_port_name} "
             f"via {subscription.optical_spectrum.spectrum_name}. "
         ),
     )

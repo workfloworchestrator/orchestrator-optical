@@ -16,21 +16,21 @@ from typing import Any, Literal
 
 from requests.exceptions import HTTPError
 
-from products.product_blocks.optical_device import (
+from orchestrator_extra_optical.products.product_blocks.optical_device import (
     OpticalDeviceBlock,
     Platform,
 )
-from products.product_blocks.optical_digital_service import (
+from orchestrator_extra_optical.products.product_blocks.optical_digital_service import (
     ClientSpeednType,
 )
-from products.services.optical_device import get_optical_device_client
-from services.infinera import G42Client
-from utils.attributedispatch import (
+from orchestrator_extra_optical.products.services.optical_device import get_optical_device_client
+from orchestrator_extra_optical.services.infinera import G42Client
+from orchestrator_extra_optical.utils.attributedispatch import (
     attribute_dispatch_base,
     attributedispatch,
 )
-from utils.custom_types.frequencies import Frequency
-from utils.dictdiff import compare_dicts
+from orchestrator_extra_optical.utils.custom_types.frequencies import Frequency
+from orchestrator_extra_optical.utils.dictdiff import compare_dicts
 
 
 @attributedispatch("platform")
@@ -323,8 +323,7 @@ def configure_transponder_crossconnect(
     line_port_names: list[str],  # noqa: ARG001
     xconn_description: str = "",  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Configure a cross-connect between client and line ports on a G30 device.
+    """Configure a cross-connect between client and line ports on a G30 device.
 
     Args:
         optical_device: The optical device to configure
@@ -523,8 +522,7 @@ def _find_xcon_g42(
     direction: str,
     payload_type: str,
 ) -> dict[str, Any]:
-    """
-    Helper function to find an existing cross-connect on the G42 platform.
+    """Helper function to find an existing cross-connect on the G42 platform.
 
     Args:
         g42: G42 client instance.
@@ -576,8 +574,7 @@ def _create_xcon_g42(
     label: str,
     dst_time_slots: str,
 ) -> None:
-    """
-    Helper function to create a cross-connect on the G42 platform.
+    """Helper function to create a cross-connect on the G42 platform.
 
     Args:
         g42: G42 client instance.
@@ -670,8 +667,7 @@ def delete_transponder_crossconnect(
     optical_device: OpticalDeviceBlock,
     client_port_name: str,  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Delete a cross-connect between client and line ports on transponder device.
+    """Delete a cross-connect between client and line ports on transponder device.
 
     Args:
         optical_device: The transponder
@@ -849,8 +845,7 @@ def factory_reset_transponder_line(
     optical_device: OpticalDeviceBlock,
     port_name: str,  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Factory reset the transponder line configuration for the specified port.
+    """Factory reset the transponder line configuration for the specified port.
 
     Args:
         optical_device: The optical device to reset.
@@ -898,8 +893,7 @@ def validate_trx_line(
     modes: tuple[str, ...],  # noqa: ARG001
     descriptions: tuple[str, ...],  # noqa: ARG001
 ) -> None:
-    """
-    Validate the transceiver line configuration on the specified optical device.
+    """Validate the transceiver line configuration on the specified optical device.
 
     Args:
         optical_device: The optical device to validate.
@@ -1166,8 +1160,7 @@ def validate_trx_client(
     description: str,  # noqa: ARG001
     service_type_n_speed: ClientSpeednType,  # noqa: ARG001
 ) -> None:
-    """
-    Validate the transceiver client configuration on the specified optical device.
+    """Validate the transceiver client configuration on the specified optical device.
 
     Args:
         optical_device: The optical device to validate.
@@ -1419,8 +1412,7 @@ def validate_trx_crossconnect(
     line_port_names: list[str],  # noqa: ARG001
     xconn_description: str = "",  # noqa: ARG001
 ) -> None:
-    """
-    Validate the transponder cross-connect configuration on the specified optical device.
+    """Validate the transponder cross-connect configuration on the specified optical device.
 
     Args:
         optical_device: The optical device to validate.
@@ -1532,8 +1524,7 @@ def diff_btw_current_rx_power_and_target(
     optical_device: OpticalDeviceBlock,
     optical_spectrum_name: str,  # noqa: ARG001
 ) -> float:
-    r"""
-    Return the difference $P_{current_rx} - P_{target_rx}$ in dB for the specified optical channel.
+    r"""Return the difference $P_{current_rx} - P_{target_rx}$ in dB for the specified optical channel.
 
     Args:
         optical_device: The optical device to compute for.
@@ -1617,8 +1608,9 @@ def allign_tx_power_to_target(
     line_port_name: str,  # noqa: ARG001
     db_from_target: float,  # noqa: ARG001
 ) -> str:
-    r"""
-    Subtract db_from_target decibels (dB) to the transmitted optical power, i.e. $P^{new}_{tx} = P^{old}_{tx} - \Delta P}$.
+    r"""Subtract db_from_target decibels (dB) to the transmitted optical power.
+
+    This is done with the formula $P^{new}_{tx} = P^{old}_{tx} - \Delta P}$.
 
     Args:
         optical_device: The optical device to configure.
