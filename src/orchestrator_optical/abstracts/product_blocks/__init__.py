@@ -1,1 +1,0 @@
-"""Abstract optical blocks."""

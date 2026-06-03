@@ -2,6 +2,7 @@ from typing import Annotated
 
 from annotated_types import Len
 from orchestrator.domain.base import ProductBlockModel
+from orchestrator.types import SubscriptionLifecycle
 
 from orchestrator_optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
 from orchestrator_optical.utils.custom_types.fqdn import Fqdn
@@ -12,9 +13,17 @@ IpAddressesList = Annotated[
 ]
 
 
-class ReplaceMeLocation(ProductBlockModel, product_block_name="ReplaceMeLocation"):
+class OpticalLocationInactive(ProductBlockModel, product_block_name="OpticalLocation"):
+    longitude: LongitudeCoordinate | None = None
+    latitude: LatitudeCoordinate | None = None
+    fqdn_subdomain: Fqdn | None = None
+
+class OpticalLocationProvisioning(OpticalLocationInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     longitude: LongitudeCoordinate
     latitude: LatitudeCoordinate
     fqdn_subdomain: Fqdn
+
+class OpticalLocation(OpticalLocationProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    pass
 
 

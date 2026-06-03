@@ -1,33 +1,36 @@
 """Module for Optical Digital Service product blocks."""
 
-from typing import Annotated  # noqa: I001
+from typing import Annotated
 
+from annotated_types import Len
+from orchestrator.domain.base import ProductBlockModel
+from orchestrator.types import SI, SubscriptionLifecycle
 from pydantic import Field
 
-from orchestrator_optical.abstracts.product_blocks.optical_digital_service import (
-    AbstractOpticalDigitalServiceBlock,
-    AbstractOpticalDigitalServiceBlockInactive,
-    AbstractOpticalDigitalServiceBlockProvisioning,
-    ClientPortsList,
-    TransportChannelsList,
-)
-from {{import_base_path}}.products.products_blocks.optical_coherent_pluggable import (
+from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
     CoherentPluggable,
     CoherentPluggableInactive,
     CoherentPluggableProvisioning,
 )
-from {{import_base_path}}.products.products_blocks.optical_port import (
+from orchestrator_optical.products.product_blocks.optical_port import (
     TransponderClientPort,
     TransponderClientPortInactive,
     TransponderClientPortProvisioning,
 )
-from {{import_base_path}}.products.products_blocks.optical_transport_channel import (
+from orchestrator_optical.products.product_blocks.optical_transport_channel import (
     OpticalTransportChannel,
     OpticalTransportChannelInactive,
     OpticalTransportChannelProvisioning,
 )
 
-# --- Concrete Union Types for Client Ports ---
+ClientPortsList = Annotated[list[SI], Len(min_length=2, max_length=2)]
+
+TransportChannelsList = Annotated[
+    list[SI], Len(min_length=1, max_length=2)
+]  # if 2 then reverse multiplexing: 2 transport channels for one client service
+
+
+# --- Discriminated Union Types for Client Ports ---
 
 ClientsInactive = Annotated[TransponderClientPortInactive | CoherentPluggableInactive, Field(discriminator="role")]
 
@@ -43,26 +46,24 @@ Clients = Annotated[TransponderClientPort | CoherentPluggable, Field(discriminat
 # ============================================================================
 
 
-class OpticalDigitalServiceInactive(
-    AbstractOpticalDigitalServiceBlockInactive, product_block_name="OpticalDigitalService"
-):
+class OpticalDigitalServiceInactive(ProductBlockModel, product_block_name="OpticalDigitalService"):
     """Inactive state of an Optical Digital Service product block."""
 
+    service_name: str | None = None
     client_ports: ClientPortsList[TransponderClientPortInactive]
     transport_channels: TransportChannelsList[OpticalTransportChannelInactive]
 
 
-class OpticalDigitalServiceProvisioning(OpticalDigitalServiceInactive, AbstractOpticalDigitalServiceBlockProvisioning):
+class OpticalDigitalServiceProvisioning(OpticalDigitalServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     """Provisioning state of an Optical Digital Service product block."""
 
+    service_name: str
     client_ports: ClientPortsList[TransponderClientPortProvisioning]
     transport_channels: TransportChannelsList[OpticalTransportChannelProvisioning]
 
 
-class OpticalDigitalService(OpticalDigitalServiceProvisioning, AbstractOpticalDigitalServiceBlock):
+class OpticalDigitalService(OpticalDigitalServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Active state of an Optical Digital Service product block."""
 
     client_ports: ClientPortsList[Clients]
     transport_channels: TransportChannelsList[OpticalTransportChannel]
-
-

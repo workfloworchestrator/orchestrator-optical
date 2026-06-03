@@ -7,7 +7,7 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
 # relative because every org must copy this file to its local repo
-from {{import_base_path}}.products.product_blocks.optical_node import (
+from orchestrator_optical.products.product_blocks.optical_node import (
     NokiaFlexILSNode,
     NokiaFlexILSNodeInactive,
     NokiaFlexILSNodeProvisioning,
@@ -17,14 +17,14 @@ from {{import_base_path}}.products.product_blocks.optical_node import (
 )
 
 
-class VendorPlatform(StrEnum):
+class VendorAndPlatform(StrEnum):
     """Enumerate supported optical device vendor and models."""
 
     NOKIA_GROOVE_G30 = "Nokia Groove G30"
     NOKIA_GX_G42 = "Nokia GX G42"
     NOKIA_FLEXILS = "Nokia FlexILS"
 
-NotSpecializedPlatforms = Literal[VendorPlatform.NOKIA_GROOVE_G30, VendorPlatform.NOKIA_GX_G42]
+NotSpecializedPlatforms = Literal[VendorAndPlatform.NOKIA_GROOVE_G30, VendorAndPlatform.NOKIA_GX_G42]
 
 # --- Generic Optical Node Subscriptions ---
 
@@ -61,7 +61,7 @@ class OpticalNodeSubscription(
 class NokiaFlexILSNodeSubscriptionInactive(SubscriptionModel, is_base=True):
     """base model for an optical node subscription in the INACTIVE state."""
 
-    vendor_platform: Literal[VendorPlatform.NOKIA_FLEXILS] = VendorPlatform.NOKIA_FLEXILS
+    vendor_platform: Literal[VendorAndPlatform.NOKIA_FLEXILS] = VendorAndPlatform.NOKIA_FLEXILS
     node: NokiaFlexILSNodeInactive
 
 

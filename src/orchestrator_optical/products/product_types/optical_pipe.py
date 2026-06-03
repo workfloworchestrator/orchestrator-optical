@@ -7,8 +7,7 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 from pydantic import Field
 
-# relative because every org must copy this file to its local repo
-from {{import_base_path}}.products.product_blocks.optical_pipe import (
+from orchestrator_optical.products.product_blocks.optical_pipe import (
     FiberPatch,
     FiberPatchInactive,
     FiberPatchProvisioning,
@@ -21,7 +20,7 @@ from {{import_base_path}}.products.product_blocks.optical_pipe import (
 )
 
 # ============================================================================
-# 1. Fiber Patch Subscriptions
+# Fiber Patch Subscriptions
 # ============================================================================
 
 
@@ -49,7 +48,7 @@ class FiberPatchSubscription(
 
 
 # ============================================================================
-# 2. Fiber Span Fiber Patch Subscriptions
+# Fiber Span Subscriptions
 # ============================================================================
 
 
@@ -77,7 +76,7 @@ class FiberSpanSubscription(
 
 
 # ============================================================================
-# 3. Leased Spectrum Fiber Patch Subscriptions
+# Leased Spectrum Subscriptions
 # ============================================================================
 
 
@@ -103,5 +102,3 @@ class LeasedSpectrumSubscription(
     """base model for a leased spectrum subscription in the ACTIVE state."""
 
     leased_spectrum: LeasedSpectrum
-
-

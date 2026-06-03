@@ -4,7 +4,7 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
 # relative because every org must copy this file to its local repo
-from {{import_base_path}}.products.product_blocks.optical_spectrum import (
+from orchestrator_optical.products.product_blocks.optical_spectrum import (
     OpticalSpectrum,
     OpticalSpectrumInactive,
     OpticalSpectrumProvisioning,

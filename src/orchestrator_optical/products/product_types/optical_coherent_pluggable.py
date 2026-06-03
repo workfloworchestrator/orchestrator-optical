@@ -5,21 +5,14 @@ from enum import StrEnum
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
-from orchestrator_optical.abstracts.product_blocks.optical_coherent_pluggable import (
-    AbstractCoherentPluggableBlock,
-    AbstractCoherentPluggableBlockInactive,
-    AbstractCoherentPluggableBlockProvisioning,
-)
-
-# relative because every org must copy this file to its local repo
-from {{import_base_path}}.products.product_blocks.optical_coherent_pluggable import (
+from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
     CoherentPluggable,
     CoherentPluggableInactive,
     CoherentPluggableProvisioning,
 )
 
 
-class VendorPartNumber(StrEnum):
+class VendorAndPartNo(StrEnum):
     """Enumerate supported optical device vendor and part numbers."""
 
     CISCO_QDD_400G_ZRP_S = "CISCO QDD-400G-ZRP-S"
@@ -27,7 +20,7 @@ class VendorPartNumber(StrEnum):
 
 
 class CoherentPluggableSubscriptionInactive(SubscriptionModel, is_base=True):
-    vendor_part_number: VendorPartNumber
+    vendor_and_part_no: VendorAndPartNo
     transceiver: CoherentPluggableInactive
 
 
@@ -35,14 +28,14 @@ class CoherentPluggableSubscriptionProvisioning(
     CoherentPluggableSubscriptionInactive,
     lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
-    vendor_part_number: VendorPartNumber
+    vendor_and_part_no: VendorAndPartNo
     transceiver: CoherentPluggableProvisioning
 
 
 class CoherentPluggableSubscription(
     CoherentPluggableSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
-    vendor_part_number: VendorPartNumber
+    vendor_and_part_no: VendorAndPartNo
     transceiver: CoherentPluggable
 
 
