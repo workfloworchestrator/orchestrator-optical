@@ -1,65 +1,72 @@
-# Copyright 2025 GARR.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""Module for Optical Transport Channel product blocks."""
 
 from typing import Annotated
 
 from annotated_types import Len
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
-from pydantic import Field, computed_field
+from pydantic import Field
 
-from orchestrator_optical.products.product_blocks.optical_ports import (
-    TrxLineInterfaceBlock,
-    TrxLineInterfaceBlockInactive,
-    TrxLineInterfaceBlockProvisioning,
+from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
+    CoherentPluggable,
+    CoherentPluggableInactive,
+    CoherentPluggableProvisioning,
+)
+from orchestrator_optical.products.product_blocks.optical_port import (
+    TransponderLinePort,
+    TransponderLinePortInactive,
+    TransponderLinePortProvisioning,
 )
 from orchestrator_optical.products.product_blocks.optical_spectrum import (
-    OpticalSpectrumBlock,
-    OpticalSpectrumBlockInactive,
-    OpticalSpectrumBlockProvisioning,
+    OpticalSpectrum,
+    OpticalSpectrumInactive,
+    OpticalSpectrumProvisioning,
 )
 
 LinePortList = Annotated[list[SI], Len(min_length=2, max_length=2)]
 
+# --- Discriminated Line Port Unions ---
 
-class OpticalTransportChannelBlockInactive(ProductBlockModel, product_block_name="OpticalTransportChannel"):
-    channel_id: int | None = None
+TrxInactive = Annotated[
+    CoherentPluggableInactive | TransponderLinePortInactive,
+    Field(discriminator="role"),
+]
+
+TrxProvisioning = Annotated[
+    CoherentPluggableProvisioning | TransponderLinePortProvisioning,
+    Field(discriminator="role"),
+]
+
+Trx = Annotated[
+    CoherentPluggable | TransponderLinePort,
+    Field(discriminator="role"),
+]
+
+
+class OpticalTransportChannelInactive(ProductBlockModel, product_block_name="OpticalTransportChannel"):
+    """Inactive state of an Optical Transport Channel product block."""
+
+    channel_name: str | None = None
     central_frequency: int | None = None
     mode: str | None = None
-    line_ports: LinePortList[TrxLineInterfaceBlockInactive] = Field(default_factory=list)
-    spectrum: OpticalSpectrumBlockInactive
+    line_ports: LinePortList[TrxInactive]
+    spectrum: OpticalSpectrumInactive
 
 
-class OpticalTransportChannelBlockProvisioning(
-    OpticalTransportChannelBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class OpticalTransportChannelProvisioning(
+    OpticalTransportChannelInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    channel_id: int
+    """Provisioning state of an Optical Transport Channel product block."""
+
+    channel_name: str
     central_frequency: int
     mode: str
-    line_ports: LinePortList[TrxLineInterfaceBlockProvisioning]
-    spectrum: OpticalSpectrumBlockProvisioning
-
-    @computed_field
-    @property
-    def title(self) -> str:
-        first_code = self.line_ports[0].optical_device.location.code.lower()
-        second_code = self.line_ports[1].optical_device.location.code.lower()
-        return f"och{self.channel_id}_{first_code}-{second_code}"
+    line_ports: LinePortList[TrxProvisioning]
+    spectrum: OpticalSpectrumProvisioning
 
 
-class OpticalTransportChannelBlock(OpticalTransportChannelBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    channel_id: int
-    central_frequency: int
-    mode: str
-    line_ports: LinePortList[TrxLineInterfaceBlock]
-    spectrum: OpticalSpectrumBlock
+class OpticalTransportChannel(OpticalTransportChannelProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Active state of an Optical Transport Channel product block."""
+
+    line_ports: LinePortList[Trx]
+    spectrum: OpticalSpectrum

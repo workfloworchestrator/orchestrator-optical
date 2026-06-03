@@ -1,15 +1,4 @@
-# Copyright 2025 GARR.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""Models for optical digital service subscriptions."""
 
 from enum import StrEnum
 
@@ -17,31 +6,52 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
 from orchestrator_optical.products.product_blocks.optical_digital_service import (
-    OpticalDigitalServiceBlock,
-    OpticalDigitalServiceBlockInactive,
-    OpticalDigitalServiceBlockProvisioning,
+    OpticalDigitalService,
+    OpticalDigitalServiceInactive,
+    OpticalDigitalServiceProvisioning,
 )
 
 
-class ServiceSpeedAndType(StrEnum):
-    ETHERNET_100GBPS = "100Gbps Ethernet"
-    ETHERNET_400GBPS = "400Gbps Ethernet"
+class ServiceSpeed(StrEnum):
+    """Enumerate supported digital service line rates."""
+
+    SPEED_100G = "100Gbps"
+    SPEED_400G = "400Gbps"
+    SPEED_800G = "800Gbps"
 
 
-class OpticalDigitalServiceInactive(SubscriptionModel, is_base=True):
-    speed_and_type = ServiceSpeedAndType
-    optical_digital_service: OpticalDigitalServiceBlockInactive
+class ServiceType(StrEnum):
+    """Enumerate supported digital service framing protocol types."""
+
+    ETHERNET = "Ethernet"
 
 
-class OpticalDigitalServiceProvisioning(
-    OpticalDigitalServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+# --- Subscription Lifecycles ---
+
+
+class OpticalDigitalServiceSubscriptionInactive(SubscriptionModel, is_base=True):
+    """base model for an optical digital service subscription in the INACTIVE state."""
+
+    service_speed: ServiceSpeed
+    service_type: ServiceType
+    service: OpticalDigitalServiceInactive
+
+
+class OpticalDigitalServiceSubscriptionProvisioning(
+    OpticalDigitalServiceSubscriptionInactive,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
-    speed_and_type = ServiceSpeedAndType
-    optical_digital_service: OpticalDigitalServiceBlockProvisioning
+    """base model for an optical digital service subscription in the PROVISIONING state."""
+
+    service: OpticalDigitalServiceProvisioning
 
 
-class OpticalDigitalService(
-    OpticalDigitalServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+class OpticalDigitalServiceSubscription(
+    OpticalDigitalServiceSubscriptionProvisioning,
+    lifecycle=[SubscriptionLifecycle.ACTIVE],
 ):
-    speed_and_type = ServiceSpeedAndType
-    optical_digital_service: OpticalDigitalServiceBlock
+    """base model for an optical digital service subscription in the ACTIVE state."""
+
+    service: OpticalDigitalService
+
+

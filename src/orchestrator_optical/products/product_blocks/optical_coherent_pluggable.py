@@ -1,38 +1,48 @@
-# Copyright 2025 GARR.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""Module for Optical Port product blocks."""
 
+from typing import Literal
 
-from orchestrator.domain.base import ProductBlockModel
-from orchestrator.types import SubscriptionLifecycle
+from orchestrator.domain import SubscriptionModel
+from pydantic import computed_field
 
-from orchestrator_optical.products.product_blocks.optical_dummy_router import (
-    RouterBlock,
-    RouterBlockInactive,
-    RouterBlockProvisioning,
+from orchestrator_optical.products.product_blocks.optical_packet_node import (
+    OpticalPacketNodeBlock,
+    OpticalPacketNodeInactive,
+    OpticalPacketNodeProvisioning,
+)
+from orchestrator_optical.products.product_blocks.optical_port import (
+    OpticalPortBlock,
+    OpticalPortProvisioning,
+    PortRole,
+    _PortInactive,
 )
 
 
-class CoherentPluggableBlockInactive(ProductBlockModel, product_block_name="CoherentPluggable"):
-    host_device: RouterBlockInactive
-    port_name: str | None = None
+class CoherentPluggableInactive(_PortInactive):
+    """Base class for inactive CoherentPluggable product blocks."""
+
+    role: Literal[PortRole.COHERENT_PLUGGABLE] = PortRole.COHERENT_PLUGGABLE
+    fw_version: str | None = None
+    host_node: OpticalPacketNodeInactive | None = None
+
+    @computed_field
+    @property
+    def vendor_and_part_no(self) -> str:
+        """From fixed_inputs."""
+        sub = SubscriptionModel.from_subscription(self.owner_subscription_id)
+        return sub.vendor_and_part_no
 
 
-class CoherentPluggableBlockProvisioning(
-    CoherentPluggableBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class CoherentPluggableProvisioning(
+    CoherentPluggableInactive, OpticalPortProvisioning
 ):
-    host_device: RouterBlockProvisioning
-    port_name: str
+    """Base class for provisioning CoherentPluggable product blocks."""
+
+    fw_version: str
+    host_node: OpticalPacketNodeProvisioning
 
 
-class CoherentPluggableBlock(CoherentPluggableBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    host_device: RouterBlock
+class CoherentPluggable(CoherentPluggableProvisioning, OpticalPortBlock):
+    """Base class for active CoherentPluggable product blocks."""
+
+    host_node: OpticalPacketNodeBlock

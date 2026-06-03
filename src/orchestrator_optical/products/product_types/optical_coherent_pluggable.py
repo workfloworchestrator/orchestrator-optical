@@ -1,15 +1,4 @@
-# Copyright 2025 GARR.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""."""
 
 from enum import StrEnum
 
@@ -17,29 +6,36 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
 from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
-    CoherentPluggableBlock,
-    CoherentPluggableBlockInactive,
-    CoherentPluggableBlockProvisioning,
+    CoherentPluggable,
+    CoherentPluggableInactive,
+    CoherentPluggableProvisioning,
 )
 
 
-class DeviceModel(StrEnum):
-    NOKIA_400ZR_PLUS = "Nokia 400ZR+"
+class VendorAndPartNo(StrEnum):
+    """Enumerate supported optical device vendor and part numbers."""
 
-class CoherentPluggable(SubscriptionModel, is_base=True):
-    device_model = DeviceModel
-    transceiver: CoherentPluggableBlockInactive
+    CISCO_QDD_400G_ZRP_S = "CISCO QDD-400G-ZRP-S"
+    CISCO_DP04QSDD_HK9 = "CISCO DP04QSDD-HK9"
 
 
-class CoherentPluggableProvisioning(
-    CoherentPluggable, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class CoherentPluggableSubscriptionInactive(SubscriptionModel, is_base=True):
+    vendor_and_part_no: VendorAndPartNo
+    transceiver: CoherentPluggableInactive
+
+
+class CoherentPluggableSubscriptionProvisioning(
+    CoherentPluggableSubscriptionInactive,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
-    device_model = DeviceModel
-    transceiver: CoherentPluggableBlockProvisioning
+    vendor_and_part_no: VendorAndPartNo
+    transceiver: CoherentPluggableProvisioning
 
 
-class CoherentPluggable(
-    CoherentPluggableProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+class CoherentPluggableSubscription(
+    CoherentPluggableSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
-    device_model = DeviceModel
-    transceiver: CoherentPluggableBlock
+    vendor_and_part_no: VendorAndPartNo
+    transceiver: CoherentPluggable
+
+

@@ -1,33 +1,37 @@
-# Copyright 2025 GARR.
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""Models for the optical spectrum service subscriptions."""
 
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
+# relative because every org must copy this file to its local repo
 from orchestrator_optical.products.product_blocks.optical_spectrum import (
-    OpticalSpectrumBlock,
-    OpticalSpectrumBlockInactive,
-    OpticalSpectrumBlockProvisioning,
+    OpticalSpectrum,
+    OpticalSpectrumInactive,
+    OpticalSpectrumProvisioning,
 )
 
 
-class OpticalSpectrumServiceInactive(SubscriptionModel, is_base=True):
-    spectrum: OpticalSpectrumBlockInactive
+class OpticalSpectrumServiceSubscriptionInactive(SubscriptionModel, is_base=True):
+    """base model for an optical spectrum service subscription in the INACTIVE state."""
+
+    spectrum: OpticalSpectrumInactive
 
 
-class OpticalSpectrumServiceProvisioning(OpticalSpectrumServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    spectrum: OpticalSpectrumBlockProvisioning
+class OpticalSpectrumServiceSubscriptionProvisioning(
+    OpticalSpectrumServiceSubscriptionInactive,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
+):
+    """base model for an optical spectrum service subscription in the PROVISIONING state."""
+
+    spectrum: OpticalSpectrumProvisioning
 
 
-class OpticalSpectrumService(OpticalSpectrumServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    spectrum: OpticalSpectrumBlock
+class OpticalSpectrumServiceSubscription(
+    OpticalSpectrumServiceSubscriptionProvisioning,
+    lifecycle=[SubscriptionLifecycle.ACTIVE],
+):
+    """base model for an optical spectrum service subscription in the ACTIVE state."""
+
+    spectrum: OpticalSpectrum
+
+
