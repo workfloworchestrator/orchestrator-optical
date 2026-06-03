@@ -18,8 +18,7 @@ from pydantic import Field
 from pydantic_forms.types import UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 
-from products.product_types.optical_fiber import OpticalFiber
-from workflows.shared import subscriptions_by_product_type
+from orchestrator_optical.workflows.shared import subscriptions_by_product_type
 
 
 def get_fibers_connected_to(
@@ -46,7 +45,7 @@ def get_fibers_connected_to(
         fiber_sub = OpticalFiber.from_subscription(fiber_sub.subscription_id)
         fiber = fiber_sub.optical_fiber
         for port in fiber.terminations:
-            if str(port.optical_device.owner_subscription_id) == device_subscription_id:
+            if str(port.optical_node.owner_subscription_id) == device_subscription_id:
                 connected_fibers_subs.append(fiber_sub)
 
     return connected_fibers_subs

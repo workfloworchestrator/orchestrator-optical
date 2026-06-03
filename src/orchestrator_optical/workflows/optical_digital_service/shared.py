@@ -18,14 +18,14 @@ from pydantic import Field
 from pydantic_forms.types import UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 
-from products.product_blocks.optical_device import Platform
-from products.product_types.optical_device import OpticalDevice
-from workflows.shared import (
+from orchestrator_optical.products.product_blocks.optical_node import VendorAndPlatform
+from orchestrator_optical.products.product_types.optical_node import OpticalDevice
+from orchestrator_optical.workflows.shared import (
     subscription_instance_values_by_block_type_depending_on_instance_id,
 )
 
 
-def _parse_port_identifiers(port_name: str, platform: Platform) -> tuple[str, str, str]:
+def _parse_port_identifiers(port_name: str, platform: VendorAndPlatform) -> tuple[str, str, str]:
     """
     Split a port name into shelf_id, slot_id, and port_id based on platform conventions.
 
@@ -39,11 +39,11 @@ def _parse_port_identifiers(port_name: str, platform: Platform) -> tuple[str, st
     Raises:
         ValueError: If the platform is unsupported or parsing fails.
     """
-    if platform is Platform.Groove_G30:
+    if platform is VendorAndPlatform.NOKIA_GROOVE_G30:
         # format "port-1/2/3" -> take "1/2/3"
         raw = port_name.split("-", 1)[-1]
         shelf, slot, port = raw.split("/")
-    elif platform is Platform.GX_G42:
+    elif platform is VendorAndPlatform.NOKIA_GX_G42:
         # format "1-4-T12"
         shelf, slot, port = port_name.split("-", 2)
     else:
@@ -53,29 +53,29 @@ def _parse_port_identifiers(port_name: str, platform: Platform) -> tuple[str, st
 
 
 def trx_line_port_patched_but_not_used_selector(
-    optical_device_subscription_id: UUIDstr, client_port_name: str, prompt: str = ""
+    optical_node_subscription_id: UUIDstr, client_port_name: str, prompt: str = ""
 ) -> Choice:
     """
     Return a Choice object for selecting an unused optical line port
     on the same shelf/slot as the client port.
 
     Args:
-        optical_device_subscription_id: UUID of the device subscription.
+        optical_node_subscription_id: UUID of the device subscription.
         client_port_name: Name of the client-facing port.
         prompt: Optional custom prompt text.
 
     Returns:
         A pydantic_forms.validators.Choice instance listing valid line ports.
     """
-    subscription = OpticalDevice.from_subscription(optical_device_subscription_id)
-    optical_device = subscription.optical_device
-    shelf_id, slot_id, _ = _parse_port_identifiers(client_port_name, optical_device.platform)
+    subscription = OpticalDevice.from_subscription(optical_node_subscription_id)
+    optical_node = subscription.optical_node
+    shelf_id, slot_id, _ = _parse_port_identifiers(client_port_name, optical_node.vendor_and_platform)
 
     patched_ports_subscription_instance_values = subscription_instance_values_by_block_type_depending_on_instance_id(
         product_block_type="OpticalDevicePort",
         resource_type="port_name",
-        depending_on_instance_id=optical_device.subscription_instance_id,
-        states=[SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING],
+        depending_on_instance_id=optical_node.subscription_instance_id,
+        statuses=[SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING],
     )
 
     available_ports_siv = []
@@ -97,25 +97,25 @@ def trx_line_port_patched_but_not_used_selector(
     line_ports = {}
     for siv in available_ports_siv:
         port_name = siv.value
-        shelf, slot, port = _parse_port_identifiers(port_name, optical_device.platform)
+        shelf, slot, port = _parse_port_identifiers(port_name, optical_node.vendor_and_platform)
 
         if shelf != shelf_id or slot != slot_id:
             continue
-        if optical_device.platform == Platform.Groove_G30:
+        if optical_node.vendor_and_platform == VendorAndPlatform.NOKIA_GROOVE_G30:
             if int(port) > 2:
                 continue
-        elif optical_device.platform == Platform.GX_G42 and port not in ("L1", "L2"):
+        elif optical_node.vendor_and_platform == VendorAndPlatform.NOKIA_GX_G42 and port not in ("L1", "L2"):
             continue
 
         line_ports[str(siv.subscription_instance_id)] = port_name
 
     if not prompt:
-        prompt = f"Select line optical port on {subscription.optical_device.fqdn}"
+        prompt = f"Select line optical port on {subscription.optical_node.pqdn}"
     return Choice(prompt, zip(line_ports.keys(), line_ports.items(), strict=False))
 
 
 def trx_line_port_patched_but_not_used_multiple_selector(
-    optical_device_subscription_id: UUIDstr,
+    optical_node_subscription_id: UUIDstr,
     client_port_name: str,
     prompt: str = "",
     min_items: int = 0,
@@ -124,7 +124,7 @@ def trx_line_port_patched_but_not_used_multiple_selector(
     unique_items: bool = True,
 ) -> type[list[Choice]]:
     """Return a Choice object for selecting multiple optical ports of an OpticalDevice."""
-    base_choice = trx_line_port_patched_but_not_used_selector(optical_device_subscription_id, client_port_name, prompt)
+    base_choice = trx_line_port_patched_but_not_used_selector(optical_node_subscription_id, client_port_name, prompt)
     return Annotated[
         choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items),
         Field(title=prompt),

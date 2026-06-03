@@ -22,8 +22,10 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import read_only_field
 from structlog import get_logger
 
-from products.product_types.optical_fiber import OpticalFiber, OpticalFiberProvisioning
-from workflows.shared import modify_summary_form
+from orchestrator_optical.products.product_types.optical_pipe import (
+    OpticalFiberProvisioning,
+)
+from orchestrator_optical.workflows.shared import modify_summary_form
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:

@@ -1,11 +1,8 @@
 """Models for the subscriptions of optical pipes."""
 
-from enum import StrEnum
-from typing import Annotated
 
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
-from pydantic import Field
 
 from orchestrator_optical.products.product_blocks.optical_pipe import (
     FiberPatch,
@@ -102,3 +99,4 @@ class LeasedSpectrumSubscription(
     """base model for a leased spectrum subscription in the ACTIVE state."""
 
     leased_spectrum: LeasedSpectrum
+

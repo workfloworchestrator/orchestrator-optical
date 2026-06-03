@@ -15,10 +15,10 @@
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from pydantic_forms.types import strEnum
 
-from orchestrator_optical.products.product_types.optical_device import OpticalDevice
-from orchestrator_optical.products.product_types.optical_digital_service import OpticalDigitalService
-from orchestrator_optical.products.product_types.optical_pipe import OpticalPipe, OpticalPipeType
 from orchestrator_optical.products.product_types.optical_dark_spectrum import OpticalDarkSpectrum
+from orchestrator_optical.products.product_types.optical_digital_service import OpticalDigitalService
+from orchestrator_optical.products.product_types.optical_node import OpticalDevice
+from orchestrator_optical.products.product_types.optical_pipe import OpticalPipe, OpticalPipeType
 
 
 class ProductName(strEnum):
@@ -27,7 +27,7 @@ class ProductName(strEnum):
     DARK_FIBER = OpticalPipeType.DARK_FIBER
     LEASED_DARK_SPECTRUM = OpticalPipeType.LEASED_DARK_SPECTRUM
     OPTICAL_DARK_SPECTRUM = "Optical Dark Spectrum"
-    OPTICAL_DEVICE = "Optical Device"
+    optical_node = "Optical Device"
     OPTICAL_DIGITAL_SERVICE = "Optical Digital Service"
 
 
@@ -37,7 +37,7 @@ class ProductType(strEnum):
     DARK_FIBER = OpticalPipe.__name__
     LEASED_DARK_SPECTRUM = OpticalPipe.__name__
     OPTICAL_DARK_SPECTRUM = OpticalDarkSpectrum.__name__
-    OPTICAL_DEVICE = OpticalDevice.__name__
+    optical_node = OpticalDevice.__name__
     OPTICAL_DIGITAL_SERVICE = OpticalDigitalService.__name__
 
 
@@ -46,7 +46,7 @@ SUBSCRIPTION_MODEL_REGISTRY.update(
         ProductName.DARK_FIBER.value: OpticalPipe,
         ProductName.LEASED_DARK_SPECTRUM.name: OpticalPipe,
         ProductName.OPTICAL_DARK_SPECTRUM.name: OpticalDarkSpectrum,
-        ProductName.OPTICAL_DEVICE.name: OpticalDevice,
+        ProductName.optical_node.name: OpticalDevice,
         ProductName.OPTICAL_DIGITAL_SERVICE.name: OpticalDigitalService,
     }
 )

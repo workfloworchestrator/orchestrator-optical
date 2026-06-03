@@ -40,8 +40,7 @@ T = TypeVar("T")
 
 
 def subscriptions_by_product_type(product_type: str, status: list[SubscriptionLifecycle]) -> list[SubscriptionTable]:
-    """
-    retrieve_subscription_list_by_product This function lets you retrieve a
+    """retrieve_subscription_list_by_product This function lets you retrieve a
     list of all subscriptions of a given product type. For example, you could
     call this like so:
 
@@ -53,7 +52,7 @@ def subscriptions_by_product_type(product_type: str, status: list[SubscriptionLi
 
     Args:
         product_type (str): The product type in the DB (i.e. Node, User, etc.)
-        status (List[SubscriptionLifecycle]): The lifecycle states you want returned (i.e. SubscriptionLifecycle.ACTIVE)
+        status (List[SubscriptionLifecycle]): The lifecycle statuses you want returned (i.e. SubscriptionLifecycle.ACTIVE)
 
     Returns:
         List[SubscriptionTable]: A list of all the subscriptions that match
@@ -129,8 +128,7 @@ def modify_summary_form(user_input: dict, block: ProductBlockModel, fields: list
 
 
 def active_subscription_selector(product_type: str, prompt: str | None = None) -> type[Choice]:
-    """
-    Create a `Choice` selector for subscriptions of a given product type.
+    """Create a `Choice` selector for subscriptions of a given product type.
 
     Args:
         product_type (str): The type of product to filter subscriptions by.
@@ -191,8 +189,7 @@ def single_choice_to_multiple_choices(
     *args: Any,
     **kwargs: Any,
 ) -> type[list[Choice]]:
-    """
-    Convert a single choice function into a multiple choice list.
+    """Convert a single choice function into a multiple choice list.
 
     Args:
         min_items: Minimum number of selections required
@@ -209,14 +206,50 @@ def single_choice_to_multiple_choices(
     return choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items)
 
 
+def subscription_instances_by_block_type(
+    product_block_type: str,
+    statuses: list[SubscriptionLifecycle] = [SubscriptionLifecycle.ACTIVE],  # noqa: B006
+) -> list[SubscriptionInstanceTable]:
+    """From the database, retrieve the subscription instances that match specific product block type.
+
+    Usage example:
+        >>> sis = subscription_instances_by_block_type(
+        ...     "OpticalDevicePort",
+        ...     [SubscriptionLifecycle.ACTIVE]
+        ... )
+        >>> for si in sis:
+        ...     print(si.subscription_instance_id).
+
+    This function finds subscription instances that:
+    1. are instances of the product block of the specified type
+    3. Belong to a subscription in one of the specified lifecycle statuses
+
+    Args:
+        product_block_type: The name of the product block type (e.g., "OpticalDevicePort")
+        statuses: List of subscription lifecycle statuses to include in the search
+
+    Returns:
+        List of SubscriptionInstanceTable objects (i.e. entries of the subscription_instances table in the DB)
+            matching all criteria
+    """
+    return (
+        SubscriptionInstanceTable.query
+        .join(SubscriptionTable)
+        .join(ProductBlockTable)
+        .filter(SubscriptionTable.status.in_(statuses))
+        .filter(ProductBlockTable.name == product_block_type)
+        .all()
+    )
+
+
 def subscription_instances_by_block_type_and_resource_value(
     product_block_type: str,
     resource_type: str,
     resource_value: str,
-    states: list[SubscriptionLifecycle] = [SubscriptionLifecycle.ACTIVE],  # noqa: B006
+    statuses: list[SubscriptionLifecycle] = [SubscriptionLifecycle.ACTIVE],  # noqa: B006
 ) -> list[SubscriptionInstanceTable]:
-    """
-    From the database, retrieve the subscription instances that match specific product block type and resource value.
+    """From the database, retrieve the subscription instances that match specific product block type and resource value.
+
     Usage example:
         >>> sis = subscription_instances_by_block_type_and_resource_value(
         ...     "OpticalDevicePort",
@@ -230,13 +263,13 @@ def subscription_instances_by_block_type_and_resource_value(
     This function finds subscription instances that:
     1. are instances of the product block of the specified type
     2. the value of the specified resource attribute matches the specified value
-    3. Belong to a subscription in one of the specified lifecycle states
+    3. Belong to a subscription in one of the specified lifecycle statuses
 
     Args:
         product_block_type: The name of the product block type (e.g., "OpticalDevicePort")
         resource_type: The name of the resource attribute (e.g., "port_name")
         resource_value: The specific value to match (e.g., "ge-0/0/0")
-        states: List of subscription lifecycle states to include in the search
+        statuses: List of subscription lifecycle statuses to include in the search
 
     Returns:
         List of SubscriptionInstanceTable objects (i.e. entries of the subscription_instances table in the DB)
@@ -247,7 +280,7 @@ def subscription_instances_by_block_type_and_resource_value(
         .join(ResourceTypeTable)
         .join(SubscriptionTable)
         .join(ProductBlockTable)
-        .filter(SubscriptionTable.status.in_(states))
+        .filter(SubscriptionTable.status.in_(statuses))
         .filter(ProductBlockTable.name == product_block_type)
         .filter(ResourceTypeTable.resource_type == resource_type)
         .filter(SubscriptionInstanceValueTable.value == resource_value)
@@ -259,42 +292,41 @@ def subscription_instance_values_by_block_type_depending_on_instance_id(
     product_block_type: str,
     resource_type: str,
     depending_on_instance_id: str,
-    states: list[SubscriptionLifecycle],
+    statuses: list[SubscriptionLifecycle],
 ) -> list[SubscriptionInstanceValueTable]:
-    """
-    This function retrieves a list of all subscription instance values (i.e. product block attributes, e.g. port_name)
+    """This function retrieves a list of all subscription instance values (aka block's fields, e.g. port_name)
     of a specific product block type (e.g. OpticalDevicePort) that depend on the given instance id
-    (e.g. OpticalDeviceBlock of flex.ba01 subscription instance id) and whose owner subscription
+    (e.g. OpticalNodeUnion of flex.ba01 subscription instance id) and whose owner subscription
     (e.g. OpticalFiber flex.ba01---flex.mt00 might own an optical port of flex.ba01)
-    is in the specified lifecycle states.
+    is in the specified lifecycle statuses.
 
     For example:
-    >>> an_optical_device_instance_id = an_optical_device_subscription.optical_device.subscription_instance_id
+    >>> an_optical_node_instance_id = an_optical_node_subscription.optical_node.subscription_instance_id
     >>> subscription_instances_values = subscription_instances_of_type_that_depends_on(
             "OpticalDevicePort",
             "port_name",
-            an_optical_device_instance_id,
+            an_optical_node_instance_id,
             [SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING]
         )
     [SubscriptionInstanceValueTable(su...value=xe-0/0/0), SubscriptionInstanceValueTable(su...value=et-1/0/0)]
                                                ^^^^^^^^                                             ^^^^^^^^
     You now have a list of all rows from the subscription instance values table in the DB.
-    Each row corresponds to a subscription instance that depends on "an_optical_device".
-    Each of these instances also belongs to a subscription whose status is in one of the specified states.
+    Each row corresponds to a subscription instance that depends on "an_optical_node".
+    Each of these instances also belongs to a subscription whose status is in one of the specified statuses.
     You can use these subscription instances in your workflow like this:
     >>> subscription_instance_id = subscription_instances_values[0].subscription_instance_id
-    >>> optical_device_port_block = OpticalDevicePortBlock.from_db(subscription_instance_id)
+    >>> optical_port_block = OpticalPortUnion.from_db(subscription_instance_id)
 
     Args:
         product_block_type (str): The product block type in the DB (i.e. product name, e.g. OpticalDevicePort)
         resource_type (str): The resource type in the DB (i.e. product block attribute name, e.g. port_name, etc.)
         depending_on_instance_id (str): The subscription_instance_id of theproduct block that the returned product
             blocks depend on.
-        states (List[SubscriptionLifecycle]): The lifecycle states you want returned (i.e. SubscriptionLifecycle.ACTIVE)
+        statuses (List[SubscriptionLifecycle]): The lifecycle statuses you want returned (i.e. SubscriptionLifecycle.ACTIVE)
 
     Returns:
         List[SubscriptionInstanceValueTable]: A list of all the subscription instance values that match your criteria.
-    """
+    """  # noqa: D205
     return (
         SubscriptionInstanceValueTable.query.join(
             SubscriptionInstanceTable,
@@ -318,7 +350,7 @@ def subscription_instance_values_by_block_type_depending_on_instance_id(
             SubscriptionInstanceValueTable.resource_type_id == ResourceTypeTable.resource_type_id,
         )
         .filter(SubscriptionInstanceRelationTable.depends_on_id == depending_on_instance_id)
-        .filter(SubscriptionTable.status.in_(states))
+        .filter(SubscriptionTable.status.in_(statuses))
         .filter(ProductBlockTable.name == product_block_type)
         .filter(ResourceTypeTable.resource_type == resource_type)
         .all()
@@ -336,7 +368,7 @@ def active_blocks_of_type_depending_on_other_block_selector(
         product_block_type=product_block_type,
         resource_type=sort_product_blocks_by_attribute_name,
         depending_on_instance_id=subscription_instance_id,
-        states=[SubscriptionLifecycle.ACTIVE],
+        statuses=[SubscriptionLifecycle.ACTIVE],
     )
 
     product_blocks = {

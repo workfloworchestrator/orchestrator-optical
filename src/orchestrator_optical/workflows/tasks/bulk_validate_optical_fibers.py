@@ -22,22 +22,22 @@ from orchestrator.workflow import StepList, begin, done, step, workflow
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
 
-from products.product_blocks.optical_device import DeviceType
-from products.product_types.optical_device import OpticalDevice
-from products.product_types.optical_fiber import OpticalFiber
-from workflows.optical_device.shared import (
-    multiple_optical_device_selector,
+from orchestrator_optical.products.product_blocks.optical_node import DeviceType
+from orchestrator_optical.products.product_types.optical_node import OpticalDevice
+from orchestrator_optical.products.product_types.optical_pipe import FiberSpanSubscription
+from orchestrator_optical.workflows.optical_node.shared import (
+    multiple_optical_node_selector,
 )
 
 logger = get_logger(__name__)
 
 
 def initial_input_form_generator() -> FormGenerator:
-    optical_device_types = [
+    optical_node_types = [
         DeviceType.ROADM,
     ]
-    RoadmChoiceList = multiple_optical_device_selector(
-        device_types=optical_device_types,
+    RoadmChoiceList = multiple_optical_node_selector(
+        device_types=optical_node_types,
         prompt="Select all the ROADMs of which you want to validate the optical fibers",
     )
 
@@ -55,16 +55,16 @@ def retrieve_fibers(roadm_list: list[UUIDstr]) -> State:
     subscriptions = set()
     for sub_id in roadm_list:
         roadm_sub = OpticalDevice.from_subscription(sub_id)
-        roadm = roadm_sub.optical_device
+        roadm = roadm_sub.optical_node
         sub_instances_using_roadm = roadm.in_use_by
         for sub_instance in sub_instances_using_roadm:
             if sub_instance.subscription.product.product_id != optical_fiber_product_id:
                 continue
             if sub_instance.subscription.status != SubscriptionLifecycle.ACTIVE:
                 continue
-            fiber_sub = OpticalFiber.from_subscription(sub_instance.subscription_id)
+            fiber_sub = FiberSpanSubscription.from_subscription(sub_instance.subscription_id)
             fiber = fiber_sub.optical_fiber
-            for device in (x.optical_device for x in fiber.terminations):
+            for device in (x.optical_node for x in fiber.terminations):
                 if device == roadm:
                     continue
                 if device.device_type in [DeviceType.ROADM, DeviceType.Amplifier]:

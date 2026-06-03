@@ -18,7 +18,7 @@ from orchestrator.workflows.utils import terminate_workflow
 from pydantic_forms.types import InputForm, State, UUIDstr
 from structlog import get_logger
 
-from products.product_types.optical_device import OpticalDevice
+from orchestrator_optical.products.product_types.optical_node import OpticalDevice
 
 logger = get_logger(__name__)
 
@@ -47,7 +47,7 @@ additional_steps = begin
     initial_input_form=terminate_initial_input_form_generator,
     additional_steps=additional_steps,
 )
-def terminate_optical_device() -> StepList:
+def terminate_optical_node() -> StepList:
     return (
         begin >> delete_subscription_from_oss_bss
         # TODO: fill in additional steps if needed

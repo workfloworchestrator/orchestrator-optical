@@ -12,7 +12,7 @@
 # limitations under the License.
 from orchestrator.workflows import LazyWorkflowInstance
 
-LazyWorkflowInstance("workflows.tasks.bulk_create_optical_devices", "bulk_create_optical_devices")
+LazyWorkflowInstance("workflows.tasks.bulk_create_optical_nodes", "bulk_create_optical_nodes")
 LazyWorkflowInstance("workflows.tasks.bulk_create_optical_fibers", "bulk_create_optical_fibers")
 LazyWorkflowInstance("workflows.tasks.check_netbox_connection", "task_check_netbox_connection")
 LazyWorkflowInstance("workflows.tasks.import_fibers_from_tnms", "import_fibers_from_tnms")
@@ -24,10 +24,10 @@ LazyWorkflowInstance("workflows.tasks.execute_tl1_commands_on_flexils", "execute
 LazyWorkflowInstance("workflows.tasks.upgrade_g30_from_452_to_480", "upgrade_g30_from_452_to_480")
 LazyWorkflowInstance("workflows.tasks.upgrade_g42_from_600_to_802", "upgrade_g42_from_600_to_802")
 
-LazyWorkflowInstance("workflows.optical_device.create_optical_device", "create_optical_device")
-LazyWorkflowInstance("workflows.optical_device.modify_optical_device", "modify_optical_device")
-LazyWorkflowInstance("workflows.optical_device.terminate_optical_device", "terminate_optical_device")
-LazyWorkflowInstance("workflows.optical_device.validate_optical_device", "validate_optical_device")
+LazyWorkflowInstance("workflows.optical_node.create_optical_node", "create_optical_node")
+LazyWorkflowInstance("workflows.optical_node.modify_optical_node", "modify_optical_node")
+LazyWorkflowInstance("workflows.optical_node.terminate_optical_node", "terminate_optical_node")
+LazyWorkflowInstance("workflows.optical_node.validate_optical_node", "validate_optical_node")
 
 LazyWorkflowInstance("workflows.optical_fiber.create_optical_fiber", "create_optical_fiber")
 LazyWorkflowInstance("workflows.optical_fiber.modify_optical_fiber", "modify_optical_fiber")

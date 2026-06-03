@@ -165,3 +165,6 @@ class LeasedSpectrum(LeasedSpectrumProvisioning, lifecycle=SubscriptionLifecycle
 
     spectrum_name: str
     terminations: ListOfPorts[LeasedSpectrumPortBlocks]
+
+
+OpticalPipeUnion = Annotated[FiberPatch | FiberSpan | LeasedSpectrum, Field(discriminator="optical_pipe_type")]

@@ -34,7 +34,7 @@ Example:
         )
 """
 
-from services.asyncsshcli.client import AsyncSshTerminal
+from orchestrator_optical.services.asyncsshcli.client import AsyncSshTerminal
 
 async_ssh_cli = AsyncSshTerminal
 

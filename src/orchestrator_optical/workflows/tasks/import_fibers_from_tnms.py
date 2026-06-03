@@ -27,8 +27,8 @@ from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import LongText
 
-from services.infinera import tnms_client
-from workflows.shared import subscriptions_by_product_type_and_instance_value
+from orchestrator_optical.services.nokia import tnms_client
+from orchestrator_optical.workflows.shared import subscriptions_by_product_type_and_instance_value
 
 achtung = (
     "This task will launch a sub-workflow for each fiber between two FlexILS nodes "

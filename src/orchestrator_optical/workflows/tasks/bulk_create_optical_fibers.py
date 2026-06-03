@@ -27,8 +27,8 @@ from orchestrator.workflow import StepList, begin, done, step, workflow
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
-from products.product_blocks.optical_fiber import FiberType
-from workflows.shared import subscriptions_by_product_type_and_instance_value
+from orchestrator_optical.products.product_blocks.optical_pipe import FiberType
+from orchestrator_optical.workflows.shared import subscriptions_by_product_type_and_instance_value
 
 achtung = (
     "This task will launch a sub-workflow for each fiber. "
@@ -50,7 +50,7 @@ Achtung = Annotated[
 CsvData = Annotated[
     str,
     Field(
-        "optical_device_a,port_a,optical_device_b,port_b,garrxdb_id,total_loss,type1-type2-...,length1-length2-...\n",
+        "optical_node_a,port_a,optical_node_b,port_b,garrxdb_id,total_loss,type1-type2-...,length1-length2-...\n",
         title="CSV Data",
         json_schema_extra={
             "format": "long",
@@ -121,8 +121,8 @@ def initial_input_form_generator() -> FormGenerator:
 
         def _validate_device_ports(self, fiber: dict, row: int) -> None:
             for device_key, port_key in [
-                ("optical_device_a", "port_a"),
-                ("optical_device_b", "port_b"),
+                ("optical_node_a", "port_a"),
+                ("optical_node_b", "port_b"),
             ]:
                 if fiber[device_key].startswith("g30"):
                     if not match(r"port\-\d{1,2}/\d{1,2}(\.\d{1})?/\d{1,2}", fiber[port_key]):
@@ -140,7 +140,7 @@ def initial_input_form_generator() -> FormGenerator:
                     )
 
         def _validate_and_convert_device_ids(self, fiber: dict, row: int) -> dict:
-            for device_key in ["optical_device_a", "optical_device_b"]:
+            for device_key in ["optical_node_a", "optical_node_b"]:
                 subscriptions = subscriptions_by_product_type_and_instance_value(
                     "OpticalDevice",
                     "fqdn",
@@ -226,8 +226,8 @@ def create_workflow_inputs(csv_data: list[dict[str, str]]) -> State:
         csv_data (list[dict[str, str]]): List of dictionaries where each dictionary represents
             a fiber connection record extracted from a CSV file. Each dictionary must contain
             the keys:
-            - "optical_device_a"
-            - "optical_device_b"
+            - "optical_node_a"
+            - "optical_node_b"
             - "garrxdb_id"
             - "total_loss"
             - "type1-type2-..."
@@ -247,8 +247,8 @@ def create_workflow_inputs(csv_data: list[dict[str, str]]) -> State:
         user_inputs.append({"product": product_id})
         user_inputs.append(
             {
-                "sub_id_device_a": fiber["optical_device_a"],
-                "sub_id_device_b": fiber["optical_device_b"],
+                "sub_id_device_a": fiber["optical_node_a"],
+                "sub_id_device_b": fiber["optical_node_b"],
                 "garrxdb_id": fiber["garrxdb_id"],
                 "total_loss": fiber["total_loss"],
                 "fiber_types": fiber["type1-type2-..."],

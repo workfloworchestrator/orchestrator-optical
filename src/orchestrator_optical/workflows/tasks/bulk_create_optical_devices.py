@@ -27,7 +27,7 @@ from orchestrator.workflow import StepList, begin, done, step, workflow
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
-from orchestrator_optical.products.product_blocks.optical_device import DeviceType, Platform, Vendor
+from orchestrator_optical.products.product_blocks.optical_node import DeviceType, Vendor, VendorAndPlatform
 from orchestrator_optical.utils.custom_types.ip_address import IPAddress
 from orchestrator_optical.workflows.shared import subscriptions_by_product_type_and_instance_value
 
@@ -117,12 +117,12 @@ def initial_input_form_generator() -> FormGenerator:
                         f"Invalid vendor '{vendor_str}' at row {idx + 1}. Valid values are: {', '.join([v.value for v in Vendor])}"
                     )
 
-                platform_str = device["platform"]
+                platform_str = device["vendor_and_platform"]
                 try:
-                    device["platform"] = Platform(platform_str)
+                    device["vendor_and_platform"] = VendorAndPlatform(platform_str)
                 except ValueError:
                     raise ValueError(
-                        f"Invalid platform '{platform_str}' at row {idx + 1}. Valid values are: {', '.join([p.value for p in Platform])}"
+                        f"Invalid platform '{platform_str}' at row {idx + 1}. Valid values are: {', '.join([p.value for p in VendorAndPlatform])}"
                     )
 
                 device_type_str = device["device_type"]
@@ -162,7 +162,7 @@ def find_pops_and_duplicate_addresses(
     for device in csv_data:
         for address in ["lo_ip", "mngmt_ip"]:
             duplicates = subscriptions_by_product_type_and_instance_value(
-                "optical_device",
+                "optical_node",
                 address,
                 device[address],
                 status=[SubscriptionLifecycle.ACTIVE],
@@ -196,7 +196,7 @@ def find_pops_and_duplicate_addresses(
                 "partner_id": partner_id,
                 "pop_id": pop_id,
                 "vendor": device["vendor"],
-                "platform": device["platform"],
+                "vendor_and_platform": device["vendor_and_platform"],
                 "device_type": device["device_type"],
                 "fqdn_prefix_before_pop": device["fqdn_prefix_before_pop"],
                 "lo_ip": device["lo_ip"],
@@ -236,7 +236,7 @@ def create_workflow_inputs(devices: list[dict]) -> State:
     Raises:
         ValueError: If the product cannot be retrieved by name.
     """
-    product_id = get_product_by_name("optical_device").product_id
+    product_id = get_product_by_name("optical_node").product_id
 
     input_forms = []
     for device in devices:
@@ -256,7 +256,7 @@ def start_sub_workflows(workflow_input_forms: list[State]) -> State:
         user_inputs = workflow_input_forms[-1]
         with db.database_scope():
             process_id = start_process(
-                "create_optical_device", user_inputs=user_inputs, user="SYSTEM"
+                "create_optical_node", user_inputs=user_inputs, user="SYSTEM"
             )
             process_ids.append(process_id)
         workflow_input_forms.pop()
@@ -270,7 +270,7 @@ def start_sub_workflows(workflow_input_forms: list[State]) -> State:
     target=Target.SYSTEM,
     initial_input_form=initial_input_form_generator,
 )
-def bulk_create_optical_devices() -> StepList:
+def bulk_create_optical_nodes() -> StepList:
     return (
         begin
         >> find_pops_and_duplicate_addresses

@@ -9,7 +9,7 @@ from orchestrator_optical.products.product_blocks.optical_location import (
     OpticalLocationInactive,
     OpticalLocationProvisioning,
 )
-from orchestrator_optical.utils.custom_types.fqdn import Fqdn
+from orchestrator_optical.utils.custom_types.dns import Pqdn
 from orchestrator_optical.utils.custom_types.ip_address import IPAddress
 
 IpAddressesList = Annotated[
@@ -19,15 +19,15 @@ IpAddressesList = Annotated[
 
 class OpticalPacketNodeInactive(ProductBlockModel, product_block_name="OpticalPacketNode"):
     sw_version: str | None = None
-    vendor_platform: str | None = None
-    fqdn: Fqdn | None = None
+    vendor_and_platform: str | None = None
+    pqdn: Pqdn | None = None # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
     management_ips: IpAddressesList | None = None
     location: OpticalLocationInactive
 
 class OpticalPacketNodeProvisioning(OpticalPacketNodeInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     sw_version: str
-    vendor_platform: str
-    fqdn: Fqdn
+    vendor_and_platform: str
+    pqdn: Pqdn
     management_ips: IpAddressesList
     location: OpticalLocationProvisioning
 

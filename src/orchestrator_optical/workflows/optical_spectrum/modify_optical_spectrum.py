@@ -24,28 +24,28 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
 from structlog import get_logger
 
-from products.product_blocks.optical_device import DeviceType
-from products.product_types.optical_device import OpticalDevice
-from products.product_types.optical_fiber import OpticalFiber
-from products.product_types.optical_spectrum import (
+from orchestrator_optical.products.product_blocks.optical_node import DeviceType
+from orchestrator_optical.products.product_types.optical_spectrum import (
     OpticalSpectrum,
     OpticalSpectrumProvisioning,
 )
-from products.services.optical_spectrum import (
+from orchestrator_optical.products.services.optical_spectrum import (
     modify_optical_circuit,
 )
-from utils.custom_types.frequencies import Frequency, Passband
-from workflows.optical_device.shared import (
-    multiple_optical_device_selector,
+from orchestrator_optical.utils.custom_types.frequencies import Frequency, Passband
+from orchestrator_optical.workflows.optical_fiber.shared import multiple_optical_fiber_selector
+from orchestrator_optical.workflows.optical_node.shared import (
+    multiple_optical_node_selector,
 )
-from workflows.optical_fiber.shared import multiple_optical_fiber_selector
-from workflows.optical_spectrum.create_optical_spectrum import subscription_description, update_used_passbands_step
-from workflows.optical_spectrum.shared import (
+from orchestrator_optical.workflows.optical_spectrum.create_optical_spectrum import (
+    subscription_description,
+    update_used_passbands_step,
+)
+from orchestrator_optical.workflows.optical_spectrum.shared import (
     NoOpticalPathFoundError,
     optical_spectrum_path_selector,
     store_list_of_ports_into_spectrum_sections,
 )
-from workflows.shared import modify_summary_form
 
 logger = get_logger(__name__)
 
@@ -56,8 +56,8 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     old_passband = optical_spectrum.passband
     old_spectrum_name = optical_spectrum.spectrum_name
 
-    optical_device_a = optical_spectrum.optical_spectrum_sections[0].add_drop_ports[0].optical_device
-    optical_device_b = optical_spectrum.optical_spectrum_sections[-1].add_drop_ports[-1].optical_device
+    optical_node_a = optical_spectrum.optical_spectrum_sections[0].add_drop_ports[0].optical_node
+    optical_node_b = optical_spectrum.optical_spectrum_sections[-1].add_drop_ports[-1].optical_node
 
     class ModifyOpticalSpectrumForm(FormPage):
         optical_spectrum_name: str = old_spectrum_name
@@ -80,7 +80,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
         DeviceType.Amplifier,
     ]
 
-    ExcludeOpticalDeviceChoiceList = multiple_optical_device_selector(
+    ExcludeOpticalDeviceChoiceList = multiple_optical_node_selector(
         device_types=line_system_types,
         prompt="Do *not* pass through these Optical Devices",
     )
@@ -105,8 +105,8 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     )
     try:
         PathChoice = optical_spectrum_path_selector(
-            optical_device_a.subscription_instance_id,
-            optical_device_b.subscription_instance_id,
+            optical_node_a.subscription_instance_id,
+            optical_node_b.subscription_instance_id,
             passband,
             user_input_dict["exclude_devices_list"],
             user_input_dict["exclude_fibers_list"],
@@ -118,8 +118,8 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     except NoOpticalPathFoundError:
         logger.exception(
             "No optical path found",
-            optical_device_a=optical_device_a.subscription_instance_id,
-            optical_device_b=optical_device_b.subscription_instance_id,
+            optical_node_a=optical_node_a.subscription_instance_id,
+            optical_node_b=optical_node_b.subscription_instance_id,
             passband=passband,
             exclude_devices_list=user_input_dict["exclude_devices_list"],
             exclude_fibers_list=user_input_dict["exclude_fibers_list"],
@@ -175,15 +175,6 @@ def update_subscription(
     passband: Passband = (frequency_min, frequency_max)
     subscription.optical_spectrum.passband = passband
 
-    # set attributes: optical_spectrum_constraints
-    constraints = subscription.optical_spectrum.optical_spectrum_path_constraints
-    for sub_id in exclude_devices_list:
-        sub = OpticalDevice.from_subscription(sub_id)
-        constraints.exclude_nodes.append(sub.optical_device)
-    for sub_id in exclude_fibers_list:
-        sub = OpticalFiber.from_subscription(sub_id)
-        constraints.exclude_spans.append(sub.optical_fiber)
-
     return {
         "subscription": subscription,
         "subscription_id": subscription.subscription_id,  # necessary to be able to use older generic step functions
@@ -231,8 +222,8 @@ def modify_optical_sections(
 
     results = {}
     for section in optical_spectrum.optical_spectrum_sections:
-        src_device = section.add_drop_ports[0].optical_device
-        key = f"{src_device.platform}"
+        src_device = section.add_drop_ports[0].optical_node
+        key = f"{src_device.vendor_and_platform}"
         results[key] = modify_optical_circuit(
             src_device,
             section,

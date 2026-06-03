@@ -32,7 +32,7 @@ NotSpecializedPlatforms = Literal[VendorAndPlatform.NOKIA_GROOVE_G30, VendorAndP
 class OpticalNodeSubscriptionInactive(SubscriptionModel, is_base=True):
     """base model for an optical node subscription in the INACTIVE state."""
 
-    vendor_platform: NotSpecializedPlatforms
+    vendor_and_platform: NotSpecializedPlatforms
     node: OpticalNodeInactive
 
 
@@ -42,7 +42,7 @@ class OpticalNodeSubscriptionProvisioning(
 ):
     """base model for an optical node subscription in the PROVISIONING state."""
 
-    vendor_platform: NotSpecializedPlatforms
+    vendor_and_platform: NotSpecializedPlatforms
     node: OpticalNodeProvisioning
 
 
@@ -51,7 +51,7 @@ class OpticalNodeSubscription(
 ):
     """base model for an optical node subscription in the ACTIVE state."""
 
-    vendor_platform: NotSpecializedPlatforms
+    vendor_and_platform: NotSpecializedPlatforms
     node: OpticalNode
 
 
@@ -61,7 +61,7 @@ class OpticalNodeSubscription(
 class NokiaFlexILSNodeSubscriptionInactive(SubscriptionModel, is_base=True):
     """base model for an optical node subscription in the INACTIVE state."""
 
-    vendor_platform: Literal[VendorAndPlatform.NOKIA_FLEXILS] = VendorAndPlatform.NOKIA_FLEXILS
+    vendor_and_platform: Literal[VendorAndPlatform.NOKIA_FLEXILS] = VendorAndPlatform.NOKIA_FLEXILS
     node: NokiaFlexILSNodeInactive
 
 

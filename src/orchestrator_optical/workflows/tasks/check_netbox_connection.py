@@ -18,7 +18,7 @@ from orchestrator.workflow import StepList, done, init, step
 from pydantic_forms.types import State
 from structlog import get_logger
 
-from services import netbox
+from orchestrator_optical.services import netbox
 
 logger = get_logger(__name__)
 

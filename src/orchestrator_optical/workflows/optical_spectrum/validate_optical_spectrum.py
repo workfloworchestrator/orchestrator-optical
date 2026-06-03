@@ -16,9 +16,9 @@ from orchestrator.workflows.utils import validate_workflow
 from pydantic_forms.types import State
 from structlog import get_logger
 
-from products.product_types.optical_spectrum import OpticalSpectrum
-from products.services.optical_spectrum import validate_optical_circuit
-from workflows.optical_spectrum.create_optical_spectrum import (
+from orchestrator_optical.products.product_types.optical_spectrum import OpticalSpectrum
+from orchestrator_optical.products.services.optical_spectrum import validate_optical_circuit
+from orchestrator_optical.workflows.optical_spectrum.create_optical_spectrum import (
     subscription_description,
 )
 
@@ -54,7 +54,7 @@ def verify_optical_transport_channels(subscription: OpticalSpectrum) -> State:
         bandwidth,
     )
     for section in spectrum.optical_spectrum_sections:
-        src_device = section.add_drop_ports[0].optical_device
+        src_device = section.add_drop_ports[0].optical_node
         validate_optical_circuit(
             src_device,
             section,

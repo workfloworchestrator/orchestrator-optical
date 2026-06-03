@@ -21,10 +21,10 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
 from structlog import get_logger
 
-from products.product_blocks.optical_device import Platform
-from products.product_types.optical_device import OpticalDevice
-from products.services.optical_device import get_optical_device_client
-from workflows.shared import active_subscription_with_instance_value_selector
+from orchestrator_optical.products.product_blocks.optical_node import VendorAndPlatform
+from orchestrator_optical.products.product_types.optical_node import OpticalDevice
+from orchestrator_optical.products.services.optical_node import get_optical_node_client
+from orchestrator_optical.workflows.shared import active_subscription_with_instance_value_selector
 
 logger = get_logger(__name__)
 
@@ -48,8 +48,8 @@ Achtung = Annotated[
 FlexILSChoice: TypeAlias = Choice  # noqa: UP040
 flexils_choice: FlexILSChoice = active_subscription_with_instance_value_selector(
     product_type="OpticalDevice",
-    resource_type="platform",
-    value=Platform.FlexILS,
+    resource_type="vendor_and_platform",
+    value=VendorAndPlatform.FlexILS,
     prompt="Select a FlexILS node",
 )
 
@@ -139,7 +139,7 @@ def execute_tl1_commands(
     commands: list[str],
     error_policy: str,
 ) -> State:
-    flex = get_optical_device_client(subscription.optical_device)
+    flex = get_optical_node_client(subscription.optical_node)
     results = [flex.execute_raw_command(c) for c in commands]
     return {"results": results}
 

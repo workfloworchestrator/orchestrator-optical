@@ -227,28 +227,28 @@ from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
 
-from products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
-from products.product_types.optical_digital_service import (
+from orchestrator_optical.products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
+from orchestrator_optical.products.product_types.optical_digital_service import (
     OpticalDigitalService,
     OpticalDigitalServiceProvisioning,
 )
-from products.services.optical_digital_service import (
+from orchestrator_optical.products.services.optical_digital_service import (
     get_signal_bandwidth,
 )
-from products.services.optical_spectrum import (
+from orchestrator_optical.products.services.optical_spectrum import (
     modify_optical_circuit,
 )
-from utils.custom_types.frequencies import Bandwidth, Frequency, Passband
-from workflows.optical_device.shared import (
-    transceiver_mode_selector,
-)
-from workflows.optical_digital_service.create_optical_digital_service import (
+from orchestrator_optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
+from orchestrator_optical.workflows.optical_digital_service.create_optical_digital_service import (
     configure_trx_client_side,
     configure_trx_crossconnects,
     configure_trx_line_side,
     set_trx_transmitted_power,
 )
-from workflows.shared import (
+from orchestrator_optical.workflows.optical_node.shared import (
+    transceiver_mode_selector,
+)
+from orchestrator_optical.workflows.shared import (
     summary_form,
 )
 
@@ -267,7 +267,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     old_mode = transport_channels[0].mode
 
     source_client_port = ods.client_ports[0]
-    source_device = source_client_port.optical_device
+    source_device = source_client_port.optical_node
 
     FrequenciesChoice = Annotated[
         unique_conlist(Frequency, min_items=num_carriers, max_items=num_carriers),
@@ -280,7 +280,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     ]
 
     ModeChoice = transceiver_mode_selector(
-        optical_device_subscription_id=source_device.owner_subscription_id,
+        optical_node_subscription_id=source_device.owner_subscription_id,
         port_name=source_client_port.port_name,
         prompt="Select the operating mode of all transport channels",
     )
@@ -369,12 +369,12 @@ def modify_optical_sections(
         passband = channel.optical_spectrum.passband
         spectrum_name = channel.optical_spectrum.spectrum_name
         port = channel.line_ports[0]
-        carrier_width = get_signal_bandwidth(port.optical_device, port.port_name)
+        carrier_width = get_signal_bandwidth(port.optical_node, port.port_name)
         carrier = (channel.central_frequency, carrier_width)
 
         for section in channel.optical_spectrum.optical_spectrum_sections:
-            src_device = section.add_drop_ports[0].optical_device
-            key = f"OCh{channel.och_id:03d} {src_device.platform}"
+            src_device = section.add_drop_ports[0].optical_node
+            key = f"OCh{channel.och_id:03d} {src_device.vendor_and_platform}"
             results[key] = modify_optical_circuit(
                 src_device,
                 section,

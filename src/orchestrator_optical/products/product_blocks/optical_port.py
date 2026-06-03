@@ -9,9 +9,9 @@ from orchestrator.types import SubscriptionLifecycle
 from pydantic import Field
 
 from orchestrator_optical.products.product_blocks.optical_node import (
-    OpticalNodeBlock,
-    OpticalNodeInactive,
-    OpticalNodeProvisioning,
+    OpticalNodeInactiveUnion,
+    OpticalNodeProvisioningUnion,
+    OpticalNodeUnion,
 )
 from orchestrator_optical.utils.custom_types.frequencies import Passband
 
@@ -39,29 +39,29 @@ class _PortInactive(ProductBlockModel):
     role: PortRole
     port_name: str | None = None
     port_description: str | None = None
-    host_node: OpticalNodeInactive
+    host_node: OpticalNodeInactiveUnion
 
 
 class OlsAddDropPortInactive(_PortInactive, product_block_name="OlsAddDropPort"):
     role: Literal[PortRole.OLS_ADD_DROP] = PortRole.OLS_ADD_DROP
     passbands: ListOfPassbands = Field(default_factory=list)
-    host_node: OpticalNodeInactive
+    host_node: OpticalNodeInactiveUnion
 
 
 class OlsLinePortInactive(_PortInactive, product_block_name="OlsLinePort"):
     role: Literal[PortRole.OLS_LINE] = PortRole.OLS_LINE
     passbands: ListOfPassbands = Field(default_factory=list)
-    host_node: OpticalNodeInactive
+    host_node: OpticalNodeInactiveUnion
 
 
 class TransponderClientPortInactive(_PortInactive, product_block_name="TransponderClientPort"):
     role: Literal[PortRole.TRANSPONDER_CLIENT] = PortRole.TRANSPONDER_CLIENT
-    host_node: OpticalNodeInactive
+    host_node: OpticalNodeInactiveUnion
 
 
 class TransponderLinePortInactive(_PortInactive, product_block_name="TransponderLinePort"):
     role: Literal[PortRole.TRANSPONDER_LINE] = PortRole.TRANSPONDER_LINE
-    host_node: OpticalNodeInactive
+    host_node: OpticalNodeInactiveUnion
 
 
 # --- Provisioning ---
@@ -69,22 +69,22 @@ class TransponderLinePortInactive(_PortInactive, product_block_name="Transponder
 
 class OlsAddDropPortProvisioning(OlsAddDropPortInactive, lifecycle=SubscriptionLifecycle.PROVISIONING):
     port_name: str
-    host_node: OpticalNodeProvisioning
+    host_node: OpticalNodeProvisioningUnion
 
 
 class OlsLinePortProvisioning(OlsLinePortInactive, lifecycle=SubscriptionLifecycle.PROVISIONING):
     port_name: str
-    host_node: OpticalNodeProvisioning
+    host_node: OpticalNodeProvisioningUnion
 
 
 class TransponderClientPortProvisioning(TransponderClientPortInactive, lifecycle=SubscriptionLifecycle.PROVISIONING):
     port_name: str
-    host_node: OpticalNodeProvisioning
+    host_node: OpticalNodeProvisioningUnion
 
 
 class TransponderLinePortProvisioning(TransponderLinePortInactive, lifecycle=SubscriptionLifecycle.PROVISIONING):
     port_name: str
-    host_node: OpticalNodeProvisioning
+    host_node: OpticalNodeProvisioningUnion
 
 
 # --- Active ---
@@ -92,19 +92,25 @@ class TransponderLinePortProvisioning(TransponderLinePortInactive, lifecycle=Sub
 
 class OlsAddDropPort(OlsAddDropPortProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
     port_description: str
-    host_node: OpticalNodeBlock
+    host_node: OpticalNodeUnion
 
 
 class OlsLinePort(OlsLinePortProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
     port_description: str
-    host_node: OpticalNodeBlock
+    host_node: OpticalNodeUnion
 
 
 class TransponderClientPort(TransponderClientPortProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
     port_description: str
-    host_node: OpticalNodeBlock
+    host_node: OpticalNodeUnion
 
 
 class TransponderLinePort(TransponderLinePortProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
     port_description: str
-    host_node: OpticalNodeBlock
+    host_node: OpticalNodeUnion
+
+
+# --- Union Types ---
+OpticalPortUnion = Annotated[
+    OlsAddDropPort | OlsLinePort | TransponderClientPort | TransponderLinePort, Field(discriminator="role")
+]

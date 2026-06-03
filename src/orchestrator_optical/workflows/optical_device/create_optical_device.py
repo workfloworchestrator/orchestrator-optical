@@ -11,31 +11,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TypeAlias, cast
 
 from orchestrator.domain import SubscriptionModel
 from orchestrator.forms import FormPage
-from orchestrator.targets import Target
 from orchestrator.types import SubscriptionLifecycle
 from orchestrator.workflow import StepList, begin, step
 from orchestrator.workflows.steps import store_process_subscription
 from orchestrator.workflows.utils import create_workflow
 from pydantic import ConfigDict, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from pydantic_forms.validators import Choice
 from structlog import get_logger
 
-from products.product_blocks.optical_device import DeviceType, Platform, Vendor
-from products.product_types.optical_device import (
+from orchestrator_optical.products.product_blocks.optical_node import DeviceType, Vendor, VendorAndPlatform
+from orchestrator_optical.products.product_types.optical_node import (
     OpticalDeviceInactive,
     OpticalDeviceProvisioning,
 )
-from products.product_types.pop import PoP
-from products.services.optical_device import get_nms_uuid
-from utils.custom_types.fqdn import FQDN, FQDNPrefix
-from utils.custom_types.ip_address import IPAddress
-from workflows.shared import (
-    active_subscription_selector,
+from orchestrator_optical.products.product_types.pop import PoP
+from orchestrator_optical.products.services.optical_node import get_nms_uuid
+from orchestrator_optical.utils.custom_types.dns import FQDN, FQDNPrefix
+from orchestrator_optical.utils.custom_types.ip_address import IPAddress
+from orchestrator_optical.workflows.shared import (
     create_summary_form,
     subscriptions_by_product_type_and_instance_value,
 )
@@ -50,9 +46,9 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     description, in case that is not present the description will just be set to the product name.
     """
     return (
-        f"{subscription.optical_device.fqdn} "
-        f"({subscription.optical_device.vendor} "
-        f"{subscription.optical_device.platform})"
+        f"{subscription.optical_node.pqdn} "
+        f"({subscription.optical_node.vendor} "
+        f"{subscription.optical_node.vendor_and_platform})"
     )
 
 
@@ -65,7 +61,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         partner_id: PartnerChoice
         pop_id: PoPChoice
         vendor: Vendor
-        platform: Platform
+        platform: VendorAndPlatform
         device_type: DeviceType
         fqdn_prefix_before_pop: FQDNPrefix = "flex"
         lo_ip: IPAddress | None = None
@@ -106,7 +102,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         "partner_id",
         "pop_id",
         "vendor",
-        "platform",
+        "vendor_and_platform",
         "device_type",
         "fqdn_prefix_before_pop",
         "lo_ip",
@@ -118,12 +114,12 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 
 
 @step("Construct Subscription model")
-def construct_optical_device_model(
+def construct_optical_node_model(
     product: UUIDstr,
     partner_id: UUIDstr,
     pop_id: UUIDstr,
     vendor: Vendor,
-    platform: Platform,
+    platform: VendorAndPlatform,
     device_type: DeviceType,
     fqdn_prefix_before_pop: FQDN,
     lo_ip: IPAddress | None,
@@ -138,18 +134,18 @@ def construct_optical_device_model(
     )
 
     pop_subscription = PoP.from_subscription(pop_id)
-    subscription.optical_device.pop = pop_subscription.pop
+    subscription.optical_node.pop = pop_subscription.pop
 
     pop_code = pop_subscription.pop.code.lower()
-    subscription.optical_device.fqdn = f"{fqdn_prefix_before_pop}.{pop_code}.garr.net"
+    subscription.optical_node.pqdn = f"{fqdn_prefix_before_pop}.{pop_code}.garr.net"
 
-    subscription.optical_device.vendor = vendor
-    subscription.optical_device.platform = platform
-    subscription.optical_device.device_type = device_type
-    subscription.optical_device.lo_ip = lo_ip
-    subscription.optical_device.mngmt_ip = mngmt_ip
-    subscription.optical_device.nms_uuid = nms_uuid
-    subscription.optical_device.netbox_id = netbox_id  # TODO: add actual call to NetBox
+    subscription.optical_node.vendor = vendor
+    subscription.optical_node.vendor_and_platform = platform
+    subscription.optical_node.device_type = device_type
+    subscription.optical_node.lo_ip = lo_ip
+    subscription.optical_node.mngmt_ip = mngmt_ip
+    subscription.optical_node.nms_uuid = nms_uuid
+    subscription.optical_node.netbox_id = netbox_id  # TODO: add actual call to NetBox
 
     subscription = OpticalDeviceProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
     subscription.description = subscription_description(subscription)
@@ -163,8 +159,8 @@ def construct_optical_device_model(
 
 @step("Retrieving the UUID of this device in its Network Management System")
 def find_nms_uuid(subscription: OpticalDeviceProvisioning) -> UUIDstr:
-    nms_uuid = get_nms_uuid(subscription.optical_device)
-    subscription.optical_device.nms_uuid = nms_uuid
+    nms_uuid = get_nms_uuid(subscription.optical_node)
+    subscription.optical_node.nms_uuid = nms_uuid
     return {"subscription": subscription}
 
 
@@ -176,10 +172,10 @@ additional_steps = begin
     initial_input_form=initial_input_form_generator,
     additional_steps=additional_steps,
 )
-def create_optical_device() -> StepList:
+def create_optical_node() -> StepList:
     return (
         begin
-        >> construct_optical_device_model
+        >> construct_optical_node_model
         >> store_process_subscription()
         >> find_nms_uuid
     )

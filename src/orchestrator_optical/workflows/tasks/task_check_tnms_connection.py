@@ -17,7 +17,7 @@ from orchestrator.workflow import StepList, done, init, step
 from pydantic_forms.types import State
 from structlog import get_logger
 
-from services.infinera import tnms_client
+from orchestrator_optical.services.nokia import tnms_client
 
 logger = get_logger(__name__)
 

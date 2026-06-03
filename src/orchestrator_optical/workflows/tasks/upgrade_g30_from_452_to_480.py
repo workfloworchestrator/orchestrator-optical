@@ -57,10 +57,7 @@ this is a **multi-stage process**.
 
 from __future__ import annotations
 
-import asyncio
 import json
-import os
-import threading
 import time
 from datetime import UTC, datetime
 from string import Template
@@ -78,12 +75,11 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 from requests.exceptions import HTTPError
 from structlog import get_logger
 
-from products.product_blocks.optical_device import Platform
-from products.product_types.optical_device import OpticalDevice
-from services.asyncsshcli import async_ssh_cli
-from services.infinera import G30Client
-from workflows.shared import active_subscription_with_instance_value_selector
-from workflows.tasks.shared import (
+from orchestrator_optical.products.product_blocks.optical_node import VendorAndPlatform
+from orchestrator_optical.products.product_types.optical_node import OpticalDevice
+from orchestrator_optical.services.nokia import G30Client
+from orchestrator_optical.workflows.shared import active_subscription_with_instance_value_selector
+from orchestrator_optical.workflows.tasks.shared import (
     raise_if_no_traffic_btw_routers,
     retrieve_all_router_from_netbox_selector,
     retrieve_up_up_backbone_interfaces_of_routers,
@@ -93,11 +89,11 @@ logger = get_logger(__name__)
 
 SFTP_PASS = None # omitted to share on public repo
 BACKUP_PATH = None # omitted to share on public repo
-UPLOAD_PATH = f"omitted"
+UPLOAD_PATH = "omitted"
 SW_IMAGES_PATH = Template(
-    f"omitted"
+    "omitted"
 )
-PATCH_PATH = f"omitted"
+PATCH_PATH = "omitted"
 
 
 def initial_input_form_generator() -> FormGenerator:
@@ -127,8 +123,8 @@ def initial_input_form_generator() -> FormGenerator:
     G30Choice: TypeAlias = Choice  # noqa: UP040
     g30_choice: G30Choice = active_subscription_with_instance_value_selector(
         product_type="OpticalDevice",
-        resource_type="platform",
-        value=Platform.Groove_G30,
+        resource_type="vendor_and_platform",
+        value=VendorAndPlatform.NOKIA_GROOVE_G30,
         prompt="Select the G30 to be upgraded",
     )
     RouterChoice: TypeAlias = choice_list  # noqa: UP040
@@ -157,7 +153,7 @@ def initialize_variables_452_472(subscription_id: UUIDstr, routers_list: list) -
     Fetches device details from subscription, sets versions, creates G30 client,
     and detects presence of CHM1, OCC2, CHM2T modules to determine restart needs.
     """
-    device = OpticalDevice.from_subscription(subscription_id).optical_device
+    device = OpticalDevice.from_subscription(subscription_id).optical_node
     current_version = "FP4.5.2"
     new_version = "FP4.7.2"
     g30 = G30Client(lo_ip=device.lo_ip, mngmt_ip=device.mngmt_ip)

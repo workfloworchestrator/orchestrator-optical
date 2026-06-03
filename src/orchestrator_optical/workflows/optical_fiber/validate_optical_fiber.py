@@ -16,10 +16,14 @@ from orchestrator.workflows.utils import validate_workflow
 from pydantic_forms.types import State
 from structlog import get_logger
 
-from products.product_blocks.optical_device import DeviceType
-from products.product_types.optical_fiber import OpticalFiber
-from products.services.optical_device import retrieve_ports_spectral_occupations
-from products.services.optical_device_port import check_fiber_terminating_port
+from orchestrator_optical.products.product_blocks.optical_node import DeviceType
+from orchestrator_optical.products.product_types.optical_pipe import (
+    FiberPatchSubscription,
+    FiberSpanSubscription,
+    LeasedSpectrumSubscription,
+)
+from orchestrator_optical.products.services.optical_node import retrieve_ports_spectral_occupations
+from orchestrator_optical.products.services.optical_port import check_fiber_terminating_port
 
 logger = get_logger(__name__)
 
@@ -37,19 +41,29 @@ def configure_fiber_terminations(
 ) -> State:
     port_a, port_b = subscription.optical_fiber.terminations
 
-    check_fiber_terminating_port(
-        port_a.optical_device, port_a, port_b
-    )
-    check_fiber_terminating_port(
-        port_b.optical_device, port_b, port_a
-    )
+    check_fiber_terminating_port(port_a.optical_node, port_a, port_b)
+    check_fiber_terminating_port(port_b.optical_node, port_b, port_a)
 
     return {}
 
+
 @step("Updating used passbands")
-def retrieve_used_passbands(subscription: OpticalFiber) -> State:
-    for port in subscription.optical_fiber.terminations:
-        device = port.optical_device
+def retrieve_used_passbands(
+    subscription: FiberSpanSubscription | LeasedSpectrumSubscription | FiberPatchSubscription,
+) -> State:
+    match subscription:
+        case FiberSpanSubscription():
+            terminations = subscription.fiber.terminations
+        case LeasedSpectrumSubscription():
+            terminations = subscription.leased_spectrum.terminations
+        case FiberPatchSubscription():
+            return {"subscription": subscription}
+        case _:
+            msg = f"Unsupported subscription type: {type(subscription)}"
+            raise TypeError(msg)
+
+    for port in terminations:
+        device = port.optical_node
         if device.device_type in [DeviceType.ROADM, DeviceType.TransponderAndOADM]:
             ports_spectral_occupation = retrieve_ports_spectral_occupations(device)
             port.used_passbands = ports_spectral_occupation.get(port.port_name, [])

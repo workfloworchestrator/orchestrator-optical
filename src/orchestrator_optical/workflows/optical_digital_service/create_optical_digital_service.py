@@ -480,7 +480,7 @@ Path finding algorithm:
 - **Validate Optical Digital Service**: Verify configuration consistency
 - **Terminate Optical Digital Service**: Decommission service
 
-## Device Platform Support
+## Device VendorAndPlatform Support
 
 - **Infinera Groove G30**: Transponder/transceiver
 - **Infinera GX G42**: Transponder/transceiver
@@ -509,22 +509,20 @@ from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
 
-from products.product_blocks.optical_device import DeviceType, Platform
-from products.product_blocks.optical_device_port import OpticalDevicePortBlock
-from products.product_blocks.optical_digital_service import ClientSpeednType
-from products.product_blocks.transport_channel import (
+from orchestrator_optical.products.product_blocks.optical_digital_service import ClientSpeednType
+from orchestrator_optical.products.product_blocks.optical_node import DeviceType, VendorAndPlatform
+from orchestrator_optical.products.product_blocks.optical_port import OpticalPortUnion
+from orchestrator_optical.products.product_blocks.transport_channel import (
     OpticalTransportChannelBlock,
     OpticalTransportChannelBlockInactive,
 )
-from products.product_types.optical_device import OpticalDevice
-from products.product_types.optical_digital_service import (
+from orchestrator_optical.products.product_types.optical_digital_service import (
     OpticalDigitalService,
     OpticalDigitalServiceInactive,
     OpticalDigitalServiceProvisioning,
 )
-from products.product_types.optical_fiber import OpticalFiber
-from products.services.optical_device import retrieve_ports_spectral_occupations
-from products.services.optical_digital_service import (
+from orchestrator_optical.products.product_types.optical_node import OpticalDevice
+from orchestrator_optical.products.services.optical_digital_service import (
     allign_tx_power_to_target,
     configure_line_transceivers,
     configure_transceiver_client,
@@ -532,30 +530,29 @@ from products.services.optical_digital_service import (
     diff_btw_current_rx_power_and_target,
     get_signal_bandwidth,
 )
-from products.services.optical_spectrum import (
+from orchestrator_optical.products.services.optical_spectrum import (
     append_optical_circuit_label,
     deploy_optical_circuit,
 )
-from utils.custom_types.frequencies import Frequency
-from workflows.optical_device.shared import (
-    multiple_optical_device_selector,
-    optical_device_selector_of_types,
+from orchestrator_optical.utils.custom_types.frequencies import Frequency
+from orchestrator_optical.workflows.optical_digital_service.shared import (
+    trx_line_port_patched_but_not_used_multiple_selector,
+)
+from orchestrator_optical.workflows.optical_fiber.shared import multiple_optical_fiber_selector
+from orchestrator_optical.workflows.optical_node.shared import (
+    multiple_optical_node_selector,
+    optical_node_selector_of_types,
     transceiver_mode_selector,
     unused_optical_client_port_selector,
 )
-from workflows.optical_digital_service.shared import (
-    trx_line_port_patched_but_not_used_multiple_selector,
-)
-from workflows.optical_fiber.shared import multiple_optical_fiber_selector
-from workflows.optical_spectrum.shared import (
+from orchestrator_optical.workflows.optical_spectrum.shared import (
     NoOpticalPathFoundError,
     find_add_drop_ports,
     store_list_of_ports_into_spectrum_sections,
     transport_channel_path_selector,
     update_used_passbands,
 )
-from workflows.shared import (
-    active_subscription_selector,
+from orchestrator_optical.workflows.shared import (
     subscription_instances_by_block_type_and_resource_value,
     subscriptions_by_product_type_and_instance_value,
 )
@@ -583,12 +580,12 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         DeviceType.Transponder,
         DeviceType.TransponderAndOADM,
     ]
-    NodeAChoice = optical_device_selector_of_types(
+    NodeAChoice = optical_node_selector_of_types(
         device_types=transceivers_types,
         prompt="This service connects this node: ",
     )
 
-    NodeBChoice = optical_device_selector_of_types(
+    NodeBChoice = optical_node_selector_of_types(
         device_types=transceivers_types,
         prompt="...to this other node: ",
     )
@@ -649,15 +646,15 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
                 else:
                     current_owner_id = existing_channel[0].subscription_id
                     block = OpticalTransportChannelBlock.from_db(existing_channel[0].subscription_instance_id)
-                    existing_id_node_a = str(block.line_ports[0].optical_device.owner_subscription_id)
-                    existing_id_node_b = str(block.line_ports[1].optical_device.owner_subscription_id)
+                    existing_id_node_a = str(block.line_ports[0].optical_node.owner_subscription_id)
+                    existing_id_node_b = str(block.line_ports[1].optical_node.owner_subscription_id)
                     if existing_id_node_a == self.id_node_b and existing_id_node_b == self.id_node_a:
                         self.id_node_a, self.id_node_b = self.id_node_b, self.id_node_a
                     elif existing_id_node_a != self.id_node_a and existing_id_node_b != self.id_node_b:
                         msg = (
                             f"Terminations mismatch for OCh ID {och_id}. Source and destination nodes "
-                            f"must be {block.line_ports[0].optical_device.fqdn} and "
-                            f"{block.line_ports[1].optical_device.fqdn} respectively."
+                            f"must be {block.line_ports[0].optical_node.pqdn} and "
+                            f"{block.line_ports[1].optical_node.pqdn} respectively."
                         )
                         raise ValueError(msg)
 
@@ -677,18 +674,18 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     user_input_dict = user_input.dict()
 
     sub_node_a = OpticalDevice.from_subscription(user_input_dict["id_node_a"])
-    optical_device_a = sub_node_a.optical_device
+    optical_node_a = sub_node_a.optical_node
     sub_node_b = OpticalDevice.from_subscription(user_input_dict["id_node_b"])
-    optical_device_b = sub_node_b.optical_device
+    optical_node_b = sub_node_b.optical_node
 
     ClientAChoice = unused_optical_client_port_selector(
         user_input_dict["id_node_a"],
-        prompt=f"Select the client port on {optical_device_a.fqdn}",
+        prompt=f"Select the client port on {optical_node_a.fqdn}",
     )
 
     ClientBChoice = unused_optical_client_port_selector(
         user_input_dict["id_node_b"],
-        prompt=f"Select the client port on {optical_device_b.fqdn}",
+        prompt=f"Select the client port on {optical_node_b.fqdn}",
     )
 
     class OdsForm1(FormPage):
@@ -730,25 +727,25 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         num_carriers = len(user_input_dict["och_ids"])
 
         LinesAChoice = trx_line_port_patched_but_not_used_multiple_selector(
-            optical_device_subscription_id=user_input_dict["id_node_a"],
+            optical_node_subscription_id=user_input_dict["id_node_a"],
             client_port_name=user_input_dict["name_client_port_a"],
-            prompt=f"Select the line port for each carrier on {optical_device_a.fqdn}",
+            prompt=f"Select the line port for each carrier on {optical_node_a.fqdn}",
             min_items=num_carriers,
             max_items=num_carriers,
             unique_items=True,
         )
 
         LinesBChoice = trx_line_port_patched_but_not_used_multiple_selector(
-            optical_device_subscription_id=user_input_dict["id_node_b"],
+            optical_node_subscription_id=user_input_dict["id_node_b"],
             client_port_name=user_input_dict["name_client_port_b"],
-            prompt=f"Select the line port for each carrier on {optical_device_b.fqdn}",
+            prompt=f"Select the line port for each carrier on {optical_node_b.fqdn}",
             min_items=num_carriers,
             max_items=num_carriers,
             unique_items=True,
         )
 
         ModeChoice = transceiver_mode_selector(
-            optical_device_subscription_id=user_input_dict["id_node_a"],
+            optical_node_subscription_id=user_input_dict["id_node_a"],
             port_name=user_input_dict["name_client_port_a"],
             prompt="Select the operating mode of the transport channels",
         )
@@ -769,7 +766,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
             DeviceType.Amplifier,
         ]
 
-        ExcludeOpticalDeviceChoiceList = multiple_optical_device_selector(
+        ExcludeOpticalDeviceChoiceList = multiple_optical_node_selector(
             device_types=line_system_types,
             prompt="Do *not* pass through these Optical Devices",
         )
@@ -887,8 +884,8 @@ def construct_optical_digital_service_model(
 
     sub_device_a = OpticalDevice.from_subscription(id_node_a)
     sub_device_b = OpticalDevice.from_subscription(id_node_b)
-    device_a = sub_device_a.optical_device
-    device_b = sub_device_b.optical_device
+    device_a = sub_device_a.optical_node
+    device_b = sub_device_b.optical_node
     code_pop_a = device_a.pop.code.lower()
     code_pop_b = device_b.pop.code.lower()
     ods.service_name = f"f{fx_flow_id:03d}c{cy_client_id:02d} "
@@ -902,11 +899,11 @@ def construct_optical_digital_service_model(
 
     ods.client_ports[0].port_name = name_client_port_a
     ods.client_ports[0].port_description = f"{ods.service_name} remote:{device_b.fqdn} {name_client_port_b}"
-    ods.client_ports[0].optical_device = sub_device_a.optical_device
+    ods.client_ports[0].optical_node = sub_device_a.optical_node
 
     ods.client_ports[1].port_name = name_client_port_b
     ods.client_ports[1].port_description = f"{ods.service_name} remote:{device_a.fqdn} {name_client_port_a}"
-    ods.client_ports[1].optical_device = sub_device_b.optical_device
+    ods.client_ports[1].optical_node = sub_device_b.optical_node
 
     for i in range(len(och_ids)):
         existing_channels = subscription_instances_by_block_type_and_resource_value(
@@ -933,8 +930,8 @@ def construct_optical_digital_service_model(
         channel.och_id = och_ids[i]
         channel.central_frequency = frequencies[i]
         channel.mode = mode
-        channel.line_ports[0] = OpticalDevicePortBlock.from_db(line_ports_a[i])
-        channel.line_ports[1] = OpticalDevicePortBlock.from_db(line_ports_b[i])
+        channel.line_ports[0] = OpticalPortUnion.from_db(line_ports_a[i])
+        channel.line_ports[1] = OpticalPortUnion.from_db(line_ports_b[i])
 
         optical_spectrum = channel.optical_spectrum
         optical_spectrum.spectrum_name = f"OCh{och_ids[i]:03d} {code_pop_a}-{code_pop_b}"
@@ -945,7 +942,7 @@ def construct_optical_digital_service_model(
         constraints = optical_spectrum.optical_spectrum_path_constraints
         for sub_id in exclude_devices_list:
             sub = OpticalDevice.from_subscription(sub_id)
-            constraints.exclude_nodes.append(sub.optical_device)
+            constraints.exclude_nodes.append(sub.optical_node)
         for sub_id in exclude_fibers_list:
             sub = OpticalFiber.from_subscription(sub_id)
             constraints.exclude_spans.append(sub.optical_fiber)
@@ -1016,7 +1013,7 @@ def configure_trx_line_side(subscription: OpticalDigitalServiceProvisioning) -> 
     descriptions = tuple(ch.optical_spectrum.spectrum_name for ch in channels)
     central_freqs = tuple(ch.central_frequency for ch in channels)
     modes = tuple(ch.mode for ch in channels)
-    devices = tuple(port.optical_device for port in channels[0].line_ports)
+    devices = tuple(port.optical_node for port in channels[0].line_ports)
     port_names = (
         tuple(ch.line_ports[0].port_name for ch in channels),
         tuple(ch.line_ports[1].port_name for ch in channels),
@@ -1036,9 +1033,9 @@ def configure_trx_client_side(subscription: OpticalDigitalServiceProvisioning) -
     ods = subscription.optical_digital_service
     results = {}
     for port in ods.client_ports:
-        result_key = f"{port.optical_device.fqdn}"
+        result_key = f"{port.optical_node.pqdn}"
         results[result_key] = configure_transceiver_client(
-            port.optical_device, port.port_name, port.port_description, ods.service_type
+            port.optical_node, port.port_name, port.port_description, ods.service_type
         )
 
     return {
@@ -1062,7 +1059,7 @@ def configure_trx_crossconnects(
     results = {}
     for pair in [(client_a, lines_a), (client_b, lines_b)]:
         client, lines = pair
-        device = client.optical_device
+        device = client.optical_node
         client = client.port_name
         for i in range(len(lines)):
             lines[i] = lines[i].port_name
@@ -1090,11 +1087,11 @@ def provision_optical_sections(
         passband = channel.optical_spectrum.passband
         spectrum_name = channel.optical_spectrum.spectrum_name
         port = channel.line_ports[0]
-        carrier_width = get_signal_bandwidth(port.optical_device, port.port_name)
+        carrier_width = get_signal_bandwidth(port.optical_node, port.port_name)
         carrier = (channel.central_frequency, carrier_width)
         for section in channel.optical_spectrum.optical_spectrum_sections:
-            src_device = section.add_drop_ports[0].optical_device
-            key = f"OCh{channel.och_id:03d} {src_device.platform}"
+            src_device = section.add_drop_ports[0].optical_node
+            key = f"OCh{channel.och_id:03d} {src_device.vendor_and_platform}"
             results[key] = deploy_optical_circuit(
                 src_device,
                 section,
@@ -1121,8 +1118,8 @@ def update_optical_spectrum_sections_label(
         passband = channel.optical_spectrum.passband
         spectrum_name = channel.optical_spectrum.spectrum_name
         for section in channel.optical_spectrum.optical_spectrum_sections:
-            src_device = section.add_drop_ports[0].optical_device
-            key = f"OCh{channel.och_id:03d} {src_device.platform}"
+            src_device = section.add_drop_ports[0].optical_node
+            key = f"OCh{channel.och_id:03d} {src_device.vendor_and_platform}"
             results[key] = append_optical_circuit_label(
                 src_device,
                 section,
@@ -1156,10 +1153,10 @@ def set_trx_transmitted_power(
         optical_spectrum = channel.optical_spectrum
         spectrum_name = optical_spectrum.spectrum_name
 
-        add_drop_ports: list[OpticalDevicePortBlock] = []
+        add_drop_ports: list[OpticalPortUnion] = []
         for section in optical_spectrum.optical_spectrum_sections:
-            section_platform = section.add_drop_ports[0].optical_device.platform
-            if section_platform == Platform.FlexILS:
+            section_platform = section.add_drop_ports[0].optical_node.vendor_and_platform
+            if section_platform == VendorAndPlatform.FlexILS:
                 add_drop_ports = section.add_drop_ports
                 break
 
@@ -1167,12 +1164,12 @@ def set_trx_transmitted_power(
             continue
 
         for i, trib_port in enumerate(add_drop_ports):
-            db_from_target = diff_btw_current_rx_power_and_target(trib_port.optical_device, spectrum_name)
+            db_from_target = diff_btw_current_rx_power_and_target(trib_port.optical_node, spectrum_name)
 
             min_acceptable_diff = 0.0
             max_acceptable_diff = 1.5
             if min_acceptable_diff <= db_from_target <= max_acceptable_diff:
-                result_key = f"{trib_port.optical_device.fqdn} {trib_port.port_name}"
+                result_key = f"{trib_port.optical_node.pqdn} {trib_port.port_name}"
                 results[result_key] = (
                     f"Received optical power is {db_from_target} dB from target. "
                     "Within margins. No need to adjust transmitted power."
@@ -1180,7 +1177,7 @@ def set_trx_transmitted_power(
                 continue
 
             trx_line_port = line_ports[i]
-            trx = trx_line_port.optical_device
+            trx = trx_line_port.optical_node
             trx_port_name = trx_line_port.port_name
             result_key = f"{trx.fqdn} {trx_port_name}"
             results[result_key] = allign_tx_power_to_target(trx, trx_port_name, db_from_target)

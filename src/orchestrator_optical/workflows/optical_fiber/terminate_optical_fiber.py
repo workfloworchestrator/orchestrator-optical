@@ -21,8 +21,7 @@ from pydantic import Field, model_validator
 from pydantic_forms.types import InputForm, State, UUIDstr
 from structlog import get_logger
 
-from products.product_types.optical_fiber import OpticalFiber
-from products.services.optical_device_port import (
+from orchestrator_optical.products.services.optical_port import (
     factory_reset_port_configuration,
 )
 
@@ -67,11 +66,11 @@ def terminate_initial_input_form_generator(
 def factory_reset_ports(subscription: OpticalFiber) -> State:
     results = {}
     port_a, port_b = subscription.optical_fiber.terminations
-    results[port_a.optical_device.fqdn] = factory_reset_port_configuration(
-        port_a.optical_device, port_a, port_b
+    results[port_a.optical_node.pqdn] = factory_reset_port_configuration(
+        port_a.optical_node, port_a, port_b
     )
-    results[port_b.optical_device.fqdn] = factory_reset_port_configuration(
-        port_b.optical_device, port_b, port_a
+    results[port_b.optical_node.pqdn] = factory_reset_port_configuration(
+        port_b.optical_node, port_b, port_a
     )
     return results
 

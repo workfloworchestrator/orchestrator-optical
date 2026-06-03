@@ -21,20 +21,20 @@ from orchestrator.workflows.utils import terminate_workflow
 from pydantic_forms.types import InputForm, State, UUIDstr
 from structlog import get_logger
 
-from products.product_blocks.optical_device import DeviceType
-from products.product_blocks.transport_channel import (
+from orchestrator_optical.products.product_blocks.optical_node import DeviceType
+from orchestrator_optical.products.product_blocks.transport_channel import (
     OpticalTransportChannelBlock,
 )
-from products.product_types.optical_digital_service import (
+from orchestrator_optical.products.product_types.optical_digital_service import (
     OpticalDigitalService,
 )
-from products.services.optical_device import retrieve_ports_spectral_occupations
-from products.services.optical_digital_service import (
+from orchestrator_optical.products.services.optical_digital_service import (
     delete_transponder_crossconnect,
     factory_reset_transponder_client,
     factory_reset_transponder_line,
 )
-from products.services.optical_spectrum import delete_optical_circuit
+from orchestrator_optical.products.services.optical_node import retrieve_ports_spectral_occupations
+from orchestrator_optical.products.services.optical_spectrum import delete_optical_circuit
 
 logger = get_logger(__name__)
 
@@ -64,7 +64,7 @@ def factory_reset_trx_crossconnects(subscription: OpticalDigitalService) -> Stat
     results = {}
     for pair in [(client_a, lines_a), (client_b, lines_b)]:
         client, lines = pair
-        device = client.optical_device
+        device = client.optical_node
         client = client.port_name
         for i in range(len(lines)):
             lines[i] = lines[i].port_name
@@ -85,9 +85,9 @@ def factory_reset_trx_client_side(subscription: OpticalDigitalService) -> State:
     ods = subscription.optical_digital_service
     results = {}
     for port in ods.client_ports:
-        result_key = f"{port.optical_device.fqdn}"
+        result_key = f"{port.optical_node.pqdn}"
         results[result_key] = factory_reset_transponder_client(
-            port.optical_device, port.port_name,
+            port.optical_node, port.port_name,
         )
 
     return {
@@ -104,8 +104,8 @@ def factory_reset_trx_line_side(subscription: OpticalDigitalService) -> State:
     for channel in channels:
 
         for port in channel.line_ports:
-            result_key = f"OCh{channel.och_id:03d} {port.optical_device.fqdn}"
-            device = port.optical_device
+            result_key = f"OCh{channel.och_id:03d} {port.optical_node.pqdn}"
+            device = port.optical_node
             port_name = port.port_name
             results[result_key] = factory_reset_transponder_line(
                 device, port_name,
@@ -124,8 +124,8 @@ def delete_optical_sections(subscription: OpticalDigitalService) -> State:
         passband = channel.optical_spectrum.passband
         spectrum_name = channel.optical_spectrum.spectrum_name
         for section in channel.optical_spectrum.optical_spectrum_sections:
-            src_device = section.add_drop_ports[0].optical_device
-            key = f"OCh{channel.och_id:03d} {src_device.platform}"
+            src_device = section.add_drop_ports[0].optical_node
+            key = f"OCh{channel.och_id:03d} {src_device.vendor_and_platform}"
             results[key] = delete_optical_circuit(
                 src_device,
                 section,
@@ -144,7 +144,7 @@ def update_used_passbands(subscription: OpticalDigitalService) -> State:
     for channel in subscription.optical_digital_service.transport_channels:
         for section in channel.optical_spectrum.optical_spectrum_sections:
             for port in section.optical_path:
-                device = port.optical_device
+                device = port.optical_node
                 if device.device_type in [
                     DeviceType.ROADM,
                     DeviceType.TransponderAndOADM,

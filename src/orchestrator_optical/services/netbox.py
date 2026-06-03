@@ -21,10 +21,10 @@ from pynetbox import api as pynetbox_api
 from pynetbox.core.endpoint import Endpoint
 from pynetbox.core.query import RequestError
 from pynetbox.models.ipam import IpAddresses, Prefixes
+from settings import garr_settings
 from structlog import get_logger
 
-from settings import garr_settings
-from utils.singledispatch import single_dispatch_base
+from orchestrator_optical.utils.singledispatch import single_dispatch_base
 
 logger = get_logger(__name__)
 

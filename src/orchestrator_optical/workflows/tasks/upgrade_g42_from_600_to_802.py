@@ -15,7 +15,7 @@
 """
 # **G42 Upgrade Workflow: R6.0.0 → R8.0.2**.
 
-This workflow orchestrates the firmware upgrade of an Infinera G42 device (Platform GX). Due to version dependencies
+This workflow orchestrates the firmware upgrade of an Infinera G42 device (VendorAndPlatform GX). Due to version dependencies
 and internal upgrade paths, this is a **multi-stage process**.
 
 !!! info "Upgrade Path"
@@ -68,7 +68,6 @@ After reaching R8.0.2:
     This step includes safety checks for Q-factor stability between restarts.
 """
 
-import os
 import re
 from string import Template
 from typing import Annotated, TypeAlias
@@ -76,7 +75,7 @@ from typing import Annotated, TypeAlias
 from orchestrator import workflow
 from orchestrator.config.assignee import Assignee
 from orchestrator.forms import FormPage, SubmitFormPage
-from orchestrator.forms.validators import Choice, Label
+from orchestrator.forms.validators import Choice, Label, choice_list
 from orchestrator.targets import Target
 from orchestrator.workflow import StepList, begin, conditional, done, init, inputstep, retrystep, step
 from orchestrator.workflows.steps import store_process_subscription
@@ -84,28 +83,26 @@ from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
 
-from products.product_blocks.optical_device import Platform
-from products.product_types.optical_device import OpticalDevice
-from services.infinera import G42Client
-from workflows.shared import (
+from orchestrator_optical.products.product_blocks.optical_node import VendorAndPlatform
+from orchestrator_optical.products.product_types.optical_node import OpticalDevice
+from orchestrator_optical.services.nokia import G42Client
+from orchestrator_optical.utils.custom_types.ip_address import IPAddress
+from orchestrator_optical.workflows.shared import (
     active_subscription_with_instance_value_selector,
 )
-from workflows.tasks.shared import (
+from orchestrator_optical.workflows.tasks.shared import (
+    raise_if_no_traffic_btw_routers,
     retrieve_all_router_from_netbox_selector,
     retrieve_up_up_backbone_interfaces_of_routers,
-    raise_if_no_traffic_btw_routers,
 )
-from utils.custom_types.ip_address import IPAddress
-
-from orchestrator.forms.validators import Choice, Label, choice_list
 
 logger = get_logger(__name__)
 
 
 SFTP_PASS = None # omitted to share on public repo
-UPLOAD_PATH = f"omitted"
+UPLOAD_PATH = "omitted"
 DOWNLOAD_TEMPLATE = Template(
-    f"omitted"
+    "omitted"
 )
 MAPPING = {
     "R6.0.1": "G40_ADV-R6.0.1-F-2022.11.28_11_41-45.manifest",
@@ -282,8 +279,8 @@ def initial_input_form_generator() -> FormGenerator:
     G42Choice: TypeAlias = Choice  # noqa: UP040
     g42_choice: G42Choice = active_subscription_with_instance_value_selector(
         product_type="OpticalDevice",
-        resource_type="platform",
-        value=Platform.GX_G42,
+        resource_type="vendor_and_platform",
+        value=VendorAndPlatform.NOKIA_GX_G42,
         prompt="Select the G42 to be upgraded",
     )
 
@@ -315,8 +312,8 @@ def retrieve_and_save_info(subscription_id: UUIDstr, routers_ip_addresses: list[
     """
     sub = OpticalDevice.from_subscription(subscription_id)
 
-    loopback_ip = sub.optical_device.lo_ip
-    management_ip = sub.optical_device.mngmt_ip
+    loopback_ip = sub.optical_node.lo_ip
+    management_ip = sub.optical_node.mngmt_ip
 
     g42 = G42Client(loopback_ip, management_ip)
 
@@ -337,8 +334,8 @@ def retrieve_and_save_info(subscription_id: UUIDstr, routers_ip_addresses: list[
     routers_interfaces_to_check = retrieve_up_up_backbone_interfaces_of_routers(routers_ip_addresses)
 
     return {
-        "loopback_ip": sub.optical_device.lo_ip,
-        "management_ip": sub.optical_device.mngmt_ip,
+        "loopback_ip": sub.optical_node.lo_ip,
+        "management_ip": sub.optical_node.mngmt_ip,
         "current_active_sw_version": active_version,
         "sw_version_to_be_installed": next_version,
         "alarms_before_upgrade": active_alarms,

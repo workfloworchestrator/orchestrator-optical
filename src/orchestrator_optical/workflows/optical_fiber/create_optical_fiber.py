@@ -22,21 +22,29 @@ from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
 
-from orchestrator_optical.products.product_blocks.optical_device import DeviceType, Platform
-from orchestrator_optical.products.product_blocks.optical_fiber import (
+from orchestrator_optical.products.product_blocks.optical_node import DeviceType, VendorAndPlatform
+from orchestrator_optical.products.product_blocks.optical_pipe import (
     ListOfFiberTypes,
     ListOfLengths,
 )
-from orchestrator_optical.products.product_types.optical_device import OpticalDevice
 from orchestrator_optical.products.product_types.optical_fiber import (
     OpticalFiberInactive,
     OpticalFiberProvisioning,
 )
-from orchestrator_optical.products.services.optical_device import retrieve_ports_spectral_occupations
-from orchestrator_optical.products.services.optical_device_port import (
+from orchestrator_optical.products.product_types.optical_node import OpticalDevice
+from orchestrator_optical.products.product_types.optical_pipe import (
+    FiberPatchSubscription,
+    FiberPatchSubscriptionProvisioning,
+    FiberSpanSubscription,
+    FiberSpanSubscriptionProvisioning,
+    LeasedSpectrumSubscription,
+    LeasedSpectrumSubscriptionProvisioning,
+)
+from orchestrator_optical.products.services.optical_node import retrieve_ports_spectral_occupations
+from orchestrator_optical.products.services.optical_port import (
     configure_termination_when_attaching_new_fiber,
 )
-from orchestrator_optical.workflows.optical_device.shared import unused_optical_device_port_selector
+from orchestrator_optical.workflows.optical_node.shared import unused_optical_port_selector
 from orchestrator_optical.workflows.shared import (
     active_subscription_selector,
     create_summary_form,
@@ -85,8 +93,8 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     user_input = yield SelectOpticalDevicesForm
     user_input_dict = user_input.model_dump()
 
-    SrcOpticalDevicePortSelector = unused_optical_device_port_selector(user_input_dict["sub_id_device_a"])  # pyright: ignore[reportInvalidTypeForm]
-    DstOpticalDevicePortSelector = unused_optical_device_port_selector(user_input_dict["sub_id_device_b"])  # pyright: ignore[reportInvalidTypeForm]
+    SrcOpticalDevicePortSelector = unused_optical_port_selector(user_input_dict["sub_id_device_a"])  # pyright: ignore[reportInvalidTypeForm]
+    DstOpticalDevicePortSelector = unused_optical_port_selector(user_input_dict["sub_id_device_b"])  # pyright: ignore[reportInvalidTypeForm]
 
     class SelectOpticalDevicePortsForm(FormPage):
         model_config = ConfigDict(title=product_name)
@@ -100,13 +108,13 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
                 (user_input_dict["sub_id_device_a"], self.name_port_a),
                 (user_input_dict["sub_id_device_b"], self.name_port_b),
             ):
-                device = OpticalDevice.from_subscription(sub_id).optical_device
+                device = OpticalDevice.from_subscription(sub_id).optical_node
                 sid = device.subscription_instance_id
                 device_port_sivs = subscription_instance_values_by_block_type_depending_on_instance_id(
                     product_block_type="OpticalDevicePort",
                     resource_type="port_name",
                     depending_on_instance_id=sid,
-                    states=[
+                    statuses=[
                         SubscriptionLifecycle.ACTIVE,
                         SubscriptionLifecycle.PROVISIONING,
                     ],
@@ -164,19 +172,19 @@ def construct_optical_fiber_model(
     )
     src_device_subscription = OpticalDevice.from_subscription(sub_id_device_a)
     dst_device_subscription = OpticalDevice.from_subscription(sub_id_device_b)
-    src_device = src_device_subscription.optical_device
-    dst_device = dst_device_subscription.optical_device
+    src_device = src_device_subscription.optical_node
+    dst_device = dst_device_subscription.optical_node
 
     # Source Port
     subscription.optical_fiber.terminations[0].port_name = name_port_a
-    subscription.optical_fiber.terminations[0].optical_device = src_device
+    subscription.optical_fiber.terminations[0].optical_node = src_device
     subscription.optical_fiber.terminations[
         0
     ].port_description = f"Physically connected to {dst_device.fqdn} {name_port_b}. "
 
     # Destination Port
     subscription.optical_fiber.terminations[1].port_name = name_port_b
-    subscription.optical_fiber.terminations[1].optical_device = dst_device
+    subscription.optical_fiber.terminations[1].optical_node = dst_device
     subscription.optical_fiber.terminations[
         1
     ].port_description = f"Physically connected to {src_device.fqdn} {name_port_a}. "
@@ -204,24 +212,42 @@ def configure_fiber_terminations(
 ) -> State:
     port_a, port_b = subscription.optical_fiber.terminations
 
-    if port_b.optical_device.platform == Platform.FlexILS and port_a.optical_device.platform != Platform.FlexILS:
+    if (
+        port_b.optical_node.vendor_and_platform == VendorAndPlatform.FlexILS
+        and port_a.optical_node.vendor_and_platform != VendorAndPlatform.FlexILS
+    ):
         # Swap ports to configure FlexILS first
         port_a, port_b = port_b, port_a
 
-    key_a = f"{port_a.optical_device.fqdn} {port_a.port_name}"
-    key_b = f"{port_b.optical_device.fqdn} {port_b.port_name}"
+    key_a = f"{port_a.optical_node.pqdn} {port_a.port_name}"
+    key_b = f"{port_b.optical_node.pqdn} {port_b.port_name}"
 
     result = {}
-    result[key_a] = configure_termination_when_attaching_new_fiber(port_a.optical_device, port_a, port_b)
-    result[key_b] = configure_termination_when_attaching_new_fiber(port_b.optical_device, port_b, port_a)
+    result[key_a] = configure_termination_when_attaching_new_fiber(port_a.optical_node, port_a, port_b)
+    result[key_b] = configure_termination_when_attaching_new_fiber(port_b.optical_node, port_b, port_a)
 
     return result
 
 
 @step("Retrieving used passbands")
-def retrieve_used_passbands(subscription: OpticalFiberProvisioning) -> State:
-    for port in subscription.optical_fiber.terminations:
-        device = port.optical_device
+def retrieve_used_passbands(
+    subscription: FiberSpanSubscriptionProvisioning
+    | LeasedSpectrumSubscriptionProvisioning
+    | FiberPatchSubscriptionProvisioning,
+) -> State:
+    match subscription:
+        case FiberSpanSubscription():
+            terminations = subscription.fiber.terminations
+        case LeasedSpectrumSubscription():
+            terminations = subscription.leased_spectrum.terminations
+        case FiberPatchSubscription():
+            return {"subscription": subscription}
+        case _:
+            msg = f"Unsupported subscription type: {type(subscription)}"
+            raise TypeError(msg)
+
+    for port in terminations:
+        device = port.optical_node
         if device.device_type in [DeviceType.ROADM, DeviceType.TransponderAndOADM]:
             ports_spectral_occupation = retrieve_ports_spectral_occupations(device)
             port.used_passbands = ports_spectral_occupation.get(port.port_name, [])

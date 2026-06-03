@@ -233,16 +233,16 @@ from orchestrator.workflows.utils import validate_workflow
 from pydantic_forms.types import State
 from structlog import get_logger
 
-from products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
-from products.product_types.optical_digital_service import OpticalDigitalService
-from products.services.optical_digital_service import (
+from orchestrator_optical.products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
+from orchestrator_optical.products.product_types.optical_digital_service import OpticalDigitalService
+from orchestrator_optical.products.services.optical_digital_service import (
     get_signal_bandwidth,
     validate_trx_client,
     validate_trx_crossconnect,
     validate_trx_line,
 )
-from products.services.optical_spectrum import validate_optical_circuit
-from workflows.optical_digital_service.create_optical_digital_service import (
+from orchestrator_optical.products.services.optical_spectrum import validate_optical_circuit
+from orchestrator_optical.workflows.optical_digital_service.create_optical_digital_service import (
     subscription_description,
 )
 
@@ -276,7 +276,7 @@ def verify_trx_line_ports(subscription: OpticalDigitalService) -> State:
     descriptions = tuple(ch.optical_spectrum.spectrum_name for ch in channels)
     central_freqs = tuple(ch.central_frequency for ch in channels)
     modes = tuple(ch.mode for ch in channels)
-    devices = tuple(port.optical_device for port in channels[0].line_ports)
+    devices = tuple(port.optical_node for port in channels[0].line_ports)
     port_names = (
         tuple(ch.line_ports[0].port_name for ch in channels),
         tuple(ch.line_ports[1].port_name for ch in channels),
@@ -293,7 +293,7 @@ def verify_trx_client_ports(subscription: OpticalDigitalService) -> State:
     ods = subscription.optical_digital_service
 
     for port in ods.client_ports:
-        validate_trx_client(port.optical_device, port.port_name, port.port_description, ods.service_type)
+        validate_trx_client(port.optical_node, port.port_name, port.port_description, ods.service_type)
 
     return
 
@@ -311,7 +311,7 @@ def verify_transponder_crossconnects(subscription: OpticalDigitalService) -> Sta
 
     for pair in [(client_a, lines_a), (client_b, lines_b)]:
         client, lines = pair
-        device = client.optical_device
+        device = client.optical_node
         client = client.port_name
         for i in range(len(lines)):
             lines[i] = lines[i].port_name
@@ -340,12 +340,12 @@ def verify_optical_transport_channels(subscription: OpticalDigitalService) -> St
         spectrum_name = channel.optical_spectrum.spectrum_name
         passband = channel.optical_spectrum.passband
         port = channel.line_ports[0]
-        carrier_bandwidth = get_signal_bandwidth(port.optical_device, port.port_name)
+        carrier_bandwidth = get_signal_bandwidth(port.optical_node, port.port_name)
         carrier_frequency = channel.central_frequency
         carrier = (carrier_frequency, carrier_bandwidth)
 
         for section in channel.optical_spectrum.optical_spectrum_sections:
-            src_device = section.add_drop_ports[0].optical_device
+            src_device = section.add_drop_ports[0].optical_node
             validate_optical_circuit(
                 src_device,
                 section,

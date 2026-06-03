@@ -20,8 +20,8 @@ from orchestrator.forms.validators import Choice, choice_list
 from pydantic import Field, TypeAdapter
 from structlog import get_logger
 
-from services import netbox
-from utils.custom_types.ip_address import IPAddress
+from orchestrator_optical.services import netbox
+from orchestrator_optical.utils.custom_types.ip_address import IPAddress
 
 logger = get_logger(__name__)
 

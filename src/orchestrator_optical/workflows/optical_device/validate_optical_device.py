@@ -16,18 +16,18 @@ from orchestrator.workflows.utils import validate_workflow
 from pydantic_forms.types import State
 from structlog import get_logger
 
-from products.product_types.optical_device import OpticalDevice
+from orchestrator_optical.products.product_types.optical_node import OpticalDevice
 
 logger = get_logger(__name__)
 
 
 @step("Load initial state")
-def load_initial_state_optical_device(subscription: OpticalDevice) -> State:
+def load_initial_state_optical_node(subscription: OpticalDevice) -> State:
     return {
         "subscription": subscription,
     }
 
 
 @validate_workflow("validate optical device")
-def validate_optical_device() -> StepList:
-    return begin >> load_initial_state_optical_device
+def validate_optical_node() -> StepList:
+    return begin >> load_initial_state_optical_node
