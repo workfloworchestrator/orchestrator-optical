@@ -1,9 +1,8 @@
-"""."""
-
-from enum import StrEnum
+"""Optical Coherent Pluggables."""
 
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
+from pydantic_forms.types import strEnum
 
 from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
     CoherentPluggableBlock,
@@ -12,30 +11,34 @@ from orchestrator_optical.products.product_blocks.optical_coherent_pluggable imp
 )
 
 
-class VendorAndPartNo(StrEnum):
+class OpticalCoherentPluggablePartNumber(strEnum):
     """Enumerate supported optical device vendor and part numbers."""
 
     CISCO_QDD_400G_ZRP_S = "CISCO QDD-400G-ZRP-S"
     CISCO_DP04QSDD_HK9 = "CISCO DP04QSDD-HK9"
 
 
-class CoherentPluggableSubscriptionInactive(SubscriptionModel, is_base=True):
-    vendor_and_part_no: VendorAndPartNo
-    transceiver: CoherentPluggableBlockInactive
+class OpticalCoherentPluggableInactive(SubscriptionModel, is_base=True):
+    """TODO: Document."""
+
+    optical_coherent_pluggable_part_number: OpticalCoherentPluggablePartNumber
+    optical_coherent_pluggable: OpticalCoherentPluggableBlockInactive
 
 
-class CoherentPluggableSubscriptionProvisioning(
-    CoherentPluggableSubscriptionInactive,
+class OpticalCoherentPluggableProvisioning(
+    OpticalCoherentPluggableInactive,
     lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
-    vendor_and_part_no: VendorAndPartNo
-    transceiver: CoherentPluggableBlockProvisioning
+    """TODO: Document."""
+
+    optical_coherent_pluggable_part_number: OpticalCoherentPluggablePartNumber
+    optical_coherent_pluggable: OpticalCoherentPluggableBlockProvisioning
 
 
-class CoherentPluggableSubscription(
-    CoherentPluggableSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+class OpticalCoherentPluggable(
+    OpticalCoherentPluggableProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
-    vendor_and_part_no: VendorAndPartNo
-    transceiver: CoherentPluggableBlock
+    """TODO: Document."""
 
-
+    optical_coherent_pluggable_part_number: OpticalCoherentPluggablePartNumber
+    optical_coherent_pluggable: OpticalCoherentPluggableBlock

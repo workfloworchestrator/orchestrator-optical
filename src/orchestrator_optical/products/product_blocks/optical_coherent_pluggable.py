@@ -1,6 +1,6 @@
 """Module for Optical Port product blocks."""
 
-from typing import Literal
+from typing import Literal, cast
 
 from orchestrator.domain import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
@@ -31,6 +31,7 @@ class CoherentPluggableBlockInactive(AbstractPortBlockInactive, product_block_na
     def vendor_and_part_no(self) -> str:
         """From fixed_inputs."""
         sub = SubscriptionModel.from_subscription(self.owner_subscription_id)
+        sub = cast(CoherentPluggableInactive, sub)
         return sub.vendor_and_part_no
 
 

@@ -21,7 +21,7 @@ from pydantic_forms.types import UUIDstr
 
 from orchestrator_optical.products.product_blocks.optical_node import NokiaFlexILSNodeBlock, OpticalNodeBlockUnion
 from orchestrator_optical.products.product_types.optical_node import (
-    VendorAndPlatform,
+    OpticalNodePlatform,
 )
 from orchestrator_optical.services.nokia import FlexilsClient, G30Client, G42Client
 from orchestrator_optical.utils.attributedispatch import (

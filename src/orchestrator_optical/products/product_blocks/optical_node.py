@@ -31,7 +31,7 @@ class OpticalNodeRole(StrEnum):
 # ── Abstract block (no product_block_name) ──────────────────────────────────
 class AbstractOpticalNodeBlockInactive(ProductBlockModel):
     sw_version: str | None = None
-    pqdn: Pqdn | None = None # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
+    pqdn: Pqdn | None = None  # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
     role: OpticalNodeRole | None = None
     management_ips: IpAddressesList | None = None
     location: OpticalLocationBlockInactive | None = None

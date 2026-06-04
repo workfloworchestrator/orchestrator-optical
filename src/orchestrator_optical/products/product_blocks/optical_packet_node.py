@@ -18,9 +18,11 @@ IpAddressesList = Annotated[
 
 
 class OpticalPacketNodeBlockInactive(ProductBlockModel, product_block_name="OpticalPacketNode"):
+    """TODO: Document."""
+
     sw_version: str | None = None
     vendor_and_platform: str | None = None
-    pqdn: Pqdn | None = None # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
+    pqdn: Pqdn | None = None  # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
     management_ips: IpAddressesList | None = None
     location: OpticalLocationBlockInactive
 

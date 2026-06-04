@@ -1,89 +1,82 @@
 """Models for the subscriptions of optical nodes."""
 
-from enum import StrEnum
-from typing import Annotated, Literal
-
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
-from pydantic import Field
-
-from orchestrator_optical.products.product_blocks.optical_node import (
-    AbstractOpticalNodeBlock,
-    AbstractOpticalNodeBlockInactive,
-    AbstractOpticalNodeBlockProvisioning,
-    NokiaFlexILSNodeBlock,
-    NokiaFlexILSNodeBlockInactive,
-    NokiaFlexILSNodeBlockProvisioning,
-    OpticalNodeBlock,
-    OpticalNodeBlockInactive,
-    OpticalNodeBlockProvisioning,
-)
 
 
-class VendorAndPlatform(StrEnum):
-    """Enumerate supported optical device vendor and models."""
+class AbstractOpticalNodeInactive(SubscriptionModel):
+    """Abstract base model for an optical node subscription in the inactive state."""
 
-    NOKIA_GROOVE_G30 = "Nokia Groove G30"
-    NOKIA_GX_G42 = "Nokia GX G42"
-    NOKIA_FLEXILS = "Nokia FlexILS"
+    optical_node: AbstractOpticalNodeBlockInactive
 
 
-NotSpecializedPlatforms = Literal[VendorAndPlatform.NOKIA_GROOVE_G30, VendorAndPlatform.NOKIA_GX_G42]
+class AbstractOpticalNodeProvisioning(AbstractOpticalNodeInactive):
+    """Abstract base model for an optical node subscription in the provisioning state."""
+
+    optical_node: AbstractOpticalNodeBlockProvisioning
 
 
-# ── Abstract subscription (no is_base) — for generic workflow code ───────────
-class AbstractOpticalNodeSubscriptionInactive(SubscriptionModel):
-    vendor_and_platform: VendorAndPlatform
-    node: AbstractOpticalNodeBlockInactive
+class AbstractOpticalNode(AbstractOpticalNodeProvisioning):
+    """Abstract base model for an optical node subscription in the active state."""
+
+    optical_node: AbstractOpticalNodeBlock
 
 
-class AbstractOpticalNodeSubscriptionProvisioning(AbstractOpticalNodeSubscriptionInactive):
-    node: AbstractOpticalNodeBlockProvisioning
+class OpticalNodeNokiaGrooveG30Inactive(AbstractOpticalNodeInactive, is_base=True):
+    """A Nokia Groove G30 Optical Node that is inactive."""
+
+    optical_node: OpticalNodeNokiaGrooveG30BlockInactive
 
 
-class AbstractOpticalNodeSubscription(AbstractOpticalNodeSubscriptionProvisioning):
-    node: AbstractOpticalNodeBlock
-
-
-# ── Concrete subscription for generic optical nodes ──────────────────────────────────
-class OpticalNodeSubscriptionInactive(AbstractOpticalNodeSubscriptionInactive, is_base=True):
-    vendor_and_platform: NotSpecializedPlatforms
-    node: OpticalNodeBlockInactive
-
-
-class OpticalNodeSubscriptionProvisioning(
-    OpticalNodeSubscriptionInactive,
-    AbstractOpticalNodeSubscriptionProvisioning,
-    lifecycle=[SubscriptionLifecycle.PROVISIONING],
+class OpticalNodeNokiaGrooveG30Provisioning(
+    AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    node: OpticalNodeBlockProvisioning
+    """A Nokia Groove G30 Optical Node that is provisioning."""
+
+    optical_node: OpticalNodeNokiaGrooveG30BlockProvisioning
 
 
-class OpticalNodeSubscription(
-    OpticalNodeSubscriptionProvisioning, AbstractOpticalNodeSubscription, lifecycle=[SubscriptionLifecycle.ACTIVE]
+class OpticalNodeNokiaGrooveG30(AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """A Nokia Groove G30 Optical Node that is active."""
+
+    optical_node: OpticalNodeNokiaGrooveG30Block
+
+
+class OpticalNodeNokiaGxG42Inactive(AbstractOpticalNodeInactive, is_base=True):
+    """A Nokia GX G42 Optical Node that is inactive."""
+
+    optical_node: OpticalNodeNokiaGxG42BlockInactive
+
+
+class OpticalNodeNokiaGxG42Provisioning(
+    AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    node: OpticalNodeBlock
+    """A Nokia GX G42 Optical Node that is provisioning."""
+
+    optical_node: OpticalNodeNokiaGxG42BlockProvisioning
 
 
-# ── Concrete subscription for FlexILS ───────────────────────────────────────
-class NokiaFlexILSNodeSubscriptionInactive(AbstractOpticalNodeSubscriptionInactive, is_base=True):
-    vendor_and_platform: Literal[VendorAndPlatform.NOKIA_FLEXILS] = VendorAndPlatform.NOKIA_FLEXILS
-    node: NokiaFlexILSNodeBlockInactive
+class OpticalNodeNokiaGxG42(AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """A Nokia GX G42 Optical Node that is active."""
+
+    optical_node: OpticalNodeNokiaGxG42Block
 
 
-class NokiaFlexILSNodeSubscriptionProvisioning(
-    NokiaFlexILSNodeSubscriptionInactive,
-    AbstractOpticalNodeSubscriptionProvisioning,
-    lifecycle=[SubscriptionLifecycle.PROVISIONING],
+class OpticalNodeNokiaFlexIlsInactive(AbstractOpticalNodeInactive, is_base=True):
+    """A Nokia FlexILS Optical Node that is inactive."""
+
+    optical_node: OpticalNodeNokiaFlexIlsBlockInactive
+
+
+class OpticalNodeNokiaFlexIlsProvisioning(
+    AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    """base model for an optical node subscription in the PROVISIONING state."""
+    """A Nokia FlexILS Optical Node that is provisioning."""
 
-    node: NokiaFlexILSNodeBlockProvisioning
+    optical_node: OpticalNodeNokiaFlexIlsBlockProvisioning
 
 
-class NokiaFlexILSNodeSubscription(
-    NokiaFlexILSNodeSubscriptionProvisioning, AbstractOpticalNodeSubscription, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
-    """base model for an optical node subscription in the ACTIVE state."""
+class OpticalNodeNokiaFlexIls(AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """A Nokia FlexILS Optical Node that is active."""
 
-    node: NokiaFlexILSNodeBlock
+    optical_node: OpticalNodeNokiaFlexIlsBlock

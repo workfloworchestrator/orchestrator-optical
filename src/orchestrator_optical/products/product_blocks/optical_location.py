@@ -1,3 +1,5 @@
+"""TODO: Document."""
+
 from typing import Annotated
 
 from annotated_types import Len
@@ -26,4 +28,9 @@ class OpticalLocationBlockProvisioning(OpticalLocationBlockInactive, lifecycle=[
 class OpticalLocationBlock(OpticalLocationBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     pass
 
+class OpticalLocationBlock(OpticalLocationBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """TODO: Document."""
 
+    longitude: LongitudeCoordinate
+    latitude: LatitudeCoordinate
+    fqdn_subdomain: SubdomainPrefix

@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from orchestrator_optical.products.product_blocks.optical_node import OpticalNodeBlockUnion
 from orchestrator_optical.products.product_blocks.optical_port import OpticalPortBlocksUnion
 from orchestrator_optical.products.product_types.optical_node import (
-    VendorAndPlatform,
+    OpticalNodePlatform,
 )
 from orchestrator_optical.products.services.optical_node import get_optical_node_client
 from orchestrator_optical.services.nokia import TL1CommandDeniedError
@@ -572,7 +572,7 @@ def set_port_admin_state(
     return attribute_dispatch_base(set_port_admin_state, "vendor_and_platform", optical_node.vendor_and_platform)
 
 
-@set_port_admin_state.register(VendorAndPlatform.NOKIA_FLEXILS)
+@set_port_admin_state.register(OpticalNodePlatform.NOKIA_FLEXILS)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port_name: str,
@@ -617,7 +617,7 @@ def _(
     return flex.rtrv_scg(aid=port_name)
 
 
-@set_port_admin_state.register(VendorAndPlatform.NOKIA_GROOVE_G30)
+@set_port_admin_state.register(OpticalNodePlatform.NOKIA_GROOVE_G30)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port_name: str,
@@ -639,7 +639,7 @@ def _(
     return port_uri.retrieve(depth=2, content="config").model_dump()
 
 
-@set_port_admin_state.register(VendorAndPlatform.NOKIA_GX_G42)
+@set_port_admin_state.register(OpticalNodePlatform.NOKIA_GX_G42)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port_name: str,
@@ -715,7 +715,7 @@ def flexils_check_port_is_in_manualmode2_else_set_it(
     set_port_admin_state(optical_node, port_name, "up")
 
 
-@configure_termination_when_attaching_new_fiber.register(VendorAndPlatform.NOKIA_FLEXILS)
+@configure_termination_when_attaching_new_fiber.register(OpticalNodePlatform.NOKIA_FLEXILS)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port: OpticalPortBlocksUnion,
@@ -726,7 +726,7 @@ def _(
     description = port.port_description
 
     # Handle FlexILS-to-FlexILS connection separately (simpler case)
-    if remote_port.optical_node.vendor_and_platform == VendorAndPlatform.FlexILS:
+    if remote_port.optical_node.vendor_and_platform == OpticalNodePlatform.FlexILS:
         flex.ed_ots(aid=port_name, label=rf'"{description}"')
         flex.rst_maintenance(aidtype="OTS", aid=port_name)
         return flex.rtrv_ots(aid=port_name)
@@ -750,7 +750,7 @@ def _get_remote_node_id(remote_port: OpticalPortBlocksUnion) -> str:
     """Extract node ID from remote port's device based on platform type."""
     platform = remote_port.optical_node.vendor_and_platform
 
-    if platform == VendorAndPlatform.NOKIA_GROOVE_G30:
+    if platform == OpticalNodePlatform.NOKIA_GROOVE_G30:
         g30 = get_optical_node_client(remote_port.optical_node)
         inventory = g30.data.ne_ne.inventory_data.inventory.retrieve(depth=2)
 
@@ -761,7 +761,7 @@ def _get_remote_node_id(remote_port: OpticalPortBlocksUnion) -> str:
         msg = f"Could not find shelf serial number for G30 device {remote_port.optical_node.pqdn}"
         raise ValueError(msg)
 
-    if platform == VendorAndPlatform.NOKIA_GX_G42:
+    if platform == OpticalNodePlatform.NOKIA_GX_G42:
         return remote_port.optical_node.pqdn
 
     msg = f"Unsupported remote platform for FlexILS connection: {platform}"
@@ -778,7 +778,7 @@ def _extract_remote_port_id(remote_port: OpticalPortBlocksUnion) -> str:
     return re.sub(r"[^a-zA-Z0-9]", "-", port_id)
 
 
-@configure_termination_when_attaching_new_fiber.register(VendorAndPlatform.NOKIA_GROOVE_G30)
+@configure_termination_when_attaching_new_fiber.register(OpticalNodePlatform.NOKIA_GROOVE_G30)
 def _(  # noqa: PLR0915
     optical_node: OpticalNodeBlockUnion,
     port: OpticalPortBlocksUnion,
@@ -790,7 +790,7 @@ def _(  # noqa: PLR0915
     )
     port_config = endpoint.retrieve(depth=2, content="config")
 
-    if remote_port.optical_node.vendor_and_platform == VendorAndPlatform.FlexILS:
+    if remote_port.optical_node.vendor_and_platform == OpticalNodePlatform.FlexILS:
         port_config.external_connectivity = "yes"
         port_config.connected_to = f"{remote_port.optical_node.pqdn} {remote_port.port_name}"
         port_config.admin_status = "up"
@@ -798,7 +798,7 @@ def _(  # noqa: PLR0915
         endpoint.update(port_config)
         return endpoint.retrieve(depth=2, content="config").model_dump()
 
-    if remote_port.optical_node.vendor_and_platform == VendorAndPlatform.NOKIA_GROOVE_G30:
+    if remote_port.optical_node.vendor_and_platform == OpticalNodePlatform.NOKIA_GROOVE_G30:
         is_same_device = remote_port.optical_node.subscription_instance_id == optical_node.subscription_instance_id
         is_amplifier_port = slot_id == 3 and subslot_id == 3 and port_id == 1  # noqa: PLR2004
 
@@ -865,7 +865,7 @@ def _(  # noqa: PLR0915
     raise ValueError(msg)
 
 
-@configure_termination_when_attaching_new_fiber.register(VendorAndPlatform.NOKIA_GX_G42)
+@configure_termination_when_attaching_new_fiber.register(OpticalNodePlatform.NOKIA_GX_G42)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port: OpticalPortBlocksUnion,
@@ -893,7 +893,7 @@ def factory_reset_port_configuration(
     return attribute_dispatch_base(factory_reset_port_configuration, "vendor_and_platform", optical_node.vendor_and_platform)
 
 
-@factory_reset_port_configuration.register(VendorAndPlatform.NOKIA_FLEXILS)
+@factory_reset_port_configuration.register(OpticalNodePlatform.NOKIA_FLEXILS)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port: OpticalPortBlocksUnion,
@@ -902,7 +902,7 @@ def _(
     flex = get_optical_node_client(optical_node)
     port_name = port.port_name
 
-    if remote_port.optical_node.vendor_and_platform == VendorAndPlatform.FlexILS:
+    if remote_port.optical_node.vendor_and_platform == OpticalNodePlatform.FlexILS:
         flex.ed_ots(aid=port_name, label=r'""')
         return flex.rtrv_ots(aid=port_name)
 
@@ -917,7 +917,7 @@ def _(
     return flex.rtrv_scg(aid=port_name)
 
 
-@factory_reset_port_configuration.register(VendorAndPlatform.NOKIA_GROOVE_G30)
+@factory_reset_port_configuration.register(OpticalNodePlatform.NOKIA_GROOVE_G30)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port: OpticalPortBlocksUnion,
@@ -941,7 +941,7 @@ def _(
     return port_uri.retrieve(content="config", depth=2).model_dump()
 
 
-@factory_reset_port_configuration.register(VendorAndPlatform.NOKIA_GX_G42)
+@factory_reset_port_configuration.register(OpticalNodePlatform.NOKIA_GX_G42)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port: OpticalPortBlocksUnion,
@@ -984,7 +984,7 @@ def check_fiber_terminating_port(
     return attribute_dispatch_base(check_fiber_terminating_port, "vendor_and_platform", optical_node.vendor_and_platform)
 
 
-@check_fiber_terminating_port.register(VendorAndPlatform.NOKIA_FLEXILS)
+@check_fiber_terminating_port.register(OpticalNodePlatform.NOKIA_FLEXILS)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port: OpticalPortBlocksUnion,
@@ -995,7 +995,7 @@ def _(
     description = port.port_description
 
     # Handle FlexILS-to-FlexILS connection separately (simpler case)
-    if remote_port.optical_node.vendor_and_platform == VendorAndPlatform.FlexILS:
+    if remote_port.optical_node.vendor_and_platform == OpticalNodePlatform.FlexILS:
         ots = flex.rtrv_ots(aid=port_name)
         ots = ots.parsed_data[0]
         checks = (
@@ -1071,7 +1071,7 @@ def _(
             )
 
 
-@check_fiber_terminating_port.register(VendorAndPlatform.NOKIA_GROOVE_G30)
+@check_fiber_terminating_port.register(OpticalNodePlatform.NOKIA_GROOVE_G30)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port: OpticalPortBlocksUnion,
@@ -1139,7 +1139,7 @@ def _(
     """
 
     if (
-        remote_port.optical_node.vendor_and_platform == VendorAndPlatform.NOKIA_GROOVE_G30
+        remote_port.optical_node.vendor_and_platform == OpticalNodePlatform.NOKIA_GROOVE_G30
         and remote_port.optical_node.subscription_instance_id == optical_node.subscription_instance_id
     ):
         con_to_string = f"patched to {remote_port.port_name}"
@@ -1176,7 +1176,7 @@ def _(
         )
 
 
-@check_fiber_terminating_port.register(VendorAndPlatform.NOKIA_GX_G42)
+@check_fiber_terminating_port.register(OpticalNodePlatform.NOKIA_GX_G42)
 def _(
     optical_node: OpticalNodeBlockUnion,
     port: OpticalPortBlocksUnion,
