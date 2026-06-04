@@ -1,12 +1,13 @@
 """Module for Optical Pipe product blocks (Fiber Patch, Fiber Span, and Leased Spectrum)."""
 
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from annotated_types import Len
+from orchestrator.domain import SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
-from pydantic import Field
+from pydantic import Discriminator, Field, computed_field
 
 from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
     CoherentPluggableBlock,
@@ -28,21 +29,19 @@ from orchestrator_optical.products.product_blocks.optical_port import (
     TransponderLinePortBlockProvisioning,
 )
 
+if TYPE_CHECKING:
+    from orchestrator_optical.products.product_types.optical_pipe import PipeType
+
 ListOfPorts = Annotated[list[SI], Len(min_length=2, max_length=2), "List of the 2 ports connected by the fiber."]
 
 
-class PipeType(StrEnum):
-    """missing docstring."""
-
-    PATCH = "Fiber Patch"
-    SPAN = "Fiber Span"
-    LEASED_SPECTRUM = "Leased Spectrum"
-
-
-# --- Discriminated Union Types for Patch Pipes ---
+# --- Discriminated Union Types for Patch Fibers ---
 
 PatchPortBlocksInactive = Annotated[
-    TransponderClientPortBlockInactive | TransponderLinePortBlockInactive | OlsAddDropPortBlockInactive | CoherentPluggableBlockInactive,
+    TransponderClientPortBlockInactive
+    | TransponderLinePortBlockInactive
+    | OlsAddDropPortBlockInactive
+    | CoherentPluggableBlockInactive,
     Field(discriminator="role"),
 ]
 
@@ -60,17 +59,20 @@ PatchPortBlocks = Annotated[
 ]
 
 
-# --- Discriminated Port Unions for Span Pipes ---
+# --- Discriminated Port Unions for Span Fibers ---
 
 SpanPortBlocksInactive = OlsLinePortBlockInactive
 SpanPortBlocksProvisioning = OlsLinePortBlockProvisioning
 SpanPortBlocks = OlsLinePortBlock
 
 
-# --- Discriminated Port Unions for Leased Spectrum Pipes ---
+# --- Discriminated Port Unions for Leased Spectra ---
 
 LeasedSpectrumPortBlocksInactive = Annotated[
-    TransponderLinePortBlockInactive | OlsAddDropPortBlockInactive | OlsLinePortBlockInactive | CoherentPluggableBlockInactive,
+    TransponderLinePortBlockInactive
+    | OlsAddDropPortBlockInactive
+    | OlsLinePortBlockInactive
+    | CoherentPluggableBlockInactive,
     Field(discriminator="role"),
 ]
 
@@ -88,80 +90,127 @@ LeasedSpectrumPortBlocks = Annotated[
 ]
 
 
-# ============================================================================
-# --- Fiber Patch Product Blocks ---
-# ============================================================================
+# ── Abstract block (no product_block_name) ──────────────────────────────────
+class AbstractOpticalPipeBlockInactive(ProductBlockModel):
+    """Abstract base class for all optical pipe blocks in the INACTIVE state."""
+
+    identifier: str | None = None
+    terminations: ListOfPorts[SI]
+
+    @computed_field
+    @property
+    def pipe_type(self) -> "PipeType":
+        """From fixed_inputs."""
+        sub = SubscriptionModel.from_subscription(self.owner_subscription_id)
+        return sub.pipe_type
 
 
-class FiberPatchBlockInactive(ProductBlockModel, product_block_name="FiberPatch"):
+class AbstractOpticalPipeBlockProvisioning(
+    AbstractOpticalPipeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
+    """Abstract base class for all optical pipe blocks in the PROVISIONING state."""
+
+    terminations: ListOfPorts[SI]
+
+
+class AbstractOpticalPipeBlock(AbstractOpticalPipeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """Abstract base class for all optical pipe blocks in the ACTIVE state."""
+
+    identifier: str
+    terminations: ListOfPorts[SI]
+
+
+# ── Fiber Patch Product Blocks ──────────────────────────────────
+class FiberPatchBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberPatch"):
     """Inactive state of a Fiber Patch product block."""
 
-    optical_pipe_type: Literal[PipeType.PATCH] = PipeType.PATCH
-    fiber_name: str | None = None
     terminations: ListOfPorts[PatchPortBlocksInactive]
 
 
-class FiberPatchBlockProvisioning(FiberPatchBlockInactive, lifecycle=SubscriptionLifecycle.PROVISIONING
+class FiberPatchBlockProvisioning(
+    FiberPatchBlockInactive,
+    AbstractOpticalPipeBlockProvisioning,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Provisioning state of a Fiber Patch product block."""
 
     terminations: ListOfPorts[PatchPortBlocksProvisioning]
 
 
-class FiberPatchBlock(FiberPatchBlockProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
+class FiberPatchBlock(
+    FiberPatchBlockProvisioning,
+    AbstractOpticalPipeBlock,
+    lifecycle=[SubscriptionLifecycle.ACTIVE],
+):
     """Active state of a Fiber Patch product block."""
 
-    fiber_name: str
     terminations: ListOfPorts[PatchPortBlocks]
 
 
-# ============================================================================
-# --- Fiber Span Product Blocks ---
-# ============================================================================
-
-
-class FiberSpanBlockInactive(ProductBlockModel, product_block_name="FiberSpan"):
+# ── Fiber Span Product Blocks ──────────────────────────────────
+class FiberSpanBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberSpan"):
     """Inactive state of a Fiber Span product block."""
 
-    optical_pipe_type: Literal[PipeType.SPAN] = PipeType.SPAN
-    fiber_name: str | None = None
     terminations: ListOfPorts[SpanPortBlocksInactive]
 
 
-class FiberSpanBlockProvisioning(FiberSpanBlockInactive, lifecycle=SubscriptionLifecycle.PROVISIONING):
+class FiberSpanBlockProvisioning(
+    FiberSpanBlockInactive,
+    AbstractOpticalPipeBlockProvisioning,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
+):
     """Provisioning state of a Fiber Span product block."""
 
     terminations: ListOfPorts[SpanPortBlocksProvisioning]
 
 
-class FiberSpanBlock(FiberSpanBlockProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
+class FiberSpanBlock(
+    FiberSpanBlockProvisioning,
+    AbstractOpticalPipeBlock,
+    lifecycle=[SubscriptionLifecycle.ACTIVE],
+):
     """Active state of a Fiber Span product block."""
 
-    fiber_name: str
     terminations: ListOfPorts[SpanPortBlocks]
 
 
-# ============================================================================
-# --- Leased Spectrum Product Blocks ---
-# ============================================================================
-
-
-class LeasedSpectrumBlockInactive(ProductBlockModel, product_block_name="LeasedSpectrum"):
+# ── Leased Spectrum Product Blocks ──────────────────────────────────
+class LeasedSpectrumBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="LeasedSpectrum"):
     """Inactive state of a Leased Spectrum product block."""
 
-    optical_pipe_type: Literal[PipeType.LEASED_SPECTRUM] = PipeType.LEASED_SPECTRUM
-    spectrum_name: str | None = None
     terminations: ListOfPorts[LeasedSpectrumPortBlocksInactive]
 
 
-class LeasedSpectrumBlockProvisioning(LeasedSpectrumBlockInactive, lifecycle=SubscriptionLifecycle.PROVISIONING):
+class LeasedSpectrumBlockProvisioning(
+    LeasedSpectrumBlockInactive,
+    AbstractOpticalPipeBlockProvisioning,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
+):
     """Provisioning state of a Leased Spectrum product block."""
 
     terminations: ListOfPorts[LeasedSpectrumPortBlocksProvisioning]
 
 
-class LeasedSpectrumBlock(LeasedSpectrumBlockProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
+class LeasedSpectrumBlock(
+    LeasedSpectrumBlockProvisioning,
+    AbstractOpticalPipeBlock,
+    lifecycle=[SubscriptionLifecycle.ACTIVE],
+):
     """Active state of a Leased Spectrum product block."""
 
-    spectrum_name: str
     terminations: ListOfPorts[LeasedSpectrumPortBlocks]
+
+
+# ── Discriminated Unions ────────────────────────────────────────────────────
+OpticalPipeBlockUnion = Annotated[
+    FiberPatchBlock | FiberSpanBlock | LeasedSpectrumBlock,
+    Discriminator(lambda x: x.pipe_type),
+]
+OpticalPipeBlockUnionProvisioning = Annotated[
+    FiberPatchBlockProvisioning | FiberSpanBlockProvisioning | LeasedSpectrumBlockProvisioning,
+    Discriminator(lambda x: x.pipe_type),
+]
+OpticalPipeBlockUnionInactive = Annotated[
+    FiberPatchBlockInactive | FiberSpanBlockInactive | LeasedSpectrumBlockInactive,
+    Discriminator(lambda x: x.pipe_type),
+]
