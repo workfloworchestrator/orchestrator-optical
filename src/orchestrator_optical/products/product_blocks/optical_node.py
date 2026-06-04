@@ -7,9 +7,9 @@ from orchestrator.types import SubscriptionLifecycle
 from pydantic import Discriminator, computed_field
 
 from orchestrator_optical.products.product_blocks.optical_location import (
-    OpticalLocation,
-    OpticalLocationInactive,
-    OpticalLocationProvisioning,
+    OpticalLocationBlock,
+    OpticalLocationBlockInactive,
+    OpticalLocationBlockProvisioning,
 )
 from orchestrator_optical.utils.custom_types.dns import Pqdn
 from orchestrator_optical.utils.custom_types.ip_address import IPAddress
@@ -33,14 +33,14 @@ class OpticalNodeRole(StrEnum):
 # ============================================================================
 
 
-class OpticalNodeInactive(ProductBlockModel, product_block_name="OpticalNode"):
+class OpticalNodeBlockInactive(ProductBlockModel, product_block_name="OpticalNode"):
     """Base Product Block for Optical Nodes."""
 
     sw_version: str | None = None
     pqdn: Pqdn | None = None # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
     role: OpticalNodeRole | None = None
     management_ips: IpAddressesList | None = None
-    location: OpticalLocationInactive | None = None
+    location: OpticalLocationBlockInactive | None = None
 
     @computed_field
     @property
@@ -50,20 +50,20 @@ class OpticalNodeInactive(ProductBlockModel, product_block_name="OpticalNode"):
         return sub.vendor_and_platform
 
 
-class OpticalNodeProvisioning(OpticalNodeInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class OpticalNodeBlockProvisioning(OpticalNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     """Base Product Block for Optical Nodes in provisioning state."""
 
     pqdn: Pqdn
     role: OpticalNodeRole
     management_ips: IpAddressesList
-    location: OpticalLocationProvisioning
+    location: OpticalLocationBlockProvisioning
 
 
-class OpticalNode(OpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalNodeBlock(OpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Base Product Block for Optical Nodes in operational state."""
 
     sw_version: str
-    location: OpticalLocation
+    location: OpticalLocationBlock
 
 
 # ============================================================================
@@ -71,30 +71,30 @@ class OpticalNode(OpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.ACTI
 # ============================================================================
 
 
-class NokiaFlexILSNodeInactive(OpticalNodeInactive, product_block_name="NokiaFlexILSNode"):
-    location: OpticalLocationInactive | None = None
+class NokiaFlexILSNodeBlockInactive(OpticalNodeBlockInactive, product_block_name="NokiaFlexILSNode"):
+    location: OpticalLocationBlockInactive | None = None
     role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER] | None = None
     gmpls_id: IPAddress | None = None
     target_id: str | None = None
 
-class NokiaFlexILSNodeProvisioning(NokiaFlexILSNodeInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    location: OpticalLocationProvisioning
+class NokiaFlexILSNodeBlockProvisioning(NokiaFlexILSNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    location: OpticalLocationBlockProvisioning
     role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER]
     gmpls_id: IPAddress
     target_id: str
 
-class NokiaFlexILSNode(NokiaFlexILSNodeProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    location: OpticalLocation
+class NokiaFlexILSNodeBlock(NokiaFlexILSNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    location: OpticalLocationBlock
 
 
 # ============================================================================
 # --- Discriminated Unions of Product Blocks ---
 # ============================================================================
 
-OpticalNodeUnion = Annotated[OpticalNode | NokiaFlexILSNode, Discriminator(lambda x: x.vendor_and_platform)]
-OpticalNodeProvisioningUnion = Annotated[
-    OpticalNodeProvisioning | NokiaFlexILSNodeProvisioning, Discriminator(lambda x: x.vendor_and_platform)
+OpticalNodeBlockUnion = Annotated[OpticalNodeBlock | NokiaFlexILSNodeBlock, Discriminator(lambda x: x.vendor_and_platform)]
+OpticalNodeBlockUnionProvisioning = Annotated[
+    OpticalNodeBlockProvisioning | NokiaFlexILSNodeBlockProvisioning, Discriminator(lambda x: x.vendor_and_platform)
 ]
-OpticalNodeInactiveUnion = Annotated[
-    OpticalNodeInactive | NokiaFlexILSNodeInactive, Discriminator(lambda x: x.vendor_and_platform)
+OpticalNodeBlockUnionInactive = Annotated[
+    OpticalNodeBlockInactive | NokiaFlexILSNodeBlockInactive, Discriminator(lambda x: x.vendor_and_platform)
 ]

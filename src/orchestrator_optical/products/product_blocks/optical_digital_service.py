@@ -8,19 +8,19 @@ from orchestrator.types import SI, SubscriptionLifecycle
 from pydantic import Field
 
 from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
-    CoherentPluggable,
-    CoherentPluggableInactive,
-    CoherentPluggableProvisioning,
+    CoherentPluggableBlock,
+    CoherentPluggableBlockInactive,
+    CoherentPluggableBlockProvisioning,
 )
 from orchestrator_optical.products.product_blocks.optical_port import (
-    TransponderClientPort,
-    TransponderClientPortInactive,
-    TransponderClientPortProvisioning,
+    TransponderClientPortBlock,
+    TransponderClientPortBlockInactive,
+    TransponderClientPortBlockProvisioning,
 )
 from orchestrator_optical.products.product_blocks.optical_transport_channel import (
-    OpticalTransportChannel,
-    OpticalTransportChannelInactive,
-    OpticalTransportChannelProvisioning,
+    OpticalTransportChannelBlock,
+    OpticalTransportChannelBlockInactive,
+    OpticalTransportChannelBlockProvisioning,
 )
 
 ClientPortsList = Annotated[list[SI], Len(min_length=2, max_length=2)]
@@ -32,13 +32,13 @@ TransportChannelsList = Annotated[
 
 # --- Discriminated Union Types for Client Ports ---
 
-ClientsInactive = Annotated[TransponderClientPortInactive | CoherentPluggableInactive, Field(discriminator="role")]
+ClientsInactive = Annotated[TransponderClientPortBlockInactive | CoherentPluggableBlockInactive, Field(discriminator="role")]
 
 ClientsProvisioning = Annotated[
-    TransponderClientPortProvisioning | CoherentPluggableProvisioning, Field(discriminator="role")
+    TransponderClientPortBlockProvisioning | CoherentPluggableBlockProvisioning, Field(discriminator="role")
 ]
 
-Clients = Annotated[TransponderClientPort | CoherentPluggable, Field(discriminator="role")]
+Clients = Annotated[TransponderClientPortBlock | CoherentPluggableBlock, Field(discriminator="role")]
 
 
 # ============================================================================
@@ -46,24 +46,24 @@ Clients = Annotated[TransponderClientPort | CoherentPluggable, Field(discriminat
 # ============================================================================
 
 
-class OpticalDigitalServiceInactive(ProductBlockModel, product_block_name="OpticalDigitalService"):
+class OpticalDigitalServiceBlockInactive(ProductBlockModel, product_block_name="OpticalDigitalService"):
     """Inactive state of an Optical Digital Service product block."""
 
     service_name: str | None = None
-    client_ports: ClientPortsList[TransponderClientPortInactive]
-    transport_channels: TransportChannelsList[OpticalTransportChannelInactive]
+    client_ports: ClientPortsList[TransponderClientPortBlockInactive]
+    transport_channels: TransportChannelsList[OpticalTransportChannelBlockInactive]
 
 
-class OpticalDigitalServiceProvisioning(OpticalDigitalServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class OpticalDigitalServiceBlockProvisioning(OpticalDigitalServiceBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     """Provisioning state of an Optical Digital Service product block."""
 
     service_name: str
-    client_ports: ClientPortsList[TransponderClientPortProvisioning]
-    transport_channels: TransportChannelsList[OpticalTransportChannelProvisioning]
+    client_ports: ClientPortsList[TransponderClientPortBlockProvisioning]
+    transport_channels: TransportChannelsList[OpticalTransportChannelBlockProvisioning]
 
 
-class OpticalDigitalService(OpticalDigitalServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalDigitalServiceBlock(OpticalDigitalServiceBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Active state of an Optical Digital Service product block."""
 
     client_ports: ClientPortsList[Clients]
-    transport_channels: TransportChannelsList[OpticalTransportChannel]
+    transport_channels: TransportChannelsList[OpticalTransportChannelBlock]

@@ -8,19 +8,19 @@ from orchestrator.types import SI, SubscriptionLifecycle
 from pydantic import Field
 
 from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
-    CoherentPluggable,
-    CoherentPluggableInactive,
-    CoherentPluggableProvisioning,
+    CoherentPluggableBlock,
+    CoherentPluggableBlockInactive,
+    CoherentPluggableBlockProvisioning,
 )
 from orchestrator_optical.products.product_blocks.optical_port import (
-    TransponderLinePort,
-    TransponderLinePortInactive,
-    TransponderLinePortProvisioning,
+    TransponderLinePortBlock,
+    TransponderLinePortBlockInactive,
+    TransponderLinePortBlockProvisioning,
 )
 from orchestrator_optical.products.product_blocks.optical_spectrum import (
-    OpticalSpectrum,
-    OpticalSpectrumInactive,
-    OpticalSpectrumProvisioning,
+    OpticalSpectrumBlock,
+    OpticalSpectrumBlockInactive,
+    OpticalSpectrumBlockProvisioning,
 )
 
 LinePortList = Annotated[list[SI], Len(min_length=2, max_length=2)]
@@ -28,33 +28,33 @@ LinePortList = Annotated[list[SI], Len(min_length=2, max_length=2)]
 # --- Discriminated Line Port Unions ---
 
 TrxInactive = Annotated[
-    CoherentPluggableInactive | TransponderLinePortInactive,
+    CoherentPluggableBlockInactive | TransponderLinePortBlockInactive,
     Field(discriminator="role"),
 ]
 
 TrxProvisioning = Annotated[
-    CoherentPluggableProvisioning | TransponderLinePortProvisioning,
+    CoherentPluggableBlockProvisioning | TransponderLinePortBlockProvisioning,
     Field(discriminator="role"),
 ]
 
 Trx = Annotated[
-    CoherentPluggable | TransponderLinePort,
+    CoherentPluggableBlock | TransponderLinePortBlock,
     Field(discriminator="role"),
 ]
 
 
-class OpticalTransportChannelInactive(ProductBlockModel, product_block_name="OpticalTransportChannel"):
+class OpticalTransportChannelBlockInactive(ProductBlockModel, product_block_name="OpticalTransportChannel"):
     """Inactive state of an Optical Transport Channel product block."""
 
     channel_name: str | None = None
     central_frequency: int | None = None
     mode: str | None = None
     line_ports: LinePortList[TrxInactive]
-    spectrum: OpticalSpectrumInactive
+    spectrum: OpticalSpectrumBlockInactive
 
 
-class OpticalTransportChannelProvisioning(
-    OpticalTransportChannelInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class OpticalTransportChannelBlockProvisioning(
+    OpticalTransportChannelBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Provisioning state of an Optical Transport Channel product block."""
 
@@ -62,11 +62,11 @@ class OpticalTransportChannelProvisioning(
     central_frequency: int
     mode: str
     line_ports: LinePortList[TrxProvisioning]
-    spectrum: OpticalSpectrumProvisioning
+    spectrum: OpticalSpectrumBlockProvisioning
 
 
-class OpticalTransportChannel(OpticalTransportChannelProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalTransportChannelBlock(OpticalTransportChannelBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Active state of an Optical Transport Channel product block."""
 
     line_ports: LinePortList[Trx]
-    spectrum: OpticalSpectrum
+    spectrum: OpticalSpectrumBlock

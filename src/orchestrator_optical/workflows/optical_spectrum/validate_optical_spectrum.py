@@ -16,7 +16,7 @@ from orchestrator.workflows.utils import validate_workflow
 from pydantic_forms.types import State
 from structlog import get_logger
 
-from orchestrator_optical.products.product_types.optical_spectrum import OpticalSpectrum
+from orchestrator_optical.products.product_types.optical_spectrum import OpticalSpectrumSubscription
 from orchestrator_optical.products.services.optical_spectrum import validate_optical_circuit
 from orchestrator_optical.workflows.optical_spectrum.create_optical_spectrum import (
     subscription_description,
@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 
 @step("Load initial state")
-def load_initial_state_optical_spectrum(subscription: OpticalSpectrum) -> State:
+def load_initial_state_optical_spectrum(subscription: OpticalSpectrumSubscription) -> State:
     return {
         "subscription": subscription,
     }
@@ -34,7 +34,7 @@ def load_initial_state_optical_spectrum(subscription: OpticalSpectrum) -> State:
 
 @step("Updating the subscription description")
 def update_subscription_description(
-    subscription: OpticalSpectrum,
+    subscription: OpticalSpectrumSubscription,
 ) -> State:
     subscription.description = subscription_description(subscription)
     return {
@@ -43,7 +43,7 @@ def update_subscription_description(
 
 
 @step("Verifying optical spectrum sections")
-def verify_optical_transport_channels(subscription: OpticalSpectrum) -> State:
+def verify_optical_transport_channels(subscription: OpticalSpectrumSubscription) -> State:
     spectrum = subscription.optical_spectrum
     spectrum_name = spectrum.spectrum_name
     passband = spectrum.passband

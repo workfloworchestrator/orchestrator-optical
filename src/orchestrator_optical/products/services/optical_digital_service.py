@@ -21,7 +21,7 @@ from orchestrator_optical.products.product_blocks.optical_digital_service import
     ClientSpeednType,
 )
 from orchestrator_optical.products.product_blocks.optical_node import (
-    OpticalNodeUnion,
+    OpticalNodeBlockUnion,
     VendorAndPlatform,
 )
 from orchestrator_optical.products.services.optical_node import get_optical_node_client
@@ -101,12 +101,12 @@ def _g30_get_modulation_and_rate_from_mode(port_mode: str) -> tuple[str, str]:
 
 
 @attributedispatch("vendor_and_platform")
-def get_signal_bandwidth(optical_node: OpticalNodeUnion, port_name: str) -> int:  # noqa: ARG001
+def get_signal_bandwidth(optical_node: OpticalNodeBlockUnion, port_name: str) -> int:  # noqa: ARG001
     return attribute_dispatch_base(get_signal_bandwidth, "vendor_and_platform", optical_node.vendor_and_platform)
 
 
 @get_signal_bandwidth.register(VendorAndPlatform.NOKIA_GROOVE_G30)
-def _(optical_node: OpticalNodeUnion, port_name: str) -> int:
+def _(optical_node: OpticalNodeBlockUnion, port_name: str) -> int:
     endpoint = g30_port_navigator_node_from_port_name(optical_node, port_name)[0]
     och_os = endpoint.och_os.retrieve(depth=2, content="config")
     if och_os.fec_type == "SDFEC27ND":
@@ -120,7 +120,7 @@ def _(optical_node: OpticalNodeUnion, port_name: str) -> int:
 
 
 @get_signal_bandwidth.register(VendorAndPlatform.NOKIA_GX_G42)
-def _(optical_node: OpticalNodeUnion, port_name: str) -> int:
+def _(optical_node: OpticalNodeBlockUnion, port_name: str) -> int:
     g42 = get_optical_node_client(optical_node)
 
     channel = None
@@ -144,7 +144,7 @@ def _(optical_node: OpticalNodeUnion, port_name: str) -> int:
 
 @attributedispatch("vendor_and_platform")
 def configure_line_transceivers(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_names: tuple[str],  # noqa: ARG001
     central_frequencies: tuple[Frequency],  # noqa: ARG001
     modes: tuple[str],  # noqa: ARG001
@@ -155,7 +155,7 @@ def configure_line_transceivers(
 
 @configure_line_transceivers.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_names: tuple[str],
     central_frequencies: tuple[Frequency],
     modes: tuple[str],
@@ -198,7 +198,7 @@ def _(
 
 @configure_line_transceivers.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_names: tuple[str],
     central_frequencies: tuple[Frequency],
     modes: tuple[str],
@@ -271,7 +271,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def configure_transceiver_client(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,  # noqa: ARG001
     description: str,  # noqa: ARG001
     service_type_n_speed: ClientSpeednType,  # noqa: ARG001
@@ -283,7 +283,7 @@ def configure_transceiver_client(
 
 @configure_transceiver_client.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,
     description: str,
     service_type_n_speed: ClientSpeednType,
@@ -327,7 +327,7 @@ def _(
 
 @configure_transceiver_client.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(  # noqa: PLR0915
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,
     description: str,
     service_type_n_speed: ClientSpeednType,
@@ -413,7 +413,7 @@ def _(  # noqa: PLR0915
 
 @attributedispatch("vendor_and_platform")
 def configure_transponder_crossconnect(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     client_port_name: str,  # noqa: ARG001
     line_port_names: list[str],  # noqa: ARG001
     xconn_description: str = "",  # noqa: ARG001
@@ -437,7 +437,7 @@ def configure_transponder_crossconnect(
 
 @configure_transponder_crossconnect.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(  # noqa: PLR0912, PLR0915
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -594,7 +594,7 @@ def _extract_shelf_slot_port_ids_from_odu_string(
 
 @configure_transponder_crossconnect.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -788,7 +788,7 @@ def _retrieve_time_slots(g42: G42Client, odu_name: str, speed: Literal["100GBE",
 
 @attributedispatch("vendor_and_platform")
 def delete_transponder_crossconnect(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     client_port_name: str,  # noqa: ARG001
 ) -> dict[str, Any]:
     """
@@ -811,7 +811,7 @@ def delete_transponder_crossconnect(
 
 @delete_transponder_crossconnect.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     client_port_name: str,
 ) -> dict[str, Any]:
     result = {"message": "", "deleted_xcon": []}
@@ -874,7 +874,7 @@ def _(
 
 @delete_transponder_crossconnect.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     client_port_name: str,
 ) -> dict[str, Any]:
     result = {"message": "", "deleted_xcon": []}
@@ -911,7 +911,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def factory_reset_transponder_client(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,  # noqa: ARG001
 ) -> dict[str, Any]:
     return attribute_dispatch_base(
@@ -921,7 +921,7 @@ def factory_reset_transponder_client(
 
 @factory_reset_transponder_client.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,
 ) -> dict[str, Any]:
     navigator, _, _, _, port_id, _ = g30_port_navigator_node_from_port_name(optical_node, port_name)
@@ -938,7 +938,7 @@ def _(
 
 @factory_reset_transponder_client.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,
 ) -> dict[str, Any]:
     g42 = get_optical_node_client(optical_node)
@@ -985,7 +985,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def factory_reset_transponder_lines(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     line_port_names: list[str],  # noqa: ARG001
 ) -> dict[str, Any]:
     """
@@ -1005,7 +1005,7 @@ def factory_reset_transponder_lines(
 
 @factory_reset_transponder_lines.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     line_port_names: list[str],
 ) -> dict[str, Any]:
     result = []
@@ -1025,7 +1025,7 @@ def _(
 
 @factory_reset_transponder_lines.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     line_port_names: list[str],
 ) -> dict[str, Any]:
     g42 = get_optical_node_client(optical_node)
@@ -1065,7 +1065,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def validate_trx_line(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_names: tuple[str, ...],  # noqa: ARG001
     central_frequencies: tuple[Frequency, ...],  # noqa: ARG001
     modes: tuple[str, ...],  # noqa: ARG001
@@ -1089,7 +1089,7 @@ def validate_trx_line(
 
 @validate_trx_line.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
@@ -1177,7 +1177,7 @@ def _(
 
 @validate_trx_line.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
@@ -1333,7 +1333,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def validate_trx_client(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,  # noqa: ARG001
     description: str,  # noqa: ARG001
     service_type_n_speed: ClientSpeednType,  # noqa: ARG001
@@ -1355,7 +1355,7 @@ def validate_trx_client(
 
 @validate_trx_client.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,
     description: str,
     service_type_n_speed: ClientSpeednType,
@@ -1449,7 +1449,7 @@ def _(
 
 @validate_trx_client.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,
     description: str,
     service_type_n_speed: ClientSpeednType,
@@ -1583,7 +1583,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def validate_trx_crossconnect(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     client_port_name: str,  # noqa: ARG001
     line_port_names: list[str],  # noqa: ARG001
     xconn_description: str = "",  # noqa: ARG001
@@ -1605,7 +1605,7 @@ def validate_trx_crossconnect(
 
 @validate_trx_crossconnect.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -1638,7 +1638,7 @@ def _(
 
 @validate_trx_crossconnect.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -1698,7 +1698,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def diff_btw_current_rx_power_and_target(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     optical_spectrum_name: str,  # noqa: ARG001
 ) -> float:
     r"""
@@ -1718,7 +1718,7 @@ def diff_btw_current_rx_power_and_target(
 
 @diff_btw_current_rx_power_and_target.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     optical_spectrum_name: str,
 ) -> float:
     flex = get_optical_node_client(optical_node)
@@ -1784,7 +1784,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def allign_tx_power_to_target(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     line_port_name: str,  # noqa: ARG001
     db_from_target: Decimal | float | str,  # noqa: ARG001
 ) -> dict[str, dict[str, Decimal]]:
@@ -1805,7 +1805,7 @@ def allign_tx_power_to_target(
 
 @allign_tx_power_to_target.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     line_port_name: str,
     db_from_target: Decimal | float | str,
 ) -> dict[str, dict[str, Decimal]]:
@@ -1836,7 +1836,7 @@ def _(
 
 @allign_tx_power_to_target.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     line_port_name: str,
     db_from_target: Decimal | float | str,
 ) -> dict[str, dict[str, Decimal]]:

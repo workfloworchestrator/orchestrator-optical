@@ -7,8 +7,8 @@ from pydantic import computed_field
 
 from orchestrator_optical.products.product_blocks.optical_packet_node import (
     OpticalPacketNodeBlock,
-    OpticalPacketNodeInactive,
-    OpticalPacketNodeProvisioning,
+    OpticalPacketNodeBlockInactive,
+    OpticalPacketNodeBlockProvisioning,
 )
 from orchestrator_optical.products.product_blocks.optical_port import (
     OpticalPortBlock,
@@ -18,12 +18,12 @@ from orchestrator_optical.products.product_blocks.optical_port import (
 )
 
 
-class CoherentPluggableInactive(_PortInactive):
-    """Base class for inactive CoherentPluggable product blocks."""
+class CoherentPluggableBlockInactive(_PortInactive):
+    """Base class for inactive CoherentPluggableBlock product blocks."""
 
     role: Literal[PortRole.COHERENT_PLUGGABLE] = PortRole.COHERENT_PLUGGABLE
     fw_version: str | None = None
-    host_node: OpticalPacketNodeInactive | None = None
+    host_node: OpticalPacketNodeBlockInactive | None = None
 
     @computed_field
     @property
@@ -33,16 +33,16 @@ class CoherentPluggableInactive(_PortInactive):
         return sub.vendor_and_part_no
 
 
-class CoherentPluggableProvisioning(
-    CoherentPluggableInactive, OpticalPortProvisioning
+class CoherentPluggableBlockProvisioning(
+    CoherentPluggableBlockInactive, OpticalPortProvisioning
 ):
-    """Base class for provisioning CoherentPluggable product blocks."""
+    """Base class for provisioning CoherentPluggableBlock product blocks."""
 
     fw_version: str
-    host_node: OpticalPacketNodeProvisioning
+    host_node: OpticalPacketNodeBlockProvisioning
 
 
-class CoherentPluggable(CoherentPluggableProvisioning, OpticalPortBlock):
-    """Base class for active CoherentPluggable product blocks."""
+class CoherentPluggableBlock(CoherentPluggableBlockProvisioning, OpticalPortBlock):
+    """Base class for active CoherentPluggableBlock product blocks."""
 
     host_node: OpticalPacketNodeBlock

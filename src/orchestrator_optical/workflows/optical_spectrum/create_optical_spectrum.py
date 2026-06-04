@@ -31,12 +31,12 @@ from structlog import get_logger
 
 from orchestrator_optical.products.product_blocks.optical_node import DeviceType
 from orchestrator_optical.products.product_blocks.optical_pipe import (
-    OpticalPortUnionInactive,
+    OpticalPortBlocksUnionInactive,
 )
 from orchestrator_optical.products.product_types.optical_node import OpticalDevice
 from orchestrator_optical.products.product_types.optical_spectrum import (
-    OpticalSpectrumInactive,
-    OpticalSpectrumProvisioning,
+    OpticalSpectrumSubscriptionInactive,
+    OpticalSpectrumSubscriptionProvisioning,
 )
 from orchestrator_optical.products.services.optical_port import (
     set_port_description,
@@ -266,7 +266,7 @@ def create_optical_spectrum_model(
     exclude_fibers_list: list[UUIDstr],
 ) -> State:
     # create subscription instance
-    subscription = OpticalSpectrumInactive.from_product_id(
+    subscription = OpticalSpectrumSubscriptionInactive.from_product_id(
         product_id=product,
         customer_id=partner_id,
         status=SubscriptionLifecycle.INITIAL,
@@ -287,7 +287,7 @@ def create_optical_spectrum_model(
 
 @step("Dividing the optical path into single-device-family sections")
 def divide_path_into_sections(
-    subscription: OpticalSpectrumInactive,
+    subscription: OpticalSpectrumSubscriptionInactive,
     optical_path: list[UUIDstr],
     src_optical_port_name: str,
     dst_optical_port_name: str,
@@ -300,7 +300,7 @@ def divide_path_into_sections(
     dst_device = dst_device_subscription.optical_node
 
     # Source Add/Drop Port
-    src_port = OpticalPortUnionInactive.new(
+    src_port = OpticalPortBlocksUnionInactive.new(
         subscription_id=subscription.subscription_id,
         port_name=src_optical_port_name,
         optical_node=src_device,
@@ -311,7 +311,7 @@ def divide_path_into_sections(
     )
     src_port.save(subscription_id=subscription.subscription_id, status=SubscriptionLifecycle.INITIAL)
     # Destination Add/Drop Port
-    dst_port = OpticalPortUnionInactive.new(
+    dst_port = OpticalPortBlocksUnionInactive.new(
         subscription_id=subscription.subscription_id,
         port_name=dst_optical_port_name,
         optical_node=dst_device,
@@ -334,7 +334,7 @@ def divide_path_into_sections(
 
 @step("Updating the subscription description")
 def update_subscription_description(
-    subscription: OpticalSpectrumProvisioning,
+    subscription: OpticalSpectrumSubscriptionProvisioning,
 ) -> State:
     subscription.description = subscription_description(subscription)
     return {
@@ -345,7 +345,7 @@ def update_subscription_description(
 
 @step("Adding a description to the add/drop ports")
 def configure_add_drop_ports_description(
-    subscription: OpticalSpectrumProvisioning,
+    subscription: OpticalSpectrumSubscriptionProvisioning,
 ) -> State:
     oss = subscription.optical_spectrum.optical_spectrum_sections
     src_port = oss[0].add_drop_ports[0]
@@ -360,7 +360,7 @@ def configure_add_drop_ports_description(
 
 
 @step("Provisioning optical spectrum sections")
-def provision_optical_sections(subscription: OpticalSpectrumProvisioning) -> State:
+def provision_optical_sections(subscription: OpticalSpectrumSubscriptionProvisioning) -> State:
     passband = subscription.optical_spectrum.passband
     spectrum_name = subscription.optical_spectrum.spectrum_name
     carrier = (int(0.5 * (passband[0] + passband[1])), passband[1] - passband[0])
@@ -382,7 +382,7 @@ def provision_optical_sections(subscription: OpticalSpectrumProvisioning) -> Sta
 
 
 @step("Updating the available passbands of any Open Line System port in the path")
-def update_used_passbands_step(subscription: OpticalSpectrumProvisioning) -> State:
+def update_used_passbands_step(subscription: OpticalSpectrumSubscriptionProvisioning) -> State:
     spectrum = subscription.optical_spectrum
     update_used_passbands(spectrum)
 

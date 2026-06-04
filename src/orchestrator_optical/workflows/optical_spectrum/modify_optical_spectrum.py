@@ -26,8 +26,8 @@ from structlog import get_logger
 
 from orchestrator_optical.products.product_blocks.optical_node import DeviceType
 from orchestrator_optical.products.product_types.optical_spectrum import (
-    OpticalSpectrum,
-    OpticalSpectrumProvisioning,
+    OpticalSpectrumSubscription,
+    OpticalSpectrumSubscriptionProvisioning,
 )
 from orchestrator_optical.products.services.optical_spectrum import (
     modify_optical_circuit,
@@ -51,7 +51,7 @@ logger = get_logger(__name__)
 
 
 def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
-    subscription = OpticalSpectrum.from_subscription(subscription_id)
+    subscription = OpticalSpectrumSubscription.from_subscription(subscription_id)
     optical_spectrum = subscription.optical_spectrum
     old_passband = optical_spectrum.passband
     old_spectrum_name = optical_spectrum.spectrum_name
@@ -158,7 +158,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 
 @step("Update subscription")
 def update_subscription(
-    subscription: OpticalSpectrumProvisioning,
+    subscription: OpticalSpectrumSubscriptionProvisioning,
     optical_spectrum_name: str,
     frequency_min: Frequency,
     frequency_max: Frequency,
@@ -184,14 +184,14 @@ def update_subscription(
 
 
 @step("Update subscription description")
-def update_subscription_description(subscription: OpticalSpectrum) -> State:
+def update_subscription_description(subscription: OpticalSpectrumSubscription) -> State:
     subscription.description = subscription_description(subscription)
     return {"subscription": subscription}
 
 
 @step("Dividing the optical path into single-device-family sections")
 def divide_path_into_sections(
-    subscription: OpticalSpectrumProvisioning,
+    subscription: OpticalSpectrumSubscriptionProvisioning,
     optical_path: list[UUIDstr],
 ) -> State:
     src_port = subscription.optical_spectrum.optical_spectrum_sections[0].add_drop_ports[0]
@@ -209,7 +209,7 @@ def divide_path_into_sections(
 
 @step("Modifying optical spectrum sections")
 def modify_optical_sections(
-    subscription: OpticalSpectrumProvisioning,
+    subscription: OpticalSpectrumSubscriptionProvisioning,
     old_passband: Passband,
     old_spectrum_name: str,
 ) -> State:

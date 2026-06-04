@@ -511,7 +511,7 @@ from structlog import get_logger
 
 from orchestrator_optical.products.product_blocks.optical_digital_service import ClientSpeednType
 from orchestrator_optical.products.product_blocks.optical_node import DeviceType, VendorAndPlatform
-from orchestrator_optical.products.product_blocks.optical_port import OpticalPortUnion
+from orchestrator_optical.products.product_blocks.optical_port import OpticalPortBlocksUnion
 from orchestrator_optical.products.product_blocks.transport_channel import (
     OpticalTransportChannelBlock,
     OpticalTransportChannelBlockInactive,
@@ -930,8 +930,8 @@ def construct_optical_digital_service_model(
         channel.och_id = och_ids[i]
         channel.central_frequency = frequencies[i]
         channel.mode = mode
-        channel.line_ports[0] = OpticalPortUnion.from_db(line_ports_a[i])
-        channel.line_ports[1] = OpticalPortUnion.from_db(line_ports_b[i])
+        channel.line_ports[0] = OpticalPortBlocksUnion.from_db(line_ports_a[i])
+        channel.line_ports[1] = OpticalPortBlocksUnion.from_db(line_ports_b[i])
 
         optical_spectrum = channel.optical_spectrum
         optical_spectrum.spectrum_name = f"OCh{och_ids[i]:03d} {code_pop_a}-{code_pop_b}"
@@ -1153,7 +1153,7 @@ def set_trx_transmitted_power(
         optical_spectrum = channel.optical_spectrum
         spectrum_name = optical_spectrum.spectrum_name
 
-        add_drop_ports: list[OpticalPortUnion] = []
+        add_drop_ports: list[OpticalPortBlocksUnion] = []
         for section in optical_spectrum.optical_spectrum_sections:
             section_platform = section.add_drop_ports[0].optical_node.vendor_and_platform
             if section_platform == VendorAndPlatform.FlexILS:

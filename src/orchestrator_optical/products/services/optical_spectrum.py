@@ -16,11 +16,11 @@ from typing import Any
 
 from orchestrator_optical.products.product_blocks.optical_node import (
     DeviceType,
-    OpticalNodeUnion,
+    OpticalNodeBlockUnion,
     VendorAndPlatform,
 )
 from orchestrator_optical.products.product_blocks.optical_pipe import (
-    OpticalPortUnion,
+    OpticalPortBlocksUnion,
 )
 from orchestrator_optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlock,
@@ -36,8 +36,8 @@ from orchestrator_optical.utils.custom_types.frequencies import Bandwidth, Frequ
 
 
 def _divide_path_into_omses(
-    optical_path: list[OpticalPortUnion],
-) -> list[tuple[OpticalPortUnion, OpticalPortUnion]]:
+    optical_path: list[OpticalPortBlocksUnion],
+) -> list[tuple[OpticalPortBlocksUnion, OpticalPortBlocksUnion]]:
     """
     Divides an optical path into OMS (Optical Multiplex Section) segments,
     i.e. links between ROADMs not including amplifiers.
@@ -78,9 +78,9 @@ def _divide_path_into_omses(
 
 def _find_or_create_oel(
     oel_name: str,
-    source_device: OpticalNodeUnion,
-    dest_device: OpticalNodeUnion,
-    omses: list[tuple[OpticalPortUnion, OpticalPortUnion]],
+    source_device: OpticalNodeBlockUnion,
+    dest_device: OpticalNodeBlockUnion,
+    omses: list[tuple[OpticalPortBlocksUnion, OpticalPortBlocksUnion]],
 ) -> dict[str, Any]:
     """
     Finds existing OEL (Optical Engineered Lightpath) or creates a new one if needed.
@@ -129,7 +129,7 @@ def _find_or_create_oel(
     return response.parsed_data[0]
 
 
-def _oteintf_from_port_name(device: OpticalNodeUnion, port_name: str) -> str:
+def _oteintf_from_port_name(device: OpticalNodeBlockUnion, port_name: str) -> str:
     """Find the Optical Traffic Engineering Interface (OTEINTF) corresponding to the given physical port name."""
     device_name = device.fqdn.replace(".garr.net", "")
     flex = get_optical_node_client(device)
@@ -166,7 +166,7 @@ def _find_fbm_port_if_fmm_port(flex: FlexilsClient, port_name: str) -> str:
     raise ValueError(msg)
 
 
-def _get_flexils_name_client_tributary(device: OpticalNodeUnion, port_name: str) -> tuple[str, FlexilsClient, str]:
+def _get_flexils_name_client_tributary(device: OpticalNodeBlockUnion, port_name: str) -> tuple[str, FlexilsClient, str]:
     """Helper to extract node name, flex client, and tributary endpoint."""
     node_name = device.fqdn.replace(".garr.net", "")
     client = get_optical_node_client(device)
@@ -228,8 +228,8 @@ def _find_matching_osnc_on_flexils(
 
 
 def _find_or_create_osnc(
-    src_device: OpticalNodeUnion,
-    dst_device: OpticalNodeUnion,
+    src_device: OpticalNodeBlockUnion,
+    dst_device: OpticalNodeBlockUnion,
     osnc_name: str,
     osnc_label: str,
     oel_name: str,
@@ -292,7 +292,7 @@ def _find_first_free_sch_id(flex, port_name: str) -> int:
     raise ValueError(msg)
 
 
-def _open_shutter(device: OpticalNodeUnion, sch_aid: str):
+def _open_shutter(device: OpticalNodeBlockUnion, sch_aid: str):
     flex = get_optical_node_client(device)
     flex.put_maintenance(aidtype="SCH", aid=sch_aid)
     flex.ed_sch(aid=sch_aid, shutterstate="OPEN")
@@ -363,7 +363,7 @@ def _find_flexils_osnc(
 
 @attributedispatch("vendor_and_platform")
 def append_optical_circuit_label(
-    source_optical_node: OpticalNodeUnion,
+    source_optical_node: OpticalNodeBlockUnion,
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -374,7 +374,7 @@ def append_optical_circuit_label(
 
 @append_optical_circuit_label.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    source_optical_node: OpticalNodeUnion,  # noqa: ARG001
+    source_optical_node: OpticalNodeBlockUnion,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,
     optical_spectrum_name: str,
     passband: Passband,
@@ -399,7 +399,7 @@ def _(
 
 @append_optical_circuit_label.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    source_optical_node: OpticalNodeUnion,  # noqa: ARG001
+    source_optical_node: OpticalNodeBlockUnion,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -410,7 +410,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def deploy_optical_circuit(
-    source_optical_node: OpticalNodeUnion,
+    source_optical_node: OpticalNodeBlockUnion,
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -436,7 +436,7 @@ def deploy_optical_circuit(
 
 @deploy_optical_circuit.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    source_optical_node: OpticalNodeUnion,  # noqa: ARG001
+    source_optical_node: OpticalNodeBlockUnion,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,
     optical_spectrum_name: str,
     passband: Passband,
@@ -498,7 +498,7 @@ def _(
 
 @deploy_optical_circuit.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    source_optical_node: OpticalNodeUnion,  # noqa: ARG001
+    source_optical_node: OpticalNodeBlockUnion,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -511,7 +511,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def modify_optical_circuit(
-    source_optical_node: OpticalNodeUnion,
+    source_optical_node: OpticalNodeBlockUnion,
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -541,7 +541,7 @@ def modify_optical_circuit(
 
 @modify_optical_circuit.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    source_optical_node: OpticalNodeUnion,
+    source_optical_node: OpticalNodeBlockUnion,
     optical_spectrum_section: OpticalSpectrumSectionBlock,
     optical_spectrum_name: str,
     passband: Passband,
@@ -621,7 +621,7 @@ def _(
 
 @modify_optical_circuit.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    source_optical_node: OpticalNodeUnion,  # noqa: ARG001
+    source_optical_node: OpticalNodeBlockUnion,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -636,7 +636,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def delete_optical_circuit(
-    source_optical_node: OpticalNodeUnion,
+    source_optical_node: OpticalNodeBlockUnion,
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -658,7 +658,7 @@ def delete_optical_circuit(
 
 @delete_optical_circuit.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    source_optical_node: OpticalNodeUnion,  # noqa: ARG001
+    source_optical_node: OpticalNodeBlockUnion,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,
     optical_spectrum_name: str,
     passband: Passband,
@@ -683,7 +683,7 @@ def _(
 
 @delete_optical_circuit.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    source_optical_node: OpticalNodeUnion,  # noqa: ARG001
+    source_optical_node: OpticalNodeBlockUnion,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -694,7 +694,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def validate_optical_circuit(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -720,7 +720,7 @@ def validate_optical_circuit(
 
 @validate_optical_circuit.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    optical_node: OpticalNodeUnion,  # noqa: ARG001
+    optical_node: OpticalNodeBlockUnion,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,
     optical_spectrum_name: str,
     passband: Passband,
@@ -765,7 +765,7 @@ def _(
 
 @validate_optical_circuit.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,  # noqa: ARG001
+    optical_node: OpticalNodeBlockUnion,  # noqa: ARG001
     optical_spectrum_section: OpticalSpectrumSectionBlock,  # noqa: ARG001
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -778,7 +778,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def create_optical_cross_connection(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     from_port: str,  # noqa: ARG001
     to_port: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -806,7 +806,7 @@ def create_optical_cross_connection(
 
 @create_optical_cross_connection.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     from_port: str,
     to_port: str,
     passband: Passband,
@@ -859,7 +859,7 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def delete_optical_cross_connection(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     from_port: str,  # noqa: ARG001
     to_port: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
@@ -887,7 +887,7 @@ def delete_optical_cross_connection(
 
 @delete_optical_cross_connection.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     from_port: str,
     to_port: str,
     passband: Passband,

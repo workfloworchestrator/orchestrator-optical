@@ -19,7 +19,7 @@ from typing import Any, ClassVar
 
 from pydantic_forms.types import UUIDstr
 
-from orchestrator_optical.products.product_blocks.optical_node import NokiaFlexILSNode, OpticalNodeUnion
+from orchestrator_optical.products.product_blocks.optical_node import NokiaFlexILSNodeBlock, OpticalNodeBlockUnion
 from orchestrator_optical.products.product_types.optical_node import (
     VendorAndPlatform,
 )
@@ -49,7 +49,7 @@ class FlexilsGneProvider:
         cls._gne_ip_by_sne = {}
         cls._tid_ip_xyz_of_gnes = []
         for si in sub_instances:
-            dev = NokiaFlexILSNode.from_db(si.subscription_instance_id)
+            dev = NokiaFlexILSNodeBlock.from_db(si.subscription_instance_id)
             if dev.mngmt_ip and dev.pop.latitude and dev.pop.longitude:
                 lat = radians(float(dev.pop.latitude))
                 lon = radians(float(dev.pop.longitude))
@@ -66,7 +66,7 @@ class FlexilsGneProvider:
         logger.debug(msg)
 
     @classmethod
-    def find_closest_gne_ip(cls, ne: NokiaFlexILSNode) -> IPAddress:  # noqa: D102
+    def find_closest_gne_ip(cls, ne: NokiaFlexILSNodeBlock) -> IPAddress:  # noqa: D102
         if not cls._tid_ip_xyz_of_gnes:
             cls._initialize_cache()
 
@@ -119,26 +119,26 @@ class FlexilsGneProvider:
 
 
 @attributedispatch("vendor_and_platform")
-def get_optical_node_client(optical_node: OpticalNodeUnion) -> FlexilsClient | G30Client | G42Client:
+def get_optical_node_client(optical_node: OpticalNodeBlockUnion) -> FlexilsClient | G30Client | G42Client:
     return attribute_dispatch_base(get_optical_node_client, "vendor_and_platform", optical_node.vendor_and_platform)
 
 
 @get_optical_node_client.register(VendorAndPlatform.NOKIA_FLEXILS)
-def _(optical_node: OpticalNodeUnion) -> FlexilsClient:
+def _(optical_node: OpticalNodeBlockUnion) -> FlexilsClient:
     tid = optical_node.pqdn
     gne_ip = optical_node.mngmt_ip or FlexilsGneProvider.find_closest_gne_ip(optical_node)
     return FlexilsClient.get_instance(tid=tid, gne_ip=gne_ip)
 
 
 @get_optical_node_client.register(VendorAndPlatform.NOKIA_GROOVE_G30)
-def _(optical_node: OpticalNodeUnion) -> G30Client:
+def _(optical_node: OpticalNodeBlockUnion) -> G30Client:
     lo_ip = optical_node.lo_ip
     mngmt_ip = optical_node.mngmt_ip
     return G30Client(loopback_ip=lo_ip, management_ip=mngmt_ip)
 
 
 @get_optical_node_client.register(VendorAndPlatform.NOKIA_GX_G42)
-def _(optical_node: OpticalNodeUnion) -> G42Client:
+def _(optical_node: OpticalNodeBlockUnion) -> G42Client:
     lo_ip = optical_node.lo_ip
     mngmt_ip = optical_node.mngmt_ip
     return G42Client(loopback_ip=lo_ip, management_ip=mngmt_ip)
@@ -146,7 +146,7 @@ def _(optical_node: OpticalNodeUnion) -> G42Client:
 
 @attributedispatch("vendor_and_platform")
 def retrieve_omses_terminating_on_device(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
 ) -> list[dict[str, Any]]:
     """
     Retrieve all the Optical Muxed Sections terminating on a given Optical Device.
@@ -155,7 +155,7 @@ def retrieve_omses_terminating_on_device(
     Specific implementations of this function must specify the platform they work on.
 
     Args:
-        optical_node: The OpticalNodeUnion for which Optical Muxed Sections are to be retrieved.
+        optical_node: The OpticalNodeBlockUnion for which Optical Muxed Sections are to be retrieved.
 
     Returns:
         A list of dictionaries containing information about the Optical Muxed Sections.
@@ -190,7 +190,7 @@ def retrieve_omses_terminating_on_device(
 
 
 @retrieve_omses_terminating_on_device.register(VendorAndPlatform.NOKIA_FLEXILS)
-def _(optical_node: OpticalNodeUnion) -> list[dict[str, Any]]:
+def _(optical_node: OpticalNodeBlockUnion) -> list[dict[str, Any]]:
     flex = get_optical_node_client(optical_node)
     response = flex.rtrv_otelink()
     omses = []
@@ -214,7 +214,7 @@ def _(optical_node: OpticalNodeUnion) -> list[dict[str, Any]]:
 
 @attributedispatch("vendor_and_platform")
 def retrieve_ports_spectral_occupations(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
 ) -> dict[str, list[list[int]]]:
     """
     Retrieve the spectral occupations of ports on a given Optical Device.
@@ -223,7 +223,7 @@ def retrieve_ports_spectral_occupations(
     Specific implementations of this function must specify the platform they work on.
 
     Args:
-        optical_node: The OpticalNodeUnion for which port spectral occupations are to be retrieved.
+        optical_node: The OpticalNodeBlockUnion for which port spectral occupations are to be retrieved.
 
     Returns:
         A dictionary where keys are port names and values are lists of spectral occupations.
@@ -246,7 +246,7 @@ def retrieve_ports_spectral_occupations(
 
 
 @retrieve_ports_spectral_occupations.register(VendorAndPlatform.NOKIA_FLEXILS)
-def _(optical_node: OpticalNodeUnion) -> dict[str, list[list[int]]]:
+def _(optical_node: OpticalNodeBlockUnion) -> dict[str, list[list[int]]]:
     spectral_occupations = {}
     flex = get_optical_node_client(optical_node)
     response = flex.rtrv_otelink()
@@ -261,10 +261,10 @@ def _(optical_node: OpticalNodeUnion) -> dict[str, list[list[int]]]:
 
 
 @retrieve_ports_spectral_occupations.register(VendorAndPlatform.NOKIA_GROOVE_G30)
-def _(optical_node: OpticalNodeUnion) -> dict[str, list[list[int]]]:  # noqa: ARG001
+def _(optical_node: OpticalNodeBlockUnion) -> dict[str, list[list[int]]]:  # noqa: ARG001
     return {}
 
 
 @retrieve_ports_spectral_occupations.register(VendorAndPlatform.NOKIA_GX_G42)
-def _(optical_node: OpticalNodeUnion) -> dict[str, list[list[int]]]:  # noqa: ARG001
+def _(optical_node: OpticalNodeBlockUnion) -> dict[str, list[list[int]]]:  # noqa: ARG001
     return {}

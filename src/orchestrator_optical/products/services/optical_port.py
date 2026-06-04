@@ -17,8 +17,8 @@ import json
 import re
 from typing import TYPE_CHECKING, Any, Literal
 
-from orchestrator_optical.products.product_blocks.optical_node import OpticalNodeUnion
-from orchestrator_optical.products.product_blocks.optical_port import OpticalPortUnion
+from orchestrator_optical.products.product_blocks.optical_node import OpticalNodeBlockUnion
+from orchestrator_optical.products.product_blocks.optical_port import OpticalPortBlocksUnion
 from orchestrator_optical.products.product_types.optical_node import (
     VendorAndPlatform,
 )
@@ -59,13 +59,13 @@ def g30_ids_from_port_name(port_name: str) -> tuple[int, int, int | None, int, i
 
 
 def g30_port_navigator_node_from_port_name(
-    g30_device_block: OpticalNodeUnion, port_name: str
+    g30_device_block: OpticalNodeBlockUnion, port_name: str
 ) -> tuple[PortItemNode | SubportItemNode, int, int, int | None, int, int | None]:
     """
     Returns the RESTCONF endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id.
 
     Args:
-        g30_device_block: OpticalNodeUnion of the Groove G30 device
+        g30_device_block: OpticalNodeBlockUnion of the Groove G30 device
         port_name: The name of the port to obtain the endpoint from
 
     Returns:
@@ -99,7 +99,7 @@ def g30_port_navigator_node_from_port_name(
 
 
 @attributedispatch("vendor_and_platform")
-def retrieve_transceiver_modes(optical_node: OpticalNodeUnion, port_name: str) -> list[str]:  # noqa: ARG001
+def get_optical_transceiver_modes(optical_node: OpticalNodeBlockUnion, port_name: str) -> list[str]:  # noqa: ARG001
     """
     Retrieve the list of supported modulations for a specific port on an optical device.
 
@@ -107,17 +107,17 @@ def retrieve_transceiver_modes(optical_node: OpticalNodeUnion, port_name: str) -
     appropriate implementation based on the platform of the optical device.
 
     Args:
-        optical_node (OpticalNodeUnion): The optical device containing the port.
+        optical_node (OpticalNodeBlockUnion): The optical device containing the port.
         port_name (str): The name of the port for which to retrieve modulations.
 
     Returns:
         List[str]: A list of supported modes for the specified port.
     """
-    return attribute_dispatch_base(retrieve_transceiver_modes, "vendor_and_platform", optical_node.vendor_and_platform)
+    return attribute_dispatch_base(get_optical_transceiver_modes, "vendor_and_platform", optical_node.vendor_and_platform)
 
 
-@retrieve_transceiver_modes.register(VendorAndPlatform.NOKIA_GROOVE_G30)
-def _(optical_node: OpticalNodeUnion, port_name: str) -> list[str]:
+@get_optical_transceiver_modes.register(VendorAndPlatform.NOKIA_GROOVE_G30)
+def _(optical_node: OpticalNodeBlockUnion, port_name: str) -> list[str]:
     # prevent ruff from formatting the next mapping
     # fmt: off
     mapping = {
@@ -153,8 +153,8 @@ def _(optical_node: OpticalNodeUnion, port_name: str) -> list[str]:
     return supported_modes
 
 
-@retrieve_transceiver_modes.register(VendorAndPlatform.NOKIA_GX_G42)
-def _(optical_node: OpticalNodeUnion, port_name: str) -> list[str]:
+@get_optical_transceiver_modes.register(VendorAndPlatform.NOKIA_GX_G42)
+def _(optical_node: OpticalNodeBlockUnion, port_name: str) -> list[str]:
     # prevent ruff from formatting the next mapping
     # fmt: off
     mapping = {
@@ -235,7 +235,7 @@ def _(optical_node: OpticalNodeUnion, port_name: str) -> list[str]:
 
 
 @attributedispatch("vendor_and_platform")
-def get_device_ports_names(optical_node: OpticalNodeUnion) -> list[str]:
+def get_optical_node_ports_names(optical_node: OpticalNodeBlockUnion) -> list[str]:
     """
     Retrieve a list of optical ports of an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
@@ -250,19 +250,19 @@ def get_device_ports_names(optical_node: OpticalNodeUnion) -> list[str]:
         TypeError: in case a specific implementation could not be found. The domain model it was called for will be
             part of the error message.
     """
-    return attribute_dispatch_base(get_device_ports_names, "vendor_and_platform", optical_node.vendor_and_platform)
+    return attribute_dispatch_base(get_optical_node_ports_names, "vendor_and_platform", optical_node.vendor_and_platform)
 
 
-@get_device_ports_names.register(VendorAndPlatform.NOKIA_FLEXILS)
-def _(optical_node: OpticalNodeUnion) -> list[str]:
+@get_optical_node_ports_names.register(VendorAndPlatform.NOKIA_FLEXILS)
+def _(optical_node: OpticalNodeBlockUnion) -> list[str]:
     flex = get_optical_node_client(optical_node)
     scg_aids = [x["AID"] for x in flex.rtrv_scg().parsed_data]
     ots_aids = [x["AID"] for x in flex.rtrv_ots().parsed_data]
     return scg_aids + ots_aids
 
 
-@get_device_ports_names.register(VendorAndPlatform.NOKIA_GROOVE_G30)
-def _(optical_node: OpticalNodeUnion) -> list[str]:
+@get_optical_node_ports_names.register(VendorAndPlatform.NOKIA_GROOVE_G30)
+def _(optical_node: OpticalNodeBlockUnion) -> list[str]:
     g30 = get_optical_node_client(optical_node)
     shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
 
@@ -287,8 +287,8 @@ def _(optical_node: OpticalNodeUnion) -> list[str]:
     return ports_name
 
 
-@get_device_ports_names.register(VendorAndPlatform.NOKIA_GX_G42)
-def _(optical_node: OpticalNodeUnion) -> list[str]:
+@get_optical_node_ports_names.register(VendorAndPlatform.NOKIA_GX_G42)
+def _(optical_node: OpticalNodeBlockUnion) -> list[str]:
     g42 = get_optical_node_client(optical_node)
 
     cards = g42.data.ne.equipment.card.retrieve(depth=3, content="all")
@@ -302,7 +302,7 @@ def _(optical_node: OpticalNodeUnion) -> list[str]:
 
 
 @attributedispatch("vendor_and_platform")
-def get_device_client_ports_names(optical_node: OpticalNodeUnion) -> list[str]:
+def get_optical_node_client_ports_names(optical_node: OpticalNodeBlockUnion) -> list[str]:
     """
     Retrieve a list of optical ports of an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
@@ -317,17 +317,17 @@ def get_device_client_ports_names(optical_node: OpticalNodeUnion) -> list[str]:
         TypeError: in case a specific implementation could not be found. The domain model it was called for will be
             part of the error message.
     """
-    return attribute_dispatch_base(get_device_client_ports_names, "vendor_and_platform", optical_node.vendor_and_platform)
+    return attribute_dispatch_base(get_optical_node_client_ports_names, "vendor_and_platform", optical_node.vendor_and_platform)
 
 
-@get_device_client_ports_names.register(VendorAndPlatform.NOKIA_FLEXILS)
-def _(optical_node: OpticalNodeUnion) -> list[str]:
+@get_optical_node_client_ports_names.register(VendorAndPlatform.NOKIA_FLEXILS)
+def _(optical_node: OpticalNodeBlockUnion) -> list[str]:
     flex = get_optical_node_client(optical_node)
     return [x["AID"] for x in flex.rtrv_scg().parsed_data]
 
 
-@get_device_client_ports_names.register(VendorAndPlatform.NOKIA_GROOVE_G30)
-def _(optical_node: OpticalNodeUnion) -> list[str]:
+@get_optical_node_client_ports_names.register(VendorAndPlatform.NOKIA_GROOVE_G30)
+def _(optical_node: OpticalNodeBlockUnion) -> list[str]:
     g30 = get_optical_node_client(optical_node)
     shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
 
@@ -358,8 +358,8 @@ def _(optical_node: OpticalNodeUnion) -> list[str]:
     return ports_name
 
 
-@get_device_client_ports_names.register(VendorAndPlatform.NOKIA_GX_G42)
-def _(optical_node: OpticalNodeUnion) -> list[str]:
+@get_optical_node_client_ports_names.register(VendorAndPlatform.NOKIA_GX_G42)
+def _(optical_node: OpticalNodeBlockUnion) -> list[str]:
     g42 = get_optical_node_client(optical_node)
 
     cards = g42.data.ne.equipment.card.retrieve(depth=3, content="all")
@@ -373,7 +373,7 @@ def _(optical_node: OpticalNodeUnion) -> list[str]:
 
 
 @attributedispatch("vendor_and_platform")
-def get_device_line_ports_names(optical_node: OpticalNodeUnion) -> list[str]:
+def get_optical_node_line_ports_names(optical_node: OpticalNodeBlockUnion) -> list[str]:
     """
     Retrieve a list of optical ports of an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
@@ -388,17 +388,17 @@ def get_device_line_ports_names(optical_node: OpticalNodeUnion) -> list[str]:
         TypeError: in case a specific implementation could not be found. The domain model it was called for will be
             part of the error message.
     """
-    return attribute_dispatch_base(get_device_line_ports_names, "vendor_and_platform", optical_node.vendor_and_platform)
+    return attribute_dispatch_base(get_optical_node_line_ports_names, "vendor_and_platform", optical_node.vendor_and_platform)
 
 
-@get_device_line_ports_names.register(VendorAndPlatform.NOKIA_FLEXILS)
-def _(optical_node: OpticalNodeUnion) -> list[str]:
+@get_optical_node_line_ports_names.register(VendorAndPlatform.NOKIA_FLEXILS)
+def _(optical_node: OpticalNodeBlockUnion) -> list[str]:
     flex = get_optical_node_client(optical_node)
     return [x["AID"] for x in flex.rtrv_ots().parsed_data]
 
 
-@get_device_line_ports_names.register(VendorAndPlatform.NOKIA_GROOVE_G30)
-def _(optical_node: OpticalNodeUnion) -> list[str]:
+@get_optical_node_line_ports_names.register(VendorAndPlatform.NOKIA_GROOVE_G30)
+def _(optical_node: OpticalNodeBlockUnion) -> list[str]:
     g30 = get_optical_node_client(optical_node)
     shelves = g30.data.ne_ne.shelf.retrieve(depth=5, content="config")
 
@@ -419,8 +419,8 @@ def _(optical_node: OpticalNodeUnion) -> list[str]:
     return ports_name
 
 
-@get_device_line_ports_names.register(VendorAndPlatform.NOKIA_GX_G42)
-def _(optical_node: OpticalNodeUnion) -> list[str]:
+@get_optical_node_line_ports_names.register(VendorAndPlatform.NOKIA_GX_G42)
+def _(optical_node: OpticalNodeBlockUnion) -> list[str]:
     g42 = get_optical_node_client(optical_node)
 
     cards = g42.data.ne.equipment.card.retrieve(depth=3, content="all")
@@ -434,7 +434,7 @@ def _(optical_node: OpticalNodeUnion) -> list[str]:
 
 
 @attributedispatch("vendor_and_platform")
-def set_port_description(optical_node: OpticalNodeUnion, port_name: str, port_description: str) -> dict[str, Any]:  # noqa: ARG001
+def set_port_description(optical_node: OpticalNodeBlockUnion, port_name: str, port_description: str) -> dict[str, Any]:  # noqa: ARG001
     """
     Set the description of an optical port on an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
@@ -456,7 +456,7 @@ def set_port_description(optical_node: OpticalNodeUnion, port_name: str, port_de
 
 
 @set_port_description.register(VendorAndPlatform.NOKIA_FLEXILS)
-def _(optical_node: OpticalNodeUnion, port_name: str, port_description: str) -> dict[str, Any]:
+def _(optical_node: OpticalNodeBlockUnion, port_name: str, port_description: str) -> dict[str, Any]:
     flex = get_optical_node_client(optical_node)
     if "L" in port_name:
         flex.ed_ots(aid=port_name, label=rf'"{port_description}"')
@@ -466,7 +466,7 @@ def _(optical_node: OpticalNodeUnion, port_name: str, port_description: str) -> 
 
 
 @set_port_description.register(VendorAndPlatform.NOKIA_GROOVE_G30)
-def _(optical_node: OpticalNodeUnion, port_name: str, port_description: str) -> dict[str, Any]:
+def _(optical_node: OpticalNodeBlockUnion, port_name: str, port_description: str) -> dict[str, Any]:
     endpoint, _, _, _, _, _ = g30_port_navigator_node_from_port_name(optical_node, port_name)
     port = endpoint.retrieve(content="config", depth=2)
     port.service_label = port_description
@@ -475,7 +475,7 @@ def _(optical_node: OpticalNodeUnion, port_name: str, port_description: str) -> 
 
 
 @set_port_description.register(VendorAndPlatform.NOKIA_GX_G42)
-def _(optical_node: OpticalNodeUnion, port_name: str, port_description: str) -> dict[str, Any]:
+def _(optical_node: OpticalNodeBlockUnion, port_name: str, port_description: str) -> dict[str, Any]:
     shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
     g42 = get_optical_node_client(optical_node)
     port_uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
@@ -489,7 +489,7 @@ def _(optical_node: OpticalNodeUnion, port_name: str, port_description: str) -> 
 
 
 @attributedispatch("vendor_and_platform")
-def set_channel_description(optical_node: OpticalNodeUnion, facility_id: str, description: str) -> dict[str, Any]:  # noqa: ARG001
+def set_channel_description(optical_node: OpticalNodeBlockUnion, facility_id: str, description: str) -> dict[str, Any]:  # noqa: ARG001
     """
     Set the description of an optical channel on an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
@@ -511,7 +511,7 @@ def set_channel_description(optical_node: OpticalNodeUnion, facility_id: str, de
 
 
 @set_channel_description.register(VendorAndPlatform.NOKIA_GROOVE_G30)
-def _(optical_node: OpticalNodeUnion, facility_id: str, description: str) -> dict[str, Any]:
+def _(optical_node: OpticalNodeBlockUnion, facility_id: str, description: str) -> dict[str, Any]:
     g30 = get_optical_node_client(optical_node)
     shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(facility_id)
     uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os
@@ -524,7 +524,7 @@ def _(optical_node: OpticalNodeUnion, facility_id: str, description: str) -> dic
 
 
 @set_channel_description.register(VendorAndPlatform.NOKIA_GX_G42)
-def _(optical_node: OpticalNodeUnion, facility_id: str, description: str) -> dict[str, Any]:
+def _(optical_node: OpticalNodeBlockUnion, facility_id: str, description: str) -> dict[str, Any]:
     g42 = get_optical_node_client(optical_node)
     port_name = facility_id  # e.g. "1-4-L2"
 
@@ -548,7 +548,7 @@ def _(optical_node: OpticalNodeUnion, facility_id: str, description: str) -> dic
 
 @attributedispatch("vendor_and_platform")
 def set_port_admin_state(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,  # noqa: ARG001
     admin_state: Literal["up", "down", "maintenance"],  # noqa: ARG001
 ) -> dict[str, Any]:
@@ -574,7 +574,7 @@ def set_port_admin_state(
 
 @set_port_admin_state.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
@@ -619,7 +619,7 @@ def _(
 
 @set_port_admin_state.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
@@ -641,7 +641,7 @@ def _(
 
 @set_port_admin_state.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
@@ -666,9 +666,9 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def configure_termination_when_attaching_new_fiber(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,  # noqa: ARG001
-    remote_port: OpticalPortUnion,  # noqa: ARG001
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,  # noqa: ARG001
+    remote_port: OpticalPortBlocksUnion,  # noqa: ARG001
 ) -> dict[str, Any]:
     """
     Configure an optical port on an OpticalDevice when attaching a fiber to it.
@@ -693,7 +693,7 @@ def configure_termination_when_attaching_new_fiber(
 
 
 def flexils_check_port_is_in_manualmode2_else_set_it(
-    optical_node: OpticalNodeUnion,
+    optical_node: OpticalNodeBlockUnion,
     port_name: str,
 ):
     flex = get_optical_node_client(optical_node)
@@ -717,9 +717,9 @@ def flexils_check_port_is_in_manualmode2_else_set_it(
 
 @configure_termination_when_attaching_new_fiber.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,
-    remote_port: OpticalPortUnion,
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,
+    remote_port: OpticalPortBlocksUnion,
 ) -> dict[str, Any]:
     flex = get_optical_node_client(optical_node)
     port_name = port.port_name
@@ -746,7 +746,7 @@ def _(
     return flex.rtrv_scg(aid=port_name)
 
 
-def _get_remote_node_id(remote_port: OpticalPortUnion) -> str:
+def _get_remote_node_id(remote_port: OpticalPortBlocksUnion) -> str:
     """Extract node ID from remote port's device based on platform type."""
     platform = remote_port.optical_node.vendor_and_platform
 
@@ -768,7 +768,7 @@ def _get_remote_node_id(remote_port: OpticalPortUnion) -> str:
     raise ValueError(msg)
 
 
-def _extract_remote_port_id(remote_port: OpticalPortUnion) -> str:
+def _extract_remote_port_id(remote_port: OpticalPortBlocksUnion) -> str:
     """Extract and format the port ID from the remote port name."""
     match = re.search(r"\d", remote_port.port_name)
     if not match:
@@ -780,9 +780,9 @@ def _extract_remote_port_id(remote_port: OpticalPortUnion) -> str:
 
 @configure_termination_when_attaching_new_fiber.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(  # noqa: PLR0915
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,
-    remote_port: OpticalPortUnion,
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,
+    remote_port: OpticalPortBlocksUnion,
 ) -> dict[str, Any]:
     port_name = port.port_name
     endpoint, shelf_id, slot_id, subslot_id, port_id, _ = g30_port_navigator_node_from_port_name(
@@ -867,9 +867,9 @@ def _(  # noqa: PLR0915
 
 @configure_termination_when_attaching_new_fiber.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,
-    remote_port: OpticalPortUnion,
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,
+    remote_port: OpticalPortBlocksUnion,
 ) -> dict[str, Any]:
     shelf_id, slot_id, port_id = port.port_name.split("-")
     g42 = get_optical_node_client(optical_node)
@@ -885,9 +885,9 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def factory_reset_port_configuration(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,  # noqa: ARG001
-    remote_port: OpticalPortUnion,  # noqa: ARG001
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,  # noqa: ARG001
+    remote_port: OpticalPortBlocksUnion,  # noqa: ARG001
 ) -> dict[str, Any]:
     """Prune the configuration of an optical port on an OpticalDevice."""
     return attribute_dispatch_base(factory_reset_port_configuration, "vendor_and_platform", optical_node.vendor_and_platform)
@@ -895,9 +895,9 @@ def factory_reset_port_configuration(
 
 @factory_reset_port_configuration.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,
-    remote_port: OpticalPortUnion,
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,
+    remote_port: OpticalPortBlocksUnion,
 ) -> dict[str, Any]:
     flex = get_optical_node_client(optical_node)
     port_name = port.port_name
@@ -919,9 +919,9 @@ def _(
 
 @factory_reset_port_configuration.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,
-    remote_port: OpticalPortUnion,  # noqa: ARG001
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,
+    remote_port: OpticalPortBlocksUnion,  # noqa: ARG001
 ) -> dict[str, Any]:
     port_name = port.port_name
     port_uri = g30_port_navigator_node_from_port_name(optical_node, port_name)[0]
@@ -943,9 +943,9 @@ def _(
 
 @factory_reset_port_configuration.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,
-    remote_port: OpticalPortUnion,  # noqa: ARG001
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,
+    remote_port: OpticalPortBlocksUnion,  # noqa: ARG001
 ) -> dict[str, Any]:
     g42 = get_optical_node_client(optical_node)
     shelf_id, slot_id, port_id = port.port_name.split("-")
@@ -961,9 +961,9 @@ def _(
 
 @attributedispatch("vendor_and_platform")
 def check_fiber_terminating_port(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,  # noqa: ARG001
-    remote_port: OpticalPortUnion,  # noqa: ARG001
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,  # noqa: ARG001
+    remote_port: OpticalPortBlocksUnion,  # noqa: ARG001
 ) -> None:
     """
     Check if an optical port on an OpticalDevice attached to a fiber is correctly configured.
@@ -986,9 +986,9 @@ def check_fiber_terminating_port(
 
 @check_fiber_terminating_port.register(VendorAndPlatform.NOKIA_FLEXILS)
 def _(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,
-    remote_port: OpticalPortUnion,
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,
+    remote_port: OpticalPortBlocksUnion,
 ) -> None:
     flex = get_optical_node_client(optical_node)
     port_name = port.port_name
@@ -1073,9 +1073,9 @@ def _(
 
 @check_fiber_terminating_port.register(VendorAndPlatform.NOKIA_GROOVE_G30)
 def _(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,
-    remote_port: OpticalPortUnion,
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,
+    remote_port: OpticalPortBlocksUnion,
 ) -> None:
     port_name = port.port_name
     endpoint = g30_port_navigator_node_from_port_name(optical_node, port_name)[0]
@@ -1178,9 +1178,9 @@ def _(
 
 @check_fiber_terminating_port.register(VendorAndPlatform.NOKIA_GX_G42)
 def _(
-    optical_node: OpticalNodeUnion,
-    port: OpticalPortUnion,
-    remote_port: OpticalPortUnion,
+    optical_node: OpticalNodeBlockUnion,
+    port: OpticalPortBlocksUnion,
+    remote_port: OpticalPortBlocksUnion,
 ) -> None:
     g42 = get_optical_node_client(optical_node)
     shelf_id, slot_id, port_id = port.port_name.split("-")

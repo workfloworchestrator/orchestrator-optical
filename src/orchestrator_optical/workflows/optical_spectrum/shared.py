@@ -21,9 +21,9 @@ from structlog import get_logger
 
 from orchestrator_optical.products.product_blocks.optical_node import DeviceType, VendorAndPlatform
 from orchestrator_optical.products.product_blocks.optical_port import (
-    OlsAddDropPort,
-    OpticalPortUnion,
-    TransponderLinePort,
+    OlsAddDropPortBlock,
+    OpticalPortBlocksUnion,
+    TransponderLinePortBlock,
 )
 from orchestrator_optical.products.product_blocks.optical_spectrum import (
     OpticalSpectrumBlockInactive,
@@ -45,11 +45,11 @@ from orchestrator_optical.workflows.shared import subscriptions_by_product_type
 logger = get_logger(__name__)
 
 Node = NewType("Node", UUIDstr)  # OpticalNodeUnion.subscription_instance_id
-Port = NewType("Port", UUIDstr)  # OpticalPortUnion.subscription_instance_id
+Port = NewType("Port", UUIDstr)  # OpticalPortBlocksUnion.subscription_instance_id
 Edge = tuple[Port, Port]  # (port_a_id, port_b_id)
 NeighborConnection = tuple[Node, Edge]
 Graph = dict[Node, list[NeighborConnection]]  # {node_id: [(neighbor_id, (port_a_id, port_b_id)), ...]}
-Path = list[Port]  # List of OpticalPortUnion.subscription_instance_id
+Path = list[Port]  # List of OpticalPortBlocksUnion.subscription_instance_id
 
 
 class NoOpticalPathFoundError(RuntimeError):
@@ -131,12 +131,12 @@ def are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path: Path) -> bool:
         if i % 2 == 1:
             continue
 
-        port_i = OpticalPortUnion.from_db(path[i])
+        port_i = OpticalPortBlocksUnion.from_db(path[i])
         if port_i.optical_node.vendor_and_platform != VendorAndPlatform.NOKIA_GROOVE_G30:
             continue
 
         ii = i + 1
-        port_ii = OpticalPortUnion.from_db(path[ii])
+        port_ii = OpticalPortBlocksUnion.from_db(path[ii])
 
         def _(g30_port_name: str) -> tuple[int, int]:
             ids = g30_port_name.split("-")[-1]  # port-1/3.3/1.1 --> 1/3.3/1.1
@@ -259,12 +259,12 @@ def build_constrained_graph_from_active_fibers(
 def find_add_drop_ports(
     src_trx_port_block_id: UUIDstr,
     dst_trx_port_block_id: UUIDstr,
-) -> tuple[OlsAddDropPort, OlsAddDropPort]:
+) -> tuple[OlsAddDropPortBlock, OlsAddDropPortBlock]:
     """
     Retrieve the add/drop ports connected to the transponder/transceiver ports.
     """
-    src_trx_port = TransponderLinePort.from_db(src_trx_port_block_id)
-    dst_trx_port = TransponderLinePort.from_db(dst_trx_port_block_id)
+    src_trx_port = TransponderLinePortBlock.from_db(src_trx_port_block_id)
+    dst_trx_port = TransponderLinePortBlock.from_db(dst_trx_port_block_id)
 
     src_fiber_sub_id = src_trx_port.owner_subscription_id
     dst_fiber_sub_id = dst_trx_port.owner_subscription_id
@@ -299,7 +299,7 @@ def compute_all_shortest_paths(graph: Graph, src: Node, dst: Node) -> list[Path]
         dst: The destination node subscription instance ID.
 
     Returns:
-        list: A list of all shortest paths. Each path is a list of OpticalPortUnion subscription instance IDs.
+        list: A list of all shortest paths. Each path is a list of OpticalPortBlocksUnion subscription instance IDs.
 
     Raises:
         RuntimeError: If no valid path exists between the source and destination nodes.
@@ -373,7 +373,7 @@ def human_readable_optical_spectrum_path_selector(
     paths_dict = {}
     for path in paths:
         human_readable_path = ""
-        first_port = OpticalPortUnion.from_db(path[0])
+        first_port = OpticalPortBlocksUnion.from_db(path[0])
         ne_name = first_port.optical_node.pqdn
         human_readable_path += f"{ne_name} ({first_port.port_name}) ⇋ "
 
@@ -381,12 +381,12 @@ def human_readable_optical_spectrum_path_selector(
             if i % 2 == 0:
                 continue
 
-            port_i = OpticalPortUnion.from_db(path[i])
-            port_ii = OpticalPortUnion.from_db(path[i + 1])
+            port_i = OpticalPortBlocksUnion.from_db(path[i])
+            port_ii = OpticalPortBlocksUnion.from_db(path[i + 1])
             ne_name = port_i.optical_node.pqdn
             human_readable_path += f"{ne_name} ({port_i.port_name} × {port_ii.port_name}) ⇋ "
 
-        last_port = OpticalPortUnion.from_db(path[-1])
+        last_port = OpticalPortBlocksUnion.from_db(path[-1])
         ne_name = last_port.optical_node.pqdn
         human_readable_path += f"{ne_name} ({last_port.port_name})"
 
@@ -412,8 +412,8 @@ def human_readable_transport_channel_path_selector(
             if i % 2 == 1:
                 continue
 
-            port_i = OpticalPortUnion.from_db(path[i])
-            port_ii = OpticalPortUnion.from_db(path[i + 1])
+            port_i = OpticalPortBlocksUnion.from_db(path[i])
+            port_ii = OpticalPortBlocksUnion.from_db(path[i + 1])
             ne_name = port_i.optical_node.pqdn
             human_readable_path += f"{ne_name} ({port_i.port_name} × {port_ii.port_name}) ⇋ "
             # g30.na01 (port-1/3.1/1 × port-1/3.3/1.1) ⇋ flex.na01 (1-E1-1-T2A × 1-A-1-L1) ⇋ flex.bo01 (2-A-1-L1 × ...
@@ -435,7 +435,7 @@ def transport_channel_path_selector(
 ) -> Choice:
     """
     Selects an optical path between two transceiver port blocks based on the given parameters.
-    The selected path MUST then be parsed using path.split(";") to obtain the sequence of subscription instance IDs of the OpticalPortUnion.
+    The selected path MUST then be parsed using path.split(";") to obtain the sequence of subscription instance IDs of the OpticalPortBlocksUnion.
 
     Args:
         src_trx_port_block_id (UUIDstr): The UUID of the source transceiver port block.
@@ -475,7 +475,7 @@ def optical_spectrum_path_selector(
     """
     Selects an optical path between two optical devices based on the given parameters.
     The selected path MUST then be parsed using path.split(";") to obtain the sequence
-    of subscription instance IDs of the OpticalPortUnion.
+    of subscription instance IDs of the OpticalPortBlocksUnion.
 
     Args:
         src_optical_node_block_id (UUIDstr): The UUID of the source optical device block.
@@ -535,10 +535,10 @@ def store_list_of_ports_into_spectrum_sections(
     """
     ports = []
     for port_id in optical_path:
-        port = OpticalPortUnion.from_db(port_id)
+        port = OpticalPortBlocksUnion.from_db(port_id)
         ports.append(port)
 
-    sections: list[list[OpticalPortUnion]] = []
+    sections: list[list[OpticalPortBlocksUnion]] = []
     current_section = [ports[0]]
     previous_port = ports[0]
     for current_port in ports[1:]:

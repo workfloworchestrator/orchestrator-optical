@@ -18,7 +18,7 @@ from orchestrator.workflows.utils import terminate_workflow
 from pydantic_forms.types import InputForm, State, UUIDstr
 from structlog import get_logger
 
-from orchestrator_optical.products.product_types.optical_spectrum import OpticalSpectrum
+from orchestrator_optical.products.product_types.optical_spectrum import OpticalSpectrumSubscription
 from orchestrator_optical.products.services.optical_spectrum import delete_optical_circuit
 from orchestrator_optical.workflows.optical_spectrum.shared import (
     update_used_passbands,
@@ -37,7 +37,7 @@ def terminate_initial_input_form_generator(subscription_id: UUIDstr, customer_id
 
 
 @step("Deleting optical sections")
-def delete_optical_sections(subscription: OpticalSpectrum) -> State:
+def delete_optical_sections(subscription: OpticalSpectrumSubscription) -> State:
     results = {}
     passband = subscription.optical_spectrum.passband
     spectrum_name = subscription.optical_spectrum.spectrum_name
@@ -57,7 +57,7 @@ def delete_optical_sections(subscription: OpticalSpectrum) -> State:
 
 
 @step("Updating the available passbands of any Open Line System port in the path")
-def update_used_passbands_step(subscription: OpticalSpectrum) -> State:
+def update_used_passbands_step(subscription: OpticalSpectrumSubscription) -> State:
     spectrum = subscription.optical_spectrum
     update_used_passbands(spectrum)
 

@@ -6,9 +6,9 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
 from orchestrator_optical.products.product_blocks.optical_digital_service import (
-    OpticalDigitalService,
-    OpticalDigitalServiceInactive,
-    OpticalDigitalServiceProvisioning,
+    OpticalDigitalServiceBlock,
+    OpticalDigitalServiceBlockInactive,
+    OpticalDigitalServiceBlockProvisioning,
 )
 
 
@@ -34,7 +34,7 @@ class OpticalDigitalServiceSubscriptionInactive(SubscriptionModel, is_base=True)
 
     service_speed: ServiceSpeed
     service_type: ServiceType
-    service: OpticalDigitalServiceInactive
+    service: OpticalDigitalServiceBlockInactive
 
 
 class OpticalDigitalServiceSubscriptionProvisioning(
@@ -43,7 +43,7 @@ class OpticalDigitalServiceSubscriptionProvisioning(
 ):
     """base model for an optical digital service subscription in the PROVISIONING state."""
 
-    service: OpticalDigitalServiceProvisioning
+    service: OpticalDigitalServiceBlockProvisioning
 
 
 class OpticalDigitalServiceSubscription(
@@ -52,6 +52,6 @@ class OpticalDigitalServiceSubscription(
 ):
     """base model for an optical digital service subscription in the ACTIVE state."""
 
-    service: OpticalDigitalService
+    service: OpticalDigitalServiceBlock
 
 

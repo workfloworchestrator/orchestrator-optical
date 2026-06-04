@@ -13,17 +13,17 @@ IpAddressesList = Annotated[
 ]
 
 
-class OpticalLocationInactive(ProductBlockModel, product_block_name="OpticalLocation"):
+class OpticalLocationBlockInactive(ProductBlockModel, product_block_name="OpticalLocation"):
     longitude: LongitudeCoordinate | None = None
     latitude: LatitudeCoordinate | None = None
     fqdn_subdomain: SubdomainPrefix | None = None
 
-class OpticalLocationProvisioning(OpticalLocationInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class OpticalLocationBlockProvisioning(OpticalLocationBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     longitude: LongitudeCoordinate
     latitude: LatitudeCoordinate
     fqdn_subdomain: SubdomainPrefix
 
-class OpticalLocation(OpticalLocationProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalLocationBlock(OpticalLocationBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     pass
 
 

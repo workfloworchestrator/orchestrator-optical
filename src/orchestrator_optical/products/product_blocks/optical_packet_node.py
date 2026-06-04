@@ -6,8 +6,8 @@ from orchestrator.types import SubscriptionLifecycle
 
 from orchestrator_optical.products.product_blocks.optical_location import (
     OpticalLocationBlock,
-    OpticalLocationInactive,
-    OpticalLocationProvisioning,
+    OpticalLocationBlockInactive,
+    OpticalLocationBlockProvisioning,
 )
 from orchestrator_optical.utils.custom_types.dns import Pqdn
 from orchestrator_optical.utils.custom_types.ip_address import IPAddress
@@ -17,19 +17,19 @@ IpAddressesList = Annotated[
 ]
 
 
-class OpticalPacketNodeInactive(ProductBlockModel, product_block_name="OpticalPacketNode"):
+class OpticalPacketNodeBlockInactive(ProductBlockModel, product_block_name="OpticalPacketNode"):
     sw_version: str | None = None
     vendor_and_platform: str | None = None
     pqdn: Pqdn | None = None # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
     management_ips: IpAddressesList | None = None
-    location: OpticalLocationInactive
+    location: OpticalLocationBlockInactive
 
-class OpticalPacketNodeProvisioning(OpticalPacketNodeInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class OpticalPacketNodeBlockProvisioning(OpticalPacketNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     sw_version: str
     vendor_and_platform: str
     pqdn: Pqdn
     management_ips: IpAddressesList
-    location: OpticalLocationProvisioning
+    location: OpticalLocationBlockProvisioning
 
-class OpticalPacketNode(OpticalPacketNodeProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalPacketNodeBlock(OpticalPacketNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     location: OpticalLocationBlock

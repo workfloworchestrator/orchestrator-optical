@@ -6,9 +6,9 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
 from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
-    CoherentPluggable,
-    CoherentPluggableInactive,
-    CoherentPluggableProvisioning,
+    CoherentPluggableBlock,
+    CoherentPluggableBlockInactive,
+    CoherentPluggableBlockProvisioning,
 )
 
 
@@ -21,7 +21,7 @@ class VendorAndPartNo(StrEnum):
 
 class CoherentPluggableSubscriptionInactive(SubscriptionModel, is_base=True):
     vendor_and_part_no: VendorAndPartNo
-    transceiver: CoherentPluggableInactive
+    transceiver: CoherentPluggableBlockInactive
 
 
 class CoherentPluggableSubscriptionProvisioning(
@@ -29,13 +29,13 @@ class CoherentPluggableSubscriptionProvisioning(
     lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     vendor_and_part_no: VendorAndPartNo
-    transceiver: CoherentPluggableProvisioning
+    transceiver: CoherentPluggableBlockProvisioning
 
 
 class CoherentPluggableSubscription(
     CoherentPluggableSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     vendor_and_part_no: VendorAndPartNo
-    transceiver: CoherentPluggable
+    transceiver: CoherentPluggableBlock
 
 

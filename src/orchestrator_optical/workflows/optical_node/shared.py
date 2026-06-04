@@ -13,13 +13,14 @@
 
 from typing import Annotated
 
+from orchestrator.domain import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 from pydantic import Field
 from pydantic_forms.types import UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 
-from orchestrator_optical.products.product_blocks.optical_node import DeviceType
-from orchestrator_optical.products.product_types.optical_node import OpticalDevice
+from orchestrator_optical.products.product_blocks.optical_node import OpticalNodeRole
+from orchestrator_optical.products.product_types.optical_node import OpticalNodeSubscription
 from orchestrator_optical.products.services.optical_port import (
     get_optical_node_client_ports_names,
     get_optical_node_line_ports_names,
@@ -34,7 +35,7 @@ from orchestrator_optical.workflows.shared import (
 
 def optical_port_selector(optical_node_subscription_id: UUIDstr, prompt: str = "") -> Choice:
     """Return a Choice object for selecting an optical port of an OpticalDevice."""
-    subscription = OpticalDevice.from_subscription(optical_node_subscription_id)
+    subscription = SubscriptionModel.from_subscription(optical_node_subscription_id)
     ports = get_optical_node_ports_names(subscription.optical_node)
     if not prompt:
         prompt = f"Select optical port on {subscription.optical_node.pqdn}"
@@ -43,7 +44,7 @@ def optical_port_selector(optical_node_subscription_id: UUIDstr, prompt: str = "
 
 def unused_optical_port_selector(optical_node_subscription_id: UUIDstr, prompt: str = "") -> Choice:
     """Return a Choice object for selecting an unused optical port of an OpticalDevice."""
-    subscription = OpticalDevice.from_subscription(optical_node_subscription_id)
+    subscription = OpticalNodeSubscription.from_subscription(optical_node_subscription_id)
     ports = get_optical_node_ports_names(subscription.optical_node)
 
     ports_in_db = subscription_instance_values_by_block_type_depending_on_instance_id(
@@ -63,7 +64,7 @@ def unused_optical_port_selector(optical_node_subscription_id: UUIDstr, prompt: 
 
 def optical_client_port_selector(optical_node_subscription_id: UUIDstr, prompt: str = "") -> Choice:
     """Return a Choice object for selecting an optical port of an OpticalDevice."""
-    subscription = OpticalDevice.from_subscription(optical_node_subscription_id)
+    subscription = OpticalNodeSubscription.from_subscription(optical_node_subscription_id)
     ports = get_optical_node_client_ports_names(subscription.optical_node)
     if not prompt:
         prompt = f"Select client optical port on {subscription.optical_node.pqdn}"
@@ -72,7 +73,7 @@ def optical_client_port_selector(optical_node_subscription_id: UUIDstr, prompt: 
 
 def unused_optical_client_port_selector(optical_node_subscription_id: UUIDstr, prompt: str = "") -> Choice:
     """Return a Choice object for selecting an unused optical port of an OpticalDevice."""
-    subscription = OpticalDevice.from_subscription(optical_node_subscription_id)
+    subscription = OpticalNodeSubscription.from_subscription(optical_node_subscription_id)
     ports = get_optical_node_client_ports_names(subscription.optical_node)
 
     ports_in_db = subscription_instance_values_by_block_type_depending_on_instance_id(
@@ -92,7 +93,7 @@ def unused_optical_client_port_selector(optical_node_subscription_id: UUIDstr, p
 
 def optical_line_port_selector(optical_node_subscription_id: UUIDstr, prompt: str = "") -> Choice:
     """Return a Choice object for selecting an optical port of an OpticalDevice."""
-    subscription = OpticalDevice.from_subscription(optical_node_subscription_id)
+    subscription = OpticalNodeSubscription.from_subscription(optical_node_subscription_id)
     ports = get_optical_node_line_ports_names(subscription.optical_node)
     if not prompt:
         prompt = f"Select line optical port on {subscription.optical_node.pqdn}"
@@ -101,7 +102,7 @@ def optical_line_port_selector(optical_node_subscription_id: UUIDstr, prompt: st
 
 def unused_optical_line_port_selector(optical_node_subscription_id: UUIDstr, prompt: str = "") -> Choice:
     """Return a Choice object for selecting an unused optical port of an OpticalDevice."""
-    subscription = OpticalDevice.from_subscription(optical_node_subscription_id)
+    subscription = OpticalNodeSubscription.from_subscription(optical_node_subscription_id)
     ports = get_optical_node_line_ports_names(subscription.optical_node)
 
     ports_in_db = subscription_instance_values_by_block_type_depending_on_instance_id(
@@ -120,8 +121,8 @@ def unused_optical_line_port_selector(optical_node_subscription_id: UUIDstr, pro
 
 
 def get_optical_node_subscriptions_by_types(
-    device_types: list[DeviceType],
-) -> list[OpticalDevice]:
+    device_types: list[OpticalNodeRole],
+) -> list[OpticalNodeSubscription]:
     """
     Retrieves a list of active OpticalDevice subscriptions with the given optical device types.
 
@@ -146,7 +147,7 @@ def get_optical_node_subscriptions_by_types(
 
 
 def optical_node_selector_of_types(
-    device_types: list[DeviceType],
+    device_types: list[OpticalNodeRole],
     prompt: str | None = None,
 ) -> Choice:
     """
@@ -172,7 +173,7 @@ def optical_node_selector_of_types(
 
 
 def multiple_optical_node_selector(
-    device_types: list[DeviceType],
+    device_types: list[OpticalNodeRole],
     prompt: str | None = None,
     min_items: int = 0,
     max_items: int | None = None,
@@ -215,7 +216,7 @@ def transceiver_mode_selector(
     Returns:
         Choice: A Choice object containing the prompt and a list of available transceiver modes.
     """
-    subscription = OpticalDevice.from_subscription(optical_node_subscription_id)
+    subscription = OpticalNodeSubscription.from_subscription(optical_node_subscription_id)
     modulations = get_optical_transceiver_modes(subscription.optical_node, port_name)
     if not prompt:
         prompt = "Select a modulation"

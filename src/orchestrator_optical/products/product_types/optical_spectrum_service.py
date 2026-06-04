@@ -5,16 +5,16 @@ from orchestrator.types import SubscriptionLifecycle
 
 # relative because every org must copy this file to its local repo
 from orchestrator_optical.products.product_blocks.optical_spectrum import (
-    OpticalSpectrum,
-    OpticalSpectrumInactive,
-    OpticalSpectrumProvisioning,
+    OpticalSpectrumBlock,
+    OpticalSpectrumBlockInactive,
+    OpticalSpectrumBlockProvisioning,
 )
 
 
 class OpticalSpectrumServiceSubscriptionInactive(SubscriptionModel, is_base=True):
     """base model for an optical spectrum service subscription in the INACTIVE state."""
 
-    spectrum: OpticalSpectrumInactive
+    spectrum: OpticalSpectrumBlockInactive
 
 
 class OpticalSpectrumServiceSubscriptionProvisioning(
@@ -23,7 +23,7 @@ class OpticalSpectrumServiceSubscriptionProvisioning(
 ):
     """base model for an optical spectrum service subscription in the PROVISIONING state."""
 
-    spectrum: OpticalSpectrumProvisioning
+    spectrum: OpticalSpectrumBlockProvisioning
 
 
 class OpticalSpectrumServiceSubscription(
@@ -32,6 +32,6 @@ class OpticalSpectrumServiceSubscription(
 ):
     """base model for an optical spectrum service subscription in the ACTIVE state."""
 
-    spectrum: OpticalSpectrum
+    spectrum: OpticalSpectrumBlock
 
 

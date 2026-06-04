@@ -5,15 +5,15 @@ from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
 from orchestrator_optical.products.product_blocks.optical_pipe import (
-    FiberPatch,
-    FiberPatchInactive,
-    FiberPatchProvisioning,
-    FiberSpan,
-    FiberSpanInactive,
-    FiberSpanProvisioning,
-    LeasedSpectrum,
-    LeasedSpectrumInactive,
-    LeasedSpectrumProvisioning,
+    FiberPatchBlock,
+    FiberPatchBlockInactive,
+    FiberPatchBlockProvisioning,
+    FiberSpanBlock,
+    FiberSpanBlockInactive,
+    FiberSpanBlockProvisioning,
+    LeasedSpectrumBlock,
+    LeasedSpectrumBlockInactive,
+    LeasedSpectrumBlockProvisioning,
 )
 
 # ============================================================================
@@ -24,7 +24,7 @@ from orchestrator_optical.products.product_blocks.optical_pipe import (
 class FiberPatchSubscriptionInactive(SubscriptionModel, is_base=True):
     """base model for an internal fiber patch subscription in the INACTIVE state."""
 
-    fiber: FiberPatchInactive
+    fiber: FiberPatchBlockInactive
 
 
 class FiberPatchSubscriptionProvisioning(
@@ -33,7 +33,7 @@ class FiberPatchSubscriptionProvisioning(
 ):
     """base model for an internal fiber patch subscription in the PROVISIONING state."""
 
-    fiber: FiberPatchProvisioning
+    fiber: FiberPatchBlockProvisioning
 
 
 class FiberPatchSubscription(
@@ -41,7 +41,7 @@ class FiberPatchSubscription(
 ):
     """base model for an internal fiber patch subscription in the ACTIVE state."""
 
-    fiber: FiberPatch
+    fiber: FiberPatchBlock
 
 
 # ============================================================================
@@ -52,7 +52,7 @@ class FiberPatchSubscription(
 class FiberSpanSubscriptionInactive(SubscriptionModel, is_base=True):
     """base model for a fiber span subscription in the INACTIVE state."""
 
-    fiber: FiberSpanInactive
+    fiber: FiberSpanBlockInactive
 
 
 class FiberSpanSubscriptionProvisioning(
@@ -61,7 +61,7 @@ class FiberSpanSubscriptionProvisioning(
 ):
     """base model for a fiber span subscription in the PROVISIONING state."""
 
-    fiber: FiberSpanProvisioning
+    fiber: FiberSpanBlockProvisioning
 
 
 class FiberSpanSubscription(
@@ -69,7 +69,7 @@ class FiberSpanSubscription(
 ):
     """base model for a fiber span subscription in the ACTIVE state."""
 
-    fiber: FiberSpan
+    fiber: FiberSpanBlock
 
 
 # ============================================================================
@@ -80,7 +80,7 @@ class FiberSpanSubscription(
 class LeasedSpectrumSubscriptionInactive(SubscriptionModel, is_base=True):
     """base model for a leased spectrum subscription in the INACTIVE state."""
 
-    leased_spectrum: LeasedSpectrumInactive
+    leased_spectrum: LeasedSpectrumBlockInactive
 
 
 class LeasedSpectrumSubscriptionProvisioning(
@@ -89,7 +89,7 @@ class LeasedSpectrumSubscriptionProvisioning(
 ):
     """base model for a leased spectrum subscription in the PROVISIONING state."""
 
-    leased_spectrum: LeasedSpectrumProvisioning
+    leased_spectrum: LeasedSpectrumBlockProvisioning
 
 
 class LeasedSpectrumSubscription(
@@ -98,5 +98,5 @@ class LeasedSpectrumSubscription(
 ):
     """base model for a leased spectrum subscription in the ACTIVE state."""
 
-    leased_spectrum: LeasedSpectrum
+    leased_spectrum: LeasedSpectrumBlock
 

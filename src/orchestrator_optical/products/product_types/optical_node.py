@@ -8,12 +8,12 @@ from orchestrator.types import SubscriptionLifecycle
 
 # relative because every org must copy this file to its local repo
 from orchestrator_optical.products.product_blocks.optical_node import (
-    NokiaFlexILSNode,
-    NokiaFlexILSNodeInactive,
-    NokiaFlexILSNodeProvisioning,
-    OpticalNode,
-    OpticalNodeInactive,
-    OpticalNodeProvisioning,
+    NokiaFlexILSNodeBlock,
+    NokiaFlexILSNodeBlockInactive,
+    NokiaFlexILSNodeBlockProvisioning,
+    OpticalNodeBlock,
+    OpticalNodeBlockInactive,
+    OpticalNodeBlockProvisioning,
 )
 
 
@@ -33,7 +33,7 @@ class OpticalNodeSubscriptionInactive(SubscriptionModel, is_base=True):
     """base model for an optical node subscription in the INACTIVE state."""
 
     vendor_and_platform: NotSpecializedPlatforms
-    node: OpticalNodeInactive
+    node: OpticalNodeBlockInactive
 
 
 class OpticalNodeSubscriptionProvisioning(
@@ -43,7 +43,7 @@ class OpticalNodeSubscriptionProvisioning(
     """base model for an optical node subscription in the PROVISIONING state."""
 
     vendor_and_platform: NotSpecializedPlatforms
-    node: OpticalNodeProvisioning
+    node: OpticalNodeBlockProvisioning
 
 
 class OpticalNodeSubscription(
@@ -52,7 +52,7 @@ class OpticalNodeSubscription(
     """base model for an optical node subscription in the ACTIVE state."""
 
     vendor_and_platform: NotSpecializedPlatforms
-    node: OpticalNode
+    node: OpticalNodeBlock
 
 
 # --- Nokia FlexILS Specialized Subscriptions ---
@@ -62,7 +62,7 @@ class NokiaFlexILSNodeSubscriptionInactive(SubscriptionModel, is_base=True):
     """base model for an optical node subscription in the INACTIVE state."""
 
     vendor_and_platform: Literal[VendorAndPlatform.NOKIA_FLEXILS] = VendorAndPlatform.NOKIA_FLEXILS
-    node: NokiaFlexILSNodeInactive
+    node: NokiaFlexILSNodeBlockInactive
 
 
 class NokiaFlexILSNodeSubscriptionProvisioning(
@@ -71,7 +71,7 @@ class NokiaFlexILSNodeSubscriptionProvisioning(
 ):
     """base model for an optical node subscription in the PROVISIONING state."""
 
-    node: NokiaFlexILSNodeProvisioning
+    node: NokiaFlexILSNodeBlockProvisioning
 
 
 class NokiaFlexILSNodeSubscription(
@@ -79,6 +79,6 @@ class NokiaFlexILSNodeSubscription(
 ):
     """base model for an optical node subscription in the ACTIVE state."""
 
-    node: NokiaFlexILSNode
+    node: NokiaFlexILSNodeBlock
 
 

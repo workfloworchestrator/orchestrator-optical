@@ -315,7 +315,7 @@ def subscription_instance_values_by_block_type_depending_on_instance_id(
     Each of these instances also belongs to a subscription whose status is in one of the specified statuses.
     You can use these subscription instances in your workflow like this:
     >>> subscription_instance_id = subscription_instances_values[0].subscription_instance_id
-    >>> optical_port_block = OpticalPortUnion.from_db(subscription_instance_id)
+    >>> optical_port_block = OpticalPortBlocksUnion.from_db(subscription_instance_id)
 
     Args:
         product_block_type (str): The product block type in the DB (i.e. product name, e.g. OpticalDevicePort)
