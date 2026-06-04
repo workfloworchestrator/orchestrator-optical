@@ -28,14 +28,8 @@ class OpticalNodeRole(StrEnum):
     TRANSPONDER_XOADM = "Transponder and xOADM"
 
 
-# ============================================================================
-# --- Base Optical Node Product Blocks ---
-# ============================================================================
-
-
-class OpticalNodeBlockInactive(ProductBlockModel, product_block_name="OpticalNode"):
-    """Base Product Block for Optical Nodes."""
-
+# ── Abstract block (no product_block_name) ──────────────────────────────────
+class AbstractOpticalNodeBlockInactive(ProductBlockModel):
     sw_version: str | None = None
     pqdn: Pqdn | None = None # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
     role: OpticalNodeRole | None = None
@@ -50,48 +44,67 @@ class OpticalNodeBlockInactive(ProductBlockModel, product_block_name="OpticalNod
         return sub.vendor_and_platform
 
 
-class OpticalNodeBlockProvisioning(OpticalNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    """Base Product Block for Optical Nodes in provisioning state."""
-
-    pqdn: Pqdn
+class AbstractOpticalNodeBlockProvisioning(
+    AbstractOpticalNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
+    pqdn: Pqdn # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
     role: OpticalNodeRole
     management_ips: IpAddressesList
     location: OpticalLocationBlockProvisioning
 
 
-class OpticalNodeBlock(OpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    """Base Product Block for Optical Nodes in operational state."""
-
+class AbstractOpticalNodeBlock(AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     sw_version: str
     location: OpticalLocationBlock
 
 
-# ============================================================================
-# --- FlexILS Node Product Blocks ---
-# ============================================================================
-
-
-class NokiaFlexILSNodeBlockInactive(OpticalNodeBlockInactive, product_block_name="NokiaFlexILSNode"):
+# ── Concrete generic block ───────────────────────────────────────────────────
+class OpticalNodeBlockInactive(AbstractOpticalNodeBlockInactive, product_block_name="OpticalNode"):
     location: OpticalLocationBlockInactive | None = None
-    role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER] | None = None
-    gmpls_id: IPAddress | None = None
-    target_id: str | None = None
 
-class NokiaFlexILSNodeBlockProvisioning(NokiaFlexILSNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+
+
+class OpticalNodeBlockProvisioning(
+    OpticalNodeBlockInactive, AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
     location: OpticalLocationBlockProvisioning
-    role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER]
-    gmpls_id: IPAddress
-    target_id: str
 
-class NokiaFlexILSNodeBlock(NokiaFlexILSNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+
+
+class OpticalNodeBlock(
+    OpticalNodeBlockProvisioning, AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
     location: OpticalLocationBlock
 
 
-# ============================================================================
-# --- Discriminated Unions of Product Blocks ---
-# ============================================================================
+# ── Concrete FlexILS block (adds specialized fields) ────────────────────────────────────
+class NokiaFlexILSNodeBlockInactive(AbstractOpticalNodeBlockInactive, product_block_name="NokiaFlexILSNode"):
+    role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER] | None = None
+    gmpls_id: IPAddress | None = None
+    target_id: str | None = None
+    location: OpticalLocationBlockInactive | None = None
 
-OpticalNodeBlockUnion = Annotated[OpticalNodeBlock | NokiaFlexILSNodeBlock, Discriminator(lambda x: x.vendor_and_platform)]
+
+
+class NokiaFlexILSNodeBlockProvisioning(
+    NokiaFlexILSNodeBlockInactive, AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
+    role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER]
+    gmpls_id: IPAddress
+    target_id: str
+    location: OpticalLocationBlockProvisioning
+
+
+class NokiaFlexILSNodeBlock(
+    NokiaFlexILSNodeBlockProvisioning, AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
+    location: OpticalLocationBlock
+
+
+# ── Discriminated Unions ────────────────────────────────────
+OpticalNodeBlockUnion = Annotated[
+    OpticalNodeBlock | NokiaFlexILSNodeBlock, Discriminator(lambda x: x.vendor_and_platform)
+]
 OpticalNodeBlockUnionProvisioning = Annotated[
     OpticalNodeBlockProvisioning | NokiaFlexILSNodeBlockProvisioning, Discriminator(lambda x: x.vendor_and_platform)
 ]
