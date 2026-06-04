@@ -3,6 +3,7 @@
 from typing import Literal
 
 from orchestrator.domain import SubscriptionModel
+from orchestrator.types import SubscriptionLifecycle
 from pydantic import computed_field
 
 from orchestrator_optical.products.product_blocks.optical_packet_node import (
@@ -11,14 +12,14 @@ from orchestrator_optical.products.product_blocks.optical_packet_node import (
     OpticalPacketNodeBlockProvisioning,
 )
 from orchestrator_optical.products.product_blocks.optical_port import (
-    OpticalPortBlock,
-    OpticalPortProvisioning,
+    AbstractPortBlock,
+    AbstractPortBlockInactive,
+    AbstractPortBlockProvisioning,
     PortRole,
-    _PortInactive,
 )
 
 
-class CoherentPluggableBlockInactive(_PortInactive):
+class CoherentPluggableBlockInactive(AbstractPortBlockInactive, product_block_name="CoherentPluggable"):
     """Base class for inactive CoherentPluggableBlock product blocks."""
 
     role: Literal[PortRole.COHERENT_PLUGGABLE] = PortRole.COHERENT_PLUGGABLE
@@ -34,7 +35,7 @@ class CoherentPluggableBlockInactive(_PortInactive):
 
 
 class CoherentPluggableBlockProvisioning(
-    CoherentPluggableBlockInactive, OpticalPortProvisioning
+    CoherentPluggableBlockInactive, AbstractPortBlockProvisioning, lifecycle=SubscriptionLifecycle.PROVISIONING
 ):
     """Base class for provisioning CoherentPluggableBlock product blocks."""
 
@@ -42,7 +43,9 @@ class CoherentPluggableBlockProvisioning(
     host_node: OpticalPacketNodeBlockProvisioning
 
 
-class CoherentPluggableBlock(CoherentPluggableBlockProvisioning, OpticalPortBlock):
+class CoherentPluggableBlock(
+    CoherentPluggableBlockProvisioning, AbstractPortBlock, lifecycle=SubscriptionLifecycle.ACTIVE
+):
     """Base class for active CoherentPluggableBlock product blocks."""
 
     host_node: OpticalPacketNodeBlock
