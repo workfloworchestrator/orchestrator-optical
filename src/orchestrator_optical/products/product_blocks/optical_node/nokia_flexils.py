@@ -14,7 +14,7 @@ class NokiaFlexIlsBlockInactive(AbstractOpticalNodeBlockInactive, product_block_
     """Product Block of a Nokia FlexILS Optical Node that is inactive."""
 
     gmpls_id: IPAddress | None = None
-    target_id: str | None = None
+    optical_flexils_target_id: str | None = None
 
 
 class NokiaFlexIlsBlockProvisioning(
@@ -23,7 +23,7 @@ class NokiaFlexIlsBlockProvisioning(
     """Product Block of a Nokia FlexILS Optical Node that is provisioning."""
 
     gmpls_id: IPAddress
-    target_id: str
+    optical_flexils_target_id: str
 
 
 class NokiaFlexIlsBlock(
@@ -32,4 +32,4 @@ class NokiaFlexIlsBlock(
     """Product Block of a Nokia FlexILS Optical Node that is active."""
 
     gmpls_id: IPAddress
-    target_id: str
+    optical_flexils_target_id: str

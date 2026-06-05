@@ -1,22 +1,14 @@
-"""TODO: Document."""
+"""Abstract Product Blocks of an Optical Location."""
 
-from typing import Annotated
-
-from annotated_types import Len
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 
 from orchestrator_optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
 from orchestrator_optical.utils.custom_types.dns import SubdomainPrefix
-from orchestrator_optical.utils.custom_types.ip_address import IPAddress
-
-IpAddressesList = Annotated[
-    list[IPAddress], Len(min_length=1, max_length=10), "List of the management IP addresses of the device."
-]
 
 
 class AbstractOpticalLocationBlockInactive(ProductBlockModel):
-    """TODO: Document."""
+    """A Location that hosts optical equipment that is inactive."""
 
     longitude: LongitudeCoordinate | None = None
     latitude: LatitudeCoordinate | None = None
@@ -26,7 +18,7 @@ class AbstractOpticalLocationBlockInactive(ProductBlockModel):
 class AbstractOpticalLocationBlockProvisioning(
     AbstractOpticalLocationBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    """TODO: Document."""
+    """A Location that hosts optical equipment that is provisioning."""
 
     longitude: LongitudeCoordinate
     latitude: LatitudeCoordinate
@@ -34,7 +26,7 @@ class AbstractOpticalLocationBlockProvisioning(
 
 
 class AbstractOpticalLocationBlock(AbstractOpticalLocationBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    """TODO: Document."""
+    """A Location that hosts optical equipment."""
 
     longitude: LongitudeCoordinate
     latitude: LatitudeCoordinate

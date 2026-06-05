@@ -33,12 +33,12 @@ from orchestrator_optical.products.product_types.optical_fiber import (
 )
 from orchestrator_optical.products.product_types.optical_node import OpticalDevice
 from orchestrator_optical.products.product_types.optical_pipe import (
-    FiberPatchSubscription,
-    FiberPatchSubscriptionProvisioning,
-    FiberSpanSubscription,
-    FiberSpanSubscriptionProvisioning,
-    LeasedSpectrumSubscription,
-    LeasedSpectrumSubscriptionProvisioning,
+    OpticalFiberPatch,
+    OpticalFiberPatchProvisioning,
+    OpticalFiberSpan,
+    OpticalFiberSpanProvisioning,
+    OpticalLeasedSpectrum,
+    OpticalLeasedSpectrumProvisioning,
 )
 from orchestrator_optical.products.services.optical_node import retrieve_ports_spectral_occupations
 from orchestrator_optical.products.services.optical_port import (
@@ -231,16 +231,14 @@ def configure_fiber_terminations(
 
 @step("Retrieving used passbands")
 def retrieve_used_passbands(
-    subscription: FiberSpanSubscriptionProvisioning
-    | LeasedSpectrumSubscriptionProvisioning
-    | FiberPatchSubscriptionProvisioning,
+    subscription: OpticalFiberSpanProvisioning | OpticalLeasedSpectrumProvisioning | OpticalFiberPatchProvisioning,
 ) -> State:
     match subscription:
-        case FiberSpanSubscription():
+        case OpticalFiberSpan():
             terminations = subscription.fiber.terminations
-        case LeasedSpectrumSubscription():
+        case OpticalLeasedSpectrum():
             terminations = subscription.leased_spectrum.terminations
-        case FiberPatchSubscription():
+        case OpticalFiberPatch():
             return {"subscription": subscription}
         case _:
             msg = f"Unsupported subscription type: {type(subscription)}"

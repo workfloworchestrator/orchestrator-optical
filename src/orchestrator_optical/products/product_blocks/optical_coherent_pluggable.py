@@ -7,11 +7,16 @@ from orchestrator.types import SubscriptionLifecycle
 from pydantic import computed_field
 
 from orchestrator_optical.products.product_blocks.optical_packet_node import (
-    OpticalPacketNodeBlock,
-    OpticalPacketNodeBlockInactive,
-    OpticalPacketNodeBlockProvisioning,
+    AbstractOpticalPacketNodeBlock,
+    AbstractOpticalPacketNodeBlockInactive,
+    AbstractOpticalPacketNodeBlockProvisioning,
 )
-from orchestrator_optical.products.product_blocks.optical_port import AbstractOpticalPortBlockInactive, OpticalPortRole
+from orchestrator_optical.products.product_blocks.optical_port import (
+    AbstractOpticalPortBlock,
+    AbstractOpticalPortBlockInactive,
+    AbstractOpticalPortBlockProvisioning,
+    OpticalPortRole,
+)
 
 
 class OpticalCoherentPluggableBlockInactive(
@@ -20,7 +25,7 @@ class OpticalCoherentPluggableBlockInactive(
     """Base class for inactive CoherentPluggableBlock product blocks."""
 
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
-    host_node: OpticalPacketNodeBlockInactive | None = None
+    host_node: AbstractOpticalPacketNodeBlockInactive | None = None
     optical_coherent_pluggable_firmware_version: str | None = None
 
     @computed_field
@@ -32,20 +37,22 @@ class OpticalCoherentPluggableBlockInactive(
 
 
 class OpticalCoherentPluggableBlockProvisioning(
-    OpticalCoherentPluggableBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    OpticalCoherentPluggableBlockInactive,
+    AbstractOpticalPortBlockProvisioning,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Base class for provisioning CoherentPluggableBlock product blocks."""
 
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
-    host_node: OpticalPacketNodeBlockProvisioning
+    host_node: AbstractOpticalPacketNodeBlockProvisioning
     optical_coherent_pluggable_firmware_version: str
 
 
 class OpticalCoherentPluggableBlock(
-    OpticalCoherentPluggableBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OpticalCoherentPluggableBlockProvisioning, AbstractOpticalPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """Base class for active CoherentPluggableBlock product blocks."""
 
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
-    host_node: OpticalPacketNodeBlock
+    host_node: AbstractOpticalPacketNodeBlock
     optical_coherent_pluggable_firmware_version: str

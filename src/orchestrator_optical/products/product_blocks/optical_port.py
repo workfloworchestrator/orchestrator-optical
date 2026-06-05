@@ -45,7 +45,9 @@ class AbstractOpticalPortBlockInactive(ProductBlockModel):
     optical_port_host_node: AbstractOpticalNodeBlockInactive | OpticalCoherentPluggableBlockInactive
 
 
-class AbstractOpticalPortBlockProvisioning(AbstractOpticalPortBlockInactive):
+class AbstractOpticalPortBlockProvisioning(
+    AbstractOpticalPortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
     """Abstract implementation of an Optical Port Product Block that is provisioning."""
 
     optical_port_role: OpticalPortRole
@@ -54,7 +56,7 @@ class AbstractOpticalPortBlockProvisioning(AbstractOpticalPortBlockInactive):
     optical_port_host_node: AbstractOpticalNodeBlockProvisioning | OpticalCoherentPluggableBlockProvisioning
 
 
-class AbstractOpticalPortBlock(AbstractOpticalPortBlockProvisioning):
+class AbstractOpticalPortBlock(AbstractOpticalPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Abstract implementation of an Optical Port Product Block that is active."""
 
     optical_port_role: OpticalPortRole
@@ -70,14 +72,16 @@ class AbstractOpticalOlsPortBlockInactive(AbstractOpticalPortBlockInactive):
     optical_host_node: AbstractOpticalNodeBlockInactive
 
 
-class AbstractOpticalOlsPortBlockProvisioning(AbstractOpticalOlsPortBlockInactive):
+class AbstractOpticalOlsPortBlockProvisioning(
+    AbstractOpticalOlsPortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
     """Abstract implementation of an Optcial Port Block with passbands that is provisioning."""
 
     optical_passbands: OpticalPassbandList
     optical_host_node: AbstractOpticalNodeBlockProvisioning
 
 
-class AbstractOpticalOlsPortBlock(AbstractOpticalOlsPortBlockProvisioning):
+class AbstractOpticalOlsPortBlock(AbstractOpticalOlsPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Abstract implementation of an Optcial Port Block with passbands that is active."""
 
     optical_passbands: OpticalPassbandList
@@ -90,13 +94,17 @@ class OlsAddDropPortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_b
     optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_ADD_DROP
 
 
-class OlsAddDropPortBlockProvisioning(OlsAddDropPortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class OlsAddDropPortBlockProvisioning(
+    OlsAddDropPortBlockInactive, AbstractOpticalOlsPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
     """OLS Add Drop Port Product Block that is inactive."""
 
     optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_ADD_DROP
 
 
-class OlsAddDropPortBlock(OlsAddDropPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OlsAddDropPortBlock(
+    OlsAddDropPortBlockProvisioning, AbstractOpticalOlsPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
     """OLS Add Drop Port Product Block that is inactive."""
 
     optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_ADD_DROP
@@ -108,13 +116,17 @@ class OlsLinePortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_bloc
     optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_LINE
 
 
-class OlsLinePortBlockProvisioning(OlsLinePortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class OlsLinePortBlockProvisioning(
+    OlsLinePortBlockInactive, AbstractOpticalOlsPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
     """OLS Add Drop Port Product Block that is inactive."""
 
     optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_LINE
 
 
-class OlsLinePortBlock(OlsLinePortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OlsLinePortBlock(
+    OlsLinePortBlockProvisioning, AbstractOpticalOlsPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
     """OLS Add Drop Port Product Block that is inactive."""
 
     optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_LINE
@@ -129,7 +141,9 @@ class OpticalTransponderClientPortBlockInactive(
 
 
 class OpticalTransponderClientPortBlockProvisioning(
-    OpticalTransponderClientPortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    OpticalTransponderClientPortBlockInactive,
+    AbstractOpticalPortBlockProvisioning,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Optical Transponder Client Port Product Block that is inactive."""
 
@@ -137,7 +151,7 @@ class OpticalTransponderClientPortBlockProvisioning(
 
 
 class OpticalTransponderClientPortBlock(
-    OpticalTransponderClientPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OpticalTransponderClientPortBlockProvisioning, AbstractOpticalPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """Optical Transponder Client Port Product Block that is inactive."""
 
@@ -153,7 +167,9 @@ class OpticalTransponderLinePortBlockInactive(
 
 
 class OpticalTransponderLinePortBlockProvisioning(
-    OpticalTransponderLinePortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    OpticalTransponderLinePortBlockInactive,
+    AbstractOpticalPortBlockProvisioning,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Optical Transponder Line Port Product Block that is inactive."""
 
@@ -161,7 +177,7 @@ class OpticalTransponderLinePortBlockProvisioning(
 
 
 class OpticalTransponderLinePortBlock(
-    OpticalTransponderLinePortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OpticalTransponderLinePortBlockProvisioning, AbstractOpticalPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """Optical Transponder Line Port Product Block that is inactive."""
 

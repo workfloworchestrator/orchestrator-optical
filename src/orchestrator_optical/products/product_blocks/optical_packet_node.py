@@ -17,25 +17,35 @@ IpAddressesList = Annotated[
 ]
 
 
-class OpticalPacketNodeBlockInactive(ProductBlockModel, product_block_name="OpticalPacketNode"):
-    """TODO: Document."""
+class AbstractOpticalPacketNodeBlockInactive(ProductBlockModel):
+    """A packet layer Node that accepts Optical Coherent Pluggables that is inactive."""
 
-    sw_version: str | None = None
-    vendor_and_platform: str | None = None
+    optical_packet_node_software_version: str | None = None
+    optical_packet_node_vendor_and_platform: str | None = None
     pqdn: Pqdn | None = None  # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
-    management_ips: IpAddressesList | None = None
+    optical_packet_node_management_ips: IpAddressesList | None = None
     location: AbstractOpticalLocationBlockInactive
 
 
-class OpticalPacketNodeBlockProvisioning(
-    OpticalPacketNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class AbstractOpticalPacketNodeBlockProvisioning(
+    AbstractOpticalPacketNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    sw_version: str
-    vendor_and_platform: str
+    """A packet layer Node that accepts Optical Coherent Pluggables that is provisioning."""
+
+    optical_packet_node_software_version: str
+    optical_packet_node_vendor_and_platform: str
     pqdn: Pqdn
-    management_ips: IpAddressesList
+    optical_packet_node_management_ips: IpAddressesList
     location: AbstractOpticalLocationBlockProvisioning
 
 
-class OpticalPacketNodeBlock(OpticalPacketNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class AbstractOpticalPacketNodeBlock(
+    AbstractOpticalPacketNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
+    """A packet layer Node that accepts Optical Coherent Pluggables."""
+
+    optical_packet_node_software_version: str
+    optical_packet_node_vendor_and_platform: str
+    pqdn: Pqdn
+    optical_packet_node_management_ips: IpAddressesList
     location: AbstractOpticalLocationBlock

@@ -17,7 +17,7 @@ from orchestrator_optical.utils.custom_types.frequencies import Passband
 OpticalSpectrumSectionList = Annotated[list[SI], Len(min_length=0, max_length=9)]
 
 
-class OpticalSpectrumBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrum"):
+class OpticalSpectrumBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrumBlock"):
     """Inactive state of the Optical Spectrum product block."""
 
     optical_spectrum_name: str | None = None

@@ -21,14 +21,16 @@ class OpticalNodeNokiaGrooveG30Inactive(AbstractOpticalNodeInactive, is_base=Tru
 
 
 class OpticalNodeNokiaGrooveG30Provisioning(
-    AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    OpticalNodeNokiaGrooveG30Inactive, AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """A Nokia Groove G30 Optical Node that is provisioning."""
 
     optical_node: NokiaGrooveG30BlockProvisioning
 
 
-class OpticalNodeNokiaGrooveG30(AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalNodeNokiaGrooveG30(
+    OpticalNodeNokiaGrooveG30Provisioning, AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
     """A Nokia Groove G30 Optical Node that is active."""
 
     optical_node: NokiaGrooveG30Block

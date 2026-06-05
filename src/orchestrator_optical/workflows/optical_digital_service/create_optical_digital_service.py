@@ -897,13 +897,17 @@ def construct_optical_digital_service_model(
     ods.flow_id = fx_flow_id
     ods.client_id = cy_client_id
 
-    ods.client_ports[0].port_name = name_client_port_a
-    ods.client_ports[0].port_description = f"{ods.service_name} remote:{device_b.fqdn} {name_client_port_b}"
-    ods.client_ports[0].optical_node = sub_device_a.optical_node
+    ods.optical_digital_service_client_ports[0].port_name = name_client_port_a
+    ods.optical_digital_service_client_ports[
+        0
+    ].port_description = f"{ods.service_name} remote:{device_b.fqdn} {name_client_port_b}"
+    ods.optical_digital_service_client_ports[0].optical_node = sub_device_a.optical_node
 
-    ods.client_ports[1].port_name = name_client_port_b
-    ods.client_ports[1].port_description = f"{ods.service_name} remote:{device_a.fqdn} {name_client_port_a}"
-    ods.client_ports[1].optical_node = sub_device_b.optical_node
+    ods.optical_digital_service_client_ports[1].port_name = name_client_port_b
+    ods.optical_digital_service_client_ports[
+        1
+    ].port_description = f"{ods.service_name} remote:{device_a.fqdn} {name_client_port_a}"
+    ods.optical_digital_service_client_ports[1].optical_node = sub_device_b.optical_node
 
     for i in range(len(och_ids)):
         existing_channels = subscription_instances_by_block_type_and_resource_value(
@@ -917,16 +921,16 @@ def construct_optical_digital_service_model(
         if len(existing_channels) == 1:
             block = OpticalTransportChannelBlock.from_db(existing_channels[0].subscription_instance_id)
             if i == 0:
-                ods.transport_channels[i] = block
+                ods.optical_digital_service_transport_channels[i] = block
             else:
-                ods.transport_channels.append(block)
+                ods.optical_digital_service_transport_channels.append(block)
             continue
 
-        if len(ods.transport_channels) < i + 1:
-            ods.transport_channels.append(
+        if len(ods.optical_digital_service_transport_channels) < i + 1:
+            ods.optical_digital_service_transport_channels.append(
                 OpticalTransportChannelBlockInactive.new(subscription_id=subscription.subscription_id)
             )
-        channel = ods.transport_channels[i]
+        channel = ods.optical_digital_service_transport_channels[i]
         channel.och_id = och_ids[i]
         channel.central_frequency = frequencies[i]
         channel.mode = mode
@@ -947,7 +951,7 @@ def construct_optical_digital_service_model(
             sub = OpticalFiber.from_subscription(sub_id)
             constraints.exclude_spans.append(sub.optical_fiber)
 
-    owner_ids = [ch.owner_subscription_id for ch in ods.transport_channels]
+    owner_ids = [ch.owner_subscription_id for ch in ods.optical_digital_service_transport_channels]
     if len(set(owner_ids)) != 1:
         msg = (
             "The provided OCh IDs correspond to *uncoupled* optical transport channels. "
@@ -975,7 +979,7 @@ def divide_path_into_sections(
         }
 
     ods = subscription.optical_digital_service
-    channels = ods.transport_channels
+    channels = ods.optical_digital_service_transport_channels
     optical_spectrum = channels[0].optical_spectrum
     store_list_of_ports_into_spectrum_sections(optical_path, optical_spectrum)
 
@@ -1008,7 +1012,7 @@ def update_subscription_description(
 @step("Configuring the line ports on the transponders/transceivers")
 def configure_trx_line_side(subscription: OpticalDigitalServiceProvisioning) -> State:
     ods = subscription.optical_digital_service
-    channels = ods.transport_channels
+    channels = ods.optical_digital_service_transport_channels
 
     descriptions = tuple(ch.optical_spectrum.spectrum_name for ch in channels)
     central_freqs = tuple(ch.central_frequency for ch in channels)
@@ -1032,7 +1036,7 @@ def configure_trx_line_side(subscription: OpticalDigitalServiceProvisioning) -> 
 def configure_trx_client_side(subscription: OpticalDigitalServiceProvisioning) -> State:
     ods = subscription.optical_digital_service
     results = {}
-    for port in ods.client_ports:
+    for port in ods.optical_digital_service_client_ports:
         result_key = f"{port.optical_node.pqdn}"
         results[result_key] = configure_transceiver_client(
             port.optical_node, port.port_name, port.port_description, ods.service_type
@@ -1048,8 +1052,8 @@ def configure_trx_crossconnects(
     subscription: OpticalDigitalServiceProvisioning,
 ) -> State:
     ods = subscription.optical_digital_service
-    client_a, client_b = ods.client_ports
-    channels = ods.transport_channels
+    client_a, client_b = ods.optical_digital_service_client_ports
+    channels = ods.optical_digital_service_transport_channels
 
     lines_a, lines_b = [], []
     for channel in channels:
@@ -1081,7 +1085,7 @@ def provision_optical_sections(
 ) -> State:
     flow_id = subscription.optical_digital_service.flow_id
     client_id = subscription.optical_digital_service.client_id
-    channels = subscription.optical_digital_service.transport_channels
+    channels = subscription.optical_digital_service.optical_digital_service_transport_channels
     results = {}
     for channel in channels:
         passband = channel.optical_spectrum.passband
@@ -1112,7 +1116,7 @@ def update_optical_spectrum_sections_label(
 ) -> State:
     flow_id = subscription.optical_digital_service.flow_id
     client_id = subscription.optical_digital_service.client_id
-    channels = subscription.optical_digital_service.transport_channels
+    channels = subscription.optical_digital_service.optical_digital_service_transport_channels
     results = {}
     for channel in channels:
         passband = channel.optical_spectrum.passband
@@ -1135,7 +1139,7 @@ def update_optical_spectrum_sections_label(
 
 @step("Updating the available passbands of any Open Line System port in the path")
 def update_used_passbands_step(subscription: OpticalDigitalServiceProvisioning) -> State:
-    spectrum = subscription.optical_digital_service.transport_channels[0].optical_spectrum
+    spectrum = subscription.optical_digital_service.optical_digital_service_transport_channels[0].optical_spectrum
     update_used_passbands(spectrum)
 
     return {"subscription": subscription}
@@ -1148,7 +1152,7 @@ def set_trx_transmitted_power(
     ods = subscription.optical_digital_service
     results = {}
 
-    for channel in ods.transport_channels:
+    for channel in ods.optical_digital_service_transport_channels:
         line_ports = channel.line_ports
         optical_spectrum = channel.optical_spectrum
         spectrum_name = optical_spectrum.spectrum_name

@@ -34,9 +34,9 @@ from orchestrator_optical.products.product_blocks.optical_spectrum_section impor
     OpticalSpectrumSectionBlockProvisioning,
 )
 from orchestrator_optical.products.product_types.optical_pipe import (
-    FiberPatchSubscription,
-    FiberSpanSubscription,
-    LeasedSpectrumSubscription,
+    OpticalFiberPatch,
+    OpticalFiberSpan,
+    OpticalLeasedSpectrum,
 )
 from orchestrator_optical.products.services.optical_node import retrieve_ports_spectral_occupations
 from orchestrator_optical.utils.custom_types.frequencies import Passband, disjoint_intervals_overlap_search
@@ -196,15 +196,12 @@ def build_constrained_graph_from_active_fibers(
     """
     # retrieve all active fiber subscriptions
     patch_subscriptions = subscriptions_by_product_type("FiberPatchSubscription", [SubscriptionLifecycle.ACTIVE])
-    active_patches = [
-        FiberPatchSubscription.from_subscription(sub.subscription_id).fiber for sub in patch_subscriptions
-    ]
+    active_patches = [OpticalFiberPatch.from_subscription(sub.subscription_id).fiber for sub in patch_subscriptions]
     span_subscriptions = subscriptions_by_product_type("FiberSpanSubscription", [SubscriptionLifecycle.ACTIVE])
-    active_spans = [FiberSpanSubscription.from_subscription(sub.subscription_id).fiber for sub in span_subscriptions]
+    active_spans = [OpticalFiberSpan.from_subscription(sub.subscription_id).fiber for sub in span_subscriptions]
     leased_spectrum_subs = subscriptions_by_product_type("LeasedSpectrumSubscription", [SubscriptionLifecycle.ACTIVE])
     active_spectra = [
-        LeasedSpectrumSubscription.from_subscription(sub.subscription_id).leased_spectrum
-        for sub in leased_spectrum_subs
+        OpticalLeasedSpectrum.from_subscription(sub.subscription_id).leased_spectrum for sub in leased_spectrum_subs
     ]
 
     active_pipes = active_patches + active_spans + active_spectra
@@ -226,7 +223,10 @@ def build_constrained_graph_from_active_fibers(
                 return False
             if disjoint_intervals_overlap_search(port.used_passbands, passband):
                 return False
-            if port.optical_node.vendor_and_platform == VendorAndPlatform.NOKIA_GROOVE_G30 and "." not in port.port_name:
+            if (
+                port.optical_node.vendor_and_platform == VendorAndPlatform.NOKIA_GROOVE_G30
+                and "." not in port.port_name
+            ):
                 # all ports with a dot are on OLS cards
                 # all ports without a dot are on transponder cards and must be excluded from path computation
                 return False
@@ -269,8 +269,8 @@ def find_add_drop_ports(
     src_fiber_sub_id = src_trx_port.owner_subscription_id
     dst_fiber_sub_id = dst_trx_port.owner_subscription_id
 
-    fiber_a_sub = FiberPatchSubscription.from_subscription(src_fiber_sub_id)
-    fiber_b_sub = FiberPatchSubscription.from_subscription(dst_fiber_sub_id)
+    fiber_a_sub = OpticalFiberPatch.from_subscription(src_fiber_sub_id)
+    fiber_b_sub = OpticalFiberPatch.from_subscription(dst_fiber_sub_id)
 
     fiber_a = fiber_a_sub.optical_fiber
     fiber_b = fiber_b_sub.optical_fiber

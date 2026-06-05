@@ -319,10 +319,10 @@ def _find_flexils_osnc(
     Raises:
         ValueError: If no matching OSNC is found.
     """
-    src_device = optical_spectrum_section.add_drop_ports[0].optical_node
-    dst_device = optical_spectrum_section.add_drop_ports[1].optical_node
-    src_port_raw = optical_spectrum_section.add_drop_ports[0].port_name
-    dst_port_raw = optical_spectrum_section.add_drop_ports[1].port_name
+    src_device = optical_spectrum_section.optical_pipe_add_drop_ports[0].optical_node
+    dst_device = optical_spectrum_section.optical_pipe_add_drop_ports[1].optical_node
+    src_port_raw = optical_spectrum_section.optical_pipe_add_drop_ports[0].port_name
+    dst_port_raw = optical_spectrum_section.optical_pipe_add_drop_ports[1].port_name
 
     src_node_name, src_flex, src_port = _get_flexils_name_client_tributary(src_device, src_port_raw)
     dst_node_name, dst_flex, dst_port = _get_flexils_name_client_tributary(dst_device, dst_port_raw)
@@ -444,7 +444,7 @@ def _(
     label: str = "",
 ) -> dict[str, Any]:
     """Deploy an optical circuit specifically for FlexILS platform devices."""
-    add_drop_ports = optical_spectrum_section.add_drop_ports
+    add_drop_ports = optical_spectrum_section.optical_pipe_add_drop_ports
     path = optical_spectrum_section.optical_path
 
     src_device = add_drop_ports[0].optical_node
@@ -467,7 +467,7 @@ def _(
         omses,
     )
 
-    for port in optical_spectrum_section.add_drop_ports:
+    for port in optical_spectrum_section.optical_pipe_add_drop_ports:
         flexils_check_port_is_in_manualmode2_else_set_it(port.optical_node, port.port_name)
 
     osnc = _find_or_create_osnc(
@@ -476,8 +476,8 @@ def _(
         osnc_name=osnc_name,
         osnc_label=osnc_label,
         oel_name=oel_name,
-        src_port_name=optical_spectrum_section.add_drop_ports[0].port_name,
-        dst_port_name=optical_spectrum_section.add_drop_ports[1].port_name,
+        src_port_name=optical_spectrum_section.optical_pipe_add_drop_ports[0].port_name,
+        dst_port_name=optical_spectrum_section.optical_pipe_add_drop_ports[1].port_name,
         passband=passband,
         carrier=carrier,
     )
@@ -559,7 +559,7 @@ def _(
         old_passband,
     )
 
-    for port in optical_spectrum_section.add_drop_ports:
+    for port in optical_spectrum_section.optical_pipe_add_drop_ports:
         od = port.optical_node
         if od.fqdn.startswith(flex.tid):
             continue
@@ -572,7 +572,7 @@ def _(
 
     matches_oel = osnc["OELAID"].strip(r"\" ") == oel_name[:64]
     if not matches_oel:
-        add_drop_ports = optical_spectrum_section.add_drop_ports
+        add_drop_ports = optical_spectrum_section.optical_pipe_add_drop_ports
         dst_optical_node = add_drop_ports[1].optical_node
         omses = _divide_path_into_omses(path)
         new_oel = _find_or_create_oel(
@@ -733,7 +733,7 @@ def _(
         passband,
     )  # already raises error if CKTIDSUFFIX/LOCENDPOINT/REMENDPOINT/PASSBANDLIST do not match
 
-    for port in optical_spectrum_section.add_drop_ports:
+    for port in optical_spectrum_section.optical_pipe_add_drop_ports:
         od = port.optical_node
         if od.fqdn.startswith(flex.tid):
             continue

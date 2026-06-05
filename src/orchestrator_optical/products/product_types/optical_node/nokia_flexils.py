@@ -21,14 +21,16 @@ class OpticalNodeNokiaFlexIlsInactive(AbstractOpticalNodeInactive, is_base=True)
 
 
 class OpticalNodeNokiaFlexIlsProvisioning(
-    AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    OpticalNodeNokiaFlexIlsInactive, AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """A Nokia FlexILS Optical Node that is provisioning."""
 
     optical_node: NokiaFlexIlsBlockProvisioning
 
 
-class OpticalNodeNokiaFlexIls(AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalNodeNokiaFlexIls(
+    OpticalNodeNokiaFlexIlsProvisioning, AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
     """A Nokia FlexILS Optical Node that is active."""
 
     optical_node: NokiaFlexIlsBlock

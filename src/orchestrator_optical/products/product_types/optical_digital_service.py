@@ -27,11 +27,8 @@ class OpticalDigitalServiceType(strEnum):
     ETHERNET = "Ethernet"
 
 
-# --- Subscription Lifecycles ---
-
-
 class OpticalDigitalServiceInactive(SubscriptionModel, is_base=True):
-    """base model for an optical digital service subscription in the INACTIVE state."""
+    """An Optical Digital service that is inactive."""
 
     optical_digital_service_speed: OpticalDigitalServiceSpeed
     optical_digital_service_type: OpticalDigitalServiceType
@@ -39,7 +36,7 @@ class OpticalDigitalServiceInactive(SubscriptionModel, is_base=True):
 
 
 class OpticalDigitalServiceProvisioning(OpticalDigitalServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    """base model for an optical digital service subscription in the PROVISIONING state."""
+    """An Optical Digital service that is provisioning."""
 
     optical_digital_service_speed: OpticalDigitalServiceSpeed
     optical_digital_service_type: OpticalDigitalServiceType
@@ -47,7 +44,7 @@ class OpticalDigitalServiceProvisioning(OpticalDigitalServiceInactive, lifecycle
 
 
 class OpticalDigitalService(OpticalDigitalServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    """base model for an optical digital service subscription in the ACTIVE state."""
+    """An Optical Digital service that is active."""
 
     optical_digital_service_speed: OpticalDigitalServiceSpeed
     optical_digital_service_type: OpticalDigitalServiceType

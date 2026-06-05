@@ -259,14 +259,14 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     subscription = OpticalDigitalService.from_subscription(subscription_id)
     ods = subscription.optical_digital_service
 
-    transport_channels = ods.transport_channels
+    transport_channels = ods.optical_digital_service_transport_channels
     num_carriers = len(transport_channels)
     old_frequencies = [ch.central_frequency for ch in transport_channels]
     old_passbands = [ch.optical_spectrum.passband for ch in transport_channels]
     old_bandwidths = [end - start for start, end in old_passbands]
     old_mode = transport_channels[0].mode
 
-    source_client_port = ods.client_ports[0]
+    source_client_port = ods.optical_digital_service_client_ports[0]
     source_device = source_client_port.optical_node
 
     FrequenciesChoice = Annotated[
@@ -333,7 +333,7 @@ def update_subscription(
     ods = subscription.optical_digital_service
     old_frequencies: list[Frequency] = []
     old_passbands: list[Passband] = []
-    for channel in ods.transport_channels:
+    for channel in ods.optical_digital_service_transport_channels:
         old_frequencies.append(channel.central_frequency)
         channel.central_frequency = frequencies.pop(0)
         old_passbands.append(channel.optical_spectrum.passband)
@@ -351,7 +351,7 @@ def update_subscription(
 def modify_optical_sections(
     subscription: OpticalDigitalServiceProvisioning,
 ) -> State:
-    channels = subscription.optical_digital_service.transport_channels
+    channels = subscription.optical_digital_service.optical_digital_service_transport_channels
 
     label = ""
     ch = channels[0]

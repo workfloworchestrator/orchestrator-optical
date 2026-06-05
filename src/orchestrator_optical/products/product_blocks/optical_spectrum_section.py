@@ -17,20 +17,14 @@ from orchestrator_optical.products.product_blocks.optical_port import (
 )
 
 AddDropPorts = Annotated[list[SI], Len(min_length=2, max_length=2), "List of add/drop ports."]
-
-ExpressPorts = Annotated[list[SI], Len(min_length=0, max_length=64), "List of ports representing the express path."]
-
-# --- Inactive ---
+ExpressPortList = Annotated[list[SI], Len(min_length=0, max_length=64), "List of ports representing the express path."]
 
 
-class OpticalSpectrumSectionBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrumSection"):
+class OpticalSpectrumSectionBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrumSectionBlock"):
     """Inactive state of an OpticalSpectrumSectionBlock product block."""
 
-    add_drop_ports: AddDropPorts[OlsAddDropPortBlockInactive] = Field(default_factory=list)
-    express_ports: ExpressPorts[OlsLinePortBlockInactive] = Field(default_factory=list)
-
-
-# --- Provisioning ---
+    optical_pipe_add_drop_ports: AddDropPorts[OlsAddDropPortBlockInactive] = Field(default_factory=list)
+    optical_express_ports: ExpressPortList[OlsLinePortBlockInactive] = Field(default_factory=list)
 
 
 class OpticalSpectrumSectionBlockProvisioning(
@@ -38,15 +32,12 @@ class OpticalSpectrumSectionBlockProvisioning(
 ):
     """Provisioning state of an OpticalSpectrumSectionBlock product block."""
 
-    add_drop_ports: AddDropPorts[OlsAddDropPortBlockProvisioning]
-    express_ports: ExpressPorts[OlsLinePortBlockProvisioning]
-
-
-# --- Active ---
+    optical_pipe_add_drop_ports: AddDropPorts[OlsAddDropPortBlockProvisioning]
+    optical_pipe_express_ports: ExpressPortList[OlsLinePortBlockProvisioning]
 
 
 class OpticalSpectrumSectionBlock(OpticalSpectrumSectionBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Active state of an OpticalSpectrumSectionBlock product block."""
 
-    add_drop_ports: AddDropPorts[OlsAddDropPortBlock]
-    express_ports: ExpressPorts[OlsLinePortBlock]
+    optical_pipe_add_drop_ports: AddDropPorts[OlsAddDropPortBlock]
+    optical_pipe_express_ports: ExpressPortList[OlsLinePortBlock]

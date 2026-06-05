@@ -19,26 +19,23 @@ class OpticalCoherentPluggablePartNumber(strEnum):
 
 
 class OpticalCoherentPluggableInactive(SubscriptionModel, is_base=True):
-    """TODO: Document."""
+    """An Optical Coherent Pluggable that is inactive."""
 
     optical_coherent_pluggable_part_number: OpticalCoherentPluggablePartNumber
     optical_coherent_pluggable: OpticalCoherentPluggableBlockInactive
 
 
 class OpticalCoherentPluggableProvisioning(
-    OpticalCoherentPluggableInactive,
-    lifecycle=[SubscriptionLifecycle.PROVISIONING],
+    OpticalCoherentPluggableInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    """TODO: Document."""
+    """An Optical Coherent Pluggable that is provisioning."""
 
     optical_coherent_pluggable_part_number: OpticalCoherentPluggablePartNumber
     optical_coherent_pluggable: OpticalCoherentPluggableBlockProvisioning
 
 
-class OpticalCoherentPluggable(
-    OpticalCoherentPluggableProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
-    """TODO: Document."""
+class OpticalCoherentPluggable(OpticalCoherentPluggableProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """An Optical Coherent Pluggable that is active."""
 
     optical_coherent_pluggable_part_number: OpticalCoherentPluggablePartNumber
     optical_coherent_pluggable: OpticalCoherentPluggableBlock

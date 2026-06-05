@@ -271,7 +271,7 @@ def update_subscription_description(
 @step("Verifying transceiver/transponder line ports")
 def verify_trx_line_ports(subscription: OpticalDigitalService) -> State:
     ods = subscription.optical_digital_service
-    channels = ods.transport_channels
+    channels = ods.optical_digital_service_transport_channels
 
     descriptions = tuple(ch.optical_spectrum.spectrum_name for ch in channels)
     central_freqs = tuple(ch.central_frequency for ch in channels)
@@ -292,7 +292,7 @@ def verify_trx_line_ports(subscription: OpticalDigitalService) -> State:
 def verify_trx_client_ports(subscription: OpticalDigitalService) -> State:
     ods = subscription.optical_digital_service
 
-    for port in ods.client_ports:
+    for port in ods.optical_digital_service_client_ports:
         validate_trx_client(port.optical_node, port.port_name, port.port_description, ods.service_type)
 
     return
@@ -301,8 +301,8 @@ def verify_trx_client_ports(subscription: OpticalDigitalService) -> State:
 @step("Verifying transponder crossconnects")
 def verify_transponder_crossconnects(subscription: OpticalDigitalService) -> State:
     ods = subscription.optical_digital_service
-    client_a, client_b = ods.client_ports
-    channels = ods.transport_channels
+    client_a, client_b = ods.optical_digital_service_client_ports
+    channels = ods.optical_digital_service_transport_channels
 
     lines_a, lines_b = [], []
     for channel in channels:
@@ -323,7 +323,7 @@ def verify_transponder_crossconnects(subscription: OpticalDigitalService) -> Sta
 
 @step("Verifying optical spectrum sections")
 def verify_optical_transport_channels(subscription: OpticalDigitalService) -> State:
-    channels = subscription.optical_digital_service.transport_channels
+    channels = subscription.optical_digital_service.optical_digital_service_transport_channels
 
     label = []
     ch = channels[0]

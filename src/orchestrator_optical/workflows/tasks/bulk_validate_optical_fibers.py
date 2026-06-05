@@ -24,7 +24,7 @@ from structlog import get_logger
 
 from orchestrator_optical.products.product_blocks.optical_node import DeviceType
 from orchestrator_optical.products.product_types.optical_node import OpticalDevice
-from orchestrator_optical.products.product_types.optical_pipe import FiberSpanSubscription
+from orchestrator_optical.products.product_types.optical_pipe import OpticalFiberSpan
 from orchestrator_optical.workflows.optical_node.shared import (
     multiple_optical_node_selector,
 )
@@ -62,7 +62,7 @@ def retrieve_fibers(roadm_list: list[UUIDstr]) -> State:
                 continue
             if sub_instance.subscription.status != SubscriptionLifecycle.ACTIVE:
                 continue
-            fiber_sub = FiberSpanSubscription.from_subscription(sub_instance.subscription_id)
+            fiber_sub = OpticalFiberSpan.from_subscription(sub_instance.subscription_id)
             fiber = fiber_sub.optical_fiber
             for device in (x.optical_node for x in fiber.terminations):
                 if device == roadm:

@@ -39,9 +39,7 @@ from orchestrator_optical.products.services.optical_spectrum import delete_optic
 logger = get_logger(__name__)
 
 
-def terminate_initial_input_form_generator(
-    subscription_id: UUIDstr, customer_id: UUIDstr
-) -> InputForm:
+def terminate_initial_input_form_generator(subscription_id: UUIDstr, customer_id: UUIDstr) -> InputForm:
     temp_subscription_id = subscription_id
 
     class TerminateOpticalDigitalServiceForm(FormPage):
@@ -53,8 +51,8 @@ def terminate_initial_input_form_generator(
 @step("Factory resetting transponders/transceivers crossconnects")
 def factory_reset_trx_crossconnects(subscription: OpticalDigitalService) -> State:
     ods = subscription.optical_digital_service
-    client_a, client_b = ods.client_ports
-    channels = ods.transport_channels
+    client_a, client_b = ods.optical_digital_service_client_ports
+    channels = ods.optical_digital_service_transport_channels
 
     lines_a, lines_b = [], []
     for channel in channels:
@@ -70,9 +68,7 @@ def factory_reset_trx_crossconnects(subscription: OpticalDigitalService) -> Stat
             lines[i] = lines[i].port_name
 
         result_key = f"{device.fqdn}"
-        results[result_key] = delete_transponder_crossconnect(
-            device, client
-        )
+        results[result_key] = delete_transponder_crossconnect(device, client)
 
     return {
         "configuration_results": results,
@@ -84,10 +80,11 @@ def factory_reset_trx_crossconnects(subscription: OpticalDigitalService) -> Stat
 def factory_reset_trx_client_side(subscription: OpticalDigitalService) -> State:
     ods = subscription.optical_digital_service
     results = {}
-    for port in ods.client_ports:
+    for port in ods.optical_digital_service_client_ports:
         result_key = f"{port.optical_node.pqdn}"
         results[result_key] = factory_reset_transponder_client(
-            port.optical_node, port.port_name,
+            port.optical_node,
+            port.port_name,
         )
 
     return {
@@ -98,17 +95,17 @@ def factory_reset_trx_client_side(subscription: OpticalDigitalService) -> State:
 @step("Factory resetting transponders/transceivers line side")
 def factory_reset_trx_line_side(subscription: OpticalDigitalService) -> State:
     ods = subscription.optical_digital_service
-    channels = ods.transport_channels
+    channels = ods.optical_digital_service_transport_channels
 
     results = {}
     for channel in channels:
-
         for port in channel.line_ports:
             result_key = f"OCh{channel.och_id:03d} {port.optical_node.pqdn}"
             device = port.optical_node
             port_name = port.port_name
             results[result_key] = factory_reset_transponder_line(
-                device, port_name,
+                device,
+                port_name,
             )
 
     return {
@@ -118,7 +115,7 @@ def factory_reset_trx_line_side(subscription: OpticalDigitalService) -> State:
 
 @step("Deleting optical sections")
 def delete_optical_sections(subscription: OpticalDigitalService) -> State:
-    channels = subscription.optical_digital_service.transport_channels
+    channels = subscription.optical_digital_service.optical_digital_service_transport_channels
     results = {}
     for channel in channels:
         passband = channel.optical_spectrum.passband
@@ -141,7 +138,7 @@ def delete_optical_sections(subscription: OpticalDigitalService) -> State:
 @step("Updating the available passbands of any Open Line System port in the path")
 def update_used_passbands(subscription: OpticalDigitalService) -> State:
     passbands_by_device = {}
-    for channel in subscription.optical_digital_service.transport_channels:
+    for channel in subscription.optical_digital_service.optical_digital_service_transport_channels:
         for section in channel.optical_spectrum.optical_spectrum_sections:
             for port in section.optical_path:
                 device = port.optical_node
@@ -150,14 +147,11 @@ def update_used_passbands(subscription: OpticalDigitalService) -> State:
                     DeviceType.TransponderAndOADM,
                 ]:
                     if device.fqdn not in passbands_by_device:
-                        passbands_by_device[device.fqdn] = (
-                            retrieve_ports_spectral_occupations(device)
-                        )
-                    port.used_passbands = passbands_by_device[device.fqdn].get(
-                        port.port_name, []
-                    )
+                        passbands_by_device[device.fqdn] = retrieve_ports_spectral_occupations(device)
+                    port.used_passbands = passbands_by_device[device.fqdn].get(port.port_name, [])
 
     return {"subscription": subscription}
+
 
 additional_steps = begin
 
@@ -174,6 +168,7 @@ def terminate_optical_digital_service() -> StepList:
     and performs necessary steps to reset transponders/transceivers, delete optical sections, and update
     used passbands accordingly.
     """
+
     def is_last_client_for_transport_channels(state: State) -> bool:
         is_last = state.get("is_last_client_for_transport_channels", None)
 
@@ -189,18 +184,14 @@ def terminate_optical_digital_service() -> StepList:
             for instance in channel.in_use_by
             if instance.subscription.status != SubscriptionLifecycle.TERMINATED
         ]
-        state["is_last_client_for_transport_channels"] = (
-            len(non_terminated_instances_using_channel) == 1
-        )
+        state["is_last_client_for_transport_channels"] = len(non_terminated_instances_using_channel) == 1
         return state["is_last_client_for_transport_channels"]
 
     return (
         begin
         >> factory_reset_trx_crossconnects
         >> factory_reset_trx_client_side
-        >> conditional(is_last_client_for_transport_channels)(
-            factory_reset_trx_line_side
-        )
+        >> conditional(is_last_client_for_transport_channels)(factory_reset_trx_line_side)
         >> conditional(is_last_client_for_transport_channels)(delete_optical_sections)
         >> conditional(is_last_client_for_transport_channels)(update_used_passbands)
     )

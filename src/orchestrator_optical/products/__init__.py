@@ -12,43 +12,70 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from pydantic_forms.types import strEnum
 
-from orchestrator_optical.products.product_types.optical_dark_spectrum import OpticalDarkSpectrum
+from orchestrator_optical.products.product_types.optical_coherent_pluggable import OpticalCoherentPluggable
 from orchestrator_optical.products.product_types.optical_digital_service import OpticalDigitalService
-from orchestrator_optical.products.product_types.optical_node import OpticalDevice
-from orchestrator_optical.products.product_types.optical_pipe import OpticalPipe, OpticalPipeType
+from orchestrator_optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIls
+from orchestrator_optical.products.product_types.optical_node.nokia_groove_g30 import OpticalNodeNokiaGrooveG30
+from orchestrator_optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42
+from orchestrator_optical.products.product_types.optical_pipe import (
+    OpticalFiberPatch,
+    OpticalFiberSpan,
+    OpticalLeasedSpectrum,
+)
+from orchestrator_optical.products.product_types.optical_spectrum_service import OpticalSpectrum
 
 
 class ProductName(strEnum):
     """An enumerator of all product names defined in `orchestrator-optical`."""
 
-    DARK_FIBER = OpticalPipeType.DARK_FIBER
-    LEASED_DARK_SPECTRUM = OpticalPipeType.LEASED_DARK_SPECTRUM
-    OPTICAL_DARK_SPECTRUM = "Optical Dark Spectrum"
-    optical_node = "Optical Device"
-    OPTICAL_DIGITAL_SERVICE = "Optical Digital Service"
+    OPTICAL_COHERENT_PLUGGABLE_CISCO_DP04QSDD_HK9 = "Cisco DP04QSDD HK9 Coherent Pluggable"
+    OPTICAL_COHERENT_PLUGGABLE_CISCO_QDD_400G_ZRP_S = "Cisco QDD 400G ZR+ Coherent Pluggable"
+    OPTICAL_DIGITAL_SERVICE_100G_ETHERNET = "100G Ethernet Optical Digital Service"
+    OPTICAL_DIGITAL_SERVICE_400G_ETHERNET = "400G Ethernet Optical Digital Service"
+    OPTICAL_DIGITAL_SERVICE_800G_ETHERNET = "800G Ethernet Optical Digital Service"
+    OPTICAL_FIBER_PATCH = "Optical Fiber Patch"
+    OPTICAL_FIBER_SPAN = "Optical Fiber Span"
+    OPTICAL_NODE_NOKIA_FLEXILS = "Nokia FlexILS Optical Node"
+    OPTICAL_NODE_NOKIA_GROOVE_G30 = "Nokia Groove G30 Optical Node"
+    OPTICAL_NODE_NOKIA_GX_G42 = "Nokia GX G42 Optical Node"
+    OPTICAL_LEASED_SPECTRUM = "Optical Leased Spectrum"
+    OPTICAL_SPECTRUM = "Optical Spectrum"
 
 
 class ProductType(strEnum):
     """An enumerator of all available products in `orchestrator-optical`."""
 
-    DARK_FIBER = OpticalPipe.__name__
-    LEASED_DARK_SPECTRUM = OpticalPipe.__name__
-    OPTICAL_DARK_SPECTRUM = OpticalDarkSpectrum.__name__
-    optical_node = OpticalDevice.__name__
-    OPTICAL_DIGITAL_SERVICE = OpticalDigitalService.__name__
+    OPTICAL_COHERENT_PLUGGABLE_CISCO_DP04QSDD_HK9 = OpticalCoherentPluggable.__name__
+    OPTICAL_COHERENT_PLUGGABLE_CISCO_QDD_400G_ZRP_S = OpticalCoherentPluggable.__name__
+    OPTICAL_DIGITAL_SERVICE_100G_ETHERNET = OpticalDigitalService.__name__
+    OPTICAL_DIGITAL_SERVICE_400G_ETHERNET = OpticalDigitalService.__name__
+    OPTICAL_DIGITAL_SERVICE_800G_ETHERNET = OpticalDigitalService.__name__
+    OPTICAL_FIBER_PATCH = OpticalFiberPatch.__name__
+    OPTICAL_FIBER_SPAN = OpticalFiberSpan.__name__
+    OPTICAL_NODE_NOKIA_FLEXILS = OpticalNodeNokiaFlexIls.__name__
+    OPTICAL_NODE_NOKIA_GROOVE_G30 = OpticalNodeNokiaGrooveG30.__name__
+    OPTICAL_NODE_NOKIA_GX_G42 = OpticalNodeNokiaGxG42.__name__
+    OPTICAL_LEASED_SPECTRUM = OpticalLeasedSpectrum.__name__
+    OPTICAL_SPECTRUM = OpticalSpectrum.__name__
 
 
 SUBSCRIPTION_MODEL_REGISTRY.update(
     {
-        ProductName.DARK_FIBER.value: OpticalPipe,
-        ProductName.LEASED_DARK_SPECTRUM.name: OpticalPipe,
-        ProductName.OPTICAL_DARK_SPECTRUM.name: OpticalDarkSpectrum,
-        ProductName.optical_node.name: OpticalDevice,
-        ProductName.OPTICAL_DIGITAL_SERVICE.name: OpticalDigitalService,
+        ProductName.OPTICAL_COHERENT_PLUGGABLE_CISCO_DP04QSDD_HK9.value: OpticalCoherentPluggable,
+        ProductName.OPTICAL_COHERENT_PLUGGABLE_CISCO_QDD_400G_ZRP_S.value: OpticalCoherentPluggable,
+        ProductName.OPTICAL_DIGITAL_SERVICE_100G_ETHERNET.value: OpticalDigitalService,
+        ProductName.OPTICAL_DIGITAL_SERVICE_400G_ETHERNET.value: OpticalDigitalService,
+        ProductName.OPTICAL_DIGITAL_SERVICE_800G_ETHERNET.value: OpticalDigitalService,
+        ProductName.OPTICAL_FIBER_PATCH.value: OpticalFiberPatch,
+        ProductName.OPTICAL_FIBER_SPAN.value: OpticalFiberSpan,
+        ProductName.OPTICAL_NODE_NOKIA_FLEXILS.value: OpticalNodeNokiaFlexIls,
+        ProductName.OPTICAL_NODE_NOKIA_GROOVE_G30.value: OpticalNodeNokiaGrooveG30,
+        ProductName.OPTICAL_NODE_NOKIA_GX_G42.value: OpticalNodeNokiaGxG42,
+        ProductName.OPTICAL_LEASED_SPECTRUM.value: OpticalLeasedSpectrum,
+        ProductName.OPTICAL_SPECTRUM.value: OpticalSpectrum,
     }
 )
 

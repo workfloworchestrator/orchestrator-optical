@@ -1,5 +1,4 @@
 """Module for Optical Transport Channel product blocks."""
-from orchestrator_optical.products.product_blocks.optical_port import OpticalTransponderLinePortBlockInactive
 
 from typing import Annotated
 
@@ -8,22 +7,27 @@ from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
 from pydantic import Field
 
+from orchestrator_optical.products.product_blocks.optical_pipe import (
+    OpticalTransportLineChannelBlock,
+    OpticalTransportLineChannelBlockInactive,
+    OpticalTransportLineChannelBlockProvisioning,
+)
 from orchestrator_optical.products.product_blocks.optical_spectrum import (
     OpticalSpectrumBlock,
     OpticalSpectrumBlockInactive,
     OpticalSpectrumBlockProvisioning,
 )
 
-OpticalLinePortList = Annotated[list[SI], Len(min_length=2, max_length=2)]
+ListOfTwo = Annotated[list[SI], Len(min_length=2, max_length=2)]
 
 
-class OpticalTransportChannelBlockInactive(ProductBlockModel, product_block_name="OpticalTransportChannel"):
+class OpticalTransportChannelBlockInactive(ProductBlockModel, product_block_name="OpticalTransportChannelBlock"):
     """Inactive state of an Optical Transport Channel product block."""
 
     optical_transport_channel_name: str | None = None
     optical_transport_central_frequency: int | None = None
     optical_transport_mode: str | None = None
-    optical_transport_line_ports: OpticalLinePortList[CoherentPluggableBlockInactive | OpticalTransponderLinePortBlockInactive] = Field(default_factory=list)
+    optical_transport_line_ports: ListOfTwo[OpticalTransportLineChannelBlockInactive] = Field(default_factory=list)
     optical_transport_spectrum: OpticalSpectrumBlockInactive
 
 
@@ -35,7 +39,7 @@ class OpticalTransportChannelBlockProvisioning(
     optical_transport_channel_name: str
     optical_transport_central_frequency: int
     optical_transport_mode: str
-    optical_transport_line_ports: OpticalLinePortList[OpticalPortBlockProvisioning]
+    optical_transport_line_ports: ListOfTwo[OpticalTransportLineChannelBlockProvisioning]
     optical_transport_spectrum: OpticalSpectrumBlockProvisioning
 
 
@@ -45,5 +49,5 @@ class OpticalTransportChannelBlock(OpticalTransportChannelBlockProvisioning, lif
     optical_transport_channel_name: str
     optical_transport_central_frequency: int
     optical_transport_mode: str
-    optical_transport_line_ports: OpticalLinePortList[OpticalPortBlock]
+    optical_transport_line_ports: ListOfTwo[OpticalTransportLineChannelBlock]
     optical_transport_spectrum: OpticalSpectrumBlock

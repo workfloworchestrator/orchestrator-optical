@@ -7,109 +7,93 @@ from orchestrator_optical.products.product_blocks.optical_pipe import (
     AbstractOpticalPipeBlock,
     AbstractOpticalPipeBlockInactive,
     AbstractOpticalPipeBlockProvisioning,
-    FiberPatchBlock,
-    FiberPatchBlockInactive,
-    FiberPatchBlockProvisioning,
-    FiberSpanBlock,
-    FiberSpanBlockInactive,
-    FiberSpanBlockProvisioning,
-    LeasedSpectrumBlock,
-    LeasedSpectrumBlockInactive,
-    LeasedSpectrumBlockProvisioning,
+    OpticalFiberPatchBlock,
+    OpticalFiberPatchBlockInactive,
+    OpticalFiberPatchBlockProvisioning,
+    OpticalFiberSpanBlock,
+    OpticalFiberSpanBlockInactive,
+    OpticalFiberSpanBlockProvisioning,
+    OpticalLeasedSpectrumBlock,
+    OpticalLeasedSpectrumBlockInactive,
+    OpticalLeasedSpectrumBlockProvisioning,
 )
 
 
-class AbstractOpticalPipeSubscriptionInactive(SubscriptionModel):
+class AbstractOpticalPipeInactive(SubscriptionModel):
     """Abstract base model for generic optical pipe subscription handling."""
 
     optical_pipe: AbstractOpticalPipeBlockInactive
 
 
-class AbstractOpticalPipeSubscriptionProvisioning(AbstractOpticalPipeSubscriptionInactive):
+class AbstractOpticalPipeProvisioning(AbstractOpticalPipeInactive):
     """Abstract base model for provisioning optical pipe subscriptions."""
 
     optical_pipe: AbstractOpticalPipeBlockProvisioning
 
 
-class AbstractOpticalPipeSubscription(AbstractOpticalPipeSubscriptionProvisioning):
+class AbstractOpticalPipe(AbstractOpticalPipeProvisioning):
     """Abstract base model for active/operational optical pipe subscriptions."""
 
     optical_pipe: AbstractOpticalPipeBlock
 
 
-class FiberPatchSubscriptionInactive(AbstractOpticalPipeSubscriptionInactive, is_base=True):
+class OpticalFiberPatchInactive(AbstractOpticalPipeInactive, is_base=True):
     """Base model for an internal fiber patch subscription in the INACTIVE state."""
 
-    optical_pipe: FiberPatchBlockInactive
+    optical_pipe: OpticalFiberPatchBlockInactive
 
 
-class FiberPatchSubscriptionProvisioning(
-    FiberPatchSubscriptionInactive,
-    AbstractOpticalPipeSubscriptionProvisioning,
-    lifecycle=[SubscriptionLifecycle.PROVISIONING],
+class OpticalFiberPatchProvisioning(
+    OpticalFiberPatchInactive, AbstractOpticalPipeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Base model for an internal fiber patch subscription in the PROVISIONING state."""
 
-    optical_pipe: FiberPatchBlockProvisioning
+    optical_pipe: OpticalFiberPatchBlockProvisioning
 
 
-class FiberPatchSubscription(
-    FiberPatchSubscriptionProvisioning,
-    AbstractOpticalPipeSubscription,
-    lifecycle=[SubscriptionLifecycle.ACTIVE],
-):
+class OpticalFiberPatch(OpticalFiberPatchProvisioning, AbstractOpticalPipe, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Base model for an internal fiber patch subscription in the ACTIVE state."""
 
-    optical_pipe: FiberPatchBlock
+    optical_pipe: OpticalFiberPatchBlock
 
 
-class FiberSpanSubscriptionInactive(AbstractOpticalPipeSubscriptionInactive, is_base=True):
+class OpticalFiberSpanInactive(AbstractOpticalPipeInactive, is_base=True):
     """Base model for a fiber span subscription in the INACTIVE state."""
 
-    optical_pipe: FiberSpanBlockInactive
+    optical_pipe: OpticalFiberSpanBlockInactive
 
 
-class FiberSpanSubscriptionProvisioning(
-    FiberSpanSubscriptionInactive,
-    AbstractOpticalPipeSubscriptionProvisioning,
-    lifecycle=[SubscriptionLifecycle.PROVISIONING],
+class OpticalFiberSpanProvisioning(
+    OpticalFiberSpanInactive, AbstractOpticalPipeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Base model for a fiber span subscription in the PROVISIONING state."""
 
-    optical_pipe: FiberSpanBlockProvisioning
+    optical_pipe: OpticalFiberSpanBlockProvisioning
 
 
-class FiberSpanSubscription(
-    FiberSpanSubscriptionProvisioning,
-    AbstractOpticalPipeSubscription,
-    lifecycle=[SubscriptionLifecycle.ACTIVE],
-):
+class OpticalFiberSpan(OpticalFiberSpanProvisioning, AbstractOpticalPipe, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Base model for a fiber span subscription in the ACTIVE state."""
 
-    optical_pipe: FiberSpanBlock
+    optical_pipe: OpticalFiberSpanBlock
 
 
-class LeasedSpectrumSubscriptionInactive(AbstractOpticalPipeSubscriptionInactive, is_base=True):
+class OpticalLeasedSpectrumInactive(AbstractOpticalPipeInactive, is_base=True):
     """Base model for a leased spectrum subscription in the INACTIVE state."""
 
-    optical_pipe: LeasedSpectrumBlockInactive
+    optical_pipe: OpticalLeasedSpectrumBlockInactive
 
 
-class LeasedSpectrumSubscriptionProvisioning(
-    LeasedSpectrumSubscriptionInactive,
-    AbstractOpticalPipeSubscriptionProvisioning,
-    lifecycle=[SubscriptionLifecycle.PROVISIONING],
+class OpticalLeasedSpectrumProvisioning(
+    OpticalLeasedSpectrumInactive, AbstractOpticalPipeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Base model for a leased spectrum subscription in the PROVISIONING state."""
 
-    optical_pipe: LeasedSpectrumBlockProvisioning
+    optical_pipe: OpticalLeasedSpectrumBlockProvisioning
 
 
-class LeasedSpectrumSubscription(
-    LeasedSpectrumSubscriptionProvisioning,
-    AbstractOpticalPipeSubscription,
-    lifecycle=[SubscriptionLifecycle.ACTIVE],
+class OpticalLeasedSpectrum(
+    OpticalLeasedSpectrumProvisioning, AbstractOpticalPipe, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """Base model for a leased spectrum subscription in the ACTIVE state."""
 
-    optical_pipe: LeasedSpectrumBlock
+    optical_pipe: OpticalLeasedSpectrumBlock
