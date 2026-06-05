@@ -1,17 +1,19 @@
 """Module for OpticalSpectrumSectionBlock product blocks."""
+
 from typing import Annotated
 
 from annotated_types import Len
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
+from pydantic import Field
 
 from orchestrator_optical.products.product_blocks.optical_port import (
-    OlsAddDropPort,
-    OlsAddDropPortInactive,
-    OlsAddDropPortProvisioning,
-    OlsLinePort,
-    OlsLinePortInactive,
-    OlsLinePortProvisioning,
+    OlsAddDropPortBlock,
+    OlsAddDropPortBlockInactive,
+    OlsAddDropPortBlockProvisioning,
+    OlsLinePortBlock,
+    OlsLinePortBlockInactive,
+    OlsLinePortBlockProvisioning,
 )
 
 AddDropPorts = Annotated[list[SI], Len(min_length=2, max_length=2), "List of add/drop ports."]
@@ -21,13 +23,11 @@ ExpressPorts = Annotated[list[SI], Len(min_length=0, max_length=64), "List of po
 # --- Inactive ---
 
 
-class OpticalSpectrumSectionBlockInactive(
-    ProductBlockModel, product_block_name="OpticalSpectrumSection"
-):
+class OpticalSpectrumSectionBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrumSection"):
     """Inactive state of an OpticalSpectrumSectionBlock product block."""
 
-    add_drop_ports: AddDropPorts[OlsAddDropPortInactive]
-    express_ports: ExpressPorts[OlsLinePortInactive]
+    add_drop_ports: AddDropPorts[OlsAddDropPortBlockInactive] = Field(default_factory=list)
+    express_ports: ExpressPorts[OlsLinePortBlockInactive] = Field(default_factory=list)
 
 
 # --- Provisioning ---
@@ -38,8 +38,8 @@ class OpticalSpectrumSectionBlockProvisioning(
 ):
     """Provisioning state of an OpticalSpectrumSectionBlock product block."""
 
-    add_drop_ports: AddDropPorts[OlsAddDropPortProvisioning]
-    express_ports: ExpressPorts[OlsLinePortProvisioning]
+    add_drop_ports: AddDropPorts[OlsAddDropPortBlockProvisioning]
+    express_ports: ExpressPorts[OlsLinePortBlockProvisioning]
 
 
 # --- Active ---
@@ -48,7 +48,5 @@ class OpticalSpectrumSectionBlockProvisioning(
 class OpticalSpectrumSectionBlock(OpticalSpectrumSectionBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Active state of an OpticalSpectrumSectionBlock product block."""
 
-    add_drop_ports: AddDropPorts[OlsAddDropPort]
-    express_ports: ExpressPorts[OlsLinePort]
-
-
+    add_drop_ports: AddDropPorts[OlsAddDropPortBlock]
+    express_ports: ExpressPorts[OlsLinePortBlock]

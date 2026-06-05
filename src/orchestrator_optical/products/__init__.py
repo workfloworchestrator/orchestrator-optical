@@ -1,4 +1,6 @@
-# Copyright 2025 GARR.
+"""Product Models for Optical services."""
+
+# Copyright 2025-2026 GARR, GÉANT.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -11,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from orchestrator.domain import SUBSCRIPTION_MODEL_REGISTRY
 from pydantic_forms.types import strEnum
 
@@ -22,7 +23,7 @@ from orchestrator_optical.products.product_types.optical_pipe import OpticalPipe
 
 
 class ProductName(strEnum):
-    """An enumerator of all product names defined in ``orchestrator-extra-optical``."""
+    """An enumerator of all product names defined in `orchestrator-optical`."""
 
     DARK_FIBER = OpticalPipeType.DARK_FIBER
     LEASED_DARK_SPECTRUM = OpticalPipeType.LEASED_DARK_SPECTRUM
@@ -32,7 +33,7 @@ class ProductName(strEnum):
 
 
 class ProductType(strEnum):
-    """An enumerator of all available products in ``orchestrator-extra-optical``."""
+    """An enumerator of all available products in `orchestrator-optical`."""
 
     DARK_FIBER = OpticalPipe.__name__
     LEASED_DARK_SPECTRUM = OpticalPipe.__name__

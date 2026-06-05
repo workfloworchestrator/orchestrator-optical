@@ -1,18 +1,16 @@
 """Module for Optical Pipe product blocks (Fiber Patch, Fiber Span, and Leased Spectrum)."""
 
-from enum import StrEnum
-from typing import TYPE_CHECKING, Annotated, Literal
+from typing import Annotated
 
 from annotated_types import Len
-from orchestrator.domain import SubscriptionModel
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
-from pydantic import Discriminator, Field, computed_field
+from pydantic import Discriminator, Field
 
 from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
-    CoherentPluggableBlock,
-    CoherentPluggableBlockInactive,
-    CoherentPluggableBlockProvisioning,
+    OpticalCoherentPluggableBlock,
+    OpticalCoherentPluggableBlockInactive,
+    OpticalCoherentPluggableBlockProvisioning,
 )
 from orchestrator_optical.products.product_blocks.optical_port import (
     OlsAddDropPortBlock,
@@ -21,16 +19,13 @@ from orchestrator_optical.products.product_blocks.optical_port import (
     OlsLinePortBlock,
     OlsLinePortBlockInactive,
     OlsLinePortBlockProvisioning,
-    TransponderClientPortBlock,
-    TransponderClientPortBlockInactive,
-    TransponderClientPortBlockProvisioning,
-    TransponderLinePortBlock,
-    TransponderLinePortBlockInactive,
-    TransponderLinePortBlockProvisioning,
+    OpticalTransponderClientPortBlock,
+    OpticalTransponderClientPortBlockInactive,
+    OpticalTransponderClientPortBlockProvisioning,
+    OpticalTransponderLinePortBlock,
+    OpticalTransponderLinePortBlockInactive,
+    OpticalTransponderLinePortBlockProvisioning,
 )
-
-if TYPE_CHECKING:
-    from orchestrator_optical.products.product_types.optical_pipe import PipeType
 
 ListOfPorts = Annotated[list[SI], Len(min_length=2, max_length=2), "List of the 2 ports connected by the fiber."]
 
@@ -38,23 +33,26 @@ ListOfPorts = Annotated[list[SI], Len(min_length=2, max_length=2), "List of the 
 # --- Discriminated Union Types for Patch Fibers ---
 
 PatchPortBlocksInactive = Annotated[
-    TransponderClientPortBlockInactive
-    | TransponderLinePortBlockInactive
+    OpticalTransponderClientPortBlockInactive
+    | OpticalTransponderLinePortBlockInactive
     | OlsAddDropPortBlockInactive
-    | CoherentPluggableBlockInactive,
+    | OpticalCoherentPluggableBlockInactive,
     Field(discriminator="role"),
 ]
 
 PatchPortBlocksProvisioning = Annotated[
-    TransponderClientPortBlockProvisioning
-    | TransponderLinePortBlockProvisioning
+    OpticalTransponderClientPortBlockProvisioning
+    | OpticalTransponderLinePortBlockProvisioning
     | OlsAddDropPortBlockProvisioning
-    | CoherentPluggableBlockProvisioning,
+    | OpticalCoherentPluggableBlockProvisioning,
     Field(discriminator="role"),
 ]
 
 PatchPortBlocks = Annotated[
-    TransponderClientPortBlock | TransponderLinePortBlock | OlsAddDropPortBlock | CoherentPluggableBlock,
+    OpticalTransponderClientPortBlock
+    | OpticalTransponderLinePortBlock
+    | OlsAddDropPortBlock
+    | OpticalCoherentPluggableBlock,
     Field(discriminator="role"),
 ]
 
@@ -69,40 +67,49 @@ SpanPortBlocks = OlsLinePortBlock
 # --- Discriminated Port Unions for Leased Spectra ---
 
 LeasedSpectrumPortBlocksInactive = Annotated[
-    TransponderLinePortBlockInactive
+    OpticalTransponderLinePortBlockInactive
     | OlsAddDropPortBlockInactive
     | OlsLinePortBlockInactive
-    | CoherentPluggableBlockInactive,
+    | OpticalCoherentPluggableBlockInactive,
     Field(discriminator="role"),
 ]
 
 LeasedSpectrumPortBlocksProvisioning = Annotated[
-    TransponderLinePortBlockProvisioning
+    OpticalTransponderLinePortBlockProvisioning
     | OlsAddDropPortBlockProvisioning
     | OlsLinePortBlockProvisioning
-    | CoherentPluggableBlockProvisioning,
+    | OpticalCoherentPluggableBlockProvisioning,
     Field(discriminator="role"),
 ]
 
 LeasedSpectrumPortBlocks = Annotated[
-    TransponderLinePortBlock | OlsAddDropPortBlock | OlsLinePortBlock | CoherentPluggableBlock,
+    OpticalTransponderLinePortBlock | OlsAddDropPortBlock | OlsLinePortBlock | OpticalCoherentPluggableBlock,
+    Field(discriminator="role"),
+]
+
+# ----------
+
+OpticalTransportLineChannelBlockInactive = Annotated[
+    OpticalTransponderLinePortBlockInactive | OpticalCoherentPluggableBlockInactive,
+    Field(discriminator="role"),
+]
+
+OpticalTransportLineChannelBlockProvisioning = Annotated[
+    OpticalTransponderLinePortBlockProvisioning | OpticalCoherentPluggableBlockProvisioning,
+    Field(discriminator="role"),
+]
+
+OpticalTransportLineChannelBlock = Annotated[
+    OpticalTransponderLinePortBlock | OpticalCoherentPluggableBlock,
     Field(discriminator="role"),
 ]
 
 
-# ── Abstract block (no product_block_name) ──────────────────────────────────
 class AbstractOpticalPipeBlockInactive(ProductBlockModel):
     """Abstract base class for all optical pipe blocks in the INACTIVE state."""
 
     identifier: str | None = None
     terminations: ListOfPorts[SI]
-
-    @computed_field
-    @property
-    def pipe_type(self) -> "PipeType":
-        """From fixed_inputs."""
-        sub = SubscriptionModel.from_subscription(self.owner_subscription_id)
-        return sub.pipe_type
 
 
 class AbstractOpticalPipeBlockProvisioning(
@@ -121,7 +128,7 @@ class AbstractOpticalPipeBlock(AbstractOpticalPipeBlockProvisioning, lifecycle=[
 
 
 # ── Fiber Patch Product Blocks ──────────────────────────────────
-class FiberPatchBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberPatch"):
+class FiberPatchBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberPatchBlock"):
     """Inactive state of a Fiber Patch product block."""
 
     terminations: ListOfPorts[PatchPortBlocksInactive]
@@ -148,7 +155,7 @@ class FiberPatchBlock(
 
 
 # ── Fiber Span Product Blocks ──────────────────────────────────
-class FiberSpanBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberSpan"):
+class FiberSpanBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberSpanBlock"):
     """Inactive state of a Fiber Span product block."""
 
     terminations: ListOfPorts[SpanPortBlocksInactive]

@@ -1,8 +1,5 @@
 """Models for the subscriptions of optical pipes."""
 
-from enum import StrEnum
-from typing import Literal
-
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
@@ -22,41 +19,28 @@ from orchestrator_optical.products.product_blocks.optical_pipe import (
 )
 
 
-# ── Fixed Inputs ───────────
-class PipeType(StrEnum):
-    """Types of optical pipes."""
-
-    PATCH = "Fiber Patch"
-    SPAN = "Fiber Span"
-    LEASED_SPECTRUM = "Leased Spectrum"
-
-
-# ── Abstract subscription (no is_base) — for generic workflow code ───────────
 class AbstractOpticalPipeSubscriptionInactive(SubscriptionModel):
     """Abstract base model for generic optical pipe subscription handling."""
 
-    pipe_type: PipeType
-    block: AbstractOpticalPipeBlockInactive
+    optical_pipe: AbstractOpticalPipeBlockInactive
 
 
 class AbstractOpticalPipeSubscriptionProvisioning(AbstractOpticalPipeSubscriptionInactive):
     """Abstract base model for provisioning optical pipe subscriptions."""
 
-    block: AbstractOpticalPipeBlockProvisioning
+    optical_pipe: AbstractOpticalPipeBlockProvisioning
 
 
 class AbstractOpticalPipeSubscription(AbstractOpticalPipeSubscriptionProvisioning):
     """Abstract base model for active/operational optical pipe subscriptions."""
 
-    block: AbstractOpticalPipeBlock
+    optical_pipe: AbstractOpticalPipeBlock
 
 
-# ── Concrete subscription for Fiber Patch ─────────────────────────────────────
 class FiberPatchSubscriptionInactive(AbstractOpticalPipeSubscriptionInactive, is_base=True):
     """Base model for an internal fiber patch subscription in the INACTIVE state."""
 
-    pipe_type: Literal[PipeType.PATCH] = PipeType.PATCH
-    block: FiberPatchBlockInactive
+    optical_pipe: FiberPatchBlockInactive
 
 
 class FiberPatchSubscriptionProvisioning(
@@ -66,7 +50,7 @@ class FiberPatchSubscriptionProvisioning(
 ):
     """Base model for an internal fiber patch subscription in the PROVISIONING state."""
 
-    block: FiberPatchBlockProvisioning
+    optical_pipe: FiberPatchBlockProvisioning
 
 
 class FiberPatchSubscription(
@@ -76,19 +60,13 @@ class FiberPatchSubscription(
 ):
     """Base model for an internal fiber patch subscription in the ACTIVE state."""
 
-    block: FiberPatchBlock
-
-
-# ============================================================================
-# Fiber Span Subscriptions
-# ============================================================================
+    optical_pipe: FiberPatchBlock
 
 
 class FiberSpanSubscriptionInactive(AbstractOpticalPipeSubscriptionInactive, is_base=True):
     """Base model for a fiber span subscription in the INACTIVE state."""
 
-    pipe_type: Literal[PipeType.SPAN] = PipeType.SPAN
-    block: FiberSpanBlockInactive
+    optical_pipe: FiberSpanBlockInactive
 
 
 class FiberSpanSubscriptionProvisioning(
@@ -98,7 +76,7 @@ class FiberSpanSubscriptionProvisioning(
 ):
     """Base model for a fiber span subscription in the PROVISIONING state."""
 
-    block: FiberSpanBlockProvisioning
+    optical_pipe: FiberSpanBlockProvisioning
 
 
 class FiberSpanSubscription(
@@ -108,19 +86,13 @@ class FiberSpanSubscription(
 ):
     """Base model for a fiber span subscription in the ACTIVE state."""
 
-    block: FiberSpanBlock
-
-
-# ============================================================================
-# Leased Spectrum Subscriptions
-# ============================================================================
+    optical_pipe: FiberSpanBlock
 
 
 class LeasedSpectrumSubscriptionInactive(AbstractOpticalPipeSubscriptionInactive, is_base=True):
     """Base model for a leased spectrum subscription in the INACTIVE state."""
 
-    pipe_type: Literal[PipeType.LEASED_SPECTRUM] = PipeType.LEASED_SPECTRUM
-    block: LeasedSpectrumBlockInactive
+    optical_pipe: LeasedSpectrumBlockInactive
 
 
 class LeasedSpectrumSubscriptionProvisioning(
@@ -130,7 +102,7 @@ class LeasedSpectrumSubscriptionProvisioning(
 ):
     """Base model for a leased spectrum subscription in the PROVISIONING state."""
 
-    block: LeasedSpectrumBlockProvisioning
+    optical_pipe: LeasedSpectrumBlockProvisioning
 
 
 class LeasedSpectrumSubscription(
@@ -140,4 +112,4 @@ class LeasedSpectrumSubscription(
 ):
     """Base model for a leased spectrum subscription in the ACTIVE state."""
 
-    block: LeasedSpectrumBlock
+    optical_pipe: LeasedSpectrumBlock

@@ -8,14 +8,14 @@ from orchestrator.types import SI, SubscriptionLifecycle
 from pydantic import Field
 
 from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
-    CoherentPluggableBlock,
-    CoherentPluggableBlockInactive,
-    CoherentPluggableBlockProvisioning,
+    OpticalCoherentPluggableBlock,
+    OpticalCoherentPluggableBlockInactive,
+    OpticalCoherentPluggableBlockProvisioning,
 )
 from orchestrator_optical.products.product_blocks.optical_port import (
-    TransponderClientPortBlock,
-    TransponderClientPortBlockInactive,
-    TransponderClientPortBlockProvisioning,
+    OpticalTransponderClientPortBlock,
+    OpticalTransponderClientPortBlockInactive,
+    OpticalTransponderClientPortBlockProvisioning,
 )
 from orchestrator_optical.products.product_blocks.optical_transport_channel import (
     OpticalTransportChannelBlock,
@@ -23,47 +23,48 @@ from orchestrator_optical.products.product_blocks.optical_transport_channel impo
     OpticalTransportChannelBlockProvisioning,
 )
 
-ClientPortsList = Annotated[list[SI], Len(min_length=2, max_length=2)]
+OpticalClientPortList = Annotated[list[SI], Len(min_length=2, max_length=2)]
 
-TransportChannelsList = Annotated[
+TransportChannelList = Annotated[
     list[SI], Len(min_length=1, max_length=2)
 ]  # if 2 then reverse multiplexing: 2 transport channels for one client service
 
 
 # --- Discriminated Union Types for Client Ports ---
 
-ClientsInactive = Annotated[TransponderClientPortBlockInactive | CoherentPluggableBlockInactive, Field(discriminator="role")]
-
-ClientsProvisioning = Annotated[
-    TransponderClientPortBlockProvisioning | CoherentPluggableBlockProvisioning, Field(discriminator="role")
+ClientsInactive = Annotated[
+    OpticalTransponderClientPortBlockInactive | OpticalCoherentPluggableBlockInactive, Field(discriminator="role")
 ]
 
-Clients = Annotated[TransponderClientPortBlock | CoherentPluggableBlock, Field(discriminator="role")]
+ClientsProvisioning = Annotated[
+    OpticalTransponderClientPortBlockProvisioning | OpticalCoherentPluggableBlockProvisioning,
+    Field(discriminator="role"),
+]
+
+Clients = Annotated[OpticalTransponderClientPortBlock | OpticalCoherentPluggableBlock, Field(discriminator="role")]
 
 
-# ============================================================================
-# --- Optical Digital Service Product Blocks ---
-# ============================================================================
-
-
-class OpticalDigitalServiceBlockInactive(ProductBlockModel, product_block_name="OpticalDigitalService"):
+class OpticalDigitalServiceBlockInactive(ProductBlockModel, product_block_name="OpticalDigitalServiceBlock"):
     """Inactive state of an Optical Digital Service product block."""
 
-    service_name: str | None = None
-    client_ports: ClientPortsList[TransponderClientPortBlockInactive]
-    transport_channels: TransportChannelsList[OpticalTransportChannelBlockInactive]
+    optical_digital_service_name: str | None = None
+    client_ports: OpticalClientPortList[OpticalTransponderClientPortBlockInactive] = Field(default_factory=list)
+    transport_channels: TransportChannelList[OpticalTransportChannelBlockInactive] = Field(default_factory=list)
 
 
-class OpticalDigitalServiceBlockProvisioning(OpticalDigitalServiceBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class OpticalDigitalServiceBlockProvisioning(
+    OpticalDigitalServiceBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
     """Provisioning state of an Optical Digital Service product block."""
 
-    service_name: str
-    client_ports: ClientPortsList[TransponderClientPortBlockProvisioning]
-    transport_channels: TransportChannelsList[OpticalTransportChannelBlockProvisioning]
+    optical_digital_service_name: str
+    client_ports: OpticalClientPortList[OpticalTransponderClientPortBlockProvisioning]
+    transport_channels: TransportChannelList[OpticalTransportChannelBlockProvisioning]
 
 
 class OpticalDigitalServiceBlock(OpticalDigitalServiceBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Active state of an Optical Digital Service product block."""
 
-    client_ports: ClientPortsList[Clients]
-    transport_channels: TransportChannelsList[OpticalTransportChannelBlock]
+    optical_digital_service_name: str
+    client_ports: OpticalClientPortList[Clients]
+    transport_channels: TransportChannelList[OpticalTransportChannelBlock]

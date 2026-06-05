@@ -15,20 +15,25 @@ IpAddressesList = Annotated[
 ]
 
 
-class OpticalLocationBlockInactive(ProductBlockModel, product_block_name="OpticalLocation"):
+class AbstractOpticalLocationBlockInactive(ProductBlockModel):
+    """TODO: Document."""
+
     longitude: LongitudeCoordinate | None = None
     latitude: LatitudeCoordinate | None = None
     fqdn_subdomain: SubdomainPrefix | None = None
 
-class OpticalLocationBlockProvisioning(OpticalLocationBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+
+class AbstractOpticalLocationBlockProvisioning(
+    AbstractOpticalLocationBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
+    """TODO: Document."""
+
     longitude: LongitudeCoordinate
     latitude: LatitudeCoordinate
     fqdn_subdomain: SubdomainPrefix
 
-class OpticalLocationBlock(OpticalLocationBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    pass
 
-class OpticalLocationBlock(OpticalLocationBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class AbstractOpticalLocationBlock(AbstractOpticalLocationBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """TODO: Document."""
 
     longitude: LongitudeCoordinate

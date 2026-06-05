@@ -5,6 +5,7 @@ from typing import Annotated
 from annotated_types import Len
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SI, SubscriptionLifecycle
+from pydantic import Field
 
 from orchestrator_optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlock,
@@ -13,28 +14,30 @@ from orchestrator_optical.products.product_blocks.optical_spectrum_section impor
 )
 from orchestrator_optical.utils.custom_types.frequencies import Passband
 
-OpticalSpectrumSectionsList = Annotated[list[SI], Len(min_length=0, max_length=9)]
+OpticalSpectrumSectionList = Annotated[list[SI], Len(min_length=0, max_length=9)]
 
 
 class OpticalSpectrumBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrum"):
     """Inactive state of the Optical Spectrum product block."""
 
-    spectrum_name: str | None = None
-    passband: Passband | None = None
-    sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlockInactive]
+    optical_spectrum_name: str | None = None
+    optical_spectrum_passband: Passband | None = None
+    optical_spectrum_sections: OpticalSpectrumSectionList[OpticalSpectrumSectionBlockInactive] = Field(
+        default_factory=list
+    )
 
 
 class OpticalSpectrumBlockProvisioning(OpticalSpectrumBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     """Provisioning state of the Optical Spectrum product block."""
 
-    spectrum_name: str | None = None
-    passband: Passband
-    sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlockProvisioning]
+    optical_spectrum_name: str | None
+    optical_spectrum_passband: Passband
+    optical_spectrum_sections: OpticalSpectrumSectionList[OpticalSpectrumSectionBlockProvisioning]
 
 
 class OpticalSpectrumBlock(OpticalSpectrumBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Active state of the Optical Spectrum product block."""
 
-    spectrum_name: str
-    passband: Passband
-    sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlock]
+    optical_spectrum_name: str
+    optical_spectrum_passband: Passband
+    optical_spectrum_sections: OpticalSpectrumSectionList[OpticalSpectrumSectionBlock]

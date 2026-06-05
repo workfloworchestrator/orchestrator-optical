@@ -1,27 +1,33 @@
-"""Module for Optical Port product blocks."""
+"""Module for Optical Port product blocks.
 
-from enum import StrEnum
+There is a product block for each kind of Optical Port Role, in each subscription lifecycle state.
+"""
+
 from typing import Annotated, Literal
 
 from annotated_types import Len
 from orchestrator.domain.base import ProductBlockModel
 from orchestrator.types import SubscriptionLifecycle
 from pydantic import Field
+from pydantic_forms.types import strEnum
 
-from orchestrator_optical.products.product_blocks.optical_node import (
-    OpticalNodeBlockUnion,
-    OpticalNodeBlockUnionInactive,
-    OpticalNodeBlockUnionProvisioning,
+from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
+    OpticalCoherentPluggableBlock,
+    OpticalCoherentPluggableBlockInactive,
+    OpticalCoherentPluggableBlockProvisioning,
+)
+from orchestrator_optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlock,
+    AbstractOpticalNodeBlockInactive,
+    AbstractOpticalNodeBlockProvisioning,
 )
 from orchestrator_optical.utils.custom_types.frequencies import Passband
 
-# --- Types & Enums ---
-
-ListOfPassbands = Annotated[list[Passband], Len(min_length=0, max_length=128), "List of used passbands (MHz, MHz)."]
+OpticalPassbandList = Annotated[list[Passband], Len(min_length=0, max_length=128), "List of used passbands (MHz, MHz)."]
 
 
-class PortRole(StrEnum):
-    """missing docstring."""
+class OpticalPortRole(strEnum):
+    """The Role of the Optical Port."""
 
     OLS_ADD_DROP = "Optical Line System Add/Drop"
     OLS_LINE = "Optical Line System Line"
@@ -30,112 +36,133 @@ class PortRole(StrEnum):
     COHERENT_PLUGGABLE = "Coherent Pluggable"
 
 
-# --- Inactive ---
+class AbstractOpticalPortBlockInactive(ProductBlockModel):
+    """Abstract implementation of an Optical Port Product Block that is inactive."""
+
+    optical_port_role: OpticalPortRole | None = None
+    optical_port_name: str | None = None
+    optical_port_description: str | None = None
+    optical_port_host_node: AbstractOpticalNodeBlockInactive | OpticalCoherentPluggableBlockInactive
 
 
-class AbstractPortBlockInactive(ProductBlockModel):
-    """missing docstring."""
+class AbstractOpticalPortBlockProvisioning(AbstractOpticalPortBlockInactive):
+    """Abstract implementation of an Optical Port Product Block that is provisioning."""
 
-    role: PortRole
-    port_name: str | None = None
-    port_description: str | None = None
-    host_node: OpticalNodeBlockUnionInactive
-
-
-class AbstractPassbandPortBlockInactive(AbstractPortBlockInactive):
-    passbands: ListOfPassbands = Field(default_factory=list)
+    optical_port_role: OpticalPortRole
+    optical_port_name: str
+    optical_port_description: str | None
+    optical_port_host_node: AbstractOpticalNodeBlockProvisioning | OpticalCoherentPluggableBlockProvisioning
 
 
-class TransponderClientPortBlockInactive(AbstractPortBlockInactive, product_block_name="TransponderClientPort"):
-    role: Literal[PortRole.TRANSPONDER_CLIENT] = PortRole.TRANSPONDER_CLIENT
-    host_node: OpticalNodeBlockUnionInactive
+class AbstractOpticalPortBlock(AbstractOpticalPortBlockProvisioning):
+    """Abstract implementation of an Optical Port Product Block that is active."""
+
+    optical_port_role: OpticalPortRole
+    optical_port_name: str
+    optical_port_description: str | None
+    optical_port_host_node: AbstractOpticalNodeBlock | OpticalCoherentPluggableBlock
 
 
-class TransponderLinePortBlockInactive(AbstractPortBlockInactive, product_block_name="TransponderLinePort"):
-    role: Literal[PortRole.TRANSPONDER_LINE] = PortRole.TRANSPONDER_LINE
-    host_node: OpticalNodeBlockUnionInactive
+class AbstractOpticalOlsPortBlockInactive(AbstractOpticalPortBlockInactive):
+    """Abstract implementation of an Optcial Port Block with passbands that is inactive."""
+
+    optical_passbands: OpticalPassbandList = Field(default_factory=list)
+    optical_host_node: AbstractOpticalNodeBlockInactive
 
 
-class OlsAddDropPortBlockInactive(AbstractPassbandPortBlockInactive, product_block_name="OlsAddDropPort"):
-    role: Literal[PortRole.OLS_ADD_DROP] = PortRole.OLS_ADD_DROP
-    host_node: OpticalNodeBlockUnionInactive
+class AbstractOpticalOlsPortBlockProvisioning(AbstractOpticalOlsPortBlockInactive):
+    """Abstract implementation of an Optcial Port Block with passbands that is provisioning."""
+
+    optical_passbands: OpticalPassbandList
+    optical_host_node: AbstractOpticalNodeBlockProvisioning
 
 
-class OlsLinePortBlockInactive(AbstractPassbandPortBlockInactive, product_block_name="OlsLinePort"):
-    role: Literal[PortRole.OLS_LINE] = PortRole.OLS_LINE
-    host_node: OpticalNodeBlockUnionInactive
+class AbstractOpticalOlsPortBlock(AbstractOpticalOlsPortBlockProvisioning):
+    """Abstract implementation of an Optcial Port Block with passbands that is active."""
+
+    optical_passbands: OpticalPassbandList
+    optical_host_node: AbstractOpticalNodeBlock
 
 
-# --- Provisioning ---
+class OlsAddDropPortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_block_name="OlsAddDropPortBlock"):
+    """OLS Add Drop Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_ADD_DROP
 
 
-class AbstractPortBlockProvisioning(AbstractPortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    port_name: str
-    host_node: OpticalNodeBlockUnionProvisioning
+class OlsAddDropPortBlockProvisioning(OlsAddDropPortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    """OLS Add Drop Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_ADD_DROP
 
 
-class AbstractPassbandPortBlockProvisioning(
-    AbstractPassbandPortBlockInactive, AbstractPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class OlsAddDropPortBlock(OlsAddDropPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """OLS Add Drop Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_ADD_DROP
+
+
+class OlsLinePortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_block_name="OlsLinePortBlock"):
+    """OLS Add Drop Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_LINE
+
+
+class OlsLinePortBlockProvisioning(OlsLinePortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    """OLS Add Drop Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_LINE
+
+
+class OlsLinePortBlock(OlsLinePortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """OLS Add Drop Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_LINE
+
+
+class OpticalTransponderClientPortBlockInactive(
+    AbstractOpticalPortBlockInactive, product_block_name="OpticalTransponderClientPortBlock"
 ):
-    passbands: ListOfPassbands
+    """Optical Transponder Client Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_CLIENT
 
 
-class TransponderClientPortBlockProvisioning(
-    TransponderClientPortBlockInactive, AbstractPortBlockProvisioning, lifecycle=SubscriptionLifecycle.PROVISIONING
+class OpticalTransponderClientPortBlockProvisioning(
+    OpticalTransponderClientPortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    host_node: OpticalNodeBlockUnionProvisioning
+    """Optical Transponder Client Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_CLIENT
 
 
-class TransponderLinePortBlockProvisioning(
-    TransponderLinePortBlockInactive, AbstractPortBlockProvisioning, lifecycle=SubscriptionLifecycle.PROVISIONING
+class OpticalTransponderClientPortBlock(
+    OpticalTransponderClientPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
-    host_node: OpticalNodeBlockUnionProvisioning
+    """Optical Transponder Client Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_CLIENT
 
 
-class OlsAddDropPortBlockProvisioning(
-    OlsAddDropPortBlockInactive, AbstractPassbandPortBlockProvisioning, lifecycle=SubscriptionLifecycle.PROVISIONING
+class OpticalTransponderLinePortBlockInactive(
+    AbstractOpticalPortBlockInactive, product_block_name="OpticalTransponderLinePortBlock"
 ):
-    host_node: OpticalNodeBlockUnionProvisioning
+    """Optical Transponder Line Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_LINE
 
 
-class OlsLinePortBlockProvisioning(
-    OlsLinePortBlockInactive, AbstractPassbandPortBlockProvisioning, lifecycle=SubscriptionLifecycle.PROVISIONING
+class OpticalTransponderLinePortBlockProvisioning(
+    OpticalTransponderLinePortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    host_node: OpticalNodeBlockUnionProvisioning
+    """Optical Transponder Line Port Product Block that is inactive."""
+
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_LINE
 
 
-# --- Active ---
-
-
-class AbstractPortBlock(AbstractPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    port_description: str
-    host_node: OpticalNodeBlockUnion
-
-
-class AbstractPassbandPortBlock(
-    AbstractPassbandPortBlockProvisioning, AbstractPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+class OpticalTransponderLinePortBlock(
+    OpticalTransponderLinePortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
-    host_node: OpticalNodeBlockUnion
+    """Optical Transponder Line Port Product Block that is inactive."""
 
-
-class TransponderClientPortBlock(TransponderClientPortBlockProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
-    host_node: OpticalNodeBlockUnion
-
-
-class TransponderLinePortBlock(TransponderLinePortBlockProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
-    host_node: OpticalNodeBlockUnion
-
-
-class OlsAddDropPortBlock(OlsAddDropPortBlockProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
-    host_node: OpticalNodeBlockUnion
-
-
-class OlsLinePortBlock(OlsLinePortBlockProvisioning, lifecycle=SubscriptionLifecycle.ACTIVE):
-    host_node: OpticalNodeBlockUnion
-
-
-# --- Union Types ---
-OpticalPortBlocksUnion = Annotated[
-    OlsAddDropPortBlock | OlsLinePortBlock | TransponderClientPortBlock | TransponderLinePortBlock,
-    Field(discriminator="role"),
-]
+    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_LINE

@@ -1,5 +1,5 @@
 
-"""Custom coordinate types for latitude and longitude. Copied from GEANT Service Orchestrator project."""
+"""Custom coordinate types for latitude and longitude. Copied from GÉANT Service Orchestrator project."""
 
 import re
 from typing import Annotated

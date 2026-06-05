@@ -3,7 +3,6 @@
 from orchestrator.domain.base import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
 
-# relative because every org must copy this file to its local repo
 from orchestrator_optical.products.product_blocks.optical_spectrum import (
     OpticalSpectrumBlock,
     OpticalSpectrumBlockInactive,
@@ -11,27 +10,21 @@ from orchestrator_optical.products.product_blocks.optical_spectrum import (
 )
 
 
-class OpticalSpectrumServiceSubscriptionInactive(SubscriptionModel, is_base=True):
-    """base model for an optical spectrum service subscription in the INACTIVE state."""
+class OpticalSpectrumServiceInactive(SubscriptionModel, is_base=True):
+    """An optical spectrum service subscription in the INACTIVE state."""
 
-    spectrum: OpticalSpectrumBlockInactive
+    optical_spectrum_service: OpticalSpectrumBlockInactive
 
 
-class OpticalSpectrumServiceSubscriptionProvisioning(
-    OpticalSpectrumServiceSubscriptionInactive,
-    lifecycle=[SubscriptionLifecycle.PROVISIONING],
+class OpticalSpectrumServiceProvisioning(
+    OpticalSpectrumServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
-    """base model for an optical spectrum service subscription in the PROVISIONING state."""
+    """An optical spectrum service subscription in the PROVISIONING state."""
 
-    spectrum: OpticalSpectrumBlockProvisioning
-
-
-class OpticalSpectrumServiceSubscription(
-    OpticalSpectrumServiceSubscriptionProvisioning,
-    lifecycle=[SubscriptionLifecycle.ACTIVE],
-):
-    """base model for an optical spectrum service subscription in the ACTIVE state."""
-
-    spectrum: OpticalSpectrumBlock
+    optical_spectrum_service: OpticalSpectrumBlockProvisioning
 
 
+class OpticalSpectrumService(OpticalSpectrumServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    """An optical spectrum service subscription in the ACTIVE state."""
+
+    optical_spectrum_service: OpticalSpectrumBlock

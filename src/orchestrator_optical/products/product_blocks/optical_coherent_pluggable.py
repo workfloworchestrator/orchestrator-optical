@@ -1,6 +1,6 @@
 """Module for Optical Port product blocks."""
 
-from typing import Literal, cast
+from typing import Literal
 
 from orchestrator.domain import SubscriptionModel
 from orchestrator.types import SubscriptionLifecycle
@@ -11,42 +11,41 @@ from orchestrator_optical.products.product_blocks.optical_packet_node import (
     OpticalPacketNodeBlockInactive,
     OpticalPacketNodeBlockProvisioning,
 )
-from orchestrator_optical.products.product_blocks.optical_port import (
-    AbstractPortBlock,
-    AbstractPortBlockInactive,
-    AbstractPortBlockProvisioning,
-    PortRole,
-)
+from orchestrator_optical.products.product_blocks.optical_port import AbstractOpticalPortBlockInactive, OpticalPortRole
 
 
-class CoherentPluggableBlockInactive(AbstractPortBlockInactive, product_block_name="CoherentPluggable"):
+class OpticalCoherentPluggableBlockInactive(
+    AbstractOpticalPortBlockInactive, product_block_name="CoherentPluggableBlock"
+):
     """Base class for inactive CoherentPluggableBlock product blocks."""
 
-    role: Literal[PortRole.COHERENT_PLUGGABLE] = PortRole.COHERENT_PLUGGABLE
-    fw_version: str | None = None
+    optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
     host_node: OpticalPacketNodeBlockInactive | None = None
+    optical_coherent_pluggable_firmware_version: str | None = None
 
     @computed_field
     @property
-    def vendor_and_part_no(self) -> str:
+    def optical_coherent_pluggable_part_number(self) -> str:
         """From fixed_inputs."""
         sub = SubscriptionModel.from_subscription(self.owner_subscription_id)
-        sub = cast(CoherentPluggableInactive, sub)
-        return sub.vendor_and_part_no
+        return sub.optical_coherent_pluggable_part_number  # ty: ignore[unresolved-attribute] # We can't cast to the Product Type since that would cause a circular import
 
 
-class CoherentPluggableBlockProvisioning(
-    CoherentPluggableBlockInactive, AbstractPortBlockProvisioning, lifecycle=SubscriptionLifecycle.PROVISIONING
+class OpticalCoherentPluggableBlockProvisioning(
+    OpticalCoherentPluggableBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Base class for provisioning CoherentPluggableBlock product blocks."""
 
-    fw_version: str
+    optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
     host_node: OpticalPacketNodeBlockProvisioning
+    optical_coherent_pluggable_firmware_version: str
 
 
-class CoherentPluggableBlock(
-    CoherentPluggableBlockProvisioning, AbstractPortBlock, lifecycle=SubscriptionLifecycle.ACTIVE
+class OpticalCoherentPluggableBlock(
+    OpticalCoherentPluggableBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """Base class for active CoherentPluggableBlock product blocks."""
 
+    optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
     host_node: OpticalPacketNodeBlock
+    optical_coherent_pluggable_firmware_version: str

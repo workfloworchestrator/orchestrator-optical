@@ -5,9 +5,9 @@ from orchestrator.types import SubscriptionLifecycle
 from pydantic_forms.types import strEnum
 
 from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
-    CoherentPluggableBlock,
-    CoherentPluggableBlockInactive,
-    CoherentPluggableBlockProvisioning,
+    OpticalCoherentPluggableBlock,
+    OpticalCoherentPluggableBlockInactive,
+    OpticalCoherentPluggableBlockProvisioning,
 )
 
 

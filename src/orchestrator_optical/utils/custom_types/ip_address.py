@@ -47,26 +47,14 @@ def _str(value: Any) -> str:
     return str(value)
 
 
-IPv4AddressType = Annotated[
-    ipaddress.IPv4Address, PlainSerializer(_str, return_type=str, when_used="always")
-]
-IPv4NetworkType = Annotated[
-    ipaddress.IPv4Network, PlainSerializer(_str, return_type=str, when_used="always")
-]
-IPv6AddressType = Annotated[
-    ipaddress.IPv6Address, PlainSerializer(_str, return_type=str, when_used="always")
-]
-IPv6NetworkType = Annotated[
-    ipaddress.IPv6Network, PlainSerializer(_str, return_type=str, when_used="always")
-]
+IPv4AddressType = Annotated[ipaddress.IPv4Address, PlainSerializer(_str, return_type=str, when_used="always")]
+IPv4NetworkType = Annotated[ipaddress.IPv4Network, PlainSerializer(_str, return_type=str, when_used="always")]
+IPv6AddressType = Annotated[ipaddress.IPv6Address, PlainSerializer(_str, return_type=str, when_used="always")]
+IPv6NetworkType = Annotated[ipaddress.IPv6Network, PlainSerializer(_str, return_type=str, when_used="always")]
 IPAddress = Annotated[str, AfterValidator(validate_ipv4_or_ipv6)]
 IPNetwork = Annotated[str, AfterValidator(validate_ipv4_or_ipv6_network)]
-IPV4Netmask = Annotated[
-    int, Field(ge=0, le=32), Doc("A valid netmask for an IPv4 network or address.")
-]
-IPV6Netmask = Annotated[
-    int, Field(ge=0, le=128), Doc("A valid netmask for an IPv6 network or address.")
-]
+IPV4Netmask = Annotated[int, Field(ge=0, le=32), Doc("A valid netmask for an IPv4 network or address.")]
+IPV6Netmask = Annotated[int, Field(ge=0, le=128), Doc("A valid netmask for an IPv6 network or address.")]
 PortNumber = Annotated[
     int,
     Field(
