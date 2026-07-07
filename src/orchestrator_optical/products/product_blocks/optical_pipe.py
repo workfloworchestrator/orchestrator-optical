@@ -37,21 +37,21 @@ PatchPortBlockInactive = Annotated[
     | OpticalTransponderLinePortBlockInactive
     | OlsAddDropPortBlockInactive
     | OpticalCoherentPluggableBlockInactive,
-    Field(discriminator="role"),
+    Field(discriminator="optical_port_role"),
 ]
 PatchPortBlockProvisioning = Annotated[
     OpticalTransponderClientPortBlockProvisioning
     | OpticalTransponderLinePortBlockProvisioning
     | OlsAddDropPortBlockProvisioning
     | OpticalCoherentPluggableBlockProvisioning,
-    Field(discriminator="role"),
+    Field(discriminator="optical_port_role"),
 ]
 PatchPortBlock = Annotated[
     OpticalTransponderClientPortBlock
     | OpticalTransponderLinePortBlock
     | OlsAddDropPortBlock
     | OpticalCoherentPluggableBlock,
-    Field(discriminator="role"),
+    Field(discriminator="optical_port_role"),
 ]
 
 SpanPortBlockInactive = OlsLinePortBlockInactive
@@ -63,7 +63,7 @@ LeasedSpectrumPortBlockInactive = Annotated[
     | OlsAddDropPortBlockInactive
     | OlsLinePortBlockInactive
     | OpticalCoherentPluggableBlockInactive,
-    Field(discriminator="role"),
+    Field(discriminator="optical_port_role"),
 ]
 
 LeasedSpectrumPortBlockProvisioning = Annotated[
@@ -71,40 +71,41 @@ LeasedSpectrumPortBlockProvisioning = Annotated[
     | OlsAddDropPortBlockProvisioning
     | OlsLinePortBlockProvisioning
     | OpticalCoherentPluggableBlockProvisioning,
-    Field(discriminator="role"),
+    Field(discriminator="optical_port_role"),
 ]
 
 LeasedSpectrumPortBlock = Annotated[
     OpticalTransponderLinePortBlock | OlsAddDropPortBlock | OlsLinePortBlock | OpticalCoherentPluggableBlock,
-    Field(discriminator="role"),
+    Field(discriminator="optical_port_role"),
 ]
 
 OpticalTransportLineChannelBlockInactive = Annotated[
     OpticalTransponderLinePortBlockInactive | OpticalCoherentPluggableBlockInactive,
-    Field(discriminator="role"),
+    Field(discriminator="optical_port_role"),
 ]
 
 OpticalTransportLineChannelBlockProvisioning = Annotated[
     OpticalTransponderLinePortBlockProvisioning | OpticalCoherentPluggableBlockProvisioning,
-    Field(discriminator="role"),
+    Field(discriminator="optical_port_role"),
 ]
 
 OpticalTransportLineChannelBlock = Annotated[
     OpticalTransponderLinePortBlock | OpticalCoherentPluggableBlock,
-    Field(discriminator="role"),
+    Field(discriminator="optical_port_role"),
 ]
 
 OpticalDigitalServiceClientPortBlockInactive = Annotated[
-    OpticalTransponderClientPortBlockInactive | OpticalCoherentPluggableBlockInactive, Field(discriminator="role")
+    OpticalTransponderClientPortBlockInactive | OpticalCoherentPluggableBlockInactive,
+    Field(discriminator="optical_port_role"),
 ]
 
 OpticalDigitalServiceClientPortBlockProvisioning = Annotated[
     OpticalTransponderClientPortBlockProvisioning | OpticalCoherentPluggableBlockProvisioning,
-    Field(discriminator="role"),
+    Field(discriminator="optical_port_role"),
 ]
 
 OpticalDigitalServiceClientPortBlock = Annotated[
-    OpticalTransponderClientPortBlock | OpticalCoherentPluggableBlock, Field(discriminator="role")
+    OpticalTransponderClientPortBlock | OpticalCoherentPluggableBlock, Field(discriminator="optical_port_role")
 ]
 
 

@@ -11,11 +11,6 @@ from orchestrator.types import SubscriptionLifecycle
 from pydantic import Field
 from pydantic_forms.types import strEnum
 
-from orchestrator_optical.products.product_blocks.optical_coherent_pluggable import (
-    OpticalCoherentPluggableBlock,
-    OpticalCoherentPluggableBlockInactive,
-    OpticalCoherentPluggableBlockProvisioning,
-)
 from orchestrator_optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlock,
     AbstractOpticalNodeBlockInactive,
@@ -42,7 +37,7 @@ class AbstractOpticalPortBlockInactive(ProductBlockModel):
     optical_port_role: OpticalPortRole | None = None
     optical_port_name: str | None = None
     optical_port_description: str | None = None
-    optical_port_host_node: AbstractOpticalNodeBlockInactive | OpticalCoherentPluggableBlockInactive
+    optical_port_host_node: AbstractOpticalNodeBlockInactive
 
 
 class AbstractOpticalPortBlockProvisioning(
@@ -53,7 +48,7 @@ class AbstractOpticalPortBlockProvisioning(
     optical_port_role: OpticalPortRole
     optical_port_name: str
     optical_port_description: str | None
-    optical_port_host_node: AbstractOpticalNodeBlockProvisioning | OpticalCoherentPluggableBlockProvisioning
+    optical_port_host_node: AbstractOpticalNodeBlockProvisioning
 
 
 class AbstractOpticalPortBlock(AbstractOpticalPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -62,7 +57,7 @@ class AbstractOpticalPortBlock(AbstractOpticalPortBlockProvisioning, lifecycle=[
     optical_port_role: OpticalPortRole
     optical_port_name: str
     optical_port_description: str | None
-    optical_port_host_node: AbstractOpticalNodeBlock | OpticalCoherentPluggableBlock
+    optical_port_host_node: AbstractOpticalNodeBlock
 
 
 class AbstractOpticalOlsPortBlockInactive(AbstractOpticalPortBlockInactive):
@@ -91,7 +86,7 @@ class AbstractOpticalOlsPortBlock(AbstractOpticalOlsPortBlockProvisioning, lifec
 class OlsAddDropPortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_block_name="OlsAddDropPortBlock"):
     """OLS Add Drop Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_ADD_DROP
+    optical_port_role: Literal[OpticalPortRole.OLS_ADD_DROP] = OpticalPortRole.OLS_ADD_DROP
 
 
 class OlsAddDropPortBlockProvisioning(
@@ -99,7 +94,7 @@ class OlsAddDropPortBlockProvisioning(
 ):
     """OLS Add Drop Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_ADD_DROP
+    optical_port_role: Literal[OpticalPortRole.OLS_ADD_DROP] = OpticalPortRole.OLS_ADD_DROP
 
 
 class OlsAddDropPortBlock(
@@ -107,13 +102,13 @@ class OlsAddDropPortBlock(
 ):
     """OLS Add Drop Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_ADD_DROP
+    optical_port_role: Literal[OpticalPortRole.OLS_ADD_DROP] = OpticalPortRole.OLS_ADD_DROP
 
 
 class OlsLinePortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_block_name="OlsLinePortBlock"):
     """OLS Add Drop Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_LINE
+    optical_port_role: Literal[OpticalPortRole.OLS_LINE] = OpticalPortRole.OLS_LINE
 
 
 class OlsLinePortBlockProvisioning(
@@ -121,7 +116,7 @@ class OlsLinePortBlockProvisioning(
 ):
     """OLS Add Drop Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_LINE
+    optical_port_role: Literal[OpticalPortRole.OLS_LINE] = OpticalPortRole.OLS_LINE
 
 
 class OlsLinePortBlock(
@@ -129,7 +124,7 @@ class OlsLinePortBlock(
 ):
     """OLS Add Drop Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.OLS_LINE
+    optical_port_role: Literal[OpticalPortRole.OLS_LINE] = OpticalPortRole.OLS_LINE
 
 
 class OpticalTransponderClientPortBlockInactive(
@@ -137,7 +132,7 @@ class OpticalTransponderClientPortBlockInactive(
 ):
     """Optical Transponder Client Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_CLIENT
+    optical_port_role: Literal[OpticalPortRole.TRANSPONDER_CLIENT] = OpticalPortRole.TRANSPONDER_CLIENT
 
 
 class OpticalTransponderClientPortBlockProvisioning(
@@ -147,7 +142,7 @@ class OpticalTransponderClientPortBlockProvisioning(
 ):
     """Optical Transponder Client Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_CLIENT
+    optical_port_role: Literal[OpticalPortRole.TRANSPONDER_CLIENT] = OpticalPortRole.TRANSPONDER_CLIENT
 
 
 class OpticalTransponderClientPortBlock(
@@ -155,7 +150,7 @@ class OpticalTransponderClientPortBlock(
 ):
     """Optical Transponder Client Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_CLIENT
+    optical_port_role: Literal[OpticalPortRole.TRANSPONDER_CLIENT] = OpticalPortRole.TRANSPONDER_CLIENT
 
 
 class OpticalTransponderLinePortBlockInactive(
@@ -163,7 +158,7 @@ class OpticalTransponderLinePortBlockInactive(
 ):
     """Optical Transponder Line Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_LINE
+    optical_port_role: Literal[OpticalPortRole.TRANSPONDER_LINE] = OpticalPortRole.TRANSPONDER_LINE
 
 
 class OpticalTransponderLinePortBlockProvisioning(
@@ -173,7 +168,7 @@ class OpticalTransponderLinePortBlockProvisioning(
 ):
     """Optical Transponder Line Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_LINE
+    optical_port_role: Literal[OpticalPortRole.TRANSPONDER_LINE] = OpticalPortRole.TRANSPONDER_LINE
 
 
 class OpticalTransponderLinePortBlock(
@@ -181,4 +176,4 @@ class OpticalTransponderLinePortBlock(
 ):
     """Optical Transponder Line Port Product Block that is inactive."""
 
-    optical_port_role: Literal[OpticalPortRole] = OpticalPortRole.TRANSPONDER_LINE
+    optical_port_role: Literal[OpticalPortRole.TRANSPONDER_LINE] = OpticalPortRole.TRANSPONDER_LINE
