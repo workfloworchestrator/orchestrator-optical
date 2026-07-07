@@ -25,7 +25,7 @@ class OpticalCoherentPluggableBlockInactive(
     """Base class for inactive CoherentPluggableBlock product blocks."""
 
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
-    host_node: AbstractOpticalPacketNodeBlockInactive | None = None
+    optical_port_host_node: AbstractOpticalPacketNodeBlockInactive | None = None
     optical_coherent_pluggable_firmware_version: str | None = None
 
     @computed_field
@@ -44,7 +44,7 @@ class OpticalCoherentPluggableBlockProvisioning(
     """Base class for provisioning CoherentPluggableBlock product blocks."""
 
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
-    host_node: AbstractOpticalPacketNodeBlockProvisioning
+    optical_port_host_node: AbstractOpticalPacketNodeBlockProvisioning
     optical_coherent_pluggable_firmware_version: str
 
 
@@ -54,5 +54,5 @@ class OpticalCoherentPluggableBlock(
     """Base class for active CoherentPluggableBlock product blocks."""
 
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
-    host_node: AbstractOpticalPacketNodeBlock
+    optical_port_host_node: AbstractOpticalPacketNodeBlock
     optical_coherent_pluggable_firmware_version: str
