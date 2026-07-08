@@ -17,7 +17,7 @@ IpAddressesList = Annotated[
 ]
 
 
-class AbstractOpticalPacketNodeBlockInactive(ProductBlockModel):
+class AbstractOpticalPacketNodeBlockInactive(ProductBlockModel, product_block_name="AbstractOpticalPacketNodeBlock"):
     """A packet layer Node that accepts Optical Coherent Pluggables that is inactive."""
 
     optical_packet_node_software_version: str | None = None

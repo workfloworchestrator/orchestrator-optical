@@ -19,19 +19,19 @@ from orchestrator_optical.products.product_blocks.optical_pipe import (
 )
 
 
-class AbstractOpticalPipeInactive(SubscriptionModel):
+class AbstractOpticalPipeInactive(SubscriptionModel, is_base=True):
     """Abstract base model for generic optical pipe subscription handling."""
 
     optical_pipe: AbstractOpticalPipeBlockInactive
 
 
-class AbstractOpticalPipeProvisioning(AbstractOpticalPipeInactive):
+class AbstractOpticalPipeProvisioning(AbstractOpticalPipeInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     """Abstract base model for provisioning optical pipe subscriptions."""
 
     optical_pipe: AbstractOpticalPipeBlockProvisioning
 
 
-class AbstractOpticalPipe(AbstractOpticalPipeProvisioning):
+class AbstractOpticalPipe(AbstractOpticalPipeProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Abstract base model for active/operational optical pipe subscriptions."""
 
     optical_pipe: AbstractOpticalPipeBlock

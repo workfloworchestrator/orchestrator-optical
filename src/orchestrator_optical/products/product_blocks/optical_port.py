@@ -31,7 +31,7 @@ class OpticalPortRole(strEnum):
     COHERENT_PLUGGABLE = "Coherent Pluggable"
 
 
-class AbstractOpticalPortBlockInactive(ProductBlockModel):
+class AbstractOpticalPortBlockInactive(ProductBlockModel, product_block_name="AbstractOpticalPortBlock"):
     """Abstract implementation of an Optical Port Product Block that is inactive."""
 
     optical_port_role: OpticalPortRole | None = None
@@ -60,8 +60,10 @@ class AbstractOpticalPortBlock(AbstractOpticalPortBlockProvisioning, lifecycle=[
     optical_port_host_node: AbstractOpticalNodeBlock
 
 
-class AbstractOpticalOlsPortBlockInactive(AbstractOpticalPortBlockInactive):
-    """Abstract implementation of an Optcial Port Block with passbands that is inactive."""
+class AbstractOpticalOlsPortBlockInactive(
+    AbstractOpticalPortBlockInactive, product_block_name="AbstractOpticalOlsPortBlock"
+):
+    """Abstract implementation of an Optical Port Block with passbands that is inactive."""
 
     optical_passbands: OpticalPassbandList = Field(default_factory=list)
     optical_host_node: AbstractOpticalNodeBlockInactive
@@ -77,7 +79,7 @@ class AbstractOpticalOlsPortBlockProvisioning(
 
 
 class AbstractOpticalOlsPortBlock(AbstractOpticalOlsPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    """Abstract implementation of an Optcial Port Block with passbands that is active."""
+    """Abstract implementation of an Optical Port Block with passbands that is active."""
 
     optical_passbands: OpticalPassbandList
     optical_host_node: AbstractOpticalNodeBlock

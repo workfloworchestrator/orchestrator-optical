@@ -10,7 +10,7 @@ from orchestrator_optical.products.product_blocks.optical_packet_node import (
 )
 
 
-class AbstractOpticalPacketNodeInactive(SubscriptionModel):
+class AbstractOpticalPacketNodeInactive(SubscriptionModel, is_base=True):
     """Abstract model of an Optical Packet Node that is inactive."""
 
     optical_packet_node: AbstractOpticalPacketNodeBlockInactive
@@ -24,9 +24,7 @@ class AbstractOpticalPacketNodeProvisioning(
     optical_packet_node: AbstractOpticalPacketNodeBlockProvisioning
 
 
-class AbstractOpticalPacketNodeInactive(
-    AbstractOpticalPacketNodeProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class AbstractOpticalPacketNode(AbstractOpticalPacketNodeProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Abstract model of an Optical Packet Node."""
 
     optical_packet_node: AbstractOpticalPacketNodeBlock

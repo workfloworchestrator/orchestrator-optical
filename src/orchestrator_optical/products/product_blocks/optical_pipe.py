@@ -109,7 +109,7 @@ OpticalDigitalServiceClientPortBlock = Annotated[
 ]
 
 
-class AbstractOpticalPipeBlockInactive(ProductBlockModel):
+class AbstractOpticalPipeBlockInactive(ProductBlockModel, product_block_name="AbstractOpticalPipeBlock"):
     """Abstract base class for all optical pipe blocks in the INACTIVE state."""
 
     optical_pipe_identifier: str | None = None
