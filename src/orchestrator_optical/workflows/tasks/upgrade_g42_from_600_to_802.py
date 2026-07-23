@@ -12,8 +12,7 @@
 # limitations under the License.
 
 
-"""
-# **G42 Upgrade Workflow: R6.0.0 → R8.0.2**.
+"""# **G42 Upgrade Workflow: R6.0.0 → R8.0.2**.
 
 This workflow orchestrates the firmware upgrade of an Infinera G42 device (VendorAndPlatform GX). Due to version dependencies
 and internal upgrade paths, this is a **multi-stage process**.
@@ -158,8 +157,7 @@ def retrieve_q_factors(client: G42Client) -> dict[str, float]:
 
 
 def check_active_software(client: G42Client, acceptable_versions: str | list[str]) -> str:
-    """
-    Check if the active software on the ne and on each card (location) is within the
+    """Check if the active software on the ne and on each card (location) is within the
     list of acceptable versions.
 
     Raises:
@@ -355,7 +353,7 @@ def upload_active_database(loopback_ip: str, management_ip: str) -> State:
     if result["ioa-rpc:output"]["upload-result"] != "Success":
         msg = f"Error: {result}"
         raise UserWarning(msg)
-    return {"status": f"uploaded node DB to {UPLOAD_PATH.split('@')[-1]}"}
+    return {"status": f"uploaded node DB to {UPLOAD_PATH.rsplit('@', maxsplit=1)[-1]}"}
 
 
 @step("Downloading and activating new software image")

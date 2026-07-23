@@ -162,8 +162,7 @@ additional_steps = begin
     additional_steps=additional_steps,
 )
 def terminate_optical_digital_service() -> StepList:
-    """
-    Workflow to terminate an Optical Digital Service subscription.
+    """Workflow to terminate an Optical Digital Service subscription.
     This workflow checks if the subscription is the last client for the transport channels
     and performs necessary steps to reset transponders/transceivers, delete optical sections, and update
     used passbands accordingly.

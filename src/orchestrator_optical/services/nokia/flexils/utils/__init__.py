@@ -1,5 +1,4 @@
-"""
-FlexILS support methods.
+"""FlexILS support methods.
 """
 
 from orchestrator_optical.services.nokia.flexils.utils.correlation_tag_generator import generate_ctag

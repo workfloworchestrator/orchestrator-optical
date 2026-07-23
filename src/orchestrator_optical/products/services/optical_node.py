@@ -20,9 +20,6 @@ from typing import Any, ClassVar
 from pydantic_forms.types import UUIDstr
 
 from orchestrator_optical.products.product_blocks.optical_node import NokiaFlexILSNodeBlock, OpticalNodeBlockUnion
-from orchestrator_optical.products.product_types.optical_node import (
-    OpticalNodePlatform,
-)
 from orchestrator_optical.services.nokia import FlexilsClient, G30Client, G42Client
 from orchestrator_optical.utils.attributedispatch import (
     attribute_dispatch_base,
@@ -148,8 +145,7 @@ def _(optical_node: OpticalNodeBlockUnion) -> G42Client:
 def retrieve_omses_terminating_on_device(
     optical_node: OpticalNodeBlockUnion,
 ) -> list[dict[str, Any]]:
-    """
-    Retrieve all the Optical Muxed Sections terminating on a given Optical Device.
+    """Retrieve all the Optical Muxed Sections terminating on a given Optical Device.
 
     This function acts as a generic dispatcher based on the platform of the optical device.
     Specific implementations of this function must specify the platform they work on.
@@ -216,8 +212,7 @@ def _(optical_node: OpticalNodeBlockUnion) -> list[dict[str, Any]]:
 def retrieve_ports_spectral_occupations(
     optical_node: OpticalNodeBlockUnion,
 ) -> dict[str, list[list[int]]]:
-    """
-    Retrieve the spectral occupations of ports on a given Optical Device.
+    """Retrieve the spectral occupations of ports on a given Optical Device.
 
     This function acts as a generic dispatcher based on the platform of the optical device.
     Specific implementations of this function must specify the platform they work on.

@@ -11,8 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-# **G30 Upgrade Workflow: FP4.5.2 → FP4.8.0**.
+"""# **G30 Upgrade Workflow: FP4.5.2 → FP4.8.0**.
 
 This workflow orchestrates the firmware upgrade of a G30 device. Due to version dependencies,
 this is a **multi-stage process**.

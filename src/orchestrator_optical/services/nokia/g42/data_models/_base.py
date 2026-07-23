@@ -40,6 +40,6 @@ class YangBaseModel(BaseModel):
             else: # dict-style exclude not implemented yet
                 raise NotImplementedError
 
-        kwargs["exclude"] = exclude if exclude else None
+        kwargs["exclude"] = exclude or None
         return super().model_dump(**kwargs)
 

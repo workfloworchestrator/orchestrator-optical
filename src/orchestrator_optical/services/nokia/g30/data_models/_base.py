@@ -18,7 +18,7 @@ class YangBaseModel(BaseModel):
         # Force JSON mode to ensure 64-bit numbers become strings and Enums become values
         kwargs.setdefault("mode", "json")
         kwargs.setdefault("by_alias", True)
-        
+
         if content == "all":
             return super().model_dump(**kwargs)
 
@@ -40,6 +40,6 @@ class YangBaseModel(BaseModel):
             else: # dict-style exclude not implemented yet
                 raise NotImplementedError
 
-        kwargs["exclude"] = exclude if exclude else None
+        kwargs["exclude"] = exclude or None
         return super().model_dump(**kwargs)
 

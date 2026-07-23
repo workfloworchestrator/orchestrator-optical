@@ -20,8 +20,7 @@ T = TypeVar("T")
 
 
 def attributedispatch(attr_name: str, func: Callable | None = None):
-    """
-    A decorator that enables dynamic function dispatching based on a specific attribute's value.
+    """A decorator that enables dynamic function dispatching based on a specific attribute's value.
 
     :param attr_name: The name of the attribute to use for dispatching
     :param func: The function to be decorated (optional)
@@ -35,8 +34,7 @@ def attributedispatch(attr_name: str, func: Callable | None = None):
     registry = {}
 
     def dispatch(obj):
-        """
-        Core dispatching logic to find the appropriate implementation.
+        """Core dispatching logic to find the appropriate implementation.
 
         :param obj: The object being dispatched
         :return: The most appropriate implementation function
@@ -57,8 +55,7 @@ def attributedispatch(attr_name: str, func: Callable | None = None):
         return func
 
     def register(attr_value, implementation=None):
-        """
-        Register a specific implementation for a given attribute value.
+        """Register a specific implementation for a given attribute value.
 
         :param attr_value: The attribute value to match
         :param implementation: The function to use for this attribute value
@@ -73,8 +70,7 @@ def attributedispatch(attr_name: str, func: Callable | None = None):
         return implementation
 
     def wrapper(*args, **kwargs):
-        """
-        The main wrapper function that orchestrates the dispatching.
+        """The main wrapper function that orchestrates the dispatching.
 
         :param args: Positional arguments
         :param kwargs: Keyword arguments
@@ -111,8 +107,7 @@ def attributedispatch(attr_name: str, func: Callable | None = None):
 def attribute_dispatch_base(
     func: Callable, attr_name: str, attr_value: Any
 ) -> NoReturn:
-    """
-    Raise a TypeError with information about supported attribute values.
+    """Raise a TypeError with information about supported attribute values.
 
     Args:
         func: The function being dispatched

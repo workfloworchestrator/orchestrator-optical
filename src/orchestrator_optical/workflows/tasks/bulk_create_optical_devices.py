@@ -209,8 +209,7 @@ def find_pops_and_duplicate_addresses(
 
 @step("Create workflow input forms")
 def create_workflow_inputs(devices: list[dict]) -> State:
-    """
-    Constructs the input list required to initiate sub-workflows for creating devices.
+    """Constructs the input list required to initiate sub-workflows for creating devices.
 
     This function simulates user-filled forms by building the necessary input dictionaries
     based on the device data provided. For workflows decorated with `@create_workflow`, an

@@ -190,8 +190,7 @@ def initial_input_form_generator() -> FormGenerator:
 
 @step("Create workflow input forms")
 def create_workflow_inputs(csv_data: list[dict[str, str]]) -> State:
-    """
-    Constructs a list of input forms to simulate user-filled forms for a workflow that creates
+    """Constructs a list of input forms to simulate user-filled forms for a workflow that creates
     optical fibers. This is required for workflows decorated with `@create_workflow`, which
     expects a predefined sequence of inputs.
 

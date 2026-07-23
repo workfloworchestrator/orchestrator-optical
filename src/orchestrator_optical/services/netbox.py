@@ -105,7 +105,7 @@ class InterfacePayload(NetboxPayload):
     device: int
     name: str
     type: str
-    tagged_vlans: list[int] = field(default_factory=lambda: [])
+    tagged_vlans: list[int] = field(default_factory=list)
     mode: str = ""
     description: str = ""
     enabled: bool = False
@@ -358,8 +358,7 @@ def create(payload: NetboxPayload, **kwargs: Any) -> int:  # noqa: ARG001
 
 
 def _create_object(payload: NetboxPayload, endpoint: Endpoint) -> int:
-    """
-    Create an object in Netbox.
+    """Create an object in Netbox.
 
     Args:
         payload: values to create object
@@ -458,8 +457,7 @@ def update(payload: NetboxPayload, **kwargs: Any) -> bool:  # noqa: ARG001
 
 
 def _update_object(payload: NetboxPayload, id: int, endpoint: Endpoint) -> bool:
-    """
-    Create or update an object in Netbox.
+    """Create or update an object in Netbox.
 
     Args:
         payload: values to create or update object

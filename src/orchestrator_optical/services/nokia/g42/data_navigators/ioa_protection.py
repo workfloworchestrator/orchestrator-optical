@@ -21,4 +21,4 @@ class ProtectionSwitchNode(Node):
 
         rpc_data = ProtectionSwitch(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)

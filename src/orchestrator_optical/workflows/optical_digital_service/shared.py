@@ -26,8 +26,7 @@ from orchestrator_optical.workflows.shared import (
 
 
 def _parse_port_identifiers(port_name: str, platform: VendorAndPlatform) -> tuple[str, str, str]:
-    """
-    Split a port name into shelf_id, slot_id, and port_id based on platform conventions.
+    """Split a port name into shelf_id, slot_id, and port_id based on platform conventions.
 
     Args:
         port_name: The full port identifier string.
@@ -55,8 +54,7 @@ def _parse_port_identifiers(port_name: str, platform: VendorAndPlatform) -> tupl
 def trx_line_port_patched_but_not_used_selector(
     optical_node_subscription_id: UUIDstr, client_port_name: str, prompt: str = ""
 ) -> Choice:
-    """
-    Return a Choice object for selecting an unused optical line port
+    """Return a Choice object for selecting an unused optical line port
     on the same shelf/slot as the client port.
 
     Args:

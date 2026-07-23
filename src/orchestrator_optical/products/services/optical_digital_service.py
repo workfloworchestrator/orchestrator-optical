@@ -45,8 +45,7 @@ from orchestrator_optical.utils.datadiff import compare_dicts, compare_pydantic_
 
 
 def _g30_get_modulation_and_rate_from_mode(port_mode: str) -> tuple[str, str]:
-    """
-    Retrieves modulation and rate class for a given port mode.
+    """Retrieves modulation and rate class for a given port mode.
     Returns 'not-applicable' if not found or if the port mode has no coherent properties.
     """
     port_mode_map = {
@@ -418,8 +417,7 @@ def configure_transponder_crossconnect(
     line_port_names: list[str],  # noqa: ARG001
     xconn_description: str = "",  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Configure a cross-connect between client and line ports on an optical device.
+    """Configure a cross-connect between client and line ports on an optical device.
 
     Args:
         optical_node: The optical device to configure
@@ -644,8 +642,7 @@ def _find_xcon_g42(
     direction: str,
     payload_type: str,
 ) -> XconItem | None:
-    """
-    Helper function to find an existing cross-connect on the G42 platform.
+    """Helper function to find an existing cross-connect on the G42 platform.
 
     Args:
         g42: G42 client instance.
@@ -697,8 +694,7 @@ def _create_xcon_g42(
     label: str,
     dst_time_slots: str,
 ) -> None:
-    """
-    Helper function to create a cross-connect on the G42 platform.
+    """Helper function to create a cross-connect on the G42 platform.
 
     Args:
         g42: G42 client instance.
@@ -791,8 +787,7 @@ def delete_transponder_crossconnect(
     optical_node: OpticalNodeBlockUnion,
     client_port_name: str,  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Delete a cross-connect between client and line ports on transponder device.
+    """Delete a cross-connect between client and line ports on transponder device.
 
     Args:
         optical_node: The transponder
@@ -988,8 +983,7 @@ def factory_reset_transponder_lines(
     optical_node: OpticalNodeBlockUnion,
     line_port_names: list[str],  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Factory reset the transponder line configuration for the specified port.
+    """Factory reset the transponder line configuration for the specified port.
 
     Args:
         optical_node: The optical device to reset.
@@ -1071,8 +1065,7 @@ def validate_trx_line(
     modes: tuple[str, ...],  # noqa: ARG001
     descriptions: tuple[str, ...],  # noqa: ARG001
 ) -> None:
-    """
-    Validate the transceiver line configuration on the specified optical device.
+    """Validate the transceiver line configuration on the specified optical device.
 
     Args:
         optical_node: The optical device to validate.
@@ -1338,8 +1331,7 @@ def validate_trx_client(
     description: str,  # noqa: ARG001
     service_type_n_speed: ClientSpeednType,  # noqa: ARG001
 ) -> None:
-    """
-    Validate the transceiver client configuration on the specified optical device.
+    """Validate the transceiver client configuration on the specified optical device.
 
     Args:
         optical_node: The optical device to validate.
@@ -1588,8 +1580,7 @@ def validate_trx_crossconnect(
     line_port_names: list[str],  # noqa: ARG001
     xconn_description: str = "",  # noqa: ARG001
 ) -> None:
-    """
-    Validate the transponder cross-connect configuration on the specified optical device.
+    """Validate the transponder cross-connect configuration on the specified optical device.
 
     Args:
         optical_node: The optical device to validate.
@@ -1701,8 +1692,7 @@ def diff_btw_current_rx_power_and_target(
     optical_node: OpticalNodeBlockUnion,
     optical_spectrum_name: str,  # noqa: ARG001
 ) -> float:
-    r"""
-    Return the difference $P_{current_rx} - P_{target_rx}$ in dB for the specified optical channel.
+    r"""Return the difference $P_{current_rx} - P_{target_rx}$ in dB for the specified optical channel.
 
     Args:
         optical_node: The optical device to compute for.
@@ -1788,8 +1778,7 @@ def allign_tx_power_to_target(
     line_port_name: str,  # noqa: ARG001
     db_from_target: Decimal | float | str,  # noqa: ARG001
 ) -> dict[str, dict[str, Decimal]]:
-    r"""
-    Subtract db_from_target decibels (dB) to the transmitted optical power,
+    r"""Subtract db_from_target decibels (dB) to the transmitted optical power,
       i.e. $P^{new}_{tx} = P^{old}_{tx} - \Delta P}$.
 
     Args:

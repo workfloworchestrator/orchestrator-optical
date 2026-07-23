@@ -129,8 +129,7 @@ class TnmsClient:
 
     @requires_auth
     def _request(self, method: str, path: str, log_mask: dict | None = None, **kwargs: Any) -> dict:
-        """
-        Make authenticated API request.
+        """Make authenticated API request.
 
         :param log_mask: Optional dictionary to log instead of the actual kwargs
                          (used to hide secrets/credentials).

@@ -11,7 +11,7 @@ class NoOpNode(Node):
     """Navigator for RPC no-op"""
 
     def __call__(self) -> None:
-        resp = self._client._request('POST', self._path)
+        resp = self._client._request("POST", self._path)
 
 class DefaultNode(Node):
     """Navigator for RPC default"""
@@ -27,7 +27,7 @@ class DefaultNode(Node):
 
         rpc_data = Default(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class VerifyNode(Node):
     """Navigator for RPC verify"""
@@ -43,7 +43,7 @@ class VerifyNode(Node):
 
         rpc_data = Verify(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -68,7 +68,7 @@ class UpdateNode(Node):
 
         rpc_data = Update(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ClearFileNode(Node):
     """Navigator for RPC clear-file"""
@@ -84,7 +84,7 @@ class ClearFileNode(Node):
 
         rpc_data = ClearFile(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -109,7 +109,7 @@ class ClearAppNode(Node):
 
         rpc_data = ClearApp(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ClearDatabaseNode(Node):
     """Navigator for RPC clear-database"""
@@ -125,7 +125,7 @@ class ClearDatabaseNode(Node):
 
         rpc_data = ClearDatabase(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class KillSessionNode(Node):
     """Navigator for RPC kill-session"""
@@ -141,7 +141,7 @@ class KillSessionNode(Node):
 
         rpc_data = KillSession(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ClearCertificateNode(Node):
     """Navigator for RPC clear-certificate"""
@@ -157,7 +157,7 @@ class ClearCertificateNode(Node):
 
         rpc_data = ClearCertificate(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -182,7 +182,7 @@ class DisplayCertNode(Node):
 
         rpc_data = DisplayCert(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -207,7 +207,7 @@ class ClearCrlNode(Node):
 
         rpc_data = ClearCrl(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -232,7 +232,7 @@ class SshKeygenNode(Node):
 
         rpc_data = SshKeygen(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class CertGenNode(Node):
     """Navigator for RPC cert-gen"""
@@ -248,7 +248,7 @@ class CertGenNode(Node):
 
         rpc_data = CertGen(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -273,7 +273,7 @@ class CsrGenNode(Node):
 
         rpc_data = CsrGen(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -298,7 +298,7 @@ class DiffNode(Node):
 
         rpc_data = Diff(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -323,7 +323,7 @@ class CliCommandNode(Node):
 
         rpc_data = CliCommand(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -348,7 +348,7 @@ class InstallKrpNode(Node):
 
         rpc_data = InstallKrp(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -373,7 +373,7 @@ class DeleteIskNode(Node):
 
         rpc_data = DeleteIsk(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -398,7 +398,7 @@ class GetLogNode(Node):
 
         rpc_data = GetLog(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -423,7 +423,7 @@ class ClearLogNode(Node):
 
         rpc_data = ClearLog(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ChangeZtpModeNode(Node):
     """Navigator for RPC change-ztp-mode"""
@@ -439,7 +439,7 @@ class ChangeZtpModeNode(Node):
 
         rpc_data = ChangeZtpMode(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class EnableLedNode(Node):
     """Navigator for RPC enable-led"""
@@ -455,7 +455,7 @@ class EnableLedNode(Node):
 
         rpc_data = EnableLed(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class DisableLedNode(Node):
     """Navigator for RPC disable-led"""
@@ -471,7 +471,7 @@ class DisableLedNode(Node):
 
         rpc_data = DisableLed(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ProfileControlNode(Node):
     """Navigator for RPC profile-control"""
@@ -487,7 +487,7 @@ class ProfileControlNode(Node):
 
         rpc_data = ProfileControl(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -512,7 +512,7 @@ class StartOtdrMeasurementNode(Node):
 
         rpc_data = StartOtdrMeasurement(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class StopOtdrMeasurementNode(Node):
     """Navigator for RPC stop-otdr-measurement"""
@@ -528,7 +528,7 @@ class StopOtdrMeasurementNode(Node):
 
         rpc_data = StopOtdrMeasurement(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class StopCableIdNode(Node):
     """Navigator for RPC stop-cable-id"""
@@ -544,7 +544,7 @@ class StopCableIdNode(Node):
 
         rpc_data = StopCableId(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class CalibrateNode(Node):
     """Navigator for RPC calibrate"""
@@ -560,7 +560,7 @@ class CalibrateNode(Node):
 
         rpc_data = Calibrate(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -585,7 +585,7 @@ class SimulateNode(Node):
 
         rpc_data = Simulate(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class RestartNode(Node):
     """Navigator for RPC restart"""
@@ -601,7 +601,7 @@ class RestartNode(Node):
 
         rpc_data = Restart(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class AppctlNode(Node):
     """Navigator for RPC appctl"""
@@ -617,7 +617,7 @@ class AppctlNode(Node):
 
         rpc_data = Appctl(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -642,7 +642,7 @@ class PingNode(Node):
 
         rpc_data = Ping(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -667,7 +667,7 @@ class TracerouteNode(Node):
 
         rpc_data = Traceroute(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -692,7 +692,7 @@ class ClearOspfInstanceNode(Node):
 
         rpc_data = ClearOspfInstance(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ClearTopologyNode(Node):
     """Navigator for RPC clear-topology"""
@@ -708,7 +708,7 @@ class ClearTopologyNode(Node):
 
         rpc_data = ClearTopology(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ClearSystemNode(Node):
     """Navigator for RPC clear-system"""
@@ -724,7 +724,7 @@ class ClearSystemNode(Node):
 
         rpc_data = ClearSystem(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -749,7 +749,7 @@ class DownloadNode(Node):
 
         rpc_data = Download(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -774,7 +774,7 @@ class UploadNode(Node):
 
         rpc_data = Upload(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -799,7 +799,7 @@ class ImportCertificateNode(Node):
 
         rpc_data = ImportCertificate(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -824,7 +824,7 @@ class PrepareUpgradeNode(Node):
 
         rpc_data = PrepareUpgrade(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -849,7 +849,7 @@ class ActivateFileNode(Node):
 
         rpc_data = ActivateFile(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -864,7 +864,7 @@ class CancelUpgradeNode(Node):
     """Navigator for RPC cancel-upgrade"""
 
     def __call__(self) -> ioa_rpc.CancelUpgradeOutput:
-        resp = self._client._request('POST', self._path)
+        resp = self._client._request("POST", self._path)
 
         if "output" in resp:
             data = resp.get("output")
@@ -889,7 +889,7 @@ class SetTimeNode(Node):
 
         rpc_data = SetTime(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class PasswordNode(Node):
     """Navigator for RPC password"""
@@ -905,13 +905,13 @@ class PasswordNode(Node):
 
         rpc_data = Password(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ClearRecoverModeNode(Node):
     """Navigator for RPC clear-recover-mode"""
 
     def __call__(self) -> None:
-        resp = self._client._request('POST', self._path)
+        resp = self._client._request("POST", self._path)
 
 class RunTaskNode(Node):
     """Navigator for RPC run-task"""
@@ -927,7 +927,7 @@ class RunTaskNode(Node):
 
         rpc_data = RunTask(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class TakeSnapshotNode(Node):
     """Navigator for RPC take-snapshot"""
@@ -943,7 +943,7 @@ class TakeSnapshotNode(Node):
 
         rpc_data = TakeSnapshot(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ScriptListItemNode(ItemNode):
     """Navigator for list item script-list"""
@@ -1018,7 +1018,7 @@ class GetScriptNode(Node):
 
         rpc_data = GetScript(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1043,7 +1043,7 @@ class RunScriptNode(Node):
 
         rpc_data = RunScript(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1068,7 +1068,7 @@ class ManualSwitchoverNode(Node):
 
         rpc_data = ManualSwitchover(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class FileOperationNode(Node):
     """Navigator for RPC file-operation"""
@@ -1084,7 +1084,7 @@ class FileOperationNode(Node):
 
         rpc_data = FileOperation(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1109,7 +1109,7 @@ class CallHomeNode(Node):
 
         rpc_data = CallHome(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ActivateFwNode(Node):
     """Navigator for RPC activate-fw"""
@@ -1125,7 +1125,7 @@ class ActivateFwNode(Node):
 
         rpc_data = ActivateFw(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ReKeyNode(Node):
     """Navigator for RPC re-key"""
@@ -1141,7 +1141,7 @@ class ReKeyNode(Node):
 
         rpc_data = ReKey(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ReAuthNode(Node):
     """Navigator for RPC re-auth"""
@@ -1157,7 +1157,7 @@ class ReAuthNode(Node):
 
         rpc_data = ReAuth(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ClearDiagnosticsNode(Node):
     """Navigator for RPC clear-diagnostics"""
@@ -1173,7 +1173,7 @@ class ClearDiagnosticsNode(Node):
 
         rpc_data = ClearDiagnostics(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class DirectoryListItemNode(ItemNode):
     """Navigator for list item directory-list"""
@@ -1248,7 +1248,7 @@ class GetFileNode(Node):
 
         rpc_data = GetFile(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1273,7 +1273,7 @@ class ApplyTemplateNode(Node):
 
         rpc_data = ApplyTemplate(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1357,7 +1357,7 @@ class BertNode(Node):
 
         rpc_data = Bert(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1382,7 +1382,7 @@ class DbMigrateNode(Node):
 
         rpc_data = DbMigrate(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class PortSummaryItemNode(ItemNode):
     """Navigator for list item port-summary"""
@@ -1457,7 +1457,7 @@ class StatusNode(Node):
 
         rpc_data = Status(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1482,7 +1482,7 @@ class ConfigNode(Node):
 
         rpc_data = Config(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1507,7 +1507,7 @@ class GetPossibleValuesNode(Node):
 
         rpc_data = GetPossibleValues(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1532,7 +1532,7 @@ class GetDefaultNode(Node):
 
         rpc_data = GetDefault(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1557,7 +1557,7 @@ class DisplayAccessNode(Node):
 
         rpc_data = DisplayAccess(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1765,7 +1765,7 @@ class GetCommitNode(Node):
 
         rpc_data = GetCommit(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1790,7 +1790,7 @@ class RollbackNode(Node):
 
         rpc_data = Rollback(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")
@@ -1874,7 +1874,7 @@ class AutoDiscoveryNode(Node):
 
         rpc_data = AutoDiscovery(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")

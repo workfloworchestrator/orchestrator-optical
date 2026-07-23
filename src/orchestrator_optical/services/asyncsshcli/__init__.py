@@ -11,8 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-r"""
-Generic CLI client to connect in SSH to a remote host using an xterm window.
+r"""Generic CLI client to connect in SSH to a remote host using an xterm window.
 
 Example:
     device = {

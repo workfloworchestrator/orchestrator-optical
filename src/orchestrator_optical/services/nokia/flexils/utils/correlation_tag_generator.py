@@ -16,8 +16,7 @@ import string
 
 
 def generate_ctag():
-    """
-    Generates a 6-character correlation tag (CTAG) that is guaranteed
+    """Generates a 6-character correlation tag (CTAG) that is guaranteed
     to start with an alphabetic character if it contains any digits.
     """
     alphabet = string.ascii_uppercase

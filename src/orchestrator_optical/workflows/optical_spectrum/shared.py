@@ -114,8 +114,7 @@ def all_valid_shortest_paths_between_trxs(
 
 
 def are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path: Path) -> bool:
-    """
-    Validates whether the given path represents a valid connection between optical device ports.
+    """Validates whether the given path represents a valid connection between optical device ports.
     The function iterates through the path and checks if ports on the same Groove G30 are on the
     same shelf and slot. It skips every second port in the path and performs the validation
     only for ports associated with the Groove G30 platform.
@@ -139,7 +138,7 @@ def are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path: Path) -> bool:
         port_ii = OpticalPortBlocksUnion.from_db(path[ii])
 
         def _(g30_port_name: str) -> tuple[int, int]:
-            ids = g30_port_name.split("-")[-1]  # port-1/3.3/1.1 --> 1/3.3/1.1
+            ids = g30_port_name.rsplit("-", maxsplit=1)[-1]  # port-1/3.3/1.1 --> 1/3.3/1.1
             shelf, slot, _ = ids.split("/")  # 1/3.3/1.1 --> 1, 3.3, 1.1
             if "." in slot:
                 slot, _ = slot.split(".")  # 3.3 --> 3, 3
@@ -159,8 +158,7 @@ def build_constrained_graph_from_active_fibers(
     exclude_node_sub_ids: list[UUIDstr] = [],
     exclude_span_sub_ids: list[UUIDstr] = [],
 ) -> Graph:
-    """
-    Builds a constrained graph representation of active optical fibers based on the provided passband
+    """Builds a constrained graph representation of active optical fibers based on the provided passband
     and exclusion constraints.
 
     The function retrieves all active optical fiber subscriptions, filters them based on exclusion
@@ -260,8 +258,7 @@ def find_add_drop_ports(
     src_trx_port_block_id: UUIDstr,
     dst_trx_port_block_id: UUIDstr,
 ) -> tuple[OlsAddDropPortBlock, OlsAddDropPortBlock]:
-    """
-    Retrieve the add/drop ports connected to the transponder/transceiver ports.
+    """Retrieve the add/drop ports connected to the transponder/transceiver ports.
     """
     src_trx_port = TransponderLinePortBlock.from_db(src_trx_port_block_id)
     dst_trx_port = TransponderLinePortBlock.from_db(dst_trx_port_block_id)
@@ -288,8 +285,7 @@ def find_add_drop_ports(
 
 
 def compute_all_shortest_paths(graph: Graph, src: Node, dst: Node) -> list[Path]:
-    """
-    Finds all shortest paths from src to dst in a graph where path cost is
+    """Finds all shortest paths from src to dst in a graph where path cost is
     the number of accumulated fiber_ports segments.
 
     Args:
@@ -433,8 +429,7 @@ def transport_channel_path_selector(
     exclude_span_sub_ids: list[UUIDstr] = [],
     prompt: str = "Select an optical path.",
 ) -> Choice:
-    """
-    Selects an optical path between two transceiver port blocks based on the given parameters.
+    """Selects an optical path between two transceiver port blocks based on the given parameters.
     The selected path MUST then be parsed using path.split(";") to obtain the sequence of subscription instance IDs of the OpticalPortBlocksUnion.
 
     Args:
@@ -472,8 +467,7 @@ def optical_spectrum_path_selector(
     exclude_span_sub_ids: list[UUIDstr] = [],
     prompt: str = "Select an optical path.",
 ) -> Choice:
-    """
-    Selects an optical path between two optical devices based on the given parameters.
+    """Selects an optical path between two optical devices based on the given parameters.
     The selected path MUST then be parsed using path.split(";") to obtain the sequence
     of subscription instance IDs of the OpticalPortBlocksUnion.
 
@@ -512,8 +506,7 @@ def store_list_of_ports_into_spectrum_sections(
     optical_path: list[UUIDstr],
     optical_spectrum: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning,
 ) -> None:
-    """
-    Decomposes a continuous list of optical ports into platform-specific sections and
+    """Decomposes a continuous list of optical ports into platform-specific sections and
     saves them to the provided optical spectrum block.
 
     The function groups the provided optical path into "sections" based on the device platform.

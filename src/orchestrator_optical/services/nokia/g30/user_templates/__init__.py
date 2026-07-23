@@ -1,5 +1,4 @@
-"""
-Custom configuration templates are defined in this directory.
+"""Custom configuration templates are defined in this directory.
 
 To maintain consistency, the directory structure here should mirror `data_navigators/`.
 Templates are invoked using the `.from_template()` method of the corresponding

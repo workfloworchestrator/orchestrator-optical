@@ -38,8 +38,7 @@ from orchestrator_optical.utils.custom_types.frequencies import Bandwidth, Frequ
 def _divide_path_into_omses(
     optical_path: list[OpticalPortBlocksUnion],
 ) -> list[tuple[OpticalPortBlocksUnion, OpticalPortBlocksUnion]]:
-    """
-    Divides an optical path into OMS (Optical Multiplex Section) segments,
+    """Divides an optical path into OMS (Optical Multiplex Section) segments,
     i.e. links between ROADMs not including amplifiers.
 
     Args:
@@ -82,8 +81,7 @@ def _find_or_create_oel(
     dest_device: OpticalNodeBlockUnion,
     omses: list[tuple[OpticalPortBlocksUnion, OpticalPortBlocksUnion]],
 ) -> dict[str, Any]:
-    """
-    Finds existing OEL (Optical Engineered Lightpath) or creates a new one if needed.
+    """Finds existing OEL (Optical Engineered Lightpath) or creates a new one if needed.
 
     Args:
         oel_name: Name identifier for the OEL
@@ -304,8 +302,7 @@ def _find_flexils_osnc(
     optical_spectrum_section: OpticalSpectrumSectionBlock,
     passband: Passband | None = None,
 ) -> tuple[FlexilsClient, dict[str, Any]]:
-    """
-    Helper function to find an existing OSNC between two FlexILS devices.
+    """Helper function to find an existing OSNC between two FlexILS devices.
 
     Args:
         optical_spectrum_name: Name identifier for the optical spectrum
@@ -417,8 +414,7 @@ def deploy_optical_circuit(
     carrier: tuple[Frequency, Bandwidth],  # noqa: ARG001
     label: str | None = None,  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Deploy an optical circuit based on the platform type.
+    """Deploy an optical circuit based on the platform type.
 
     Args:
         source_optical_node: The source optical device configuration
@@ -520,8 +516,7 @@ def modify_optical_circuit(
     old_passband: Passband | None = None,  # noqa: ARG001
     old_spectrum_name: str | None = None,  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Modify an optical circuit based on the platform type.
+    """Modify an optical circuit based on the platform type.
 
     Args:
         source_optical_node: The source optical device configuration
@@ -554,7 +549,7 @@ def _(
     old_osnc_name = old_spectrum_name.replace(" ", "_") if old_spectrum_name else None
 
     flex, osnc = _find_flexils_osnc(
-        old_osnc_name if old_osnc_name else osnc_name,
+        old_osnc_name or osnc_name,
         optical_spectrum_section,
         old_passband,
     )
@@ -641,8 +636,7 @@ def delete_optical_circuit(
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Delete an optical circuit based on the platform type.
+    """Delete an optical circuit based on the platform type.
 
     Args:
         source_optical_node: The source optical device configuration
@@ -701,8 +695,7 @@ def validate_optical_circuit(
     carrier: tuple[Frequency, Bandwidth],  # noqa: ARG001
     label: str,  # noqa: ARG001
 ) -> None:
-    """
-    Validate the optical spectrum section configuration on the specified optical device.
+    """Validate the optical spectrum section configuration on the specified optical device.
 
     Args:
         optical_node: The optical device to validate
@@ -786,8 +779,7 @@ def create_optical_cross_connection(
     label: str | None = None,  # noqa: ARG001
     circuit_name: str | None = None,  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Create an optical cross connection based on the platform type.
+    """Create an optical cross connection based on the platform type.
 
     Args:
         optical_node: The optical device configuration
@@ -867,8 +859,7 @@ def delete_optical_cross_connection(
     label: str | None = None,  # noqa: ARG001
     circuit_name: str | None = None,  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Delete an optical cross connection based on the platform type.
+    """Delete an optical cross connection based on the platform type.
 
     Args:
         optical_node: The optical device configuration

@@ -254,8 +254,7 @@ class ListNode[TNode: ItemNode]:
         self._item_cls = item_cls
 
     def __call__(self, *keys: str | int) -> TNode:
-        """
-        Supports composite keys.
+        """Supports composite keys.
         Usage: client.data.interfaces('eth0')
         or client.data.routes('1.1.1.1', 'vrf-A').
         """

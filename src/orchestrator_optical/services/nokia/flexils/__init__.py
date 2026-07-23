@@ -11,8 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Client for executing TL1 commands on FlexILS devices through TNMS.
+"""Client for executing TL1 commands on FlexILS devices through TNMS.
 
 To add a new command, create a new module in the commands folder and
 use the generator script in utils to create the Pydantic model for the

@@ -11,8 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-This script converts TL1 command help text to Pydantic class definition.
+"""This script converts TL1 command help text to Pydantic class definition.
 It is used manually to generate Pydantic classes for TL1 commands.
 It is not used in the codebase.
 

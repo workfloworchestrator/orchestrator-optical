@@ -1,19 +1,18 @@
 """Metodo di avviamento del core dell'applicazione: gestisce chiamate REST e ridistribuisce le esecuzioni."""
 
+import products  # noqa: F401 Side-effects
+import schedules  # noqa: F401 Side-effects
 import typer
+import workflows  # noqa: F401 Side-effects
+from auth.oidc import CustomOIDCAuth
 from celery import Celery
+from graphql_federation import CUSTOM_GRAPHQL_MODELS
 from orchestrator import OrchestratorCore
 from orchestrator.cli.main import app as core_cli
 from orchestrator.services.tasks import initialise_celery
 from orchestrator.settings import AppSettings, app_settings
-from structlog import get_logger
-
-import products  # noqa: F401 Side-effects
-import schedules  # noqa: F401 Side-effects
-import workflows  # noqa: F401 Side-effects
-from auth.oidc import CustomOIDCAuth
-from graphql_federation import CUSTOM_GRAPHQL_MODELS
 from settings import celery_settings, garr_settings
+from structlog import get_logger
 
 logger = get_logger(__name__)
 

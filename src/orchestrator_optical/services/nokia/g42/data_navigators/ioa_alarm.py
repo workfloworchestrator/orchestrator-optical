@@ -400,7 +400,7 @@ class SetAlarmStateNode(Node):
 
         rpc_data = SetAlarmState(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ClearAlarmNode(Node):
     """Navigator for RPC clear-alarm"""
@@ -416,7 +416,7 @@ class ClearAlarmNode(Node):
 
         rpc_data = ClearAlarm(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
 class ConditionItemNode(ItemNode):
     """Navigator for list item condition"""
@@ -491,7 +491,7 @@ class GetConditionsNode(Node):
 
         rpc_data = GetConditions(input=input_data)
         payload = rpc_data.model_dump(mode="json", exclude_unset=True, by_alias=True)
-        resp = self._client._request('POST', self._path, json=payload)
+        resp = self._client._request("POST", self._path, json=payload)
 
         if "output" in resp:
             data = resp.get("output")

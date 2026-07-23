@@ -21,8 +21,7 @@ DiffResult = dict[str, FlatDict]
 
 
 def flatten(data: JsonData, path: str = "root", unique_id_keys: list[str] | None = None) -> FlatDict:
-    """
-    Flattens a nested dictionary or list into a flat dictionary.
+    """Flattens a nested dictionary or list into a flat dictionary.
 
     Args:
         data (JsonData): The data to flatten.
@@ -68,8 +67,7 @@ def flatten(data: JsonData, path: str = "root", unique_id_keys: list[str] | None
 def compare_jsons(
     expected: JsonData, actual: JsonData, unique_id_keys: list[str] | Literal["default"] | None = "default"
 ) -> DiffResult:
-    """
-    Compares two JSON-like structures by flattening them and checking set differences.
+    """Compares two JSON-like structures by flattening them and checking set differences.
 
     Args:
         expected (JsonData): The expected JSON-like structure.

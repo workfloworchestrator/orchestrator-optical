@@ -25,8 +25,7 @@ def get_fibers_connected_to(
     device_subscription_id: UUIDstr,
     status: list[SubscriptionLifecycle] | None = None,
 ) -> list[OpticalFiber]:
-    """
-    Retrieve a list of fiber subscriptions that are connected to the given device subscription.
+    """Retrieve a list of fiber subscriptions that are connected to the given device subscription.
 
     Args:
         device_subscription_id (UUIDstr): The subscription ID of the device to check connectivity for.

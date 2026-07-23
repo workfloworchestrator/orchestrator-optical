@@ -152,8 +152,7 @@ class TL1BaseCommand(BaseModel, metaclass=TL1CommandMeta):
     ctag: str = Field(generate_ctag(), description="Correlation Tag for tracking the response.")
 
     def execute(self, client: "FlexilsClient") -> TL1BaseResponse:
-        """
-        Execute the command on the device and return the response.
+        """Execute the command on the device and return the response.
         Raises ValueError if the command is denied.
         """
         command_str = self.to_string()

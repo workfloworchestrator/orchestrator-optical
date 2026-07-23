@@ -15,17 +15,17 @@ from ._base import YangBaseModel
 def format_at_least_two_places(v: Decimal) -> str:
     # Normalize to remove unnecessary trailing zeros (e.g., 1.500 -> 1.5)
     v = v.normalize()
-     
+
     # Exponent 0 = integer (1), -1 = one decimal (1.1), -2 = two decimals (1.11)
     # If it's greater than -2, it means we have 0 or 1 decimal places.
     if v.as_tuple().exponent > -2:
         return format(v.quantize(Decimal("0.01")), "f")
-    
+
     # Otherwise, return the normalized string (keeps 3+ decimal places)
     return format(v, "f")
 
 Decimal64 = Annotated[
-    Decimal, 
+    Decimal,
     PlainSerializer(format_at_least_two_places, return_type=str)
 ]
 Uint64 = Annotated[int, PlainSerializer(lambda v: str(v), return_type=str)]
@@ -33,14 +33,13 @@ Int64 = Annotated[int, PlainSerializer(lambda v: str(v), return_type=str)]
 
 def check_pattern(pattern: str, v: str) -> str:
     if isinstance(v, str) and not re.match(pattern, v):
-        raise ValueError(f'Value does not match pattern: {pattern}')
+        raise ValueError(f"Value does not match pattern: {pattern}")
     return v
 
 T = TypeVar("T")
 
 def restconf_list_validator(v: Any) -> Any:
-    """
-    RESTCONF quirk: Truncated lists (via depth) often return {} instead of [].
+    """RESTCONF quirk: Truncated lists (via depth) often return {} instead of [].
     Also handles 'None' or missing data if needed.
     """
     if isinstance(v, dict) and not v:
@@ -54,9 +53,8 @@ RestconfList = Annotated[list[T], BeforeValidator(restconf_list_validator)]
 
 class NoOp(BaseModel):
     """RPC: no-op"""
-    pass
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class StatusEnum(str, Enum):
     """Enumeration for StatusEnum
@@ -74,20 +72,20 @@ class StatusEnum(str, Enum):
 class DefaultInput(YangBaseModel):
     """Input: None"""
 
-    entity_id: RestconfList[str] = Field(json_schema_extra={'is_config': None}, description='Instances to be defaulted. Supported objects: pm-thresholds-value and alarm-profile-entry', alias="entity-id")
+    entity_id: RestconfList[str] = Field(json_schema_extra={"is_config": None}, description="Instances to be defaulted. Supported objects: pm-thresholds-value and alarm-profile-entry", alias="entity-id")
 
 class DefaultOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class Default(BaseModel):
     """RPC: default"""
     input: DefaultInput
     output: DefaultOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class FiletypeEnum(str, Enum):
     """Enumeration for FiletypeEnum
@@ -122,28 +120,28 @@ class AutoDownloadCertificateChainEnum(str, Enum):
 class DownloadInput(YangBaseModel):
     """Input: None"""
 
-    filetype: FiletypeEnum = Field(json_schema_extra={'is_config': None}, description='Predefined filetype available for download')
-    trusted_cert_group_name: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$', v))] | None = Field(json_schema_extra={'is_config': None}, description="Specifies the trusted certificate group name in the keystore.\n\nCondition (when): ../filetype = 'trustedcert'", min_length=1, max_length=128, default=None, alias="trusted-cert-group-name")
-    trusted_cert_name: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$', v))] | None = Field(json_schema_extra={'is_config': None}, description="Specifies the trusted certificate group name in the keystore.\n\nCondition (when): ../filetype = 'trustedcert'", min_length=1, max_length=128, default=None, alias="trusted-cert-name")
-    key_name: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$', v))] | None = Field(json_schema_extra={'is_config': None}, description="Specifies the key name in the keystore.\n\nCondition (when): ../filetype = 'certificate'", min_length=1, max_length=128, default=None, alias="key-name")
-    auto_download_certificate_chain: AutoDownloadCertificateChainEnum | None = Field(json_schema_extra={'is_config': None}, description="Specifies how to use the AIA extension and which certificates in the certificate chain should be downloaded and installed.\n\nCondition (when): ../filetype = 'certificate'", default=AutoDownloadCertificateChainEnum.NONE, alias="auto-download-certificate-chain")
-    certificate_name: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$', v))] | None = Field(json_schema_extra={'is_config': None}, description="Specifies the certificate name under a key in the keystore.\n\nCondition (when): ../filetype = 'certificate'", min_length=1, max_length=128, default=None, alias="certificate-name")
-    source: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:((ftp|sftp|ftps|scp|http):/)?/[^\\s/$.?#'].[^\\s']*)$", v))] = Field(json_schema_extra={'is_config': None}, description='Source of the download ([sftp|scp|http]://[user@]hostname/directorypath/filename)', min_length=1, max_length=1024)
-    destination: str | None = Field(json_schema_extra={'is_config': None}, description="Condition (when): ../filetype = 'file'", default=None)
-    password: str | None = Field(json_schema_extra={'is_config': None}, description="SFTP/SCP password\n\nCondition (when): starts-with(../source,'scp') or starts-with(../source,'sftp')", min_length=1, max_length=255, default=None)
-    certificate_password: str | None = Field(json_schema_extra={'is_config': None}, description="Specifies the password of the certificate.\n\nCondition (when): ../filetype = 'certificate'", min_length=0, max_length=255, default=None, alias="certificate-password")
+    filetype: FiletypeEnum = Field(json_schema_extra={"is_config": None}, description="Predefined filetype available for download")
+    trusted_cert_group_name: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="Specifies the trusted certificate group name in the keystore.\n\nCondition (when): ../filetype = 'trustedcert'", min_length=1, max_length=128, default=None, alias="trusted-cert-group-name")
+    trusted_cert_name: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="Specifies the trusted certificate group name in the keystore.\n\nCondition (when): ../filetype = 'trustedcert'", min_length=1, max_length=128, default=None, alias="trusted-cert-name")
+    key_name: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="Specifies the key name in the keystore.\n\nCondition (when): ../filetype = 'certificate'", min_length=1, max_length=128, default=None, alias="key-name")
+    auto_download_certificate_chain: AutoDownloadCertificateChainEnum | None = Field(json_schema_extra={"is_config": None}, description="Specifies how to use the AIA extension and which certificates in the certificate chain should be downloaded and installed.\n\nCondition (when): ../filetype = 'certificate'", default=AutoDownloadCertificateChainEnum.NONE, alias="auto-download-certificate-chain")
+    certificate_name: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="Specifies the certificate name under a key in the keystore.\n\nCondition (when): ../filetype = 'certificate'", min_length=1, max_length=128, default=None, alias="certificate-name")
+    source: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:((ftp|sftp|ftps|scp|http):/)?/[^\\s/$.?#'].[^\\s']*)$", v))] = Field(json_schema_extra={"is_config": None}, description="Source of the download ([sftp|scp|http]://[user@]hostname/directorypath/filename)", min_length=1, max_length=1024)
+    destination: str | None = Field(json_schema_extra={"is_config": None}, description="Condition (when): ../filetype = 'file'", default=None)
+    password: str | None = Field(json_schema_extra={"is_config": None}, description="SFTP/SCP password\n\nCondition (when): starts-with(../source,'scp') or starts-with(../source,'sftp')", min_length=1, max_length=255, default=None)
+    certificate_password: str | None = Field(json_schema_extra={"is_config": None}, description="Specifies the password of the certificate.\n\nCondition (when): ../filetype = 'certificate'", min_length=0, max_length=255, default=None, alias="certificate-password")
 
 class DownloadOutput(YangBaseModel):
     """Output: None"""
 
-    download_result: str | None = Field(json_schema_extra={'is_config': None}, description='Result of the download operation', default=None, alias="download-result")
+    download_result: str | None = Field(json_schema_extra={"is_config": None}, description="Result of the download operation", default=None, alias="download-result")
 
 class Download(BaseModel):
     """RPC: download"""
     input: DownloadInput
     output: DownloadOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class FileOperationEnum(str, Enum):
     """Enumeration for FileOperationEnum
@@ -165,47 +163,47 @@ class FileOperationEnum(str, Enum):
 class FileInput(YangBaseModel):
     """Input: None"""
 
-    file_operation: FileOperationEnum | None = Field(json_schema_extra={'is_config': None}, description='File operations to do.', default=None)
-    file_path: str = Field(json_schema_extra={'is_config': None}, description='Current file path.', min_length=0, max_length=255, alias="file-path")
-    new_file_path: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[A-Za-z0-9_\\-/\\.]*)$', v))] | None = Field(json_schema_extra={'is_config': None}, description="New file path.\n\nCondition (when): ../file_operation = 'rename'", min_length=0, max_length=255, default=None, alias="new-file-path")
+    file_operation: FileOperationEnum | None = Field(json_schema_extra={"is_config": None}, description="File operations to do.", default=None)
+    file_path: str = Field(json_schema_extra={"is_config": None}, description="Current file path.", min_length=0, max_length=255, alias="file-path")
+    new_file_path: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[A-Za-z0-9_\\-/\\.]*)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="New file path.\n\nCondition (when): ../file_operation = 'rename'", min_length=0, max_length=255, default=None, alias="new-file-path")
 
 class FileOutput(YangBaseModel):
     """Output: None"""
 
-    result: str | None = Field(json_schema_extra={'is_config': None}, description='The file operation result.', default=None)
+    result: str | None = Field(json_schema_extra={"is_config": None}, description="The file operation result.", default=None)
 
 class File(BaseModel):
     """RPC: file"""
     input: FileInput
     output: FileOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class CertGenInput(YangBaseModel):
     """Input: None"""
 
-    days: int = Field(json_schema_extra={'is_config': None}, description='number of days a certificate is valid for.', ge=0)
-    country_code: str | None = Field(json_schema_extra={'is_config': None}, description='Country Code.', min_length=2, max_length=2, default=None, alias="country-code")
-    state: str | None = Field(json_schema_extra={'is_config': None}, description='State.', min_length=1, max_length=128, default=None)
-    locality: str | None = Field(json_schema_extra={'is_config': None}, description='Locality.', min_length=1, max_length=128, default=None)
-    org_name: str = Field(json_schema_extra={'is_config': None}, description='Organization Name.', min_length=1, max_length=64, alias="org-name")
-    common_name: str = Field(json_schema_extra={'is_config': None}, description='Name to identify the server.', min_length=1, max_length=64, alias="common-name")
-    san: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:((IP:|DNS:)(?!([^,]*(IP:|DNS:)))[A-Za-z0-9\\-\\.:]+(,(IP:|DNS:)(?!([^,]*(IP:|DNS:)))[A-Za-z0-9\\-\\.:]+)*)?)$', v))] | None = Field(json_schema_extra={'is_config': None}, description="The certificate SAN (Subject Alternative Name) fields.\nSANs are specified as a sequence of 'IP:' or 'DNS:' prefixed strings separated by a comma ','.\nIn each field, only letters, digits, '-', '.' and ':' are allowed. All other characters generate a syntax error.\nAn empty string is also allowed and it is the default value.\nExample OK: 'IP:127.0.0.1,DNS:localhost,IP:2001:db8::f:64'\nExample OK: ''\nExample incorrect: 'ip:127.0.0.1,dns:my_website.com'", min_length=0, max_length=1024, default=None)
-    key_name: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$', v))] = Field(json_schema_extra={'is_config': None}, description='Specifies the key name in the keystore.', min_length=1, max_length=128, alias="key-name")
-    certificate_name: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$', v))] = Field(json_schema_extra={'is_config': None}, description='Specifies the certificate name under a key in the keystore.', min_length=1, max_length=128, alias="certificate-name")
+    days: int = Field(json_schema_extra={"is_config": None}, description="number of days a certificate is valid for.", ge=0)
+    country_code: str | None = Field(json_schema_extra={"is_config": None}, description="Country Code.", min_length=2, max_length=2, default=None, alias="country-code")
+    state: str | None = Field(json_schema_extra={"is_config": None}, description="State.", min_length=1, max_length=128, default=None)
+    locality: str | None = Field(json_schema_extra={"is_config": None}, description="Locality.", min_length=1, max_length=128, default=None)
+    org_name: str = Field(json_schema_extra={"is_config": None}, description="Organization Name.", min_length=1, max_length=64, alias="org-name")
+    common_name: str = Field(json_schema_extra={"is_config": None}, description="Name to identify the server.", min_length=1, max_length=64, alias="common-name")
+    san: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:((IP:|DNS:)(?!([^,]*(IP:|DNS:)))[A-Za-z0-9\\-\\.:]+(,(IP:|DNS:)(?!([^,]*(IP:|DNS:)))[A-Za-z0-9\\-\\.:]+)*)?)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="The certificate SAN (Subject Alternative Name) fields.\nSANs are specified as a sequence of 'IP:' or 'DNS:' prefixed strings separated by a comma ','.\nIn each field, only letters, digits, '-', '.' and ':' are allowed. All other characters generate a syntax error.\nAn empty string is also allowed and it is the default value.\nExample OK: 'IP:127.0.0.1,DNS:localhost,IP:2001:db8::f:64'\nExample OK: ''\nExample incorrect: 'ip:127.0.0.1,dns:my_website.com'", min_length=0, max_length=1024, default=None)
+    key_name: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$", v))] = Field(json_schema_extra={"is_config": None}, description="Specifies the key name in the keystore.", min_length=1, max_length=128, alias="key-name")
+    certificate_name: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$", v))] = Field(json_schema_extra={"is_config": None}, description="Specifies the certificate name under a key in the keystore.", min_length=1, max_length=128, alias="certificate-name")
 
 class CertGenOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class CertGen(BaseModel):
     """RPC: cert-gen"""
     input: CertGenInput
     output: CertGenOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class RestartTypeEnum(str, Enum):
     """Enumeration for RestartTypeEnum
@@ -221,23 +219,23 @@ class RestartTypeEnum(str, Enum):
 class RestartInput(YangBaseModel):
     """Input: None"""
 
-    entity_id: str = Field(json_schema_extra={'is_config': None}, description='Entity to restart', alias="entity-id")
-    restart_type: RestartTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='Restart type', default=RestartTypeEnum.WARM, alias="restart-type")
-    fpga_upgrade: bool | None = Field(json_schema_extra={'is_config': None}, description="Hitless upgrade FPGA selection\n\nCondition (when): ../restart-type = 'warm'", default=None, alias="fpga-upgrade")
-    dsp_upgrade: bool | None = Field(json_schema_extra={'is_config': None}, description="Hitless upgrade dsp selection\n\nCondition (when): ../restart-type = 'warm'", default=None, alias="dsp-upgrade")
+    entity_id: str = Field(json_schema_extra={"is_config": None}, description="Entity to restart", alias="entity-id")
+    restart_type: RestartTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="Restart type", default=RestartTypeEnum.WARM, alias="restart-type")
+    fpga_upgrade: bool | None = Field(json_schema_extra={"is_config": None}, description="Hitless upgrade FPGA selection\n\nCondition (when): ../restart-type = 'warm'", default=None, alias="fpga-upgrade")
+    dsp_upgrade: bool | None = Field(json_schema_extra={"is_config": None}, description="Hitless upgrade dsp selection\n\nCondition (when): ../restart-type = 'warm'", default=None, alias="dsp-upgrade")
 
 class RestartOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class Restart(BaseModel):
     """RPC: restart"""
     input: RestartInput
     output: RestartOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class FiletypeEnum_1(str, Enum):
     """Enumeration for FiletypeEnum
@@ -267,47 +265,47 @@ class FiletypeEnum_1(str, Enum):
 class UploadInput(YangBaseModel):
     """Input: None"""
 
-    filetype: FiletypeEnum_1 = Field(json_schema_extra={'is_config': None}, description='Filetype available for upload')
-    target_entity: str | None = Field(json_schema_extra={'is_config': None}, description="The target entity of otdr measurement result to be uploaded\n\nCondition (when): ../filetype = 'otdr'", default=None, alias="target-entity")
-    file_description: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[A-Za-z0-9_\\-\\.]*)$', v))] | None = Field(json_schema_extra={'is_config': None}, description="The additional description of the file\n\nCondition (when): ../filetype = 'otdr'", min_length=0, max_length=64, default=None, alias="file-description")
-    key_name: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$', v))] | None = Field(json_schema_extra={'is_config': None}, description="Specifies the key name in the keystore.\n\nCondition (when): ../filetype = 'certificate'", min_length=1, max_length=128, default=None, alias="key-name")
-    certificate_name: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$', v))] | None = Field(json_schema_extra={'is_config': None}, description="Specifies the certificate name under a key in the keystore.\n\nCondition (when): ../filetype = 'certificate'", min_length=1, max_length=128, default=None, alias="certificate-name")
-    shelf: int | None = Field(json_schema_extra={'is_config': None}, description="The shelf ID for which to collect diagnostic logs. Value 0 indicates all available shelves.\n\nCondition (when): ../filetype = 'diagnosticslog'", ge=0, le=32, default=0)
-    destination: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:((ftp|sftp|ftps|scp|http):/)?/[^\\s/$.?#'].[^\\s']*)$", v))] = Field(json_schema_extra={'is_config': None}, description='Destination of the upload ([sftp|scp]://user@hostname/directorypath/filename)', min_length=1, max_length=1024)
-    password: str = Field(json_schema_extra={'is_config': None}, description='SFTP/SCP password for both destination and csr-conf-file', min_length=1, max_length=255)
-    csr_key_id: str | None = Field(json_schema_extra={'is_config': None}, description="The private key to generate CSR.\n\nCondition (when): ../filetype = 'csr'", default=None, alias="csr-key-id")
-    csr_subj: str | None = Field(json_schema_extra={'is_config': None}, description="Specifies the subject of CSR used by openssl command.\n\nCondition (when): ../filetype = 'csr'", min_length=0, max_length=512, default=None, alias="csr-subj")
-    csr_conf_file: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:((ftp|sftp|ftps|scp|http):/)?/[^\\s/$.?#'].[^\\s']*)$", v))] | None = Field(json_schema_extra={'is_config': None}, description="File server path of openssl CNF file to be downloaded for the CSR generation\n([sftp|scp]://user@hostname/directorypath/filename), this parameter is necessary if more\ninformation than csr-subj is needed for the CSR generation, e.g., X509v3 Subject Alternative Names;\ncsr-conf-file must be on the same file server of the destination parameter, i.e., same file transfer protocol,\nsame server hostname, and the same user name on the server.\n\nCondition (when): ../filetype = 'csr'", min_length=1, max_length=1024, default=None, alias="csr-conf-file")
+    filetype: FiletypeEnum_1 = Field(json_schema_extra={"is_config": None}, description="Filetype available for upload")
+    target_entity: str | None = Field(json_schema_extra={"is_config": None}, description="The target entity of otdr measurement result to be uploaded\n\nCondition (when): ../filetype = 'otdr'", default=None, alias="target-entity")
+    file_description: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[A-Za-z0-9_\\-\\.]*)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="The additional description of the file\n\nCondition (when): ../filetype = 'otdr'", min_length=0, max_length=64, default=None, alias="file-description")
+    key_name: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="Specifies the key name in the keystore.\n\nCondition (when): ../filetype = 'certificate'", min_length=1, max_length=128, default=None, alias="key-name")
+    certificate_name: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[A-Za-z0-9][a-zA-Z0-9\\-_:\\.]*)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="Specifies the certificate name under a key in the keystore.\n\nCondition (when): ../filetype = 'certificate'", min_length=1, max_length=128, default=None, alias="certificate-name")
+    shelf: int | None = Field(json_schema_extra={"is_config": None}, description="The shelf ID for which to collect diagnostic logs. Value 0 indicates all available shelves.\n\nCondition (when): ../filetype = 'diagnosticslog'", ge=0, le=32, default=0)
+    destination: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:((ftp|sftp|ftps|scp|http):/)?/[^\\s/$.?#'].[^\\s']*)$", v))] = Field(json_schema_extra={"is_config": None}, description="Destination of the upload ([sftp|scp]://user@hostname/directorypath/filename)", min_length=1, max_length=1024)
+    password: str = Field(json_schema_extra={"is_config": None}, description="SFTP/SCP password for both destination and csr-conf-file", min_length=1, max_length=255)
+    csr_key_id: str | None = Field(json_schema_extra={"is_config": None}, description="The private key to generate CSR.\n\nCondition (when): ../filetype = 'csr'", default=None, alias="csr-key-id")
+    csr_subj: str | None = Field(json_schema_extra={"is_config": None}, description="Specifies the subject of CSR used by openssl command.\n\nCondition (when): ../filetype = 'csr'", min_length=0, max_length=512, default=None, alias="csr-subj")
+    csr_conf_file: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:((ftp|sftp|ftps|scp|http):/)?/[^\\s/$.?#'].[^\\s']*)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="File server path of openssl CNF file to be downloaded for the CSR generation\n([sftp|scp]://user@hostname/directorypath/filename), this parameter is necessary if more\ninformation than csr-subj is needed for the CSR generation, e.g., X509v3 Subject Alternative Names;\ncsr-conf-file must be on the same file server of the destination parameter, i.e., same file transfer protocol,\nsame server hostname, and the same user name on the server.\n\nCondition (when): ../filetype = 'csr'", min_length=1, max_length=1024, default=None, alias="csr-conf-file")
 
 class UploadOutput(YangBaseModel):
     """Output: None"""
 
-    result: str | None = Field(json_schema_extra={'is_config': None}, description='Result of the upload operation', default=None)
+    result: str | None = Field(json_schema_extra={"is_config": None}, description="Result of the upload operation", default=None)
 
 class Upload(BaseModel):
     """RPC: upload"""
     input: UploadInput
     output: UploadOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class SetTimeInput(YangBaseModel):
     """Input: None"""
 
-    new_time: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))$', v))] = Field(json_schema_extra={'is_config': None}, description='Time to set in the system', alias="new-time")
+    new_time: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))$", v))] = Field(json_schema_extra={"is_config": None}, description="Time to set in the system", alias="new-time")
 
 class SetTimeOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class SetTime(BaseModel):
     """RPC: set-time"""
     input: SetTimeInput
     output: SetTimeOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class ConfigurableLedTypesEnum(str, Enum):
     """Enumeration for ConfigurableLedTypesEnum
@@ -334,42 +332,42 @@ class LedTestOperationEnum(str, Enum):
 class EnableLedInput(YangBaseModel):
     """Input: None"""
 
-    led_type: ConfigurableLedTypesEnum = Field(json_schema_extra={'is_config': None}, description='The type of LED to be activated', alias="led-type")
-    led_entity: str | None = Field(json_schema_extra={'is_config': None}, description="The LED test entity. Shelf means enable all LED on the shelf.\nCard or subcard will enable the specific card or subcard module only.\nWithout any input will be shelf\n\nCondition (when): ../led-type = 'led-test'", default=None, alias="led-entity")
-    led_test_operation: LedTestOperationEnum | None = Field(json_schema_extra={'is_config': None}, description="The LED test operation:\nflash will selected entity flash by 1Hz frequency;\nsolid will hold on light.\nWithout any input will be solid.\n\nCondition (when): ../led-type = 'led-test'", default=None, alias="led-test-operation")
-    led_timer: int | None = Field(json_schema_extra={'is_config': None}, description='The time the LED should be activated. Zero disables the timer (LED status statically on).\nLED can be disabled using the disable-led RPC.', ge=0, le=120, default=30, alias="led-timer")
+    led_type: ConfigurableLedTypesEnum = Field(json_schema_extra={"is_config": None}, description="The type of LED to be activated", alias="led-type")
+    led_entity: str | None = Field(json_schema_extra={"is_config": None}, description="The LED test entity. Shelf means enable all LED on the shelf.\nCard or subcard will enable the specific card or subcard module only.\nWithout any input will be shelf\n\nCondition (when): ../led-type = 'led-test'", default=None, alias="led-entity")
+    led_test_operation: LedTestOperationEnum | None = Field(json_schema_extra={"is_config": None}, description="The LED test operation:\nflash will selected entity flash by 1Hz frequency;\nsolid will hold on light.\nWithout any input will be solid.\n\nCondition (when): ../led-type = 'led-test'", default=None, alias="led-test-operation")
+    led_timer: int | None = Field(json_schema_extra={"is_config": None}, description="The time the LED should be activated. Zero disables the timer (LED status statically on).\nLED can be disabled using the disable-led RPC.", ge=0, le=120, default=30, alias="led-timer")
 
 class EnableLedOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class EnableLed(BaseModel):
     """RPC: enable-led"""
     input: EnableLedInput
     output: EnableLedOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class DisableLedInput(YangBaseModel):
     """Input: None"""
 
-    led_type: ConfigurableLedTypesEnum = Field(json_schema_extra={'is_config': None}, description='The type of LED to be deactivated', alias="led-type")
-    led_entity: str | None = Field(json_schema_extra={'is_config': None}, description="The LED test entity. Shelf means disable all LED on the shelf.\nCard or subcard will disable the specific card or subcard module only.\nWithout any input will be shelf\n\nCondition (when): ../led-type = 'led-test'", default=None, alias="led-entity")
+    led_type: ConfigurableLedTypesEnum = Field(json_schema_extra={"is_config": None}, description="The type of LED to be deactivated", alias="led-type")
+    led_entity: str | None = Field(json_schema_extra={"is_config": None}, description="The LED test entity. Shelf means disable all LED on the shelf.\nCard or subcard will disable the specific card or subcard module only.\nWithout any input will be shelf\n\nCondition (when): ../led-type = 'led-test'", default=None, alias="led-entity")
 
 class DisableLedOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class DisableLed(BaseModel):
     """RPC: disable-led"""
     input: DisableLedInput
     output: DisableLedOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class OtdrFiletypeEnum(str, Enum):
     """Enumeration for OtdrFiletypeEnum
@@ -383,57 +381,57 @@ class OtdrFiletypeEnum(str, Enum):
 class StartOtdrMeasurementInput(YangBaseModel):
     """Input: None"""
 
-    target_entity: str = Field(json_schema_extra={'is_config': None}, description='Indicates the OTDR port that will start the measurement.', alias="target-entity")
-    otdr_filetype: OtdrFiletypeEnum | None = Field(json_schema_extra={'is_config': None}, description='Result filetype for otdr testing result', default=OtdrFiletypeEnum.CSV, alias="otdr-filetype")
+    target_entity: str = Field(json_schema_extra={"is_config": None}, description="Indicates the OTDR port that will start the measurement.", alias="target-entity")
+    otdr_filetype: OtdrFiletypeEnum | None = Field(json_schema_extra={"is_config": None}, description="Result filetype for otdr testing result", default=OtdrFiletypeEnum.CSV, alias="otdr-filetype")
 
 class StartOtdrMeasurementOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class StartOtdrMeasurement(BaseModel):
     """RPC: start-otdr-measurement"""
     input: StartOtdrMeasurementInput
     output: StartOtdrMeasurementOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class StopOtdrMeasurementInput(YangBaseModel):
     """Input: None"""
 
-    target_entity: str = Field(json_schema_extra={'is_config': None}, description='Indicates the OTDR port that will have its measurement cancelled', alias="target-entity")
+    target_entity: str = Field(json_schema_extra={"is_config": None}, description="Indicates the OTDR port that will have its measurement cancelled", alias="target-entity")
 
 class StopOtdrMeasurementOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class StopOtdrMeasurement(BaseModel):
     """RPC: stop-otdr-measurement"""
     input: StopOtdrMeasurementInput
     output: StopOtdrMeasurementOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class Activate3rdpartyFwInput(YangBaseModel):
     """Input: None"""
 
-    target_entity: str = Field(json_schema_extra={'is_config': None}, description='Indicates the pluggable that need upgrdate firmware.', alias="target-entity")
-    fw_image_name: str = Field(json_schema_extra={'is_config': None}, description='FW file name', min_length=0, max_length=255, alias="fw-image-name")
+    target_entity: str = Field(json_schema_extra={"is_config": None}, description="Indicates the pluggable that need upgrdate firmware.", alias="target-entity")
+    fw_image_name: str = Field(json_schema_extra={"is_config": None}, description="FW file name", min_length=0, max_length=255, alias="fw-image-name")
 
 class Activate3rdpartyFwOutput(YangBaseModel):
     """Output: None"""
 
-    download_result: str | None = Field(json_schema_extra={'is_config': None}, description='Result of the upgrade operation', default=None, alias="download-result")
+    download_result: str | None = Field(json_schema_extra={"is_config": None}, description="Result of the upgrade operation", default=None, alias="download-result")
 
 class Activate3rdpartyFw(BaseModel):
     """RPC: activate-3rdparty-fw"""
     input: Activate3rdpartyFwInput
     output: Activate3rdpartyFwOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class FiletypeEnum_2(str, Enum):
     """Enumeration for FiletypeEnum
@@ -462,22 +460,22 @@ class DbActionEnum(str, Enum):
 class ActivateFileInput(YangBaseModel):
     """Input: None"""
 
-    filetype: FiletypeEnum_2 = Field(json_schema_extra={'is_config': None}, description='Predefined filetype available for upload')
-    restart_type: RestartTypeEnum | None = Field(json_schema_extra={'is_config': None}, description="Restart type for the activation operation, cold reboot\nwill be needed if the target database has removed object comparing to the current one.\n\nCondition (when): ../filetype = 'database'", default=RestartTypeEnum.COLD, alias="restart-type")
-    db_action: DbActionEnum | None = Field(json_schema_extra={'is_config': None}, description="Specify the expected database operation during activating software image.\n\nCondition (when): ../filetype = 'swimage'", default=DbActionEnum.AUTO, alias="db-action")
+    filetype: FiletypeEnum_2 = Field(json_schema_extra={"is_config": None}, description="Predefined filetype available for upload")
+    restart_type: RestartTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="Restart type for the activation operation, cold reboot\nwill be needed if the target database has removed object comparing to the current one.\n\nCondition (when): ../filetype = 'database'", default=RestartTypeEnum.COLD, alias="restart-type")
+    db_action: DbActionEnum | None = Field(json_schema_extra={"is_config": None}, description="Specify the expected database operation during activating software image.\n\nCondition (when): ../filetype = 'swimage'", default=DbActionEnum.AUTO, alias="db-action")
 
 class ActivateFileOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class ActivateFile(BaseModel):
     """RPC: activate-file"""
     input: ActivateFileInput
     output: ActivateFileOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class FiletypeEnum_3(str, Enum):
     """Enumeration for FiletypeEnum
@@ -495,20 +493,20 @@ class FiletypeEnum_3(str, Enum):
 class ClearLogInput(YangBaseModel):
     """Input: None"""
 
-    filetype: FiletypeEnum_3 = Field(json_schema_extra={'is_config': None}, description='Predefined filetype that supports clearing')
+    filetype: FiletypeEnum_3 = Field(json_schema_extra={"is_config": None}, description="Predefined filetype that supports clearing")
 
 class ClearLogOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class ClearLog(BaseModel):
     """RPC: clear-log"""
     input: ClearLogInput
     output: ClearLogOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class ClearTypeEnum(str, Enum):
     """Enumeration for ClearTypeEnum
@@ -528,62 +526,62 @@ class ClearTypeEnum(str, Enum):
 class ClearDatabaseInput(YangBaseModel):
     """Input: None"""
 
-    clear_type: ClearTypeEnum | None = Field(json_schema_extra={'is_config': None}, description="Defines the type of 'clear database' that the system must do.", default=ClearTypeEnum.KEEP_NETWORKING, alias="clear-type")
+    clear_type: ClearTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="Defines the type of 'clear database' that the system must do.", default=ClearTypeEnum.KEEP_NETWORKING, alias="clear-type")
 
 class ClearDatabaseOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class ClearDatabase(BaseModel):
     """RPC: clear-database"""
     input: ClearDatabaseInput
     output: ClearDatabaseOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class PingInput(YangBaseModel):
     """Input: None"""
 
-    ping_count: int | None = Field(json_schema_extra={'is_config': None}, description="Stops after sending 'count' ECHO_REQUEST packets.", ge=1, le=10, default=4, alias="ping-count")
-    ping_timeout: int | None = Field(json_schema_extra={'is_config': None}, description='Specify the timeout, in seconds, before ping exits.', ge=1, le=20, default=10, alias="ping-timeout")
-    ping_pktsize: int | None = Field(json_schema_extra={'is_config': None}, description='Specifies the number of bytes to be sent. Default is 56, plus 8 bytes of ICMP header for a total packet size of 64 bytes.', ge=0, default=56, alias="ping-pktsize")
-    ping_ifname: str | None = Field(json_schema_extra={'is_config': None}, description='Specifies the source interface name.', min_length=1, max_length=64, default=None, alias="ping-ifname")
-    ping_dest: str | str = Field(json_schema_extra={'is_config': None}, description='IP address of the destination node.', alias="ping-dest")
+    ping_count: int | None = Field(json_schema_extra={"is_config": None}, description="Stops after sending 'count' ECHO_REQUEST packets.", ge=1, le=10, default=4, alias="ping-count")
+    ping_timeout: int | None = Field(json_schema_extra={"is_config": None}, description="Specify the timeout, in seconds, before ping exits.", ge=1, le=20, default=10, alias="ping-timeout")
+    ping_pktsize: int | None = Field(json_schema_extra={"is_config": None}, description="Specifies the number of bytes to be sent. Default is 56, plus 8 bytes of ICMP header for a total packet size of 64 bytes.", ge=0, default=56, alias="ping-pktsize")
+    ping_ifname: str | None = Field(json_schema_extra={"is_config": None}, description="Specifies the source interface name.", min_length=1, max_length=64, default=None, alias="ping-ifname")
+    ping_dest: str = Field(json_schema_extra={"is_config": None}, description="IP address of the destination node.", alias="ping-dest")
 
 class PingOutput(YangBaseModel):
     """Output: None"""
 
-    result: str | None = Field(json_schema_extra={'is_config': None}, description='Result of ping.', default=None)
+    result: str | None = Field(json_schema_extra={"is_config": None}, description="Result of ping.", default=None)
 
 class Ping(BaseModel):
     """RPC: ping"""
     input: PingInput
     output: PingOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class TracerouteInput(YangBaseModel):
     """Input: None"""
 
-    tr_hopcnt: int | None = Field(json_schema_extra={'is_config': None}, description='Specifies the maximum number of hops (max time-to-live value) traceroute will probe. The default is 10.', ge=1, le=30, default=10, alias="tr-hopcnt")
-    tr_timeout: int | None = Field(json_schema_extra={'is_config': None}, description='Specify the timeout, in seconds, before trace route exits.', ge=1, le=10, default=1, alias="tr-timeout")
-    tr_ifname: str | None = Field(json_schema_extra={'is_config': None}, description='Specifies the source interface name.', min_length=1, max_length=64, default=None, alias="tr-ifname")
-    tr_dest: str | str = Field(json_schema_extra={'is_config': None}, description='IPv4 address of the destination node.', alias="tr-dest")
-    tr_pktsize: int | None = Field(json_schema_extra={'is_config': None}, description='Specifies the total  size  of  the  probing packet (default 60 bytes for IPv4).', ge=0, default=60, alias="tr-pktsize")
+    tr_hopcnt: int | None = Field(json_schema_extra={"is_config": None}, description="Specifies the maximum number of hops (max time-to-live value) traceroute will probe. The default is 10.", ge=1, le=30, default=10, alias="tr-hopcnt")
+    tr_timeout: int | None = Field(json_schema_extra={"is_config": None}, description="Specify the timeout, in seconds, before trace route exits.", ge=1, le=10, default=1, alias="tr-timeout")
+    tr_ifname: str | None = Field(json_schema_extra={"is_config": None}, description="Specifies the source interface name.", min_length=1, max_length=64, default=None, alias="tr-ifname")
+    tr_dest: str = Field(json_schema_extra={"is_config": None}, description="IPv4 address of the destination node.", alias="tr-dest")
+    tr_pktsize: int | None = Field(json_schema_extra={"is_config": None}, description="Specifies the total  size  of  the  probing packet (default 60 bytes for IPv4).", ge=0, default=60, alias="tr-pktsize")
 
 class TracerouteOutput(YangBaseModel):
     """Output: None"""
 
-    result: str | None = Field(json_schema_extra={'is_config': None}, description='Result of trace route.', default=None)
+    result: str | None = Field(json_schema_extra={"is_config": None}, description="Result of trace route.", default=None)
 
 class Traceroute(BaseModel):
     """RPC: traceroute"""
     input: TracerouteInput
     output: TracerouteOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class CommandEnum(str, Enum):
     """Enumeration for CommandEnum
@@ -599,26 +597,26 @@ class CommandEnum(str, Enum):
 class UpdatePskMapInput(YangBaseModel):
     """Input: None"""
 
-    psk_map: str = Field(json_schema_extra={'is_config': None}, description='psk-map to be updated.', alias="psk-map")
-    command: CommandEnum | None = Field(json_schema_extra={'is_config': None}, description='specifies whether the system security is operating in compliance with FIPS.', default=CommandEnum.UPDATE)
-    candidate_key: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?)$', v))] | None = Field(json_schema_extra={'is_config': None}, description="The candidate key to be activated.\n\nCondition (when): ../command = 'update'", default=None, alias="candidate-key")
-    psk_info: str | None = Field(json_schema_extra={'is_config': None}, description='The label of the psk-map.', min_length=0, max_length=255, default=None, alias="psk-info")
-    warning_timer: int | None = Field(json_schema_extra={'is_config': None}, description='Warning Time before psk-map updating completes.', ge=1, le=240, default=None, alias="warning-timer")
-    critical_timer: int | None = Field(json_schema_extra={'is_config': None}, description='Critical time before psk-map updating completes.', ge=1, le=480, default=None, alias="critical-timer")
-    traffic_off_timer: int | None = Field(json_schema_extra={'is_config': None}, description='Traffic off time before psk-map updating completes.', ge=1, le=1440, default=None, alias="traffic-off-timer")
+    psk_map: str = Field(json_schema_extra={"is_config": None}, description="psk-map to be updated.", alias="psk-map")
+    command: CommandEnum | None = Field(json_schema_extra={"is_config": None}, description="specifies whether the system security is operating in compliance with FIPS.", default=CommandEnum.UPDATE)
+    candidate_key: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="The candidate key to be activated.\n\nCondition (when): ../command = 'update'", default=None, alias="candidate-key")
+    psk_info: str | None = Field(json_schema_extra={"is_config": None}, description="The label of the psk-map.", min_length=0, max_length=255, default=None, alias="psk-info")
+    warning_timer: int | None = Field(json_schema_extra={"is_config": None}, description="Warning Time before psk-map updating completes.", ge=1, le=240, default=None, alias="warning-timer")
+    critical_timer: int | None = Field(json_schema_extra={"is_config": None}, description="Critical time before psk-map updating completes.", ge=1, le=480, default=None, alias="critical-timer")
+    traffic_off_timer: int | None = Field(json_schema_extra={"is_config": None}, description="Traffic off time before psk-map updating completes.", ge=1, le=1440, default=None, alias="traffic-off-timer")
 
 class UpdatePskMapOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class UpdatePskMap(BaseModel):
     """RPC: update-psk-map"""
     input: UpdatePskMapInput
     output: UpdatePskMapOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class PmBinTypeEnum(str, Enum):
     """Enumeration for PmBinTypeEnum
@@ -1060,13 +1058,14 @@ class ManagementTimePeriodEnum(str, Enum):
 
 class FilterItem(YangBaseModel):
     """Optional filter list, which allows to provide more complex filters.
-Instead of using the parameters in the RPC base input, this list can be
-used instead."""
+    Instead of using the parameters in the RPC base input, this list can be
+    used instead.
+    """
 
-    filter_id: int = Field(json_schema_extra={'is_config': None}, description='An identifier of the filter instance.', ge=0, alias="filter-id")
-    pm_entity: str | None = Field(json_schema_extra={'is_config': None}, description="The management object instance the performance monitoring data are collected for, if not input it means 'all pm entities'", default=None, alias="pm-entity")
-    pmp_type: PmpTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='The management object type of the performance monitoring.', default=None, alias="pmp-type")
-    pm_parameter: PmParameterEnum | None = Field(json_schema_extra={'is_config': None}, description='Performance Monitoring parameter, which could be a counter or gauge parameter, the later support current, max and min values.', default=None, alias="pm-parameter")
+    filter_id: int = Field(json_schema_extra={"is_config": None}, description="An identifier of the filter instance.", ge=0, alias="filter-id")
+    pm_entity: str | None = Field(json_schema_extra={"is_config": None}, description="The management object instance the performance monitoring data are collected for, if not input it means 'all pm entities'", default=None, alias="pm-entity")
+    pmp_type: PmpTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="The management object type of the performance monitoring.", default=None, alias="pmp-type")
+    pm_parameter: PmParameterEnum | None = Field(json_schema_extra={"is_config": None}, description="Performance Monitoring parameter, which could be a counter or gauge parameter, the later support current, max and min values.", default=None, alias="pm-parameter")
 
 class UnitOfValueEnum(str, Enum):
     """Enumeration for UnitOfValueEnum
@@ -1133,128 +1132,128 @@ class ValidityTypeEnum(str, Enum):
 class PmDataItem(YangBaseModel):
     """Defines the get-pm output of record performance data"""
 
-    pm_time_period: ManagementTimePeriodEnum = Field(json_schema_extra={'is_config': None}, description="Specifies the time-period increments during which PM data are collected.\nAll means all available pm-time-period'", alias="pm-time-period")
-    monitoring_date_time: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))|(all))$', v))] = Field(json_schema_extra={'is_config': None}, description="Monitoring data and time'", alias="monitoring-date-time")
-    pm_entity: str = Field(json_schema_extra={'is_config': None}, description="The management object instance the performance monitoring data are collected for, if not input it means 'all pm entities'", alias="pm-entity")
-    pmp_type: PmpTypeEnum = Field(json_schema_extra={'is_config': None}, description='The management object type of the performance monitoring.', alias="pmp-type")
-    pm_parameter: PmParameterEnum = Field(json_schema_extra={'is_config': None}, description='Performance Monitoring parameter, which could be a counter or gauge parameter, the later support current, max and min values.', alias="pm-parameter")
-    number_of_bin: int | None = Field(json_schema_extra={'is_config': None}, description='Indicates the sequence number of the bin, numbering sequentially from the latest history bin(bin 0).', ge=0, default=None, alias="number-of-bin")
-    pm_value: str | None = Field(json_schema_extra={'is_config': None}, description='PM counter or gauge value of the PM parameter.', min_length=1, max_length=32, default=None, alias="pm-value")
-    pm_unit: UnitOfValueEnum | None = Field(json_schema_extra={'is_config': None}, description='Unit of PM value.', default=None, alias="pm-unit")
-    validity: ValidityTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='Indicates whether or not a performance monitoring value is valid.', default=None)
+    pm_time_period: ManagementTimePeriodEnum = Field(json_schema_extra={"is_config": None}, description="Specifies the time-period increments during which PM data are collected.\nAll means all available pm-time-period'", alias="pm-time-period")
+    monitoring_date_time: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))|(all))$", v))] = Field(json_schema_extra={"is_config": None}, description="Monitoring data and time'", alias="monitoring-date-time")
+    pm_entity: str = Field(json_schema_extra={"is_config": None}, description="The management object instance the performance monitoring data are collected for, if not input it means 'all pm entities'", alias="pm-entity")
+    pmp_type: PmpTypeEnum = Field(json_schema_extra={"is_config": None}, description="The management object type of the performance monitoring.", alias="pmp-type")
+    pm_parameter: PmParameterEnum = Field(json_schema_extra={"is_config": None}, description="Performance Monitoring parameter, which could be a counter or gauge parameter, the later support current, max and min values.", alias="pm-parameter")
+    number_of_bin: int | None = Field(json_schema_extra={"is_config": None}, description="Indicates the sequence number of the bin, numbering sequentially from the latest history bin(bin 0).", ge=0, default=None, alias="number-of-bin")
+    pm_value: str | None = Field(json_schema_extra={"is_config": None}, description="PM counter or gauge value of the PM parameter.", min_length=1, max_length=32, default=None, alias="pm-value")
+    pm_unit: UnitOfValueEnum | None = Field(json_schema_extra={"is_config": None}, description="Unit of PM value.", default=None, alias="pm-unit")
+    validity: ValidityTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="Indicates whether or not a performance monitoring value is valid.", default=None)
 
 class GetPmInput(YangBaseModel):
     """Input: None"""
 
-    pm_bin_type: PmBinTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='Indicates the type of the performance monitoring data bin.', default=PmBinTypeEnum.CURRENT, alias="pm-bin-type")
-    pm_entity: str | None = Field(json_schema_extra={'is_config': None}, description="The management object instance the performance monitoring data are collected for, if not input it means 'all pm entities'", default=None, alias="pm-entity")
-    pmp_type: PmpTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='The management object type of the performance monitoring.', default=PmpTypeEnum.ALL, alias="pmp-type")
-    pm_parameter: PmParameterEnum | None = Field(json_schema_extra={'is_config': None}, description='Performance Monitoring parameter, which could be a counter or gauge parameter, the later support current, max and min values.', default=PmParameterEnum.ALL, alias="pm-parameter")
-    pm_time_period: ManagementTimePeriodEnum | None = Field(json_schema_extra={'is_config': None}, description="Specifies the time-period increments during which PM data are collected.\nAll means all available pm-time-period'", default=ManagementTimePeriodEnum.ALL, alias="pm-time-period")
-    monitoring_date_time: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))|(all))$', v))] | None = Field(json_schema_extra={'is_config': None}, description="Monitoring data and time'", default='all', alias="monitoring-date-time")
-    number_of_records: int | None = Field(json_schema_extra={'is_config': None}, description="Restrict the number of pm data records that will be\nretrieved. Only applicable for 'history' retrieval.\n\nCondition (when): ../pm-bin-type = 'history'", ge=0, default=None, alias="number-of-records")
-    start_monitoring_date_time: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))|(all))$', v))] | None = Field(json_schema_extra={'is_config': None}, description="Start Monitoring data and time'\n\nCondition (when): ../pm-bin-type = 'history'", default=None, alias="start-monitoring-date-time")
-    end_monitoring_date_time: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))|(all))$', v))] | None = Field(json_schema_extra={'is_config': None}, description="End Monitoring data and time'\n\nCondition (when): ../pm-bin-type = 'history'", default=None, alias="end-monitoring-date-time")
-    start_number_of_bin: int | None = Field(json_schema_extra={'is_config': None}, description="Restrict the start number of pm data bin that will be\nretrieved. Only applicable for 'history' retrieval.\n\nCondition (when): ../pm-bin-type = 'history'", ge=0, default=None, alias="start-number-of-bin")
-    end_number_of_bin: int | None = Field(json_schema_extra={'is_config': None}, description="Restrict the end number of pm data bin that will be\nretrieved. Only applicable for 'history' retrieval.\n\nCondition (when): ../pm-bin-type = 'history'", ge=0, default=None, alias="end-number-of-bin")
-    filter: RestconfList[FilterItem] | None = Field(json_schema_extra={'is_config': None}, description='Optional filter list, which allows to provide more complex filters.\nInstead of using the parameters in the RPC base input, this list can be\nused instead.', default=None)
+    pm_bin_type: PmBinTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="Indicates the type of the performance monitoring data bin.", default=PmBinTypeEnum.CURRENT, alias="pm-bin-type")
+    pm_entity: str | None = Field(json_schema_extra={"is_config": None}, description="The management object instance the performance monitoring data are collected for, if not input it means 'all pm entities'", default=None, alias="pm-entity")
+    pmp_type: PmpTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="The management object type of the performance monitoring.", default=PmpTypeEnum.ALL, alias="pmp-type")
+    pm_parameter: PmParameterEnum | None = Field(json_schema_extra={"is_config": None}, description="Performance Monitoring parameter, which could be a counter or gauge parameter, the later support current, max and min values.", default=PmParameterEnum.ALL, alias="pm-parameter")
+    pm_time_period: ManagementTimePeriodEnum | None = Field(json_schema_extra={"is_config": None}, description="Specifies the time-period increments during which PM data are collected.\nAll means all available pm-time-period'", default=ManagementTimePeriodEnum.ALL, alias="pm-time-period")
+    monitoring_date_time: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))|(all))$", v))] | None = Field(json_schema_extra={"is_config": None}, description="Monitoring data and time'", default="all", alias="monitoring-date-time")
+    number_of_records: int | None = Field(json_schema_extra={"is_config": None}, description="Restrict the number of pm data records that will be\nretrieved. Only applicable for 'history' retrieval.\n\nCondition (when): ../pm-bin-type = 'history'", ge=0, default=None, alias="number-of-records")
+    start_monitoring_date_time: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))|(all))$", v))] | None = Field(json_schema_extra={"is_config": None}, description="Start Monitoring data and time'\n\nCondition (when): ../pm-bin-type = 'history'", default=None, alias="start-monitoring-date-time")
+    end_monitoring_date_time: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))|(all))$", v))] | None = Field(json_schema_extra={"is_config": None}, description="End Monitoring data and time'\n\nCondition (when): ../pm-bin-type = 'history'", default=None, alias="end-monitoring-date-time")
+    start_number_of_bin: int | None = Field(json_schema_extra={"is_config": None}, description="Restrict the start number of pm data bin that will be\nretrieved. Only applicable for 'history' retrieval.\n\nCondition (when): ../pm-bin-type = 'history'", ge=0, default=None, alias="start-number-of-bin")
+    end_number_of_bin: int | None = Field(json_schema_extra={"is_config": None}, description="Restrict the end number of pm data bin that will be\nretrieved. Only applicable for 'history' retrieval.\n\nCondition (when): ../pm-bin-type = 'history'", ge=0, default=None, alias="end-number-of-bin")
+    filter: RestconfList[FilterItem] | None = Field(json_schema_extra={"is_config": None}, description="Optional filter list, which allows to provide more complex filters.\nInstead of using the parameters in the RPC base input, this list can be\nused instead.", default=None)
 
 class GetPmOutput(YangBaseModel):
     """Output: None"""
 
-    pm_data: RestconfList[PmDataItem] | None = Field(json_schema_extra={'is_config': None}, description='Defines the get-pm output of record performance data', default=None, alias="pm-data")
+    pm_data: RestconfList[PmDataItem] | None = Field(json_schema_extra={"is_config": None}, description="Defines the get-pm output of record performance data", default=None, alias="pm-data")
 
 class GetPm(BaseModel):
     """RPC: get-pm"""
     input: GetPmInput
     output: GetPmOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class PmEntityListItem(YangBaseModel):
     """The list for the rpc with multi pm entitiy request. It could be empty"""
 
-    pm_entity: str = Field(json_schema_extra={'is_config': None}, description="The management object instance the performance monitoring data are collected for, if not input it means 'all pm entities'", alias="pm-entity")
-    pmp_type: PmpTypeEnum = Field(json_schema_extra={'is_config': None}, description='The management object type of the performance monitoring.', alias="pmp-type")
-    pm_parameter: PmParameterEnum = Field(json_schema_extra={'is_config': None}, description='Performance Monitoring parameter, which could be a counter or gauge parameter, the later support current, max and min values.', alias="pm-parameter")
+    pm_entity: str = Field(json_schema_extra={"is_config": None}, description="The management object instance the performance monitoring data are collected for, if not input it means 'all pm entities'", alias="pm-entity")
+    pmp_type: PmpTypeEnum = Field(json_schema_extra={"is_config": None}, description="The management object type of the performance monitoring.", alias="pmp-type")
+    pm_parameter: PmParameterEnum = Field(json_schema_extra={"is_config": None}, description="Performance Monitoring parameter, which could be a counter or gauge parameter, the later support current, max and min values.", alias="pm-parameter")
 
 class ClearPmDataInput(YangBaseModel):
     """Input: None"""
 
-    pm_bin_type: PmBinTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='Indicates the type of the performance monitoring data bin.', default=PmBinTypeEnum.CURRENT, alias="pm-bin-type")
-    pm_entity: str | None = Field(json_schema_extra={'is_config': None}, description="The management object instance the performance monitoring data are collected for, if not input it means 'all pm entities'", default=None, alias="pm-entity")
-    pmp_type: PmpTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='The management object type of the performance monitoring.', default=PmpTypeEnum.ALL, alias="pmp-type")
-    pm_parameter: PmParameterEnum | None = Field(json_schema_extra={'is_config': None}, description='Performance Monitoring parameter, which could be a counter or gauge parameter, the later support current, max and min values.', default=PmParameterEnum.ALL, alias="pm-parameter")
-    pm_time_period: ManagementTimePeriodEnum | None = Field(json_schema_extra={'is_config': None}, description="Specifies the time-period increments during which PM data are collected.\nAll means all available pm-time-period'", default=ManagementTimePeriodEnum.ALL, alias="pm-time-period")
-    monitoring_date_time: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))|(all))$', v))] | None = Field(json_schema_extra={'is_config': None}, description="Monitoring data and time'", default='all', alias="monitoring-date-time")
-    pm_entity_list: RestconfList[PmEntityListItem] | None = Field(json_schema_extra={'is_config': None}, description='The list for the rpc with multi pm entitiy request. It could be empty', default=None, alias="pm-entity-list")
+    pm_bin_type: PmBinTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="Indicates the type of the performance monitoring data bin.", default=PmBinTypeEnum.CURRENT, alias="pm-bin-type")
+    pm_entity: str | None = Field(json_schema_extra={"is_config": None}, description="The management object instance the performance monitoring data are collected for, if not input it means 'all pm entities'", default=None, alias="pm-entity")
+    pmp_type: PmpTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="The management object type of the performance monitoring.", default=PmpTypeEnum.ALL, alias="pmp-type")
+    pm_parameter: PmParameterEnum | None = Field(json_schema_extra={"is_config": None}, description="Performance Monitoring parameter, which could be a counter or gauge parameter, the later support current, max and min values.", default=PmParameterEnum.ALL, alias="pm-parameter")
+    pm_time_period: ManagementTimePeriodEnum | None = Field(json_schema_extra={"is_config": None}, description="Specifies the time-period increments during which PM data are collected.\nAll means all available pm-time-period'", default=ManagementTimePeriodEnum.ALL, alias="pm-time-period")
+    monitoring_date_time: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[\\+\\-]\\d{2}:\\d{2}))|(all))$", v))] | None = Field(json_schema_extra={"is_config": None}, description="Monitoring data and time'", default="all", alias="monitoring-date-time")
+    pm_entity_list: RestconfList[PmEntityListItem] | None = Field(json_schema_extra={"is_config": None}, description="The list for the rpc with multi pm entitiy request. It could be empty", default=None, alias="pm-entity-list")
 
 class ClearPmDataOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class ClearPmData(BaseModel):
     """RPC: clear-pm-data"""
     input: ClearPmDataInput
     output: ClearPmDataOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class ClearStatisticsDataInput(YangBaseModel):
     """Input: None"""
 
-    statistics_entity: str | None = Field(json_schema_extra={'is_config': None}, description="The management object instance the statistics performance monitoring data are collected for, if not input it means 'all entities'", default=None, alias="statistics-entity")
+    statistics_entity: str | None = Field(json_schema_extra={"is_config": None}, description="The management object instance the statistics performance monitoring data are collected for, if not input it means 'all entities'", default=None, alias="statistics-entity")
 
 class ClearStatisticsDataOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class ClearStatisticsData(BaseModel):
     """RPC: clear-statistics-data"""
     input: ClearStatisticsDataInput
     output: ClearStatisticsDataOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class ClearCertificateInput(YangBaseModel):
     """Input: None"""
 
-    target: str = Field(json_schema_extra={'is_config': None})
+    target: str = Field(json_schema_extra={"is_config": None})
 
 class ClearCertificateOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class ClearCertificate(BaseModel):
     """RPC: clear-certificate"""
     input: ClearCertificateInput
     output: ClearCertificateOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class ClearTrustedCertificateInput(YangBaseModel):
     """Input: None"""
 
-    target: str = Field(json_schema_extra={'is_config': None})
+    target: str = Field(json_schema_extra={"is_config": None})
 
 class ClearTrustedCertificateOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class ClearTrustedCertificate(BaseModel):
     """RPC: clear-trusted-certificate"""
     input: ClearTrustedCertificateInput
     output: ClearTrustedCertificateOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class KeyLengthEnum(str, Enum):
     """Enumeration for KeyLengthEnum
@@ -1293,62 +1292,62 @@ class KeyTypeEnum(str, Enum):
 class SshKeygenInput(YangBaseModel):
     """Input: None"""
 
-    key_length: KeyLengthEnum | None = Field(json_schema_extra={'is_config': None}, description='Strength of the key used for regenerating the private-public key pair', default=KeyLengthEnum._1024, alias="key-length")
-    key_type: KeyTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='Type of key to generate', default=KeyTypeEnum.DSA, alias="key-type")
+    key_length: KeyLengthEnum | None = Field(json_schema_extra={"is_config": None}, description="Strength of the key used for regenerating the private-public key pair", default=KeyLengthEnum._1024, alias="key-length")
+    key_type: KeyTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="Type of key to generate", default=KeyTypeEnum.DSA, alias="key-type")
 
 class SshKeygenOutput(YangBaseModel):
     """Output: None"""
 
-    result: str | None = Field(json_schema_extra={'is_config': None}, description='result of ssh-keygen.', default=None)
+    result: str | None = Field(json_schema_extra={"is_config": None}, description="result of ssh-keygen.", default=None)
 
 class SshKeygen(BaseModel):
     """RPC: ssh-keygen"""
     input: SshKeygenInput
     output: SshKeygenOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class PasswordInput(YangBaseModel):
     """Input: None"""
 
-    new_password: str = Field(json_schema_extra={'is_config': None}, description='user new password', min_length=1, max_length=128, alias="new-password")
-    repeat_new_password: str = Field(json_schema_extra={'is_config': None}, description='user new password confirmation', min_length=1, max_length=128, alias="repeat-new-password")
+    new_password: str = Field(json_schema_extra={"is_config": None}, description="user new password", min_length=1, max_length=128, alias="new-password")
+    repeat_new_password: str = Field(json_schema_extra={"is_config": None}, description="user new password confirmation", min_length=1, max_length=128, alias="repeat-new-password")
     # Choice: target
     # Case: other-user
-    user_name: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:[a-zA-Z_.][a-zA-Z0-9_\\-.]*[$]?)$', v))] | None = Field(json_schema_extra={'is_config': None}, description='User name.', min_length=1, max_length=32, default=None, alias="user-name")
+    user_name: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:[a-zA-Z_.][a-zA-Z0-9_\\-.]*[$]?)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="User name.", min_length=1, max_length=32, default=None, alias="user-name")
     # Case: current-user
-    old_password: str | None = Field(json_schema_extra={'is_config': None}, description='user old password', min_length=1, max_length=128, default=None, alias="old-password")
+    old_password: str | None = Field(json_schema_extra={"is_config": None}, description="user old password", min_length=1, max_length=128, default=None, alias="old-password")
 
 class PasswordOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class Password(BaseModel):
     """RPC: password"""
     input: PasswordInput
     output: PasswordOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class ResetTestSignalStatusInput(YangBaseModel):
     """Input: None"""
 
-    entity_id: str = Field(json_schema_extra={'is_config': None}, description='Instance ID of the entity to be addressed', alias="entity-id")
+    entity_id: str = Field(json_schema_extra={"is_config": None}, description="Instance ID of the entity to be addressed", alias="entity-id")
 
 class ResetTestSignalStatusOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class ResetTestSignalStatus(BaseModel):
     """RPC: reset-test-signal-status"""
     input: ResetTestSignalStatusInput
     output: ResetTestSignalStatusOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class PortModeEnum(str, Enum):
     """Enumeration for PortModeEnum
@@ -1490,41 +1489,41 @@ class PortModeEnum(str, Enum):
 class CreateCardServicesInput(YangBaseModel):
     """Input: None"""
 
-    card_instance: str = Field(json_schema_extra={'is_config': None}, description='Target card for the command. Must exist.', alias="card-instance")
-    line_mode: PortModeEnum = Field(json_schema_extra={'is_config': None}, description='Desired port-mode for all line ports in the card.', alias="line-mode")
-    client_mode: PortModeEnum = Field(json_schema_extra={'is_config': None}, description='Desired port-mode for all client ports (or subports) in the card.', alias="client-mode")
+    card_instance: str = Field(json_schema_extra={"is_config": None}, description="Target card for the command. Must exist.", alias="card-instance")
+    line_mode: PortModeEnum = Field(json_schema_extra={"is_config": None}, description="Desired port-mode for all line ports in the card.", alias="line-mode")
+    client_mode: PortModeEnum = Field(json_schema_extra={"is_config": None}, description="Desired port-mode for all client ports (or subports) in the card.", alias="client-mode")
 
 class CreateCardServicesOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class CreateCardServices(BaseModel):
     """RPC: create-card-services"""
     input: CreateCardServicesInput
     output: CreateCardServicesOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class DeleteCardServicesInput(YangBaseModel):
     """Input: None"""
 
-    card_instance: str = Field(json_schema_extra={'is_config': None}, description='Target card for the command. Must exist.', alias="card-instance")
-    reset_ports: bool | None = Field(json_schema_extra={'is_config': None}, description="Obsolete option (used to be 'reset port' option, now is default behavior).", default=False, alias="reset-ports")
+    card_instance: str = Field(json_schema_extra={"is_config": None}, description="Target card for the command. Must exist.", alias="card-instance")
+    reset_ports: bool | None = Field(json_schema_extra={"is_config": None}, description="Obsolete option (used to be 'reset port' option, now is default behavior).", default=False, alias="reset-ports")
 
 class DeleteCardServicesOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class DeleteCardServices(BaseModel):
     """RPC: delete-card-services"""
     input: DeleteCardServicesInput
     output: DeleteCardServicesOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class P2pTypeEnum(str, Enum):
     """Enumeration for P2pTypeEnum
@@ -1551,106 +1550,106 @@ class OscxChannelEnum(str, Enum):
 class IfconfigInput(YangBaseModel):
     """Input: None"""
 
-    interface_name: str = Field(json_schema_extra={'is_config': None}, description='Interface to configure', alias="interface-name")
+    interface_name: str = Field(json_schema_extra={"is_config": None}, description="Interface to configure", alias="interface-name")
     # Choice: mode
     # Case: static-ip
-    static_ip: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\d\\w]+)?)$', v))] | None = Field(json_schema_extra={'is_config': None}, description='New IP', default=None, alias="static-ip")
-    prefix_length: int | None = Field(json_schema_extra={'is_config': None}, description='New IP prefix length', ge=0, le=32, default=None, alias="prefix-length")
-    netmask: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\d\\w]+)?)$', v))] | None = Field(json_schema_extra={'is_config': None}, description='IP netmask', default=None)
-    gateway_ip: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\d\\w]+)?)$', v))] | None = Field(json_schema_extra={'is_config': None}, description='If a new default route is to be defined, the gateway-ip needs to be provided.', default=None, alias="gateway-ip")
+    static_ip: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\d\\w]+)?)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="New IP", default=None, alias="static-ip")
+    prefix_length: int | None = Field(json_schema_extra={"is_config": None}, description="New IP prefix length", ge=0, le=32, default=None, alias="prefix-length")
+    netmask: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\d\\w]+)?)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="IP netmask", default=None)
+    gateway_ip: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\d\\w]+)?)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="If a new default route is to be defined, the gateway-ip needs to be provided.", default=None, alias="gateway-ip")
     # Case: p2p
-    p2p_type: P2pTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='Specifies the link type associated with the p2p interface.', default=None, alias="p2p-type")
-    gcc0_resource_id: str | None = Field(json_schema_extra={'is_config': None}, description="Reference of the lower layer resource associated with this interface.\n\nCondition (when): ../p2p-type='gcc0'", default=None, alias="gcc0-resource-id")
-    oscx_resource_id: str | None = Field(json_schema_extra={'is_config': None}, description="Reference of the lower layer resource associated with this interface.\n\nCondition (when): ../p2p-type='oscx'", default=None, alias="oscx-resource-id")
-    parent_interface_name: str | None = Field(json_schema_extra={'is_config': None}, description='Name of the parent interface', min_length=1, max_length=64, default=None, alias="parent-interface-name")
-    oscx_channel: OscxChannelEnum | None = Field(json_schema_extra={'is_config': None}, description="Condition (when): ../p2p-type='oscx'", default=OscxChannelEnum._1, alias="oscx-channel")
+    p2p_type: P2pTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="Specifies the link type associated with the p2p interface.", default=None, alias="p2p-type")
+    gcc0_resource_id: str | None = Field(json_schema_extra={"is_config": None}, description="Reference of the lower layer resource associated with this interface.\n\nCondition (when): ../p2p-type='gcc0'", default=None, alias="gcc0-resource-id")
+    oscx_resource_id: str | None = Field(json_schema_extra={"is_config": None}, description="Reference of the lower layer resource associated with this interface.\n\nCondition (when): ../p2p-type='oscx'", default=None, alias="oscx-resource-id")
+    parent_interface_name: str | None = Field(json_schema_extra={"is_config": None}, description="Name of the parent interface", min_length=1, max_length=64, default=None, alias="parent-interface-name")
+    oscx_channel: OscxChannelEnum | None = Field(json_schema_extra={"is_config": None}, description="Condition (when): ../p2p-type='oscx'", default=OscxChannelEnum._1, alias="oscx-channel")
     # Case: static-ip6
-    static_ip6: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\d\\w]+)?)$', v)), AfterValidator(lambda v: check_pattern('^(?:(([^:]+:){6}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?)$', v))] | None = Field(json_schema_extra={'is_config': None}, description='New IP', default=None, alias="static-ip6")
-    prefix_length6: int | None = Field(json_schema_extra={'is_config': None}, description='New IP prefix length', ge=0, le=128, default=None, alias="prefix-length6")
-    gateway_ip6: Annotated[str, AfterValidator(lambda v: check_pattern('^(?:((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\d\\w]+)?)$', v)), AfterValidator(lambda v: check_pattern('^(?:(([^:]+:){6}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?)$', v))] | None = Field(json_schema_extra={'is_config': None}, description='If a new default route is to be defined, the gateway-ip needs to be provided.', default=None, alias="gateway-ip6")
+    static_ip6: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\d\\w]+)?)$", v)), AfterValidator(lambda v: check_pattern("^(?:(([^:]+:){6}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="New IP", default=None, alias="static-ip6")
+    prefix_length6: int | None = Field(json_schema_extra={"is_config": None}, description="New IP prefix length", ge=0, le=128, default=None, alias="prefix-length6")
+    gateway_ip6: Annotated[str, AfterValidator(lambda v: check_pattern("^(?:((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\d\\w]+)?)$", v)), AfterValidator(lambda v: check_pattern("^(?:(([^:]+:){6}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?)$", v))] | None = Field(json_schema_extra={"is_config": None}, description="If a new default route is to be defined, the gateway-ip needs to be provided.", default=None, alias="gateway-ip6")
 
 class IfconfigOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class Ifconfig(BaseModel):
     """RPC: ifconfig"""
     input: IfconfigInput
     output: IfconfigOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class Delete2Input(YangBaseModel):
     """Input: None"""
 
-    target_node: str = Field(json_schema_extra={'is_config': None}, alias="target-node")
+    target_node: str = Field(json_schema_extra={"is_config": None}, alias="target-node")
 
 class Delete2(BaseModel):
     """RPC: delete2"""
     input: Delete2Input
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class CreateRollbackPointInput(YangBaseModel):
     """Input: None"""
 
-    backup: bool | None = Field(json_schema_extra={'is_config': None}, description="Creates a 'backup' rollback-point; only one backup rollback-point may exist at a time", default=False)
-    description: str | None = Field(json_schema_extra={'is_config': None}, description='An optional description for the generated rollback-point', min_length=0, max_length=200, default=None)
+    backup: bool | None = Field(json_schema_extra={"is_config": None}, description="Creates a 'backup' rollback-point; only one backup rollback-point may exist at a time", default=False)
+    description: str | None = Field(json_schema_extra={"is_config": None}, description="An optional description for the generated rollback-point", min_length=0, max_length=200, default=None)
 
 class CreateRollbackPointOutput(YangBaseModel):
     """Output: None"""
 
-    created_rollback_point_id: int | None = Field(json_schema_extra={'is_config': None}, description='ID of the created rollback-point', ge=0, default=None, alias="created-rollback-point-id")
+    created_rollback_point_id: int | None = Field(json_schema_extra={"is_config": None}, description="ID of the created rollback-point", ge=0, default=None, alias="created-rollback-point-id")
 
 class CreateRollbackPoint(BaseModel):
     """RPC: create-rollback-point"""
     input: CreateRollbackPointInput
     output: CreateRollbackPointOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class DiffInput(YangBaseModel):
     """Input: None"""
 
-    table_view: bool | None = Field(json_schema_extra={'is_config': None}, description='In CLI, provides the diff in a table format. Ignored for other protocols.', default=None, alias="table-view")
-    command_view: bool | None = Field(json_schema_extra={'is_config': None}, description='In CLI, provides the diff as CLI commands. Ignored for other protocols.', default=None, alias="command-view")
+    table_view: bool | None = Field(json_schema_extra={"is_config": None}, description="In CLI, provides the diff in a table format. Ignored for other protocols.", default=None, alias="table-view")
+    command_view: bool | None = Field(json_schema_extra={"is_config": None}, description="In CLI, provides the diff as CLI commands. Ignored for other protocols.", default=None, alias="command-view")
     # Choice: config-target
     # Case: target-rollback-point
-    target_rollback_point: str | None = Field(json_schema_extra={'is_config': None}, description='rollback-point instance', default=None, alias="target-rollback-point")
+    target_rollback_point: str | None = Field(json_schema_extra={"is_config": None}, description="rollback-point instance", default=None, alias="target-rollback-point")
     # Case: candidate
-    candidate: bool | None = Field(json_schema_extra={'is_config': None}, description='The candidate datastore configuration.', default=None)
+    candidate: bool | None = Field(json_schema_extra={"is_config": None}, description="The candidate datastore configuration.", default=None)
 
 class DiffOutput(YangBaseModel):
     """Output: None"""
 
-    differences: Any | None = Field(json_schema_extra={'is_config': None}, description='List of differences between the rollback point or candidate and the current system configuration.\nIs composedsubset that matches the running datastore hierarchy, annotated with two metadata attributes:\n- old-value, which in case of attribute value changes, represents the old value of the attribute.\n- operation, which represent MO creation and deletion in the context of the diff\nBoth old-value and operation are metadata annotations in accordance to RFC7952, and are qualified with the\nsame namespace as the datastore they are related with.\nAs such, these annotations will be encoded in XML/JSON in accordance to RFC7952.', default=None)
+    differences: Any | None = Field(json_schema_extra={"is_config": None}, description="List of differences between the rollback point or candidate and the current system configuration.\nIs composedsubset that matches the running datastore hierarchy, annotated with two metadata attributes:\n- old-value, which in case of attribute value changes, represents the old value of the attribute.\n- operation, which represent MO creation and deletion in the context of the diff\nBoth old-value and operation are metadata annotations in accordance to RFC7952, and are qualified with the\nsame namespace as the datastore they are related with.\nAs such, these annotations will be encoded in XML/JSON in accordance to RFC7952.", default=None)
 
 class Diff(BaseModel):
     """RPC: diff"""
     input: DiffInput
     output: DiffOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class RollbackInput(YangBaseModel):
     """Input: None"""
 
-    target_rollback_point: str = Field(json_schema_extra={'is_config': None}, description='rollback-point instance', alias="target-rollback-point")
+    target_rollback_point: str = Field(json_schema_extra={"is_config": None}, description="rollback-point instance", alias="target-rollback-point")
 
 class RollbackOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class Rollback(BaseModel):
     """RPC: rollback"""
     input: RollbackInput
     output: RollbackOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class OperationTypeEnum(str, Enum):
     """Enumeration for OperationTypeEnum
@@ -1681,23 +1680,23 @@ class SwitchTargetEnum(str, Enum):
 class ProtectionSwitchInput(YangBaseModel):
     """Input: None"""
 
-    protection_group: str = Field(json_schema_extra={'is_config': None}, description='The target of the switch command.', alias="protection-group")
-    operation_type: OperationTypeEnum = Field(json_schema_extra={'is_config': None}, description='The type of protection switch command', alias="operation-type")
-    switch_target: SwitchTargetEnum | None = Field(json_schema_extra={'is_config': None}, description="The target of the switch command, which is not needed for release and lockout operation.\n\nCondition (when): (../operation-type != 'lockout') and (../operation-type != 'release')", default=None, alias="switch-target")
-    declarative: bool | None = Field(json_schema_extra={'is_config': None}, description='If true, it tries to push the entire script/commands as a replace operation', default=False)
+    protection_group: str = Field(json_schema_extra={"is_config": None}, description="The target of the switch command.", alias="protection-group")
+    operation_type: OperationTypeEnum = Field(json_schema_extra={"is_config": None}, description="The type of protection switch command", alias="operation-type")
+    switch_target: SwitchTargetEnum | None = Field(json_schema_extra={"is_config": None}, description="The target of the switch command, which is not needed for release and lockout operation.\n\nCondition (when): (../operation-type != 'lockout') and (../operation-type != 'release')", default=None, alias="switch-target")
+    declarative: bool | None = Field(json_schema_extra={"is_config": None}, description="If true, it tries to push the entire script/commands as a replace operation", default=False)
 
 class ProtectionSwitchOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
 
 class ProtectionSwitch(BaseModel):
     """RPC: protection-switch"""
     input: ProtectionSwitchInput
     output: ProtectionSwitchOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class EchoEnum(str, Enum):
     """Enumeration for EchoEnum
@@ -1726,29 +1725,29 @@ class ErrorOptionEnum(str, Enum):
 class CliCommandInput(YangBaseModel):
     """Input: None"""
 
-    echo: EchoEnum | None = Field(json_schema_extra={'is_config': None}, description='If echo on, result includes commands and their output;\notherwise it will only include the commands output', default=EchoEnum.ON)
-    error_option: ErrorOptionEnum | None = Field(json_schema_extra={'is_config': None}, description='How the command execution should behave when errors occur.', default=ErrorOptionEnum.ROLLBACK_ON_ERROR, alias="error-option")
-    replace: bool | None = Field(json_schema_extra={'is_config': None}, description='If true, it tries to push the entire script/commands as a replace operation', default=False)
-    auto_delete_script_file: bool | None = Field(json_schema_extra={'is_config': None}, description='If true, will automatically delete the script file that was just executed.\nOnly applicable if a script-file is provided as input; otherwise, flag is ignored.\nNote: this auto-delete occurs even if the script execution has errors.', default=False, alias="auto-delete-script-file")
+    echo: EchoEnum | None = Field(json_schema_extra={"is_config": None}, description="If echo on, result includes commands and their output;\notherwise it will only include the commands output", default=EchoEnum.ON)
+    error_option: ErrorOptionEnum | None = Field(json_schema_extra={"is_config": None}, description="How the command execution should behave when errors occur.", default=ErrorOptionEnum.ROLLBACK_ON_ERROR, alias="error-option")
+    replace: bool | None = Field(json_schema_extra={"is_config": None}, description="If true, it tries to push the entire script/commands as a replace operation", default=False)
+    auto_delete_script_file: bool | None = Field(json_schema_extra={"is_config": None}, description="If true, will automatically delete the script file that was just executed.\nOnly applicable if a script-file is provided as input; otherwise, flag is ignored.\nNote: this auto-delete occurs even if the script execution has errors.", default=False, alias="auto-delete-script-file")
     # Choice: source
     # Case: script-file
-    script_file: str | None = Field(json_schema_extra={'is_config': None}, description='The filepath of the previously downloaded CLI script', default=None, alias="script-file")
+    script_file: str | None = Field(json_schema_extra={"is_config": None}, description="The filepath of the previously downloaded CLI script", default=None, alias="script-file")
     # Case: commands
-    commands: str | None = Field(json_schema_extra={'is_config': None}, description='CLI commands to execute; multiple commands can be provided, one per line', default=None)
+    commands: str | None = Field(json_schema_extra={"is_config": None}, description="CLI commands to execute; multiple commands can be provided, one per line", default=None)
 
 class CliCommandOutput(YangBaseModel):
     """Output: None"""
 
-    result: str | None = Field(json_schema_extra={'is_config': None}, description='Output of the CLI script', default=None)
-    error_location: int | None = Field(json_schema_extra={'is_config': None}, description='Line number that locates the command that caused the error.\nIf no error occurred, this output parameter is omitted.\nIf multiple errors occur, show only the first command that caused the error.', ge=0, default=None, alias="error-location")
-    change_log: str | None = Field(json_schema_extra={'is_config': None}, description="For 'replace' scripts (declarative config), provide a change log of this command.\nChange log is a multi-line string containing individual changes, following the same\nformat as syslog event log. May be empty if no changes occurred.\nExample:\n<change-log>\nCHANGE;ntp;ntp-enabled;false;\nCHANGE;pm-point-shelf-1/shelf-temperature/15min;supervision-switch;disabled;\n</change-log>\n\nCondition (when): ../replace = 'true'", default=None, alias="change-log")
+    result: str | None = Field(json_schema_extra={"is_config": None}, description="Output of the CLI script", default=None)
+    error_location: int | None = Field(json_schema_extra={"is_config": None}, description="Line number that locates the command that caused the error.\nIf no error occurred, this output parameter is omitted.\nIf multiple errors occur, show only the first command that caused the error.", ge=0, default=None, alias="error-location")
+    change_log: str | None = Field(json_schema_extra={"is_config": None}, description="For 'replace' scripts (declarative config), provide a change log of this command.\nChange log is a multi-line string containing individual changes, following the same\nformat as syslog event log. May be empty if no changes occurred.\nExample:\n<change-log>\nCHANGE;ntp;ntp-enabled;false;\nCHANGE;pm-point-shelf-1/shelf-temperature/15min;supervision-switch;disabled;\n</change-log>\n\nCondition (when): ../replace = 'true'", default=None, alias="change-log")
 
 class CliCommand(BaseModel):
     """RPC: cli-command"""
     input: CliCommandInput
     output: CliCommandOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class MeasurementTypeEnum(str, Enum):
     """Enumeration for MeasurementTypeEnum
@@ -1762,20 +1761,20 @@ class MeasurementTypeEnum(str, Enum):
 class MeasureInput(YangBaseModel):
     """Input: None"""
 
-    measurement_type: MeasurementTypeEnum = Field(json_schema_extra={'is_config': None}, description="Predefined measurement type for measurement.\nFor example, 'measure constellation port-1/1/1'.\nNote that the measurement is only supported on coherent port.", alias="measurement-type")
-    port_instance: str = Field(json_schema_extra={'is_config': None}, description='Target card for the command. Must exist.', alias="port-instance")
+    measurement_type: MeasurementTypeEnum = Field(json_schema_extra={"is_config": None}, description="Predefined measurement type for measurement.\nFor example, 'measure constellation port-1/1/1'.\nNote that the measurement is only supported on coherent port.", alias="measurement-type")
+    port_instance: str = Field(json_schema_extra={"is_config": None}, description="Target card for the command. Must exist.", alias="port-instance")
 
 class MeasureOutput(YangBaseModel):
     """Output: None"""
 
-    data_response: str | None = Field(json_schema_extra={'is_config': None}, description='The output data for measurement result', min_length=1, max_length=164000, default=None, alias="data-response")
+    data_response: str | None = Field(json_schema_extra={"is_config": None}, description="The output data for measurement result", min_length=1, max_length=164000, default=None, alias="data-response")
 
 class Measure(BaseModel):
     """RPC: measure"""
     input: MeasureInput
     output: MeasureOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class RpcTypeEnum(str, Enum):
     """Enumeration for RpcTypeEnum
@@ -1802,21 +1801,21 @@ class StatusEnum_1(str, Enum):
 class DbBackupInput(YangBaseModel):
     """Input: None"""
 
-    filename: str | None = Field(json_schema_extra={'is_config': None}, description='Path and file name is used with back-up.(xxx.DBS)', min_length=5, max_length=255, default=None)
-    rpc_type: RpcTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='Swith the RPC between Synchonization and Asynchonization type. Default shall be async type', default=None, alias="rpc-type")
+    filename: str | None = Field(json_schema_extra={"is_config": None}, description="Path and file name is used with back-up.(xxx.DBS)", min_length=5, max_length=255, default=None)
+    rpc_type: RpcTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="Swith the RPC between Synchonization and Asynchonization type. Default shall be async type", default=None, alias="rpc-type")
 
 class DbBackupOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum_1 = Field(json_schema_extra={'is_config': None}, description='Successful or Failed')
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status', default=None, alias="status-message")
+    status: StatusEnum_1 = Field(json_schema_extra={"is_config": None}, description="Successful or Failed")
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status", default=None, alias="status-message")
 
 class DbBackup(BaseModel):
     """RPC: db-backup"""
     input: DbBackupInput
     output: DbBackupOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class TriggerEnum(str, Enum):
     """Enumeration for TriggerEnum
@@ -2274,16 +2273,16 @@ class ManagementLocationEnum(str, Enum):
 class SimulateInput(YangBaseModel):
     """Input: None"""
 
-    trigger: TriggerEnum = Field(json_schema_extra={'is_config': None}, description='The alarm event trigger to simulate.')
-    alarmed_entity: str | None = Field(json_schema_extra={'is_config': None}, description='The entity affected by the alarm; if ommitted when clearing alarms, all simulated alarms are cleared.', default=None, alias="alarmed-entity")
-    alarm_type: ConditionTypeEnum | None = Field(json_schema_extra={'is_config': None}, description='The alarm type to be simulated; if ommitted when clearing alarms, all simulated alarms are cleared.', default=None, alias="alarm-type")
-    alarm_location: ManagementLocationEnum | None = Field(json_schema_extra={'is_config': None}, description='The location of the simulated alarm', default=ManagementLocationEnum.NEAR_END, alias="alarm-location")
+    trigger: TriggerEnum = Field(json_schema_extra={"is_config": None}, description="The alarm event trigger to simulate.")
+    alarmed_entity: str | None = Field(json_schema_extra={"is_config": None}, description="The entity affected by the alarm; if ommitted when clearing alarms, all simulated alarms are cleared.", default=None, alias="alarmed-entity")
+    alarm_type: ConditionTypeEnum | None = Field(json_schema_extra={"is_config": None}, description="The alarm type to be simulated; if ommitted when clearing alarms, all simulated alarms are cleared.", default=None, alias="alarm-type")
+    alarm_location: ManagementLocationEnum | None = Field(json_schema_extra={"is_config": None}, description="The location of the simulated alarm", default=ManagementLocationEnum.NEAR_END, alias="alarm-location")
 
 class Simulate(BaseModel):
     """RPC: simulate"""
     input: SimulateInput
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)
 
 class OperationEnum(str, Enum):
     """Enumeration for OperationEnum
@@ -2299,20 +2298,20 @@ class OperationEnum(str, Enum):
 class RepairInfoInput(YangBaseModel):
     """Input: None"""
 
-    entity_id: str = Field(json_schema_extra={'is_config': None}, description='The addressed device: a shelf, or a card.\nOnly the following cards support this information:\n- CHMx\nAll chassis (G30) support this information.', alias="entity-id")
-    operation: OperationEnum = Field(json_schema_extra={'is_config': None})
-    repair_info: str | None = Field(json_schema_extra={'is_config': None}, description="The repair-info to be stored in the device.\n\nCondition (when): ../operation='write'", default=None, alias="repair-info")
+    entity_id: str = Field(json_schema_extra={"is_config": None}, description="The addressed device: a shelf, or a card.\nOnly the following cards support this information:\n- CHMx\nAll chassis (G30) support this information.", alias="entity-id")
+    operation: OperationEnum = Field(json_schema_extra={"is_config": None})
+    repair_info: str | None = Field(json_schema_extra={"is_config": None}, description="The repair-info to be stored in the device.\n\nCondition (when): ../operation='write'", default=None, alias="repair-info")
 
 class RepairInfoOutput(YangBaseModel):
     """Output: None"""
 
-    status: StatusEnum | None = Field(json_schema_extra={'is_config': None}, description='Successful, Failed or In-progress', default=StatusEnum.SUCCESSFUL)
-    status_message: str | None = Field(json_schema_extra={'is_config': None}, description='Gives a more detailed status.', min_length=0, max_length=256, default=None, alias="status-message")
-    result_info: str | None = Field(json_schema_extra={'is_config': None}, description="The repair information as stored in the device's EEPROM is returned when\noperation is 'read'\n\nCondition (when): ../operation = 'read'", default=None, alias="result-info")
+    status: StatusEnum | None = Field(json_schema_extra={"is_config": None}, description="Successful, Failed or In-progress", default=StatusEnum.SUCCESSFUL)
+    status_message: str | None = Field(json_schema_extra={"is_config": None}, description="Gives a more detailed status.", min_length=0, max_length=256, default=None, alias="status-message")
+    result_info: str | None = Field(json_schema_extra={"is_config": None}, description="The repair information as stored in the device's EEPROM is returned when\noperation is 'read'\n\nCondition (when): ../operation = 'read'", default=None, alias="result-info")
 
 class RepairInfo(BaseModel):
     """RPC: repair-info"""
     input: RepairInfoInput
     output: RepairInfoOutput | None = Field(default=None)
 
-    model_config = ConfigDict(extra='forbid', validate_assignment=True, validate_default=True, defer_build=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, validate_default=True, defer_build=True)

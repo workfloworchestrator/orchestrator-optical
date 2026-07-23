@@ -55,8 +55,7 @@ def disjoint_intervals_overlap_search(
     intervals: list[tuple[int, int]],
     target_interval: tuple[int, int],
 ) -> tuple[int, int] | None:
-    """
-    Searches for an overlapping interval in a sorted list of *disjoint* intervals using binary search.
+    """Searches for an overlapping interval in a sorted list of *disjoint* intervals using binary search.
     Intervals include the start and do NOT include the end.
 
     Args:
@@ -91,8 +90,7 @@ def available_to_used_passbands(
     absolute_min_freq: Frequency = 191_325_000,
     absolute_max_freq: Frequency = 196_125_000,
 ) -> list[Passband]:
-    """
-    Calculates used frequency passbands within an absolute frequency range,
+    """Calculates used frequency passbands within an absolute frequency range,
     given a list of available (unused) frequency passbands.
 
     Args:

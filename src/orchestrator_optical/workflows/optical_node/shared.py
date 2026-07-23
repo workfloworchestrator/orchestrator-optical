@@ -123,8 +123,7 @@ def unused_optical_line_port_selector(optical_node_subscription_id: UUIDstr, pro
 def get_optical_node_subscriptions_by_types(
     device_types: list[OpticalNodeRole],
 ) -> list[OpticalNodeSubscription]:
-    """
-    Retrieves a list of active OpticalDevice subscriptions with the given optical device types.
+    """Retrieves a list of active OpticalDevice subscriptions with the given optical device types.
 
     Args:
         device_types (List[DeviceType]): The types of optical device to retrieve subscriptions for.
@@ -150,8 +149,7 @@ def optical_node_selector_of_types(
     device_types: list[OpticalNodeRole],
     prompt: str | None = None,
 ) -> Choice:
-    """
-    Selects an optical device from a list of devices.
+    """Selects an optical device from a list of devices.
 
     Args:
         device_types (List[DeviceType]): A list of device types to filter the optical devices.
@@ -180,8 +178,7 @@ def multiple_optical_node_selector(
     *,
     unique_items: bool = True,
 ) -> type[list[Choice]]:
-    """
-    Selects multiple optical devices from a list of devices.
+    """Selects multiple optical devices from a list of devices.
 
     Args:
         device_types: A list of device types to filter the optical devices
@@ -204,8 +201,7 @@ def transceiver_mode_selector(
     port_name: str,
     prompt: str | None = None,
 ) -> Choice:
-    """
-    Creates a Choice object for selecting a transceiver mode for a given port.
+    """Creates a Choice object for selecting a transceiver mode for a given port.
 
     Args:
         optical_node_subscription_id (UUIDstr): The subscription ID of the optical device.
