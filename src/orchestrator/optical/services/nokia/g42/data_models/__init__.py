@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+"""Auto-generated Pydantic models from YANG schemas"""
+from typing import TYPE_CHECKING, Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+if TYPE_CHECKING:
+    from . import ioa_alarm, ioa_network_element, ioa_pm, ioa_protection, ioa_rpc, ioa_services, ioa_user_data
+
+
+class Data(BaseModel):
+    """Aggregate root data nodes (config and state)."""
+
+    user_data: ioa_user_data.UserData | None = Field(None, alias="ioa-user-data:user-data")
+    ne: ioa_network_element.Ne | None = Field(None, alias="ioa-network-element:ne")
+    pm: ioa_pm.Pm | None = Field(None, alias="ioa-pm:pm")
+    alarms: ioa_alarm.Alarms | None = Field(None, alias="ioa-alarm:alarms")
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, defer_build=True)
+
+
+class Operations(BaseModel):
+    """Aggregate RPC operations."""
+
+    no_op: ioa_rpc.NoOp | None = Field(None, alias="ioa-rpc:no-op")
+    default: ioa_rpc.Default | None = Field(None, alias="ioa-rpc:default")
+    verify: ioa_rpc.Verify | None = Field(None, alias="ioa-rpc:verify")
+    update: ioa_rpc.Update | None = Field(None, alias="ioa-rpc:update")
+    clear_file: ioa_rpc.ClearFile | None = Field(None, alias="ioa-rpc:clear-file")
+    clear_app: ioa_rpc.ClearApp | None = Field(None, alias="ioa-rpc:clear-app")
+    clear_database: ioa_rpc.ClearDatabase | None = Field(None, alias="ioa-rpc:clear-database")
+    kill_session: ioa_rpc.KillSession | None = Field(None, alias="ioa-rpc:kill-session")
+    clear_certificate: ioa_rpc.ClearCertificate | None = Field(None, alias="ioa-rpc:clear-certificate")
+    display_cert: ioa_rpc.DisplayCert | None = Field(None, alias="ioa-rpc:display-cert")
+    clear_crl: ioa_rpc.ClearCrl | None = Field(None, alias="ioa-rpc:clear-crl")
+    ssh_keygen: ioa_rpc.SshKeygen | None = Field(None, alias="ioa-rpc:ssh-keygen")
+    cert_gen: ioa_rpc.CertGen | None = Field(None, alias="ioa-rpc:cert-gen")
+    csr_gen: ioa_rpc.CsrGen | None = Field(None, alias="ioa-rpc:csr-gen")
+    diff: ioa_rpc.Diff | None = Field(None, alias="ioa-rpc:diff")
+    cli_command: ioa_rpc.CliCommand | None = Field(None, alias="ioa-rpc:cli-command")
+    install_krp: ioa_rpc.InstallKrp | None = Field(None, alias="ioa-rpc:install-krp")
+    delete_isk: ioa_rpc.DeleteIsk | None = Field(None, alias="ioa-rpc:delete-isk")
+    get_log: ioa_rpc.GetLog | None = Field(None, alias="ioa-rpc:get-log")
+    clear_log: ioa_rpc.ClearLog | None = Field(None, alias="ioa-rpc:clear-log")
+    change_ztp_mode: ioa_rpc.ChangeZtpMode | None = Field(None, alias="ioa-rpc:change-ztp-mode")
+    enable_led: ioa_rpc.EnableLed | None = Field(None, alias="ioa-rpc:enable-led")
+    disable_led: ioa_rpc.DisableLed | None = Field(None, alias="ioa-rpc:disable-led")
+    profile_control: ioa_rpc.ProfileControl | None = Field(None, alias="ioa-rpc:profile-control")
+    start_otdr_measurement: ioa_rpc.StartOtdrMeasurement | None = Field(None, alias="ioa-rpc:start-otdr-measurement")
+    stop_otdr_measurement: ioa_rpc.StopOtdrMeasurement | None = Field(None, alias="ioa-rpc:stop-otdr-measurement")
+    stop_cable_id: ioa_rpc.StopCableId | None = Field(None, alias="ioa-rpc:stop-cable-id")
+    calibrate: ioa_rpc.Calibrate | None = Field(None, alias="ioa-rpc:calibrate")
+    simulate: ioa_rpc.Simulate | None = Field(None, alias="ioa-rpc:simulate")
+    restart: ioa_rpc.Restart | None = Field(None, alias="ioa-rpc:restart")
+    appctl: ioa_rpc.Appctl | None = Field(None, alias="ioa-rpc:appctl")
+    ping: ioa_rpc.Ping | None = Field(None, alias="ioa-rpc:ping")
+    traceroute: ioa_rpc.Traceroute | None = Field(None, alias="ioa-rpc:traceroute")
+    clear_ospf_instance: ioa_rpc.ClearOspfInstance | None = Field(None, alias="ioa-rpc:clear-ospf-instance")
+    clear_topology: ioa_rpc.ClearTopology | None = Field(None, alias="ioa-rpc:clear-topology")
+    clear_system: ioa_rpc.ClearSystem | None = Field(None, alias="ioa-rpc:clear-system")
+    download: ioa_rpc.Download | None = Field(None, alias="ioa-rpc:download")
+    upload: ioa_rpc.Upload | None = Field(None, alias="ioa-rpc:upload")
+    import_certificate: ioa_rpc.ImportCertificate | None = Field(None, alias="ioa-rpc:import-certificate")
+    prepare_upgrade: ioa_rpc.PrepareUpgrade | None = Field(None, alias="ioa-rpc:prepare-upgrade")
+    activate_file: ioa_rpc.ActivateFile | None = Field(None, alias="ioa-rpc:activate-file")
+    cancel_upgrade: ioa_rpc.CancelUpgrade | None = Field(None, alias="ioa-rpc:cancel-upgrade")
+    set_time: ioa_rpc.SetTime | None = Field(None, alias="ioa-rpc:set-time")
+    password: ioa_rpc.Password | None = Field(None, alias="ioa-rpc:password")
+    clear_recover_mode: ioa_rpc.ClearRecoverMode | None = Field(None, alias="ioa-rpc:clear-recover-mode")
+    run_task: ioa_rpc.RunTask | None = Field(None, alias="ioa-rpc:run-task")
+    take_snapshot: ioa_rpc.TakeSnapshot | None = Field(None, alias="ioa-rpc:take-snapshot")
+    get_script: ioa_rpc.GetScript | None = Field(None, alias="ioa-rpc:get-script")
+    run_script: ioa_rpc.RunScript | None = Field(None, alias="ioa-rpc:run-script")
+    manual_switchover: ioa_rpc.ManualSwitchover | None = Field(None, alias="ioa-rpc:manual-switchover")
+    file_operation: ioa_rpc.FileOperation | None = Field(None, alias="ioa-rpc:file-operation")
+    call_home: ioa_rpc.CallHome | None = Field(None, alias="ioa-rpc:call-home")
+    activate_fw: ioa_rpc.ActivateFw | None = Field(None, alias="ioa-rpc:activate-fw")
+    re_key: ioa_rpc.ReKey | None = Field(None, alias="ioa-rpc:re-key")
+    re_auth: ioa_rpc.ReAuth | None = Field(None, alias="ioa-rpc:re-auth")
+    clear_diagnostics: ioa_rpc.ClearDiagnostics | None = Field(None, alias="ioa-rpc:clear-diagnostics")
+    get_file: ioa_rpc.GetFile | None = Field(None, alias="ioa-rpc:get-file")
+    apply_template: ioa_rpc.ApplyTemplate | None = Field(None, alias="ioa-rpc:apply-template")
+    bert: ioa_rpc.Bert | None = Field(None, alias="ioa-rpc:bert")
+    db_migrate: ioa_rpc.DbMigrate | None = Field(None, alias="ioa-rpc:db-migrate")
+    status: ioa_rpc.Status | None = Field(None, alias="ioa-rpc:status")
+    config: ioa_rpc.Config | None = Field(None, alias="ioa-rpc:config")
+    get_possible_values: ioa_rpc.GetPossibleValues | None = Field(None, alias="ioa-rpc:get-possible-values")
+    get_default: ioa_rpc.GetDefault | None = Field(None, alias="ioa-rpc:get-default")
+    display_access: ioa_rpc.DisplayAccess | None = Field(None, alias="ioa-rpc:display-access")
+    get_commit: ioa_rpc.GetCommit | None = Field(None, alias="ioa-rpc:get-commit")
+    rollback: ioa_rpc.Rollback | None = Field(None, alias="ioa-rpc:rollback")
+    auto_discovery: ioa_rpc.AutoDiscovery | None = Field(None, alias="ioa-rpc:auto-discovery")
+    create_xcon: ioa_services.CreateXcon | None = Field(None, alias="ioa-services:create-xcon")
+    get_pm: ioa_pm.GetPm | None = Field(None, alias="ioa-pm:get-pm")
+    clear_pm: ioa_pm.ClearPm | None = Field(None, alias="ioa-pm:clear-pm")
+    protection_switch: ioa_protection.ProtectionSwitch | None = Field(None, alias="ioa-protection:protection-switch")
+    set_alarm_state: ioa_alarm.SetAlarmState | None = Field(None, alias="ioa-alarm:set-alarm-state")
+    clear_alarm: ioa_alarm.ClearAlarm | None = Field(None, alias="ioa-alarm:clear-alarm")
+    get_conditions: ioa_alarm.GetConditions | None = Field(None, alias="ioa-alarm:get-conditions")
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, defer_build=True)
