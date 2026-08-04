@@ -4,6 +4,7 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
     OPTICAL_NODE_PRODUCT_TYPES,
     optical_node_subscription_description,
     populate_abstract_optical_node_fields,
+    validate_management_ips_uniqueness,
     validate_pqdn_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.modify import (
@@ -27,5 +28,6 @@ __all__ = [
     "terminate_initial_input_form_generator",
     "update_abstract_optical_node_fields",
     "update_optical_node_subscription_description",
+    "validate_management_ips_uniqueness",
     "validate_pqdn_uniqueness",
 ]

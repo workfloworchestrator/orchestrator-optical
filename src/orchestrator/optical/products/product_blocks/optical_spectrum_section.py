@@ -7,10 +7,12 @@ from pydantic import Field
 
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SI, SubscriptionLifecycle
-from orchestrator.optical.products.product_blocks.optical_port import (
+from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import (
     OlsAddDropPortBlock,
     OlsAddDropPortBlockInactive,
     OlsAddDropPortBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_port.ols_line import (
     OlsLinePortBlock,
     OlsLinePortBlockInactive,
     OlsLinePortBlockProvisioning,
@@ -23,8 +25,8 @@ ExpressPortList = Annotated[list[SI], Len(min_length=0, max_length=64), "List of
 class OpticalSpectrumSectionBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrumSectionBlock"):
     """Inactive state of an OpticalSpectrumSectionBlock product block."""
 
-    optical_pipe_add_drop_ports: AddDropPorts[OlsAddDropPortBlockInactive] = Field(default_factory=list)
-    optical_express_ports: ExpressPortList[OlsLinePortBlockInactive] = Field(default_factory=list)
+    optical_spectrum_section_add_drop_ports: AddDropPorts[OlsAddDropPortBlockInactive] = Field(default_factory=list)
+    optical_spectrum_section_express_ports: ExpressPortList[OlsLinePortBlockInactive] = Field(default_factory=list)
 
 
 class OpticalSpectrumSectionBlockProvisioning(
@@ -32,12 +34,12 @@ class OpticalSpectrumSectionBlockProvisioning(
 ):
     """Provisioning state of an OpticalSpectrumSectionBlock product block."""
 
-    optical_pipe_add_drop_ports: AddDropPorts[OlsAddDropPortBlockProvisioning]
-    optical_pipe_express_ports: ExpressPortList[OlsLinePortBlockProvisioning]
+    optical_spectrum_section_add_drop_ports: AddDropPorts[OlsAddDropPortBlockProvisioning]
+    optical_spectrum_section_express_ports: ExpressPortList[OlsLinePortBlockProvisioning]
 
 
 class OpticalSpectrumSectionBlock(OpticalSpectrumSectionBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Active state of an OpticalSpectrumSectionBlock product block."""
 
-    optical_pipe_add_drop_ports: AddDropPorts[OlsAddDropPortBlock]
-    optical_pipe_express_ports: ExpressPortList[OlsLinePortBlock]
+    optical_spectrum_section_add_drop_ports: AddDropPorts[OlsAddDropPortBlock]
+    optical_spectrum_section_express_ports: ExpressPortList[OlsLinePortBlock]

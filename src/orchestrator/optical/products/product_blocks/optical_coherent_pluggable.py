@@ -11,7 +11,7 @@ from orchestrator.optical.products.product_blocks.optical_packet_node import (
     AbstractOpticalPacketNodeBlockInactive,
     AbstractOpticalPacketNodeBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_port import (
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalPortBlock,
     AbstractOpticalPortBlockInactive,
     AbstractOpticalPortBlockProvisioning,
@@ -25,6 +25,8 @@ class OpticalCoherentPluggableBlockInactive(
     """Base class for inactive CoherentPluggableBlock product blocks."""
 
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
+    optical_port_name: str | None = None
+    optical_port_description: str | None = None
     optical_port_host_node: AbstractOpticalPacketNodeBlockInactive | None = None
     optical_coherent_pluggable_firmware_version: str | None = None
 
@@ -44,6 +46,8 @@ class OpticalCoherentPluggableBlockProvisioning(
     """Base class for provisioning CoherentPluggableBlock product blocks."""
 
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
+    optical_port_name: str
+    optical_port_description: str | None
     optical_port_host_node: AbstractOpticalPacketNodeBlockProvisioning
     optical_coherent_pluggable_firmware_version: str
 
@@ -54,5 +58,7 @@ class OpticalCoherentPluggableBlock(
     """Base class for active CoherentPluggableBlock product blocks."""
 
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
+    optical_port_name: str
+    optical_port_description: str | None
     optical_port_host_node: AbstractOpticalPacketNodeBlock
     optical_coherent_pluggable_firmware_version: str

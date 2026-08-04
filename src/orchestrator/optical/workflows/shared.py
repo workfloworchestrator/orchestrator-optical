@@ -5,6 +5,7 @@ from typing import Any, TypeVar, cast
 
 from pydantic import ConfigDict
 from pydantic_forms.core import FormPage
+from pydantic_forms.types import UUIDstr
 from pydantic_forms.validators import (
     Choice,
     MigrationSummary,
@@ -21,10 +22,12 @@ from orchestrator.core.db import (
     SubscriptionInstanceValueTable,
     SubscriptionTable,
 )
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY, SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
 
 T = TypeVar("T")
+S = TypeVar("S", bound=SubscriptionModel)
 
 
 def subscriptions_by_product_type(product_type: str, status: list[SubscriptionLifecycle]) -> list[SubscriptionTable]:
@@ -141,6 +144,78 @@ def active_subscription_selector(product_type: str, prompt: str | None = None) -
     return Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))  # type:ignore  # noqa: PGH003
 
 
+def active_subscription_selector_by_block_type(
+    abstract_block_type: type[ProductBlockModel],
+    prompt: str | None = None,
+) -> type[Choice]:
+    """Create a `Choice` selector for subscriptions of any product implementing an abstract block type.
+
+    The abstract product block is a contract between the developers of this package and
+    the users that implement concrete products: every concrete block class inheriting
+    from it registers its own product block name in ``__names__`` at class definition
+    time, so all the concrete implementations can be matched without knowing them
+    upfront.
+
+    Args:
+        abstract_block_type: The abstract product block type of the contract (e.g.
+            ``AbstractOpticalLocationBlockInactive``).
+        prompt: Prompt to display in the selection. If not provided, a default prompt
+            will be generated.
+
+    Returns:
+        type[Choice]: A `Choice` class configured with subscription options for all the
+        products that implement the given abstract block type.
+    """
+    subscriptions = (
+        SubscriptionTable.query.join(SubscriptionInstanceTable)
+        .join(ProductBlockTable)
+        .filter(ProductBlockTable.name.in_(abstract_block_type.__names__))
+        .filter(SubscriptionTable.status.in_([SubscriptionLifecycle.ACTIVE]))
+        .distinct()
+        .all()
+    )
+
+    products = {
+        str(subscription.subscription_id): subscription.description
+        for subscription in sorted(subscriptions, key=lambda x: x.description)
+    }
+
+    if not prompt:
+        prompt = f"Select a {abstract_block_type.__name__}"
+
+    return Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))  # type:ignore  # noqa: PGH003
+
+
+def subscription_from_subscription[S: SubscriptionModel](abstract_model_type: type[S], subscription_id: UUIDstr) -> S:
+    """Load a subscription through the concrete model class implementing an abstract subscription model.
+
+    The abstract subscription model is a contract between the developers of this package
+    and the users that implement concrete products: calling ``from_subscription`` on the
+    abstract class itself cannot work, because the abstract root block name never matches
+    the concrete product block stored in the database. The concrete model class is
+    therefore resolved through the subscription model registry, like
+    ``node_block_from_subscription`` does for Optical Nodes.
+
+    Args:
+        abstract_model_type: The abstract subscription model type of the contract (e.g.
+            ``AbstractOpticalLocationInactive``).
+        subscription_id: Subscription id of the subscription to load.
+
+    Returns:
+        The loaded subscription model, cast to the abstract model type.
+
+    Raises:
+        ValueError: If the subscription is not a known product or its product does not
+            implement the given abstract model type.
+    """
+    subscription = SubscriptionTable.query.filter(SubscriptionTable.subscription_id == subscription_id).one()
+    model_class = SUBSCRIPTION_MODEL_REGISTRY.get(subscription.product.name)
+    if model_class is None or not issubclass(model_class, abstract_model_type):
+        msg = f"Subscription {subscription_id} is not a {abstract_model_type.__name__} subscription"
+        raise ValueError(msg)
+    return cast(S, model_class.from_subscription(subscription_id))
+
+
 def active_subscription_with_instance_value_selector(
     product_type: str, resource_type: str, value: str, prompt: str | None = None
 ) -> type[Choice]:
@@ -195,6 +270,29 @@ def single_choice_to_multiple_choices(
     return choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items)
 
 
+def subscription_instances_by_block_type(
+    product_block_type: str,
+    states: list[SubscriptionLifecycle],
+) -> list[SubscriptionInstanceTable]:
+    """Retrieve the subscription instances that match a specific product block type.
+
+    Args:
+        product_block_type: The name of the product block type (e.g., "NokiaFlexIlsBlock").
+        states: List of subscription lifecycle states the owner subscription must be in.
+
+    Returns:
+        List of SubscriptionInstanceTable entries (i.e. rows of the subscription_instances table)
+            whose product block type matches and whose owner subscription is in one of the given states.
+    """
+    return (
+        SubscriptionInstanceTable.query.join(SubscriptionTable)
+        .join(ProductBlockTable)
+        .filter(SubscriptionTable.status.in_(states))
+        .filter(ProductBlockTable.name == product_block_type)
+        .all()
+    )
+
+
 def subscription_instances_by_block_type_and_resource_value(
     product_block_type: str,
     resource_type: str,
@@ -247,9 +345,10 @@ def subscription_instance_values_by_block_type_depending_on_instance_id(
     depending_on_instance_id: str,
     states: list[SubscriptionLifecycle],
 ) -> list[SubscriptionInstanceValueTable]:
-    """This function retrieves a list of all subscription instance values (i.e. product block attributes, e.g. port_name).
+    """Retrieve subscription instance values of a block type depending on another instance.
 
-    of a specific product block type (e.g. OpticalDevicePort) that depend on the given instance id
+    This function retrieves a list of all subscription instance values (i.e. product block attributes, e.g.
+    port_name) of a specific product block type (e.g. OpticalDevicePort) that depend on the given instance id
     (e.g. OpticalDeviceBlock of flex.ba01 subscription instance id) and whose owner subscription
     (e.g. OpticalFiber flex.ba01---flex.mt00 might own an optical port of flex.ba01)
     is in the specified lifecycle states.

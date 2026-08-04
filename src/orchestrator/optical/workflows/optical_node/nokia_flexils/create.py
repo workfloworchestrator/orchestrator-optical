@@ -2,8 +2,7 @@
 
 from typing import Annotated
 
-from annotated_types import Len
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
 
@@ -12,7 +11,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.products import ProductType
+from orchestrator.optical.hal.optical_node import discover_flexils_node
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_types.optical_node.nokia_flexils import (
     OpticalNodeNokiaFlexIlsInactive,
@@ -20,55 +19,92 @@ from orchestrator.optical.products.product_types.optical_node.nokia_flexils impo
 )
 from orchestrator.optical.utils.custom_types.dns import Pqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
 from orchestrator.optical.workflows.optical_node.shared import (
     optical_node_subscription_description,
     populate_abstract_optical_node_fields,
+    validate_management_ips_uniqueness,
     validate_pqdn_uniqueness,
 )
-from orchestrator.optical.workflows.shared import (
-    active_subscription_selector,
-    create_summary_form,
-)
+from orchestrator.optical.workflows.shared import create_summary_form
 
 logger = get_logger(__name__)
-
-type IpAddressList = Annotated[list[IPAddress], Len(min_length=1, max_length=10), "List of management IP addresses."]
 
 
 def initial_input_form_generator(product_name: str) -> FormGenerator:
     """Generate the initial input form for creating a Nokia FlexILS Optical Node."""
-    location_choice = active_subscription_selector(ProductType.ABSTRACT_OPTICAL_LOCATION.value)
+    location_choice = active_location_subscription_selector()
 
     class CreateNokiaFlexIlsForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
         location_id: location_choice
-        optical_node_role: OpticalNodeRole = OpticalNodeRole.ROADM
-        pqdn: Pqdn
-        optical_management_ip_list: IpAddressList
-        optical_node_software_version: str | None = None
-        gmpls_id: IPAddress
-        optical_flexils_target_id: str
+        pqdn: Annotated[
+            Pqdn,
+            Field(
+                title="PQDN of the Optical Node. (e.g. if FQDN is `trx1.siteA.domain.com`, PQDN is `trx1.siteA`)"
+            ),
+        ]
+        optical_management_ip: IPAddress | None = None
+        optical_loopback_ip: IPAddress | None = None
+        optical_flexils_gmpls_id: IPAddress
+        tid: Annotated[
+            str,
+            Field(
+                title="Target Identifier (TID) of this FlexILS node (unique identifier in the GMPLS network)."
+            )
+        ]
 
         @model_validator(mode="after")
         def validate_form(self) -> "CreateNokiaFlexIlsForm":
             validate_pqdn_uniqueness(self.pqdn)
+            validate_management_ips_uniqueness(
+                [ip for ip in (self.optical_management_ip, self.optical_loopback_ip) if ip is not None]
+            )
+            if not self.optical_flexils_gmpls_id:
+                msg = "GMPLS ID is required."
+                raise ValueError(msg)
+            if not self.optical_management_ip and not self.optical_loopback_ip:
+                msg = "At least one of management IP or loopback IP must be provided."
+                raise ValueError(msg)
             return self
 
     user_input = yield CreateNokiaFlexIlsForm
     user_input_dict = user_input.model_dump()
     summary_fields = [
         "location_id",
-        "optical_node_role",
         "pqdn",
-        "optical_management_ip_list",
-        "optical_node_software_version",
-        "gmpls_id",
-        "optical_flexils_target_id",
+        "optical_management_ip",
+        "optical_loopback_ip",
+        "optical_flexils_gmpls_id",
+        "tid",
     ]
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 
     return user_input_dict
+
+
+@step("Discover Nokia FlexILS node properties")
+def discover_optical_node_nokia_flexils(
+    location_id: UUIDstr,
+    tid: str,
+    optical_management_ip: IPAddress | None = None,
+    optical_loopback_ip: IPAddress | None = None,
+    optical_flexils_gmpls_id: IPAddress | None = None,
+) -> State:
+    """Connect to the node and retrieve its target id, role and software version."""
+    discovery = discover_flexils_node(
+        location_id=location_id,
+        tid=tid,
+        optical_management_ip=optical_management_ip,
+        optical_loopback_ip=optical_loopback_ip,
+        optical_flexils_gmpls_id=optical_flexils_gmpls_id,
+    )
+    return {
+        "optical_flexils_target_id": discovery.target_id,
+        "optical_node_role": discovery.role,
+        "optical_node_software_version": discovery.software_version,
+    }
 
 
 @step("Construct Subscription model")
@@ -77,9 +113,10 @@ def construct_optical_node_nokia_flexils_model(
     location_id: UUIDstr,
     optical_node_role: OpticalNodeRole,
     pqdn: Pqdn,
-    optical_management_ip_list: list[IPAddress],
-    gmpls_id: IPAddress,
-    optical_flexils_target_id: str,
+    optical_management_ip: IPAddress | None = None,
+    optical_loopback_ip: IPAddress | None = None,
+    optical_flexils_gmpls_id: IPAddress | None = None,
+    optical_flexils_target_id: str | None = None,
     optical_node_software_version: str | None = None,
 ) -> State:
     """Construct the initial domain subscription model for a Nokia FlexILS Optical Node."""
@@ -94,12 +131,15 @@ def construct_optical_node_nokia_flexils_model(
         location_id=location_id,
         optical_node_role=optical_node_role,
         pqdn=pqdn,
-        optical_management_ip_list=optical_management_ip_list,
+        optical_management_ip=optical_management_ip,
+        optical_loopback_ip=optical_loopback_ip,
         optical_node_software_version=optical_node_software_version,
     )
 
-    subscription.optical_node.gmpls_id = gmpls_id
-    subscription.optical_node.optical_flexils_target_id = optical_flexils_target_id
+    if optical_flexils_gmpls_id is not None:
+        subscription.optical_node.optical_flexils_gmpls_id = optical_flexils_gmpls_id
+    if optical_flexils_target_id is not None:
+        subscription.optical_node.optical_flexils_target_id = optical_flexils_target_id
 
     subscription = OpticalNodeNokiaFlexIlsProvisioning.from_other_lifecycle(
         subscription, SubscriptionLifecycle.PROVISIONING
@@ -113,13 +153,12 @@ def construct_optical_node_nokia_flexils_model(
     }
 
 
-additional_steps = begin
-
-
-@create_workflow(
-    initial_input_form=initial_input_form_generator,
-    additional_steps=additional_steps,
-)
+@create_workflow(initial_input_form=initial_input_form_generator)
 def create_optical_node_nokia_flexils() -> StepList:
     """Workflow to create a new Nokia FlexILS Optical Node."""
-    return begin >> construct_optical_node_nokia_flexils_model >> store_process_subscription()
+    return (
+        begin
+        >> discover_optical_node_nokia_flexils
+        >> construct_optical_node_nokia_flexils_model
+        >> store_process_subscription()
+    )

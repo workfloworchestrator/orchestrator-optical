@@ -13,22 +13,42 @@
 """Netbox API client."""
 
 from dataclasses import asdict, dataclass, field
-from functools import singledispatch
+from functools import lru_cache, singledispatch
 from ipaddress import IPv4Interface, IPv6Interface
 from typing import Any
 
 from pynetbox import api as pynetbox_api
+from pynetbox.core.api import Api
 from pynetbox.core.endpoint import Endpoint
 from pynetbox.core.query import RequestError
 from pynetbox.models.ipam import IpAddresses, Prefixes
-from settings import garr_settings
 from structlog import get_logger
 
+from orchestrator.optical.settings import get_settings
 from orchestrator.optical.utils.singledispatch import single_dispatch_base
 
 logger = get_logger(__name__)
 
-api = pynetbox_api(url=garr_settings.NETBOX_URL, token=garr_settings.NETBOX_TOKEN)
+IPV4_FAMILY = 4
+
+
+@lru_cache
+def get_netbox_api() -> Api:
+    """Build and return a pynetbox API instance, cached for the lifetime of the process.
+
+    Requires ``OPTICAL_NETBOX_URL`` and ``OPTICAL_NETBOX_TOKEN`` to be set.
+
+    Returns:
+        The pynetbox API instance.
+
+    Raises:
+        RuntimeError: if the Netbox url or token is not configured.
+    """
+    settings = get_settings()
+    if not settings.netbox_url or not settings.netbox_token:
+        msg = "Netbox is not configured: set OPTICAL_NETBOX_URL and OPTICAL_NETBOX_TOKEN"
+        raise RuntimeError(msg)
+    return pynetbox_api(url=settings.netbox_url, token=settings.netbox_token)
 
 
 @dataclass
@@ -149,91 +169,91 @@ class L2vpnTerminationPayload(NetboxPayload):
 
 
 def get_sites(**kwargs) -> list:
-    return list(api.dcim.sites.filter(**kwargs))
+    return list(get_netbox_api().dcim.sites.filter(**kwargs))
 
 
 def get_site(**kwargs):
-    return api.dcim.sites.get(**kwargs)
+    return get_netbox_api().dcim.sites.get(**kwargs)
 
 
 def get_device_roles(**kwargs) -> list:
-    return list(api.dcim.device_roles.filter(**kwargs))
+    return list(get_netbox_api().dcim.device_roles.filter(**kwargs))
 
 
 def get_device_role(**kwargs):
-    return api.dcim.device_roles.get(**kwargs)
+    return get_netbox_api().dcim.device_roles.get(**kwargs)
 
 
 def get_device_types(**kwargs) -> list:
-    return list(api.dcim.device_types.filter(**kwargs))
+    return list(get_netbox_api().dcim.device_types.filter(**kwargs))
 
 
 def get_device_type(**kwargs):
-    return api.dcim.device_types.get(**kwargs)
+    return get_netbox_api().dcim.device_types.get(**kwargs)
 
 
 def get_devices(**kwargs) -> list:
-    return api.dcim.devices.filter(**kwargs)
+    return get_netbox_api().dcim.devices.filter(**kwargs)
 
 
 def get_device(**kwargs):
-    return api.dcim.devices.get(**kwargs)
+    return get_netbox_api().dcim.devices.get(**kwargs)
 
 
 def get_interfaces(**kwargs) -> list:
-    return api.dcim.interfaces.filter(**kwargs)
+    return get_netbox_api().dcim.interfaces.filter(**kwargs)
 
 
 def get_interface(**kwargs):
-    return api.dcim.interfaces.get(**kwargs)
+    return get_netbox_api().dcim.interfaces.get(**kwargs)
 
 
 def get_cables(**kwargs) -> list:
-    return api.dcim.cables.filter(**kwargs)
+    return get_netbox_api().dcim.cables.filter(**kwargs)
 
 
 def get_cable(**kwargs):
-    return api.dcim.cables.get(**kwargs)
+    return get_netbox_api().dcim.cables.get(**kwargs)
 
 
 def get_l2vpns(**kwargs):
-    return api.vpn.l2vpns.filter(**kwargs)
+    return get_netbox_api().vpn.l2vpns.filter(**kwargs)
 
 
 def get_l2vpn(**kwargs):
-    return api.vpn.l2vpns.get(**kwargs)
+    return get_netbox_api().vpn.l2vpns.get(**kwargs)
 
 
 def get_l2vpn_terminations(**kwargs):
-    return api.vpn.l2vpn_terminations.filter(**kwargs)
+    return get_netbox_api().vpn.l2vpn_terminations.filter(**kwargs)
 
 
 def get_l2vpn_termination(**kwargs):
-    return api.vpn.l2vpn_terminations.get(**kwargs)
+    return get_netbox_api().vpn.l2vpn_terminations.get(**kwargs)
 
 
 def get_vlans(**kwargs):
-    return api.ipam.vlans.filter(**kwargs)
+    return get_netbox_api().ipam.vlans.filter(**kwargs)
 
 
 def get_vlan(**kwargs):
-    return api.ipam.vlans.get(**kwargs)
+    return get_netbox_api().ipam.vlans.get(**kwargs)
 
 
 def get_ip_prefixes(**kwargs) -> list:
-    return api.ipam.prefixes.filter(**kwargs)
+    return get_netbox_api().ipam.prefixes.filter(**kwargs)
 
 
 def get_ip_prefix(**kwargs):
-    return api.ipam.prefixes.get(**kwargs)
+    return get_netbox_api().ipam.prefixes.get(**kwargs)
 
 
 def get_ip_addresses(**kwargs):
-    return api.ipam.ip_addresses.filter(**kwargs)
+    return get_netbox_api().ipam.ip_addresses.filter(**kwargs)
 
 
 def get_ip_address(**kwargs):
-    return api.ipam.ip_addresses.get(**kwargs)
+    return get_netbox_api().ipam.ip_addresses.get(**kwargs)
 
 
 def delete_from_netbox(endpoint, **kwargs) -> None:
@@ -246,31 +266,31 @@ def delete_from_netbox(endpoint, **kwargs) -> None:
 
 
 def delete_device(**kwargs) -> None:
-    delete_from_netbox(api.dcim.devices, **kwargs)
+    delete_from_netbox(get_netbox_api().dcim.devices, **kwargs)
 
 
 def delete_interface(**kwargs) -> None:
-    delete_from_netbox(api.dcim.interfaces, **kwargs)
+    delete_from_netbox(get_netbox_api().dcim.interfaces, **kwargs)
 
 
 def delete_cable(**kwargs) -> None:
-    delete_from_netbox(api.dcim.cables, **kwargs)
+    delete_from_netbox(get_netbox_api().dcim.cables, **kwargs)
 
 
 def delete_prefix(**kwargs) -> None:
-    delete_from_netbox(api.ipam.prefixes, **kwargs)
+    delete_from_netbox(get_netbox_api().ipam.prefixes, **kwargs)
 
 
 def delete_ip_address(**kwargs) -> None:
-    delete_from_netbox(api.ipam.ip_addresses, **kwargs)
+    delete_from_netbox(get_netbox_api().ipam.ip_addresses, **kwargs)
 
 
 def delete_l2vpn(**kwargs) -> None:
-    delete_from_netbox(api.vpn.l2vpns, **kwargs)
+    delete_from_netbox(get_netbox_api().vpn.l2vpns, **kwargs)
 
 
 def delete_vlan(**kwargs) -> None:
-    delete_from_netbox(api.ipam.vlans, **kwargs)
+    delete_from_netbox(get_netbox_api().ipam.vlans, **kwargs)
 
 
 def skip_network_address(ip_prefix: Prefixes) -> None:
@@ -281,7 +301,8 @@ def skip_network_address(ip_prefix: Prefixes) -> None:
     """
 
     def is_network_address(address: IpAddresses) -> bool:
-        addr = IPv4Interface(address) if address.family == 4 else IPv6Interface(address)
+        family = getattr(address.family, "value", address.family)
+        addr = IPv4Interface(address) if family == IPV4_FAMILY else IPv6Interface(address)
         return addr.ip == addr.network.network_address
 
     while True:
@@ -297,6 +318,9 @@ def skip_network_address(ip_prefix: Prefixes) -> None:
 
 def reserve_loopback_addresses(device_id: int) -> tuple:
     """Reserve IP IPv4/IPv6 loopback addresses, assign to Loopback0, and return address id."""
+    settings = get_settings()
+    ipv4_loopback_prefix = _require_loopback_prefix(settings.ipv4_loopback_prefix, "OPTICAL_IPV4_LOOPBACK_PREFIX")
+    ipv6_loopback_prefix = _require_loopback_prefix(settings.ipv6_loopback_prefix, "OPTICAL_IPV6_LOOPBACK_PREFIX")
     device = get_device(id=device_id)
     interface_id = create(InterfacePayload(device=device_id, name="Loopback0", type="virtual", enabled=True))
 
@@ -319,11 +343,27 @@ def reserve_loopback_addresses(device_id: int) -> tuple:
 
     return tuple(
         reserve_loopback_address(ip_version, prefix)
-        for ip_version, prefix in (
-            ("IPv4", garr_settings.IPv4_LOOPBACK_PREFIX),
-            ("IPv6", garr_settings.IPv6_LOOPBACK_PREFIX),
-        )
+        for ip_version, prefix in (("IPv4", ipv4_loopback_prefix), ("IPv6", ipv6_loopback_prefix))
     )
+
+
+def _require_loopback_prefix(prefix: str | None, env_var: str) -> str:
+    """Return the configured loopback prefix, raising a clear error when it is missing.
+
+    Args:
+        prefix: the configured loopback prefix.
+        env_var: name of the environment variable the prefix is read from.
+
+    Returns:
+        The prefix.
+
+    Raises:
+        RuntimeError: if the prefix is not configured.
+    """
+    if not prefix:
+        msg = f"{env_var} is not configured: set {env_var}"
+        raise RuntimeError(msg)
+    return prefix
 
 
 def create_available_prefix(parent_id: int, payload: AvailablePrefixPayload) -> Prefixes:
@@ -382,57 +422,57 @@ def _create_object(payload: NetboxPayload, endpoint: Endpoint) -> int:
 
 @create.register
 def _(payload: DevicePayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.dcim.devices)
+    return _create_object(payload, endpoint=get_netbox_api().dcim.devices)
 
 
 @create.register
 def _(payload: DeviceRolePayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.dcim.device_roles)
+    return _create_object(payload, endpoint=get_netbox_api().dcim.device_roles)
 
 
 @create.register
 def _(payload: ManufacturerPayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.dcim.manufacturers)
+    return _create_object(payload, endpoint=get_netbox_api().dcim.manufacturers)
 
 
 @create.register
 def _(payload: DeviceTypePayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.dcim.device_types)
+    return _create_object(payload, endpoint=get_netbox_api().dcim.device_types)
 
 
 @create.register
 def _(payload: CablePayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.dcim.cables)
+    return _create_object(payload, endpoint=get_netbox_api().dcim.cables)
 
 
 @create.register
 def _(payload: IpPrefixPayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.ipam.prefixes)
+    return _create_object(payload, endpoint=get_netbox_api().ipam.prefixes)
 
 
 @create.register
 def _(payload: InterfacePayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.dcim.interfaces)
+    return _create_object(payload, endpoint=get_netbox_api().dcim.interfaces)
 
 
 @create.register
 def _(payload: SitePayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.dcim.sites)
+    return _create_object(payload, endpoint=get_netbox_api().dcim.sites)
 
 
 @create.register
 def _(payload: VlanPayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.ipam.vlans)
+    return _create_object(payload, endpoint=get_netbox_api().ipam.vlans)
 
 
 @create.register
 def _(payload: L2vpnPayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.vpn.l2vpns)
+    return _create_object(payload, endpoint=get_netbox_api().vpn.l2vpns)
 
 
 @create.register
 def _(payload: L2vpnTerminationPayload, **kwargs: Any) -> int:  # noqa: ARG001
-    return _create_object(payload, endpoint=api.vpn.l2vpn_terminations)
+    return _create_object(payload, endpoint=get_netbox_api().vpn.l2vpn_terminations)
 
 
 @singledispatch
@@ -479,19 +519,19 @@ def _update_object(payload: NetboxPayload, id: int, endpoint: Endpoint) -> bool:
 
 @update.register
 def _(payload: DevicePayload, id: int, **kwargs: Any) -> bool:  # noqa: ARG001
-    return _update_object(payload, id, endpoint=api.dcim.devices)
+    return _update_object(payload, id, endpoint=get_netbox_api().dcim.devices)
 
 
 @update.register
 def _(payload: CablePayload, id: int, **kwargs: Any) -> bool:  # noqa: ARG001
-    return _update_object(payload, id, endpoint=api.dcim.cables)
+    return _update_object(payload, id, endpoint=get_netbox_api().dcim.cables)
 
 
 @update.register
 def _(payload: DeviceTypePayload, id: int, **kwargs: Any) -> bool:  # noqa: ARG001
-    return _update_object(payload, id, endpoint=api.dcim.device_types)
+    return _update_object(payload, id, endpoint=get_netbox_api().dcim.device_types)
 
 
 @update.register
 def _(payload: InterfacePayload, id: int, **kwargs: Any) -> bool:  # noqa: ARG001
-    return _update_object(payload, id, endpoint=api.dcim.interfaces)
+    return _update_object(payload, id, endpoint=get_netbox_api().dcim.interfaces)

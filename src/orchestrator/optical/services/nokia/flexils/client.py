@@ -1,6 +1,5 @@
 import contextlib
 import logging
-import os
 import socket
 import time
 from typing import Any, ClassVar, TypeVar
@@ -13,22 +12,27 @@ from orchestrator.optical.services.nokia.flexils.commands.base import (
     TL1CommandRegistry,
 )
 from orchestrator.optical.services.nokia.flexils.utils import generate_ctag
+from orchestrator.optical.settings import get_settings
 
 T = TypeVar("T", bound=TL1BaseCommand)
 logger = logging.getLogger(__name__)
-
-_username = os.environ["FLEXILS_USER"]
-_password = os.environ["FLEXILS_PASSWORD"]
 
 
 class FlexilsClient:
     _cache: ClassVar[dict[tuple[str, str], "FlexilsClient"]] = {}
 
     @classmethod
-    def get_instance(cls, tid: str, gne_ip: str, timeout: int = 30) -> "FlexilsClient":  # noqa: D102
-        key = (tid.lower(), gne_ip)
+    def get_instance(  # noqa: D102
+        cls,
+        tid: str,
+        gne_ip: str,
+        timeout: int = 30,
+        username: str | None = None,
+        password: str | None = None,
+    ) -> "FlexilsClient":
+        key = (tid.lower(), gne_ip, username, password)
         if key not in cls._cache:
-            client = cls(tid, gne_ip, timeout)
+            client = cls(tid, gne_ip, timeout, username, password)
             cls._cache[key] = client
         return cls._cache[key]
 
@@ -38,13 +42,24 @@ class FlexilsClient:
             client.close()
         cls._cache.clear()
 
-    def __init__(self, tid: str, gne_ip: str, timeout: int = 30):
+    def __init__(
+        self,
+        tid: str,
+        gne_ip: str,
+        timeout: int = 30,
+        username: str | None = None,
+        password: str | None = None,
+    ):
         """Synchronous TL1 Client for Nokia FlexILS.
         Maintains a persistent SSH subsystem connection.
         """
         self.tid = tid
         self.gne_ip = gne_ip
         self.timeout = timeout
+
+        settings = get_settings()
+        self._username = username if username is not None else settings.flexils_user
+        self._password = password if password is not None else settings.flexils_password
 
         self._client: paramiko.SSHClient | None = None
         self._channel: paramiko.Channel | None = None
@@ -55,7 +70,7 @@ class FlexilsClient:
     def _authenticate(self):
         # Send login command
         ctag = generate_ctag()
-        command = f"ACT-USER:{self.tid}:{_username}:{ctag}::{_password};"
+        command = f"ACT-USER:{self.tid}:{self._username}:{ctag}::{self._password};"
         self.execute_raw_command(command, ctag)
 
         # Inhibit autonomous messages
@@ -65,6 +80,13 @@ class FlexilsClient:
 
     def _connect(self):
         """Establishes the SSH connection, opens the tl1telnet subsystem and sends the login command."""
+        if not self._username or not self._password:
+            msg = (
+                "FlexILS credentials are not configured: set OPTICAL_FLEXILS_USER and OPTICAL_FLEXILS_PASSWORD"
+                " or pass username and password to the client"
+            )
+            raise RuntimeError(msg)
+
         msg = f"Connecting to {self.gne_ip} ({self.tid})..."
         logger.info(msg)
         self._close()  # Ensure clean slate
@@ -76,8 +98,8 @@ class FlexilsClient:
             self._client.connect(
                 hostname=self.gne_ip,
                 port=22,
-                username=_username,
-                password=_password,
+                username=self._username,
+                password=self._password,
                 timeout=self.timeout,
                 allow_agent=False,  # Disable agent forwarding
                 look_for_keys=False,  # Disable looking for keys
@@ -191,8 +213,8 @@ class FlexilsClient:
 
             if has_last_msg_started and buffer.endswith(encoded_tl1_prompt):
                 buffer = buffer.decode("utf-8")
-                if buffer.startswith("ACT-USER"):
-                    buffer = buffer.replace(_username, "")
+                if buffer.startswith("ACT-USER") and self._username:
+                    buffer = buffer.replace(self._username, "")
                 msg = f"Command output: {buffer}"
                 logger.info(msg)
                 return buffer

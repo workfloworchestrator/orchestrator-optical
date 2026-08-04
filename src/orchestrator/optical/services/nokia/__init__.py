@@ -11,37 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""TNMS (Transport Network Management System) API Client Package.
-
-This package provides a client interface for interacting with the TNMS API.
-It handles authentication and provides methods for device management operations.
-
-Example:
-    >>> from orchestrator.optical.services.nokia import tnms_client
-    >>> devices = tnms_client.data.equipment.devices.retrieve(fields=["name", "type"])
-
-Note:
-    The package is configured using environment variables:
-    TNMS_ENDPOINT
-    TNMS_SECONDARY_ENDPOINT
-    TNMS_USER
-    TNMS_PASSWORD
-    TOPOLOGY_UUID
-    G30_USER
-    G30_PASSWORD
-    G42_USER
-    G42_PASSWORD
-    FLEXILS_USER
-    FLEXILS_PASSWORD
-
-    The client instance is created as a singleton from the environment variables.
-"""
+"""Nokia Optical Clients Package."""
 
 import logging
-import socket
+from functools import lru_cache
 from typing import Final
-
-from urllib3.util import connection
 
 from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
 from orchestrator.optical.services.nokia.flexils.exceptions import FlexILSClientError, TL1CommandDeniedError
@@ -60,9 +34,23 @@ log.addHandler(logging.NullHandler())
 
 __version__: Final[str] = "1.0.0"
 
-# Singleton instance configured from environment variables
-# with automatic re-authentication
-tnms_client: Final[TnmsClient] = TnmsClient.from_env()
+
+@lru_cache
+def get_tnms_client() -> TnmsClient:
+    """Return a cached TNMS client instance configured from the settings.
+
+    Requires the ``OPTICAL_TNMS_USER``, ``OPTICAL_TNMS_PASSWORD`` and ``OPTICAL_TNMS_ENDPOINT``
+    settings; ``OPTICAL_TNMS_SECONDARY_ENDPOINT`` is optional.
+
+    Returns:
+        A cached TNMS client instance.
+
+    Raises:
+        ValidationError: if the required TNMS settings are not configured.
+    """
+    return TnmsClient.from_settings()
+
+
 __all__ = [
     "ApiError",
     "AuthenticationError",
@@ -74,5 +62,5 @@ __all__ = [
     "TnmsClientError",
     "ValidationError",
     "__version__",
-    "tnms_client",
+    "get_tnms_client",
 ]

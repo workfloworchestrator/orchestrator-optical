@@ -7,7 +7,7 @@ from pydantic import Field
 
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SI, SubscriptionLifecycle
-from orchestrator.optical.products.product_blocks.optical_pipe import (
+from orchestrator.optical.products.product_blocks.optical_port.unions import (
     OpticalTransportLineChannelBlock,
     OpticalTransportLineChannelBlockInactive,
     OpticalTransportLineChannelBlockProvisioning,

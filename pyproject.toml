@@ -12,6 +12,8 @@ requires-python = ">=3.12,<3.15"
 dependencies = [
     "asyncssh~=2.22.0",
     "orchestrator-core>=5",
+    "paramiko>=3.5",
+    "pynetbox>=7.8.0",
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -189,3 +191,8 @@ omit = ["orchestrator/optical/migrations/*"]
 [tool.pyrefly]
 search-path = ["src"]
 python-interpreter-path = ".venv/bin/python"
+
+[[tool.pyrefly.sub-config]]
+matches = "src/orchestrator/optical/products/**"   # or "subdir/**", "**/legacy/**", etc.
+[tool.pyrefly.sub-config.errors]
+bad-override-mutable-attribute = false

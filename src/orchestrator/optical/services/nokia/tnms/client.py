@@ -14,7 +14,6 @@
 """TNMS API client implementation."""
 
 import logging
-import os
 from collections.abc import Callable
 from functools import wraps
 from typing import Any, TypeVar
@@ -23,6 +22,7 @@ import requests
 
 from orchestrator.optical.services.nokia.tnms.endpoints import Data, Operations
 from orchestrator.optical.services.nokia.tnms.exceptions import ApiError, AuthenticationError, ValidationError
+from orchestrator.optical.settings import get_settings
 
 T = TypeVar("T")
 
@@ -70,20 +70,51 @@ class TnmsClient:
         self.operations = Operations(self)
 
     @classmethod
-    def from_env(cls) -> "TnmsClient":
-        """Create client instance from environment variables."""
-        required = ["TNMS_USER", "TNMS_PASSWORD", "TNMS_ENDPOINT"]
-        missing = [var for var in required if not os.getenv(var)]
-        if missing:
-            msg = f"Missing required env vars: {', '.join(missing)}"
+    def from_settings(cls) -> "TnmsClient":
+        """Create client instance from the application settings.
+
+        Reads the ``OPTICAL_TNMS_USER``, ``OPTICAL_TNMS_PASSWORD`` and ``OPTICAL_TNMS_ENDPOINT``
+        variables (plus the optional ``OPTICAL_TNMS_SECONDARY_ENDPOINT``) through
+        :func:`get_settings`.
+
+        Returns:
+            A TNMS client configured from the settings.
+
+        Raises:
+            ValidationError: if any of the required settings is missing.
+        """
+        settings = get_settings()
+        user = settings.tnms_user
+        password = settings.tnms_password
+        endpoint = settings.tnms_endpoint
+        if not (user and password and endpoint):
+            missing = [
+                env_var
+                for value, env_var in (
+                    (user, "OPTICAL_TNMS_USER"),
+                    (password, "OPTICAL_TNMS_PASSWORD"),
+                    (endpoint, "OPTICAL_TNMS_ENDPOINT"),
+                )
+                if not value
+            ]
+            msg = f"Missing required settings: {', '.join(missing)}"
             raise ValidationError(msg)
 
         return cls(
-            user=os.environ["TNMS_USER"],
-            password=os.environ["TNMS_PASSWORD"],
-            url=os.environ["TNMS_ENDPOINT"],
-            fallback_url=os.getenv("TNMS_SECONDARY_ENDPOINT"),
+            user=user,
+            password=password,
+            url=endpoint,
+            fallback_url=settings.tnms_secondary_endpoint,
         )
+
+    @classmethod
+    def from_env(cls) -> "TnmsClient":
+        """Create client instance from the environment.
+
+        Backward-compatible alias of :meth:`from_settings`: the ``OPTICAL_TNMS_*`` variables are
+        resolved through the application settings.
+        """
+        return cls.from_settings()
 
     def _authenticate(self) -> None:
         """Obtain and store authentication token, with optional fallback."""

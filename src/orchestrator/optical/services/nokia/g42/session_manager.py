@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import logging
-import os
 import socket
 from typing import Any
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import PoolManager
+
+from orchestrator.optical.settings import get_settings
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -81,10 +82,11 @@ class RestconfClient:
         self._session.trust_env = self._session.verify  # Disable env vars if TLS verification is off
         self._session.headers.update({"Content-Type": "application/yang-data+json"})
 
-        user = username or os.environ.get("G42_USER")
-        pw = password or os.environ.get("G42_PASSWORD")
+        settings = get_settings()
+        user = username or settings.g42_user
+        pw = password or settings.g42_password
         if not user or not pw:
-            raise UserWarning("Authentication credentials missing.")
+            raise UserWarning("Authentication credentials missing. Set OPTICAL_G42_USER and OPTICAL_G42_PASSWORD.")
         self._session.auth = (user, pw)
 
         from .data_navigators import Data, Operations  # noqa: PLC0415, TID252

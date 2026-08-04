@@ -12,15 +12,9 @@ To use the models and services from this module, you will need to make some chan
 WFO. Please follow the steps below to install the WFO Optical module, including some file edits:
 
 1. `uv add orchestrator-extra-optical`
-2. In your local `migrations.versions` module, add a database migration that depends on the latest revision in this
-repo. An example file is given below.
-3. In your local `migrations.env.py` import and add the following line after instantiating the Alembic `config`:
-
-```python
-add_optical_module_migrations(config)
-```
-
-4. Subclass some of the models given in this module that contain properties or methods that are not implemented.
+2. Generate a database migration for this module in your local `migrations` setup (e.g. via the orchestrator-core
+shell commands). This package no longer ships a migrations module, so no module hook needs to be added.
+3. Subclass some of the models given in this module that contain properties or methods that are not implemented.
 > Tip: These are marked with `#FIXME` comments.
 
 

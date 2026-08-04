@@ -23,12 +23,10 @@ from orchestrator.optical.products.product_types.optical_node.nokia_flexils impo
 from orchestrator.optical.products.product_types.optical_node.nokia_groove_g30 import OpticalNodeNokiaGrooveG30
 from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42
 from orchestrator.optical.products.product_types.optical_packet_node import AbstractOpticalPacketNode
-from orchestrator.optical.products.product_types.optical_pipe import (
-    AbstractOpticalPipe,
-    OpticalFiberPatch,
-    OpticalFiberSpan,
-    OpticalLeasedSpectrum,
-)
+from orchestrator.optical.products.product_types.optical_pipe.abstracts import AbstractOpticalPipe
+from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatch
+from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
+from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrum
 from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
 
 
