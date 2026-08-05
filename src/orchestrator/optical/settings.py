@@ -45,6 +45,10 @@ class OpticalSettings(BaseSettings):
         tnms_secondary_endpoint: Fallback endpoint of the TNMS API (``OPTICAL_TNMS_SECONDARY_ENDPOINT``).
         tnms_user: Username for the TNMS API (``OPTICAL_TNMS_USER``).
         tnms_password: Password for the TNMS API (``OPTICAL_TNMS_PASSWORD``).
+        customer_choice: Import path of the user-defined customer choice function
+            (``OPTICAL_CUSTOMER_CHOICE``), as ``module.path:function_name``. The
+            function must return a ``type[Choice]`` whose option values are the
+            customer ids used as subscription ``customer_id``.
     """
 
     model_config = SettingsConfigDict(env_prefix="OPTICAL_", env_file=".env", extra="ignore")
@@ -66,6 +70,8 @@ class OpticalSettings(BaseSettings):
     tnms_secondary_endpoint: str | None = None
     tnms_user: str | None = None
     tnms_password: str | None = None
+
+    customer_choice: str | None = None
 
 
 @lru_cache

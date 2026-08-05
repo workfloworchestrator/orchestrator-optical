@@ -1,14 +1,16 @@
 """Terminate Optical Digital Service Workflow."""
 
-from typing import cast
+from collections.abc import Sequence
+from functools import partial
+from typing import Any, cast
 
-from pydantic_forms.types import InputForm, State, UUIDstr
+from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, conditional, step
+from orchestrator.core.workflow import StepList, Workflow, begin, conditional, step
 from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.optical_digital_service import (
     delete_transponder_crossconnect,
@@ -28,14 +30,30 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import updat
 logger = get_logger(__name__)
 
 
-def terminate_initial_input_form_generator(subscription_id: UUIDstr, customer_id: UUIDstr) -> InputForm:  # noqa: ARG001
-    """Generate the initial input form for terminating an Optical Digital Service."""
+def terminate_initial_input_form_generator(
+    subscription_id: UUIDstr,
+    customer_id: UUIDstr,  # noqa: ARG001
+    extra_form_pages: Sequence[type[FormPage]] = (),
+) -> FormGenerator:
+    """Generate the initial input form for terminating an Optical Digital Service.
+
+    Args:
+        subscription_id: The identifier of the subscription being terminated.
+        customer_id: The identifier of the subscription customer (kept for the WFO form signature).
+        extra_form_pages: Additional form pages shown after the shipped confirmation page.
+    """
     temp_subscription_id = subscription_id
 
     class TerminateOpticalDigitalServiceForm(FormPage):
         subscription_id: DisplaySubscription = temp_subscription_id  # type: ignore[valid-type]
 
-    return TerminateOpticalDigitalServiceForm
+    user_input = yield TerminateOpticalDigitalServiceForm
+    user_input_dict = user_input.model_dump()
+
+    for page in extra_form_pages:
+        user_input_dict.update((yield page).model_dump())
+
+    return user_input_dict
 
 
 @step("Factory resetting transponders/transceivers crossconnects")
@@ -120,44 +138,64 @@ def update_used_passbands_step(subscription: OpticalDigitalService) -> State:
     return {"subscription": subscription}
 
 
-additional_steps = begin
+def terminate_optical_digital_service_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    **kwargs: Any,
+) -> Workflow:
+    """Build the terminate_optical_digital_service workflow, optionally extended with user hooks.
 
-
-@terminate_workflow(
-    initial_input_form=terminate_initial_input_form_generator,
-    additional_steps=additional_steps,
-)
-def terminate_optical_digital_service() -> StepList:
-    """Workflow to terminate an Optical Digital Service subscription.
-
-    This workflow checks if the subscription is the last client for the transport channels
-    and performs necessary steps to reset transponders/transceivers, delete optical sections,
-    and update used passbands accordingly.
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        extra_form_pages: Additional form pages shown after the shipped confirmation page.
+        **kwargs: Extra arguments forwarded to the ``terminate_workflow`` decorator.
     """
 
-    def is_last_client_for_transport_channels(state: State) -> bool:
-        is_last = state.get("is_last_client_for_transport_channels", None)
-
-        if is_last is not None:
-            return is_last
-
-        subscription = state["subscription"]
-        ods = subscription.optical_digital_service
-        si_id = ods.optical_digital_service_transport_channels[0].subscription_instance_id
-        channel = OpticalTransportChannelBlock.from_db(si_id)
-        non_terminated_instances_using_channel = [
-            instance
-            for instance in channel.in_use_by
-            if instance.subscription.status != SubscriptionLifecycle.TERMINATED
-        ]
-        state["is_last_client_for_transport_channels"] = len(non_terminated_instances_using_channel) == 1
-        return state["is_last_client_for_transport_channels"]
-
-    return (
-        begin
-        >> factory_reset_trx_crossconnects
-        >> factory_reset_trx_client_side
-        >> conditional(is_last_client_for_transport_channels)(factory_reset_trx_line_side)
-        >> conditional(is_last_client_for_transport_channels)(delete_optical_sections)
-        >> conditional(is_last_client_for_transport_channels)(update_used_passbands_step)
+    @terminate_workflow(
+        initial_input_form=partial(
+            terminate_initial_input_form_generator,
+            extra_form_pages=extra_form_pages,
+        ),
+        **kwargs,
     )
+    def terminate_optical_digital_service() -> StepList:
+        """Workflow to terminate an Optical Digital Service subscription.
+
+        This workflow checks if the subscription is the last client for the transport channels
+        and performs necessary steps to reset transponders/transceivers, delete optical sections,
+        and update used passbands accordingly.
+        """
+
+        def is_last_client_for_transport_channels(state: State) -> bool:
+            is_last = state.get("is_last_client_for_transport_channels", None)
+
+            if is_last is not None:
+                return is_last
+
+            subscription = state["subscription"]
+            ods = subscription.optical_digital_service
+            si_id = ods.optical_digital_service_transport_channels[0].subscription_instance_id
+            channel = OpticalTransportChannelBlock.from_db(si_id)
+            non_terminated_instances_using_channel = [
+                instance
+                for instance in channel.in_use_by
+                if instance.subscription.status != SubscriptionLifecycle.TERMINATED
+            ]
+            state["is_last_client_for_transport_channels"] = len(non_terminated_instances_using_channel) == 1
+            return state["is_last_client_for_transport_channels"]
+
+        return (
+            pre_steps
+            >> begin
+            >> factory_reset_trx_crossconnects
+            >> factory_reset_trx_client_side
+            >> conditional(is_last_client_for_transport_channels)(factory_reset_trx_line_side)
+            >> conditional(is_last_client_for_transport_channels)(delete_optical_sections)
+            >> conditional(is_last_client_for_transport_channels)(update_used_passbands_step)
+            >> post_steps
+        )
+
+    return terminate_optical_digital_service

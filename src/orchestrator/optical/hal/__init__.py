@@ -23,7 +23,6 @@ from orchestrator.optical.hal.optical_digital_service import (
 )
 from orchestrator.optical.hal.optical_node import (
     FlexilsGneProvider,
-    FlexilsNodeDiscovery,
     Vendor,
     discover_flexils_node,
     get_flex_client,

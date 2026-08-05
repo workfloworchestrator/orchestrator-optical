@@ -55,15 +55,6 @@ Vector = tuple[float, float, float]
 _MAX_GNE_CANDIDATES = 7
 
 
-@dataclass(frozen=True, slots=True)
-class FlexilsNodeDiscovery:
-    """Properties of a Nokia FlexILS node retrieved from the device itself."""
-
-    target_id: str
-    role: OpticalNodeRole
-    software_version: str
-
-
 class FlexilsGneProvider:
     """Provide the Gateway Network Element (GNE) nodes to reach subtended FlexILS nodes.
 
@@ -227,15 +218,15 @@ def _retrieve_node_properties(flex: FlexilsClient, target_id: str) -> tuple[Opti
 
 def _discover_via_client(
     flex: FlexilsClient,
-    tid: str | None,
+    optical_flexils_target_id: str | None,
     optical_flexils_gmpls_id: IPAddress | None,
-) -> FlexilsNodeDiscovery:
+) -> tuple[OpticalNodeRole, str]:
     """Run the discovery against a single FlexILS client connection."""
-    node_entry = _find_node_entry(flex, tid, optical_flexils_gmpls_id)
+    node_entry = _find_node_entry(flex, optical_flexils_target_id, optical_flexils_gmpls_id)
 
     target_id = _record_value(node_entry, "NENAME")
     if target_id is None:
-        msg = f"RTRV-TOPONODE entry for node {tid} is missing the 'NENAME' field"
+        msg = f"RTRV-TOPONODE entry for node {optical_flexils_target_id} is missing the 'NENAME' field"
         raise ValueError(msg)
 
     role, software_version = _retrieve_node_properties(flex, target_id)
@@ -248,16 +239,16 @@ def _discover_via_client(
         role=role.value,
         software_version=software_version,
     )
-    return FlexilsNodeDiscovery(target_id=target_id, role=role, software_version=software_version)
+    return (role, software_version)
 
 
 def discover_flexils_node(
     location_id: str,
-    tid: str,
+    optical_flexils_target_id: str,
     optical_management_ip: IPAddress | None = None,
     optical_loopback_ip: IPAddress | None = None,
     optical_flexils_gmpls_id: IPAddress | None = None,
-) -> FlexilsNodeDiscovery:
+) -> tuple[OpticalNodeRole, str]:
     """Discover the properties of a Nokia FlexILS node.
 
     If one or more management IPs are provided the node is contacted directly
@@ -267,7 +258,7 @@ def discover_flexils_node(
 
     Args:
         location_id: Subscription id of the Optical Location hosting the node.
-        tid: tid of the node.
+        optical_flexils_target_id: Target ID of the node.
         optical_management_ip: Management IP through which the node can be reached directly.
         optical_loopback_ip: Loopback IP through which the node can be reached directly.
         optical_flexils_gmpls_id: GMPLS ID of the node (mandatory for SNEs).
@@ -281,7 +272,7 @@ def discover_flexils_node(
     management_ips = [x for x in [optical_management_ip, optical_loopback_ip] if x is not None]
 
     if management_ips:
-        candidates = [(tid, str(ip)) for ip in management_ips]
+        candidates = [(optical_flexils_target_id, str(ip)) for ip in management_ips]
     else:
         if optical_flexils_gmpls_id is None:
             msg = "At least one of management IP or GMPLS ID must be provided to discover the node"
@@ -289,24 +280,24 @@ def discover_flexils_node(
 
         location = location_block_from_subscription(location_id)
         if location is None or location.latitude is None or location.longitude is None:
-            msg = f"Location {location_id} has no coordinates, cannot find a GNE for node {tid}"
+            msg = f"Location {location_id} has no coordinates, cannot find a GNE for node {optical_flexils_target_id}"
             raise ValueError(msg)
 
         candidates = FlexilsGneProvider.find_closest_gnes(float(location.latitude), float(location.longitude))
         if not candidates:
-            msg = f"No FlexILS GNE node found to reach subtended node {tid}"
+            msg = f"No FlexILS GNE node found to reach subtended node {optical_flexils_target_id}"
             raise ValueError(msg)
 
     errors: list[str] = []
     for target_id, gne_ip in candidates:
         try:
             flex = FlexilsClient.get_instance(tid=target_id, gne_ip=gne_ip)
-            return _discover_via_client(flex, tid, optical_flexils_gmpls_id)
+            return _discover_via_client(flex, optical_flexils_target_id, optical_flexils_gmpls_id)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"{gne_ip} (tid={target_id}): {exc}")
             logger.warning("FlexILS discovery attempt failed", gne_ip=gne_ip, tid=target_id, error=str(exc))
 
-    msg = f"Could not discover FlexILS node {tid}. Attempts: {'; '.join(errors)}"
+    msg = f"Could not discover FlexILS node {optical_flexils_target_id}. Attempts: {'; '.join(errors)}"
     raise ValueError(msg)
 
 

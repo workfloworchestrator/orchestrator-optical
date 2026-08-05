@@ -1,6 +1,8 @@
 """Create Optical Spectrum Service Workflow."""
 
-from typing import Annotated
+from collections.abc import Sequence
+from functools import partial
+from typing import Annotated, Any
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -11,7 +13,7 @@ from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import Divider
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflow import StepList, Workflow, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.optical_node import vendor_of
@@ -26,6 +28,7 @@ from orchestrator.optical.products.product_types.optical_spectrum_service import
     OpticalSpectrumProvisioning,
 )
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
+from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     NoOpticalPathFoundError,
@@ -60,8 +63,18 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     return subscription.product.name
 
 
-def initial_input_form_generator(product_name: str) -> FormGenerator:
-    """Generate the initial input form for creating an Optical Spectrum service."""
+def initial_input_form_generator(
+    product_name: str,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+) -> FormGenerator:
+    """Generate the initial input form for creating an Optical Spectrum service.
+
+    Args:
+        product_name: Name of the product being created.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+    """
     NodeAChoice = optical_node_selector_of_roles(  # noqa: N806
         roles=ROADM_ROLES,
         prompt="This service connects this node: ",
@@ -70,12 +83,14 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         roles=ROADM_ROLES,
         prompt="...to this other node: ",
     )
+    customer_choice = customer_choice_selector()
 
     class OpticalSpectrumInputForm(FormPage):
         """Form for inputting service name and min and max frequencies."""
 
         model_config = ConfigDict(title=product_name)
 
+        customer_id: customer_choice
         optical_spectrum_name: str
         src_optical_device_id: NodeAChoice
         dst_optical_device_id: NodeBChoice
@@ -204,6 +219,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     user_input_dict["optical_path"] = user_input_dict["optical_path"].split(";")
 
     summary_fields = [
+        "customer_id",
         "optical_spectrum_name",
         "frequency_min",
         "frequency_max",
@@ -213,7 +229,14 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         "dst_optical_port_name",
         "optical_path",
     ]
-    yield from create_summary_form(user_input_dict, product_name, summary_fields)
+    for page in extra_form_pages:
+        user_input_dict.update((yield page).model_dump())
+    yield from create_summary_form(
+        user_input_dict,
+        product_name,
+        summary_fields,
+        extra_summary_fields=extra_summary_fields,
+    )
 
     return user_input_dict
 
@@ -221,20 +244,12 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 @step("Saving input data into the optical spectrum model")
 def create_optical_spectrum_model(
     product: UUIDstr,
+    customer_id: UUIDstr,
     optical_spectrum_name: str,
     frequency_min: Frequency,
     frequency_max: Frequency,
-    src_optical_device_id: UUIDstr,
 ) -> State:
     """Create the initial subscription and populate the spectrum block with name and passband."""
-    # the customer of the spectrum service is the owner of the location hosting the source node
-    src_device = AbstractOpticalNode.from_subscription(src_optical_device_id).optical_node
-    location = src_device.location
-    if location is None:
-        msg = "The source Optical Node has no location"
-        raise ValueError(msg)
-    customer_id = str(location.owner_subscription_id)
-
     subscription = OpticalSpectrumInactive.from_product_id(
         product_id=product,
         customer_id=customer_id,
@@ -364,23 +379,46 @@ def update_used_passbands_step(subscription: OpticalSpectrumProvisioning) -> Sta
     return {"subscription": subscription}
 
 
-additional_steps = begin
+def create_optical_spectrum_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+    **kwargs: Any,
+) -> Workflow:
+    """Build the create_optical_spectrum workflow, optionally extended with user hooks.
 
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+        **kwargs: Extra arguments forwarded to the ``create_workflow`` decorator.
+    """
 
-@create_workflow(
-    initial_input_form=initial_input_form_generator,
-    additional_steps=additional_steps,
-)
-def create_optical_spectrum() -> StepList:
-    """Workflow to create a new Optical Spectrum service."""
-    return (
-        begin
-        >> create_optical_spectrum_model
-        >> store_process_subscription()
-        >> divide_path_into_sections
-        >> set_status(SubscriptionLifecycle.PROVISIONING)
-        >> update_subscription_description
-        >> configure_add_drop_ports_description
-        >> provision_optical_sections
-        >> update_used_passbands_step
+    @create_workflow(
+        initial_input_form=partial(
+            initial_input_form_generator,
+            extra_form_pages=extra_form_pages,
+            extra_summary_fields=extra_summary_fields,
+        ),
+        **kwargs,
     )
+    def create_optical_spectrum() -> StepList:
+        """Workflow to create a new Optical Spectrum service."""
+        return (
+            pre_steps
+            >> begin
+            >> create_optical_spectrum_model
+            >> store_process_subscription()
+            >> divide_path_into_sections
+            >> set_status(SubscriptionLifecycle.PROVISIONING)
+            >> update_subscription_description
+            >> configure_add_drop_ports_description
+            >> provision_optical_sections
+            >> update_used_passbands_step
+            >> post_steps
+        )
+
+    return create_optical_spectrum

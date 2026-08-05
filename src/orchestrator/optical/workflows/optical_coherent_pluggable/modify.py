@@ -1,6 +1,8 @@
 """Workflow to modify an Optical Coherent Pluggable subscription."""
 
-from typing import Annotated
+from collections.abc import Sequence
+from functools import partial
+from typing import Annotated, Any
 
 from pydantic import Field
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -8,13 +10,14 @@ from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflow import StepList, Workflow, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
     OpticalCoherentPluggable,
     OpticalCoherentPluggableProvisioning,
 )
+from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_coherent_pluggable.create import (
     subscription_description,
 )
@@ -32,12 +35,24 @@ Instruction = Annotated[
 ]
 
 
-def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
-    """Input form for modifying Coherent Pluggable attributes."""
+def initial_input_form_generator(
+    subscription_id: UUIDstr,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+) -> FormGenerator:
+    """Input form for modifying Coherent Pluggable attributes.
+
+    Args:
+        subscription_id: Subscription to be modified.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+    """
     subscription = OpticalCoherentPluggable.from_subscription(subscription_id)
     pluggable = subscription.optical_coherent_pluggable
+    customer_choice = customer_choice_selector(include=str(subscription.customer_id))
 
     class ModifyOpticalCoherentPluggableForm(FormPage):
+        customer_id: customer_choice
         instruction: Instruction
         optical_port_description: str | None = pluggable.optical_port_description
         optical_coherent_pluggable_firmware_version: str = pluggable.optical_coherent_pluggable_firmware_version
@@ -46,10 +61,19 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     user_input_dict = user_input.model_dump()
 
     summary_fields = [
+        "customer_id",
         "optical_port_description",
         "optical_coherent_pluggable_firmware_version",
     ]
-    yield from modify_summary_form(user_input_dict, subscription.optical_coherent_pluggable, summary_fields)
+    for page in extra_form_pages:
+        user_input_dict.update((yield page).model_dump())
+    yield from modify_summary_form(
+        user_input_dict,
+        subscription.optical_coherent_pluggable,
+        summary_fields,
+        extra_before={"customer_id": str(subscription.customer_id)},
+        extra_summary_fields=extra_summary_fields,
+    )
 
     return user_input_dict | {"subscription": subscription}
 
@@ -57,11 +81,14 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 @step("Updating subscription model")
 def update_subscription(
     subscription: OpticalCoherentPluggableProvisioning,
+    customer_id: UUIDstr,
     optical_port_description: str | None,
     optical_coherent_pluggable_firmware_version: str,
 ) -> State:
     """Update fields on the Optical Coherent Pluggable subscription."""
     pluggable = subscription.optical_coherent_pluggable
+
+    subscription.customer_id = customer_id
 
     # None means "unchanged": clearing the description is not supported by the form.
     if optical_port_description is not None:
@@ -82,19 +109,42 @@ def update_subscription_description(
     return {"subscription": subscription}
 
 
-additional_steps = begin
+def modify_optical_coherent_pluggable_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+    **kwargs: Any,
+) -> Workflow:
+    """Build the modify_optical_coherent_pluggable workflow, optionally extended with user hooks.
 
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+        **kwargs: Extra arguments forwarded to the ``modify_workflow`` decorator.
+    """
 
-@modify_workflow(
-    initial_input_form=initial_input_form_generator,
-    additional_steps=additional_steps,
-)
-def modify_optical_coherent_pluggable() -> StepList:
-    """Workflow to modify an Optical Coherent Pluggable."""
-    return (
-        begin
-        >> set_status(SubscriptionLifecycle.PROVISIONING)
-        >> update_subscription
-        >> update_subscription_description
-        >> set_status(SubscriptionLifecycle.ACTIVE)
+    @modify_workflow(
+        initial_input_form=partial(
+            initial_input_form_generator,
+            extra_form_pages=extra_form_pages,
+            extra_summary_fields=extra_summary_fields,
+        ),
+        **kwargs,
     )
+    def modify_optical_coherent_pluggable() -> StepList:
+        """Workflow to modify an Optical Coherent Pluggable."""
+        return (
+            pre_steps
+            >> begin
+            >> set_status(SubscriptionLifecycle.PROVISIONING)
+            >> update_subscription
+            >> update_subscription_description
+            >> set_status(SubscriptionLifecycle.ACTIVE)
+            >> post_steps
+        )
+
+    return modify_optical_coherent_pluggable

@@ -1,9 +1,11 @@
 """Validate Optical Leased Spectrum Workflow."""
 
+from typing import Any
+
 from pydantic_forms.types import State
 from structlog import get_logger
 
-from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflow import StepList, Workflow, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.optical_port import check_fiber_terminating_port
@@ -58,13 +60,31 @@ def retrieve_leased_spectrum_used_passbands(subscription: OpticalLeasedSpectrum)
     return {"subscription": subscription}
 
 
-@validate_workflow()
-def validate_leased_spectrum() -> StepList:
-    """Workflow to validate an Optical Leased Spectrum subscription."""
-    return (
-        begin
-        >> load_initial_state_leased_spectrum
-        >> update_subscription_description
-        >> check_leased_spectrum_terminations
-        >> retrieve_leased_spectrum_used_passbands
-    )
+def validate_leased_spectrum_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    **kwargs: Any,
+) -> Workflow:
+    """Build the validate_leased_spectrum workflow, optionally extended with user hooks.
+
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        **kwargs: Extra arguments forwarded to the ``validate_workflow`` decorator.
+    """
+
+    @validate_workflow(**kwargs)
+    def validate_leased_spectrum() -> StepList:
+        """Workflow to validate an Optical Leased Spectrum subscription."""
+        return (
+            pre_steps
+            >> begin
+            >> load_initial_state_leased_spectrum
+            >> update_subscription_description
+            >> check_leased_spectrum_terminations
+            >> retrieve_leased_spectrum_used_passbands
+            >> post_steps
+        )
+
+    return validate_leased_spectrum

@@ -1,17 +1,22 @@
 """Modify Optical Fiber Patch Workflow."""
 
+from collections.abc import Sequence
+from functools import partial
+from typing import Any
+
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflow import StepList, Workflow, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import (
     OpticalFiberPatch,
     OpticalFiberPatchProvisioning,
 )
+from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_pipe.shared import (
     modify_pipe_summary_form,
     optical_pipe_subscription_description,
@@ -20,19 +25,39 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
 logger = get_logger(__name__)
 
 
-def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
-    """Form generator for modifying an Optical Fiber Patch."""
+def initial_input_form_generator(
+    subscription_id: UUIDstr,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+) -> FormGenerator:
+    """Form generator for modifying an Optical Fiber Patch.
+
+    Args:
+        subscription_id: ID of the subscription being modified.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+    """
     subscription = OpticalFiberPatch.from_subscription(subscription_id)
     pipe = subscription.optical_pipe
+    customer_choice = customer_choice_selector(include=str(subscription.customer_id))
 
     class ModifyFiberPatchForm(FormPage):
+        customer_id: customer_choice
         optical_pipe_identifier: str = pipe.optical_pipe_identifier
 
     user_input = yield ModifyFiberPatchForm
     user_input_dict = user_input.model_dump()
 
-    summary_fields = ["optical_pipe_identifier"]
-    yield from modify_pipe_summary_form(user_input_dict, pipe, summary_fields)
+    summary_fields = ["customer_id", "optical_pipe_identifier"]
+    for page in extra_form_pages:
+        user_input_dict.update((yield page).model_dump())
+    yield from modify_pipe_summary_form(
+        user_input_dict,
+        pipe,
+        summary_fields,
+        extra_before={"customer_id": str(subscription.customer_id)},
+        extra_summary_fields=extra_summary_fields,
+    )
 
     return user_input_dict | {"subscription": subscription}
 
@@ -40,10 +65,12 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 @step("Update Fiber Patch Subscription")
 def update_fiber_patch(
     subscription: OpticalFiberPatchProvisioning,
+    customer_id: UUIDstr,
     optical_pipe_identifier: str,
 ) -> State:
     """Update subscription attributes."""
     subscription.optical_pipe.optical_pipe_identifier = optical_pipe_identifier
+    subscription.customer_id = customer_id
     return {"subscription": subscription}
 
 
@@ -54,19 +81,42 @@ def update_subscription_description(subscription: OpticalFiberPatch) -> State:
     return {"subscription": subscription}
 
 
-additional_steps = begin
+def modify_fiber_patch_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+    **kwargs: Any,
+) -> Workflow:
+    """Build the modify_fiber_patch workflow, optionally extended with user hooks.
 
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+        **kwargs: Extra arguments forwarded to the ``modify_workflow`` decorator.
+    """
 
-@modify_workflow(
-    initial_input_form=initial_input_form_generator,
-    additional_steps=additional_steps,
-)
-def modify_fiber_patch() -> StepList:
-    """Workflow to modify an existing Optical Fiber Patch."""
-    return (
-        begin
-        >> set_status(SubscriptionLifecycle.PROVISIONING)
-        >> update_fiber_patch
-        >> update_subscription_description
-        >> set_status(SubscriptionLifecycle.ACTIVE)
+    @modify_workflow(
+        initial_input_form=partial(
+            initial_input_form_generator,
+            extra_form_pages=extra_form_pages,
+            extra_summary_fields=extra_summary_fields,
+        ),
+        **kwargs,
     )
+    def modify_fiber_patch() -> StepList:
+        """Workflow to modify an existing Optical Fiber Patch."""
+        return (
+            pre_steps
+            >> begin
+            >> set_status(SubscriptionLifecycle.PROVISIONING)
+            >> update_fiber_patch
+            >> update_subscription_description
+            >> set_status(SubscriptionLifecycle.ACTIVE)
+            >> post_steps
+        )
+
+    return modify_fiber_patch

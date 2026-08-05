@@ -1,19 +1,43 @@
 """Terminate Nokia Groove G30 Optical Node Workflow."""
 
-from orchestrator.core.workflow import StepList, begin
+from collections.abc import Sequence
+from functools import partial
+from typing import Any
+
+from orchestrator.core.forms import FormPage
+from orchestrator.core.workflow import StepList, Workflow, begin
 from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.workflows.optical_node.shared import (
     delete_optical_node_from_oss_bss,
     terminate_initial_input_form_generator,
 )
 
-additional_steps = begin
 
+def terminate_optical_node_nokia_groove_g30_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    **kwargs: Any,
+) -> Workflow:
+    """Build the terminate_optical_node_nokia_groove_g30 workflow, optionally extended with user hooks.
 
-@terminate_workflow(
-    initial_input_form=terminate_initial_input_form_generator,
-    additional_steps=additional_steps,
-)
-def terminate_optical_node_nokia_groove_g30() -> StepList:
-    """Workflow to terminate a Nokia Groove G30 Optical Node."""
-    return begin >> delete_optical_node_from_oss_bss
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        extra_form_pages: Additional form pages shown after the shipped confirmation page.
+        **kwargs: Extra arguments forwarded to the ``terminate_workflow`` decorator.
+    """
+
+    @terminate_workflow(
+        initial_input_form=partial(
+            terminate_initial_input_form_generator,
+            extra_form_pages=extra_form_pages,
+        ),
+        **kwargs,
+    )
+    def terminate_optical_node_nokia_groove_g30() -> StepList:
+        """Workflow to terminate a Nokia Groove G30 Optical Node."""
+        return pre_steps >> begin >> delete_optical_node_from_oss_bss >> post_steps
+
+    return terminate_optical_node_nokia_groove_g30

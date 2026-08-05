@@ -1,7 +1,9 @@
 """Modify Optical Digital Service Workflow."""
 
+from collections.abc import Sequence
+from functools import partial
 from time import sleep
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -9,7 +11,7 @@ from pydantic_forms.validators import Choice, choice_list, unique_conlist
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflow import StepList, Workflow, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.hal.optical_digital_service import get_signal_bandwidth
@@ -23,6 +25,7 @@ from orchestrator.optical.products.product_types.optical_digital_service import 
     OpticalDigitalServiceProvisioning,
 )
 from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
+from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service import (
     OPTICAL_DIGITAL_SERVICE_PRODUCT_TYPES,
     configure_trx_client_side,
@@ -32,6 +35,7 @@ from orchestrator.optical.workflows.optical_digital_service.create_optical_digit
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import transceiver_mode_selector
 from orchestrator.optical.workflows.shared import (
+    merge_summary_fields,
     subscriptions_by_product_type_and_instance_value,
     summary_form,
 )
@@ -40,8 +44,18 @@ frequency_grid_mhz = 6_250
 bandwidth_grid_mhz = 12_500
 
 
-def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
-    """Generate the initial input form for modifying an Optical Digital Service."""
+def initial_input_form_generator(
+    subscription_id: UUIDstr,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+) -> FormGenerator:
+    """Generate the initial input form for modifying an Optical Digital Service.
+
+    Args:
+        subscription_id: Subscription id of the service being modified.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+    """
     subscription = OpticalDigitalService.from_subscription(subscription_id)
     ods = subscription.optical_digital_service
 
@@ -76,12 +90,14 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
         port_name=source_client_port.optical_port_name,
         prompt="Select the operating mode of all transport channels",
     )
+    customer_choice = customer_choice_selector(include=str(subscription.customer_id))
 
     class ModifyOpticalDigitalServiceForm(FormPage):
         """Form for modifying the service name, frequencies, bandwidths and mode."""
 
         model_config = ConfigDict(title="Optical Transport Channels")
 
+        customer_id: customer_choice
         optical_digital_service_name: str = old_name
         frequencies: FrequenciesChoice = old_frequencies
         bandwidths: BandwidthsChoice = old_bandwidths
@@ -109,18 +125,20 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
                     ],
                 )
                 if any(sub.subscription_id != subscription.subscription_id for sub in subs):
-                    msg = (
-                        f"Optical Digital Service name '{self.optical_digital_service_name}'"
-                        " is already in use"
-                    )
+                    msg = f"Optical Digital Service name '{self.optical_digital_service_name}' is already in use"
                     raise ValueError(msg)
             return self
 
     user_input = yield ModifyOpticalDigitalServiceForm
     user_input_dict = user_input.model_dump()
 
-    summary_fields = ["optical_digital_service_name", "frequencies", "bandwidths", "mode"]
-    before = [str(x) for x in (old_name, old_frequencies, old_bandwidths, old_mode)]
+    for page in extra_form_pages:
+        user_input_dict.update((yield page).model_dump())
+
+    summary_fields = ["customer_id", "optical_digital_service_name", "frequencies", "bandwidths", "mode"]
+    summary_fields = merge_summary_fields(summary_fields, extra_summary_fields, user_input_dict)
+    before = [str(x) for x in (subscription.customer_id, old_name, old_frequencies, old_bandwidths, old_mode)]
+    before += [""] * len(extra_summary_fields)
     after = [str(user_input_dict[nm]) for nm in summary_fields]
     yield from summary_form(
         subscription.product.name,
@@ -137,6 +155,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 @step("Saving new values in the database")
 def update_subscription(
     subscription: OpticalDigitalServiceProvisioning,
+    customer_id: UUIDstr,
     optical_digital_service_name: str,
     frequencies: list[Frequency],
     bandwidths: list[Bandwidth],
@@ -145,6 +164,7 @@ def update_subscription(
     """Save the new name, frequencies, bandwidths and mode in the subscription."""
     ods = subscription.optical_digital_service
     old_passbands: list[Passband] = []
+    subscription.customer_id = customer_id
     ods.optical_digital_service_name = optical_digital_service_name
     for channel, frequency, bandwidth in zip(
         ods.optical_digital_service_transport_channels,
@@ -215,24 +235,47 @@ def modify_optical_sections(
     }
 
 
-additional_steps = begin
+def modify_optical_digital_service_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+    **kwargs: Any,
+) -> Workflow:
+    """Build the modify_optical_digital_service workflow, optionally extended with user hooks.
 
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+        **kwargs: Extra arguments forwarded to the ``modify_workflow`` decorator.
+    """
 
-@modify_workflow(
-    initial_input_form=initial_input_form_generator,
-    additional_steps=additional_steps,
-)
-def modify_optical_digital_service() -> StepList:
-    """Workflow to modify an existing Optical Digital Service."""
-    return (
-        begin
-        >> set_status(SubscriptionLifecycle.PROVISIONING)
-        >> update_subscription
-        >> configure_trx_line_side
-        >> configure_trx_client_side
-        >> configure_trx_crossconnects
-        >> modify_optical_sections
-        >> step("Sleeping for 10 seconds")(lambda: sleep(10))
-        >> set_trx_transmitted_power
-        >> set_status(SubscriptionLifecycle.ACTIVE)
+    @modify_workflow(
+        initial_input_form=partial(
+            initial_input_form_generator,
+            extra_form_pages=extra_form_pages,
+            extra_summary_fields=extra_summary_fields,
+        ),
+        **kwargs,
     )
+    def modify_optical_digital_service() -> StepList:
+        """Workflow to modify an existing Optical Digital Service."""
+        return (
+            pre_steps
+            >> begin
+            >> set_status(SubscriptionLifecycle.PROVISIONING)
+            >> update_subscription
+            >> configure_trx_line_side
+            >> configure_trx_client_side
+            >> configure_trx_crossconnects
+            >> modify_optical_sections
+            >> step("Sleeping for 10 seconds")(lambda: sleep(10))
+            >> set_trx_transmitted_power
+            >> set_status(SubscriptionLifecycle.ACTIVE)
+            >> post_steps
+        )
+
+    return modify_optical_digital_service

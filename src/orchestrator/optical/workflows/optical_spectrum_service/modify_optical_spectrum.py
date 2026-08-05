@@ -1,6 +1,8 @@
 """Modify Optical Spectrum Service Workflow."""
 
-from typing import Annotated
+from collections.abc import Sequence
+from functools import partial
+from typing import Annotated, Any
 
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -10,7 +12,7 @@ from structlog import get_logger
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import Divider
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflow import StepList, Workflow, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.hal.optical_node import vendor_of
@@ -22,6 +24,7 @@ from orchestrator.optical.products.product_types.optical_spectrum_service import
     OpticalSpectrumProvisioning,
 )
 from orchestrator.optical.utils.custom_types.frequencies import Frequency, Passband
+from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
     subscription_description,
@@ -44,8 +47,18 @@ LINE_SYSTEM_ROLES = [
 ]
 
 
-def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
-    """Generate the initial input form for modifying an Optical Spectrum service."""
+def initial_input_form_generator(
+    subscription_id: UUIDstr,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+) -> FormGenerator:
+    """Generate the initial input form for modifying an Optical Spectrum service.
+
+    Args:
+        subscription_id: Subscription id of the service being modified.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+    """
     subscription = OpticalSpectrum.from_subscription(subscription_id)
     optical_spectrum = subscription.optical_spectrum_service
     old_passband = optical_spectrum.optical_spectrum_passband
@@ -54,10 +67,12 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
     sections = optical_spectrum.optical_spectrum_sections
     optical_device_a = sections[0].optical_spectrum_section_add_drop_ports[0].optical_port_host_node
     optical_device_b = sections[-1].optical_spectrum_section_add_drop_ports[-1].optical_port_host_node
+    customer_choice = customer_choice_selector(include=str(subscription.customer_id))
 
     class ModifyOpticalSpectrumForm(FormPage):
         """Form for modifying the service name and the min and max frequencies."""
 
+        customer_id: customer_choice
         optical_spectrum_name: str = old_spectrum_name
         frequency_min: Annotated[Frequency, Field(title="Start frequency (THz)", multiple_of=6250)] = old_passband[0]
         frequency_max: Annotated[Frequency, Field(title="End frequency (THz)", multiple_of=6250)] = old_passband[1]
@@ -152,10 +167,19 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
         user_input_dict["frequency_max"],
     )
     summary_fields = [
+        "customer_id",
         "optical_spectrum_name",
         "optical_spectrum_passband",
     ]
-    yield from modify_summary_form(user_input_dict, subscription.optical_spectrum_service, summary_fields)
+    for page in extra_form_pages:
+        user_input_dict.update((yield page).model_dump())
+    yield from modify_summary_form(
+        user_input_dict,
+        subscription.optical_spectrum_service,
+        summary_fields,
+        extra_before={"customer_id": str(subscription.customer_id)},
+        extra_summary_fields=extra_summary_fields,
+    )
 
     return user_input_dict | {"subscription": subscription}
 
@@ -163,6 +187,7 @@ def initial_input_form_generator(subscription_id: UUIDstr) -> FormGenerator:
 @step("Update subscription")
 def update_subscription(
     subscription: OpticalSpectrumProvisioning,
+    customer_id: UUIDstr,
     optical_spectrum_name: str,
     frequency_min: Frequency,
     frequency_max: Frequency,
@@ -177,6 +202,8 @@ def update_subscription(
     # set attributes: passband
     passband: Passband = (frequency_min, frequency_max)
     spectrum.optical_spectrum_passband = passband
+
+    subscription.customer_id = customer_id
 
     return {
         "subscription": subscription,
@@ -249,22 +276,45 @@ def modify_optical_sections(
     }
 
 
-additional_steps = begin
+def modify_optical_spectrum_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+    **kwargs: Any,
+) -> Workflow:
+    """Build the modify_optical_spectrum workflow, optionally extended with user hooks.
 
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+        **kwargs: Extra arguments forwarded to the ``modify_workflow`` decorator.
+    """
 
-@modify_workflow(
-    initial_input_form=initial_input_form_generator,
-    additional_steps=additional_steps,
-)
-def modify_optical_spectrum() -> StepList:
-    """Workflow to modify an existing Optical Spectrum service."""
-    return (
-        begin
-        >> set_status(SubscriptionLifecycle.PROVISIONING)
-        >> update_subscription
-        >> update_subscription_description
-        >> divide_path_into_sections
-        >> modify_optical_sections
-        >> update_used_passbands_step
-        >> set_status(SubscriptionLifecycle.ACTIVE)
+    @modify_workflow(
+        initial_input_form=partial(
+            initial_input_form_generator,
+            extra_form_pages=extra_form_pages,
+            extra_summary_fields=extra_summary_fields,
+        ),
+        **kwargs,
     )
+    def modify_optical_spectrum() -> StepList:
+        """Workflow to modify an existing Optical Spectrum service."""
+        return (
+            pre_steps
+            >> begin
+            >> set_status(SubscriptionLifecycle.PROVISIONING)
+            >> update_subscription
+            >> update_subscription_description
+            >> divide_path_into_sections
+            >> modify_optical_sections
+            >> update_used_passbands_step
+            >> set_status(SubscriptionLifecycle.ACTIVE)
+            >> post_steps
+        )
+
+    return modify_optical_spectrum

@@ -26,8 +26,13 @@ def optical_node_subscription_description(subscription: SubscriptionModel) -> st
     return subscription.product.name
 
 
-def validate_pqdn_uniqueness(pqdn: str) -> None:
-    """Ensure PQDN is not already used across any active/provisioning Optical Node subscriptions."""
+def validate_pqdn_uniqueness(pqdn: str, exclude_subscription_id: UUIDstr | None = None) -> None:
+    """Ensure PQDN is not already used across any active/provisioning Optical Node subscriptions.
+
+    Args:
+        pqdn: The PQDN to check for uniqueness.
+        exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
+    """
     for product_type_name in OPTICAL_NODE_PRODUCT_TYPES:
         existing_subs = subscriptions_by_product_type_and_instance_value(
             product_type=product_type_name,
@@ -39,13 +44,19 @@ def validate_pqdn_uniqueness(pqdn: str) -> None:
                 SubscriptionLifecycle.ACTIVE,
             ],
         )
-        if existing_subs:
-            msg = f"PQDN '{pqdn}' is already in use by subscription {existing_subs[0].subscription_id}"
+        conflicting = [sub for sub in existing_subs if str(sub.subscription_id) != exclude_subscription_id]
+        if conflicting:
+            msg = f"PQDN '{pqdn}' is already in use by subscription {conflicting[0].subscription_id}"
             raise ValueError(msg)
 
 
-def validate_management_ips_uniqueness(ips: list[IPAddress]) -> None:
-    """Ensure none of the management/loopback IPs is already in use by an Optical Node subscription."""
+def validate_management_ips_uniqueness(ips: list[IPAddress], exclude_subscription_id: UUIDstr | None = None) -> None:
+    """Ensure none of the management/loopback IPs is already in use by an Optical Node subscription.
+
+    Args:
+        ips: The management/loopback IPs to check for uniqueness.
+        exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
+    """
     for ip in ips:
         ip_value = str(ip)
         for product_type_name in OPTICAL_NODE_PRODUCT_TYPES:
@@ -60,12 +71,35 @@ def validate_management_ips_uniqueness(ips: list[IPAddress]) -> None:
                         SubscriptionLifecycle.ACTIVE,
                     ],
                 )
-                if existing_subs:
+                conflicting = [sub for sub in existing_subs if str(sub.subscription_id) != exclude_subscription_id]
+                if conflicting:
                     msg = (
-                        f"Management IP '{ip_value}' is already in use by subscription "
-                        f"{existing_subs[0].subscription_id}"
+                        f"Management IP '{ip_value}' is already in use by subscription {conflicting[0].subscription_id}"
                     )
                     raise ValueError(msg)
+
+
+def validate_gmpls_id_uniqueness(gmpls_id: IPAddress, exclude_subscription_id: UUIDstr | None = None) -> None:
+    """Ensure the FlexILS GMPLS ID is not already in use by a Nokia FlexILS subscription.
+
+    Args:
+        gmpls_id: The GMPLS ID to check for uniqueness.
+        exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
+    """
+    existing_subs = subscriptions_by_product_type_and_instance_value(
+        product_type=ProductType.OPTICAL_NODE_NOKIA_FLEXILS.value,
+        resource_type="optical_flexils_gmpls_id",
+        value=gmpls_id,
+        status=[
+            SubscriptionLifecycle.INITIAL,
+            SubscriptionLifecycle.PROVISIONING,
+            SubscriptionLifecycle.ACTIVE,
+        ],
+    )
+    conflicting = [sub for sub in existing_subs if str(sub.subscription_id) != exclude_subscription_id]
+    if conflicting:
+        msg = f"GMPLS ID '{gmpls_id}' is already in use by subscription {conflicting[0].subscription_id}"
+        raise ValueError(msg)
 
 
 def populate_abstract_optical_node_fields(

@@ -1,6 +1,6 @@
 """Shared workflow utilities for optical pipes."""
 
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from typing import Annotated, Any, TypeVar, cast
 from uuid import UUID
 
@@ -30,6 +30,7 @@ from orchestrator.optical.products.product_blocks.optical_port.transponder_line 
 from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNodeInactive
 from orchestrator.optical.workflows.optical_node.shared import OPTICAL_NODE_PRODUCT_TYPES
 from orchestrator.optical.workflows.shared import (
+    merge_summary_fields,
     subscription_from_subscription,
     subscription_instance_values_by_block_type_depending_on_instance_id,
 )
@@ -100,18 +101,42 @@ def summary_form(product_name: str, summary_data: dict[str, Any]) -> Generator[t
 
 
 def create_pipe_summary_form(
-    user_input: dict[str, Any], product_name: str, fields: list[str]
+    user_input: dict[str, Any],
+    product_name: str,
+    fields: list[str],
+    extra_summary_fields: Sequence[str] = (),
 ) -> Generator[type[FormPage]]:
     """Create a summary form for pipe creation."""
+    fields = merge_summary_fields(fields, extra_summary_fields, user_input)
     columns = [[str(user_input.get(nm, "")) for nm in fields]]
     yield from summary_form(product_name, {"labels": fields, "columns": columns})
 
 
 def modify_pipe_summary_form(
-    user_input: dict[str, Any], block: ProductBlockModel, fields: list[str]
+    user_input: dict[str, Any],
+    block: ProductBlockModel,
+    fields: list[str],
+    extra_before: dict[str, str] | None = None,
+    extra_summary_fields: Sequence[str] = (),
 ) -> Generator[type[FormPage]]:
-    """Create a summary form for pipe modification."""
-    before = [str(getattr(block, nm, "")) for nm in fields]
+    """Create a summary form for pipe modification.
+
+    Args:
+        user_input: Form input values for the "after" column.
+        block: Product block of the subscription being modified.
+        fields: Field names to display.
+        extra_before: Optional mapping of field names to "before" values that cannot
+            be read from the block, e.g. the subscription customer id.
+        extra_summary_fields: Extra field names to append to the summary; their
+            "before" column is left empty, as they have no previous value.
+    """
+    fields = merge_summary_fields(fields, extra_summary_fields, user_input)
+    before = []
+    for nm in fields:
+        if extra_before and nm in extra_before:
+            before.append(extra_before[nm])
+        else:
+            before.append(str(getattr(block, nm, "")))
     after = [str(user_input.get(nm, "")) for nm in fields]
     subscription = block.subscription
     if subscription is None:

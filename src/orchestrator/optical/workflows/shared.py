@@ -1,6 +1,6 @@
 """Shared functions for the workflows."""
 
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from typing import Any, TypeVar, cast
 
 from pydantic import ConfigDict
@@ -88,6 +88,35 @@ def subscriptions_by_product_type_and_instance_value(
     )
 
 
+def merge_summary_fields(
+    summary_fields: list[str],
+    extra_summary_fields: Sequence[str],
+    user_input: dict[str, Any],
+) -> list[str]:
+    """Append user-defined extra field names to a summary field list.
+
+    Extra form pages declared by the user add their field names to the form
+    input; this helper adds them to the summary and fails fast when a name
+    does not exist in the collected input.
+
+    Args:
+        summary_fields: The shipped summary field names.
+        extra_summary_fields: Extra field names to append to the summary.
+        user_input: The collected form input, used to validate the names.
+
+    Returns:
+        The combined summary field names.
+
+    Raises:
+        ValueError: If an extra field name is not present in the form input.
+    """
+    unknown = [name for name in extra_summary_fields if name not in user_input]
+    if unknown:
+        msg = f"extra_summary_fields not present in the form input: {', '.join(unknown)}"
+        raise ValueError(msg)
+    return summary_fields + list(extra_summary_fields)
+
+
 def summary_form(product_name: str, summary_data: dict) -> Generator:
     """Generate a summary form for the product."""
 
@@ -99,15 +128,45 @@ def summary_form(product_name: str, summary_data: dict) -> Generator:
     yield SummaryForm
 
 
-def create_summary_form(user_input: dict, product_name: str, fields: list[str]) -> Generator:
+def create_summary_form(
+    user_input: dict,
+    product_name: str,
+    fields: list[str],
+    extra_summary_fields: Sequence[str] = (),
+) -> Generator:
     """Create a summary form for the product."""
+    fields = merge_summary_fields(fields, extra_summary_fields, user_input)
     columns = [[str(user_input[nm]) for nm in fields]]
     yield from summary_form(product_name, {"labels": fields, "columns": columns})
 
 
-def modify_summary_form(user_input: dict, block: ProductBlockModel, fields: list[str]) -> Generator:
-    """Modify the summary form for the product."""
-    before = [str(getattr(block, nm)) for nm in fields]
+def modify_summary_form(
+    user_input: dict,
+    block: ProductBlockModel,
+    fields: list[str],
+    extra_before: dict[str, str] | None = None,
+    extra_summary_fields: Sequence[str] = (),
+) -> Generator:
+    """Modify the summary form for the product.
+
+    Args:
+        user_input: Form input values for the "after" column.
+        block: Product block of the subscription being modified.
+        fields: Field names to display.
+        extra_before: Optional mapping of field names to "before" values that cannot
+            be read from the block, e.g. the subscription customer id.
+        extra_summary_fields: Extra field names to append to the summary; their
+            "before" column is left empty, as they have no previous value.
+    """
+    fields = merge_summary_fields(fields, extra_summary_fields, user_input)
+    before = []
+    for nm in fields:
+        if extra_before and nm in extra_before:
+            before.append(extra_before[nm])
+        elif hasattr(block, nm):
+            before.append(str(getattr(block, nm)))
+        else:
+            before.append("")
     after = [str(user_input[nm]) for nm in fields]
     yield from summary_form(
         block.subscription.product.name,

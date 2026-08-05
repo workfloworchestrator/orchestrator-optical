@@ -1,9 +1,11 @@
 """Validate Optical Fiber Span Workflow."""
 
+from typing import Any
+
 from pydantic_forms.types import State
 from structlog import get_logger
 
-from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflow import StepList, Workflow, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.optical_port import check_fiber_terminating_port
@@ -54,13 +56,31 @@ def retrieve_span_used_passbands(subscription: OpticalFiberSpan) -> State:
     return {"subscription": subscription}
 
 
-@validate_workflow()
-def validate_fiber_span() -> StepList:
-    """Workflow to validate an Optical Fiber Span subscription."""
-    return (
-        begin
-        >> load_initial_state_fiber_span
-        >> update_subscription_description
-        >> check_span_terminations
-        >> retrieve_span_used_passbands
-    )
+def validate_fiber_span_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    **kwargs: Any,
+) -> Workflow:
+    """Build the validate_fiber_span workflow, optionally extended with user hooks.
+
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        **kwargs: Extra arguments forwarded to the ``validate_workflow`` decorator.
+    """
+
+    @validate_workflow(**kwargs)
+    def validate_fiber_span() -> StepList:
+        """Workflow to validate an Optical Fiber Span subscription."""
+        return (
+            pre_steps
+            >> begin
+            >> load_initial_state_fiber_span
+            >> update_subscription_description
+            >> check_span_terminations
+            >> retrieve_span_used_passbands
+            >> post_steps
+        )
+
+    return validate_fiber_span

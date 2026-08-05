@@ -1,5 +1,8 @@
 """Create Optical Fiber Span Workflow."""
 
+from collections.abc import Sequence
+from functools import partial
+from typing import Any
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field, model_validator
@@ -8,7 +11,7 @@ from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflow import StepList, Workflow, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.optical_node import Vendor, retrieve_ports_spectral_occupations, vendor_of
@@ -23,6 +26,7 @@ from orchestrator.optical.products.product_types.optical_pipe.fiber_span import 
     OpticalFiberSpanInactive,
     OpticalFiberSpanProvisioning,
 )
+from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_pipe.shared import (
     create_pipe_summary_form,
     default_pipe_identifier,
@@ -37,13 +41,25 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
 logger = get_logger(__name__)
 
 
-def initial_input_form_generator(product_name: str) -> FormGenerator:
-    """Form generator for creating an Optical Fiber Span."""
+def initial_input_form_generator(
+    product_name: str,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+) -> FormGenerator:
+    """Form generator for creating an Optical Fiber Span.
+
+    Args:
+        product_name: Name of the product being created.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+    """
     node_choice = optical_node_selector(prompt="This fiber span connects this node:")
+    customer_choice = customer_choice_selector()
 
     class CreateFiberSpanForm1(FormPage):
         model_config = ConfigDict(title=product_name)
 
+        customer_id: customer_choice
         node_a_id: node_choice
         node_b_id: node_choice
 
@@ -90,13 +106,21 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     )
 
     summary_fields = [
+        "customer_id",
         "optical_pipe_identifier",
         "node_a_id",
         "port_a_name",
         "node_b_id",
         "port_b_name",
     ]
-    yield from create_pipe_summary_form(user_input_dict, product_name, summary_fields)
+    for page in extra_form_pages:
+        user_input_dict.update((yield page).model_dump())
+    yield from create_pipe_summary_form(
+        user_input_dict,
+        product_name,
+        summary_fields,
+        extra_summary_fields=extra_summary_fields,
+    )
 
     return user_input_dict
 
@@ -104,6 +128,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 @step("Construct Fiber Span Model")
 def construct_fiber_span_model(
     product: UUIDstr,
+    customer_id: UUIDstr,
     node_a_id: UUIDstr,
     node_b_id: UUIDstr,
     port_a_name: str,
@@ -113,12 +138,6 @@ def construct_fiber_span_model(
     """Construct the OpticalFiberSpan domain subscription model."""
     node_a_block = node_block_from_subscription(node_a_id)
     node_b_block = node_block_from_subscription(node_b_id)
-
-    location = node_a_block.location
-    if location is None:
-        msg = f"Optical Node {node_a_block.pqdn} has no location"
-        raise ValueError(msg)
-    customer_id = str(location.owner_subscription_id)
 
     subscription_id = uuid4()
     port_a = new_pipe_port_block(
@@ -193,19 +212,42 @@ def retrieve_span_used_passbands(subscription: OpticalFiberSpanProvisioning) -> 
     return {"subscription": subscription}
 
 
-additional_steps = begin
+def create_fiber_span_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+    **kwargs: Any,
+) -> Workflow:
+    """Build the create_fiber_span workflow, optionally extended with user hooks.
 
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+        **kwargs: Extra arguments forwarded to the ``create_workflow`` decorator.
+    """
 
-@create_workflow(
-    initial_input_form=initial_input_form_generator,
-    additional_steps=additional_steps,
-)
-def create_fiber_span() -> StepList:
-    """Workflow to create a new Optical Fiber Span."""
-    return (
-        begin
-        >> construct_fiber_span_model
-        >> store_process_subscription()
-        >> configure_span_terminations
-        >> retrieve_span_used_passbands
+    @create_workflow(
+        initial_input_form=partial(
+            initial_input_form_generator,
+            extra_form_pages=extra_form_pages,
+            extra_summary_fields=extra_summary_fields,
+        ),
+        **kwargs,
     )
+    def create_fiber_span() -> StepList:
+        """Workflow to create a new Optical Fiber Span."""
+        return (
+            pre_steps
+            >> begin
+            >> construct_fiber_span_model
+            >> store_process_subscription()
+            >> configure_span_terminations
+            >> retrieve_span_used_passbands
+            >> post_steps
+        )
+
+    return create_fiber_span

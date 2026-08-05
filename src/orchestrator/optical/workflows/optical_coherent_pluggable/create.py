@@ -1,5 +1,9 @@
 """Workflow to create an Optical Coherent Pluggable subscription."""
 
+from collections.abc import Sequence
+from functools import partial
+from typing import Any
+
 from pydantic import ConfigDict, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
@@ -7,7 +11,7 @@ from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflow import StepList, Workflow, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.products.product_blocks.optical_packet_node import AbstractOpticalPacketNodeBlockInactive
@@ -18,6 +22,7 @@ from orchestrator.optical.products.product_types.optical_coherent_pluggable impo
     OpticalCoherentPluggableProvisioning,
 )
 from orchestrator.optical.products.product_types.optical_packet_node import AbstractOpticalPacketNodeInactive
+from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.shared import (
     active_subscription_selector_by_block_type,
     create_summary_form,
@@ -37,8 +42,18 @@ def subscription_description(subscription: OpticalCoherentPluggableInactive) -> 
     return f"{host_name} {pluggable.optical_port_name} ({part_number})"
 
 
-def initial_input_form_generator(product_name: str) -> FormGenerator:
-    """Initial input form for creating an Optical Coherent Pluggable."""
+def initial_input_form_generator(
+    product_name: str,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+) -> FormGenerator:
+    """Initial input form for creating an Optical Coherent Pluggable.
+
+    Args:
+        product_name: Name of the product being created.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+    """
     packet_node_choice = active_subscription_selector_by_block_type(
         AbstractOpticalPacketNodeBlockInactive, prompt="Select an Optical Packet Node"
     )
@@ -46,10 +61,12 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         "Select Optical Coherent Pluggable Part Number",
         [(item.value, item.value) for item in OpticalCoherentPluggablePartNumber],
     )
+    customer_choice = customer_choice_selector()
 
     class CreateOpticalCoherentPluggableForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
+        customer_id: customer_choice
         optical_packet_node_id: packet_node_choice
         optical_coherent_pluggable_part_number: part_number_choice
         optical_port_name: str
@@ -89,13 +106,21 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     user_input_dict = user_input.model_dump()
 
     summary_fields = [
+        "customer_id",
         "optical_packet_node_id",
         "optical_coherent_pluggable_part_number",
         "optical_port_name",
         "optical_port_description",
         "optical_coherent_pluggable_firmware_version",
     ]
-    yield from create_summary_form(user_input_dict, product_name, summary_fields)
+    for page in extra_form_pages:
+        user_input_dict.update((yield page).model_dump())
+    yield from create_summary_form(
+        user_input_dict,
+        product_name,
+        summary_fields,
+        extra_summary_fields=extra_summary_fields,
+    )
 
     return user_input_dict
 
@@ -103,6 +128,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 @step("Construct Subscription model")
 def construct_optical_coherent_pluggable_model(
     product: UUIDstr,
+    customer_id: UUIDstr,
     optical_packet_node_id: UUIDstr,
     optical_coherent_pluggable_part_number: OpticalCoherentPluggablePartNumber,
     optical_port_name: str,
@@ -111,7 +137,6 @@ def construct_optical_coherent_pluggable_model(
 ) -> State:
     """Instantiate and populate the domain model for Optical Coherent Pluggable."""
     packet_node_sub = subscription_from_subscription(AbstractOpticalPacketNodeInactive, optical_packet_node_id)
-    customer_id = str(packet_node_sub.optical_packet_node.location.owner_subscription_id)
 
     subscription = OpticalCoherentPluggableInactive.from_product_id(
         product_id=product,
@@ -138,17 +163,40 @@ def construct_optical_coherent_pluggable_model(
     }
 
 
-additional_steps = begin
+def create_optical_coherent_pluggable_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+    **kwargs: Any,
+) -> Workflow:
+    """Build the create_optical_coherent_pluggable workflow, optionally extended with user hooks.
 
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        extra_form_pages: Additional form pages shown before the summary form.
+        extra_summary_fields: Extra field names to append to the summary.
+        **kwargs: Extra arguments forwarded to the ``create_workflow`` decorator.
+    """
 
-@create_workflow(
-    initial_input_form=initial_input_form_generator,
-    additional_steps=additional_steps,
-)
-def create_optical_coherent_pluggable() -> StepList:
-    """Workflow to create an Optical Coherent Pluggable."""
-    return (
-        begin
-        >> construct_optical_coherent_pluggable_model
-        >> store_process_subscription()
+    @create_workflow(
+        initial_input_form=partial(
+            initial_input_form_generator,
+            extra_form_pages=extra_form_pages,
+            extra_summary_fields=extra_summary_fields,
+        ),
+        **kwargs,
     )
+    def create_optical_coherent_pluggable() -> StepList:
+        """Workflow to create an Optical Coherent Pluggable."""
+        return (
+            pre_steps
+            >> begin
+            >> construct_optical_coherent_pluggable_model
+            >> store_process_subscription()
+            >> post_steps
+        )
+
+    return create_optical_coherent_pluggable

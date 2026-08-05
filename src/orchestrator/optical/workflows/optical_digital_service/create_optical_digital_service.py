@@ -1,7 +1,9 @@
 """Create Optical Digital Service Workflow."""
 
+from collections.abc import Sequence
+from functools import partial
 from time import sleep
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field, model_validator
@@ -15,7 +17,7 @@ from orchestrator.core.domain.base import ProductModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import Divider, Label
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflow import StepList, Workflow, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.optical_digital_service import (
@@ -55,6 +57,7 @@ from orchestrator.optical.products.product_types.optical_digital_service import 
 )
 from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
+from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_digital_service.shared import (
     trx_line_port_patched_but_not_used_multiple_selector,
 )
@@ -108,8 +111,18 @@ def subscription_description(subscription: SubscriptionModel) -> str:
     return subscription.product.name
 
 
-def initial_input_form_generator(product_name: str) -> FormGenerator:
-    """Generate the initial input form for creating an Optical Digital Service."""
+def initial_input_form_generator(
+    product_name: str,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),  # noqa: ARG001
+) -> FormGenerator:
+    """Generate the initial input form for creating an Optical Digital Service.
+
+    Args:
+        product_name: Name of the product being created.
+        extra_form_pages: Additional form pages shown before the form is submitted.
+        extra_summary_fields: Accepted for uniformity but unused, because this workflow has no summary form.
+    """
     node_a_choice = optical_node_selector_of_roles(
         roles=TRANSCEIVER_ROLES,
         prompt="This service connects this node: ",
@@ -130,12 +143,14 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         "By how many optical transport channels is this service transported?",
         [(1, "1"), (2, "2 (reverse multiplexing)")],
     )
+    customer_choice = customer_choice_selector()
 
     class OdsForm0(FormPage):
         """Form for the service name, speed, type, nodes and number of carriers."""
 
         model_config = ConfigDict(title=product_name)
 
+        customer_id: customer_choice
         optical_digital_service_name: Annotated[str, Field(title="Optical Digital Service name")]
         optical_digital_service_speed: speed_choice = OpticalDigitalServiceSpeed._100  # noqa: SLF001
         optical_digital_service_type: service_type_choice = OpticalDigitalServiceType.ETHERNET
@@ -323,6 +338,9 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
     user_input = yield OdsForm3
     user_input_dict.update(user_input.model_dump())
 
+    for page in extra_form_pages:
+        user_input_dict.update((yield page).model_dump())
+
     user_input_dict["optical_path"] = user_input_dict["optical_path"].split(";")
 
     return user_input_dict
@@ -331,6 +349,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
 @step("Saving input data into the optical digital service model")
 def construct_optical_digital_service_model(
     product: UUIDstr,
+    customer_id: UUIDstr,
     id_node_a: UUIDstr,
     id_node_b: UUIDstr,
     optical_digital_service_name: str,
@@ -357,12 +376,6 @@ def construct_optical_digital_service_model(
     node_a = sub_node_a.optical_node
     sub_node_b = AbstractOpticalNode.from_subscription(id_node_b)
     node_b = sub_node_b.optical_node
-
-    location = node_a.location
-    if location is None:
-        msg = f"The Optical Node {node_a.pqdn} has no location"
-        raise ValueError(msg)
-    customer_id = str(location.owner_subscription_id)
 
     subscription_id = uuid4()
 
@@ -714,27 +727,50 @@ def set_trx_transmitted_power(
     }
 
 
-additional_steps = begin
+def create_optical_digital_service_workflow(
+    *,
+    pre_steps: StepList = begin,
+    post_steps: StepList = begin,
+    extra_form_pages: Sequence[type[FormPage]] = (),
+    extra_summary_fields: Sequence[str] = (),
+    **kwargs: Any,
+) -> Workflow:
+    """Build the create_optical_digital_service workflow, optionally extended with user hooks.
 
+    Args:
+        pre_steps: Steps run before the shipped workflow steps.
+        post_steps: Steps run after the shipped workflow steps.
+        extra_form_pages: Additional form pages shown before the form is submitted.
+        extra_summary_fields: Accepted for uniformity but unused, because this workflow has no summary form.
+        **kwargs: Extra arguments forwarded to the ``create_workflow`` decorator.
+    """
 
-@create_workflow(
-    initial_input_form=initial_input_form_generator,
-    additional_steps=additional_steps,
-)
-def create_optical_digital_service() -> StepList:
-    """Workflow to create a new Optical Digital Service."""
-    return (
-        begin
-        >> construct_optical_digital_service_model
-        >> store_process_subscription()
-        >> divide_path_into_sections
-        >> set_status(SubscriptionLifecycle.PROVISIONING)
-        >> update_subscription_description
-        >> configure_trx_line_side
-        >> configure_trx_client_side
-        >> configure_trx_crossconnects
-        >> provision_optical_sections
-        >> update_used_passbands_step
-        >> step("Sleeping for 30 seconds")(lambda: sleep(30))
-        >> set_trx_transmitted_power
+    @create_workflow(
+        initial_input_form=partial(
+            initial_input_form_generator,
+            extra_form_pages=extra_form_pages,
+            extra_summary_fields=extra_summary_fields,
+        ),
+        **kwargs,
     )
+    def create_optical_digital_service() -> StepList:
+        """Workflow to create a new Optical Digital Service."""
+        return (
+            pre_steps
+            >> begin
+            >> construct_optical_digital_service_model
+            >> store_process_subscription()
+            >> divide_path_into_sections
+            >> set_status(SubscriptionLifecycle.PROVISIONING)
+            >> update_subscription_description
+            >> configure_trx_line_side
+            >> configure_trx_client_side
+            >> configure_trx_crossconnects
+            >> provision_optical_sections
+            >> update_used_passbands_step
+            >> step("Sleeping for 30 seconds")(lambda: sleep(30))
+            >> set_trx_transmitted_power
+            >> post_steps
+        )
+
+    return create_optical_digital_service
