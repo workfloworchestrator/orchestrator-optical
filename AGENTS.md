@@ -71,22 +71,26 @@ src/orchestrator/optical/
   `lifecycle=[SubscriptionLifecycle.X]`; `product_block_name=` is required on classes that are persisted. Abstract
   roots are marked differently per model kind: product blocks use `product_block_name="AbstractX"` on the abstract
   root (`ProductBlockModel` in core 5.x has no `is_base` kwarg); subscription models use `is_base=True` on their
-  Inactive classes (including some concrete Inactive classes — whether that is intended is an open question with the
-  maintainers).
+  Inactive classes.
 - Field names are `optical_*`-prefixed and descriptive (`optical_port_name`, `optical_transport_central_frequency`).
   Known exceptions: `pqdn`, `location` (optical_node/packet_node blocks), `longitude`, `latitude`, `fqdn_subdomain`
   (optical_location).
 
 #### Persistence quirk (orchestrator-core 5.1.3)
-`ProductBlockModel._find_special_fields` persists **only fields declared directly in a class body** — fields inherited
-from an abstract base are silently dropped on save and missing on reload. Therefore: **every concrete block class must
-redeclare the fields it inherits from its abstract bases**, or reloads will crash with ValidationError.
+`ProductBlockModel._find_special_fields` persists **only fields declared directly in a class body** — any inherited
+field (from an abstract base or from a concrete sibling in the same chain) is silently dropped on save and missing on
+reload. It fills two class dicts: `_non_product_block_fields_` (scalar values) and `_product_block_fields_` (block
+references), both computed from the class's own annotations. Therefore: **every concrete block class must redeclare
+every field it inherits**, or reloads will crash with ValidationError. The four base `ProductBlockModel` fields
+(`name`, `label`, `subscription_instance_id`, `owner_subscription_id`) are exempt — core passes them explicitly.
 
-This rule is currently **only partially applied**: 8 of 15 concrete block chains comply (the three node vendor chains,
-optical_coherent_pluggable, and the four self-contained chains without abstract bases). The remaining 7 chains
-(all three `optical_pipe` chains — `optical_pipe_identifier` omitted — and all four `optical_port` role chains —
-`optical_port_name`/`optical_port_description`/`optical_passbands` omitted) still need it done; treat those blocks as
-suspect until fixed. Any new block must follow the rule.
+Check compliance at runtime by verifying that every `model_fields` entry of a concrete class appears in its own class
+annotations (and hence in one of the two dicts).
+
+This rule is fully applied: all 15 concrete block chains redeclare every inherited field (the three node vendor chains,
+`optical_coherent_pluggable`, the four self-contained chains without abstract bases, the three `optical_pipe` chains and
+the four `optical_port` role chains — including `optical_port_role` in the Provisioning/Active variants). Any new block
+must follow the rule.
 
 ### Dispatch
 - Platform/vendor dispatch is on `vendor_of(block)` (from `hal.optical_node`, values: `Vendor.FLEXILS`,

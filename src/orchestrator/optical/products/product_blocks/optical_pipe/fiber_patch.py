@@ -17,6 +17,7 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import (
 class OpticalFiberPatchBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberPatchBlock"):
     """Inactive state of a Fiber Patch product block."""
 
+    optical_pipe_identifier: str | None = None
     optical_pipe_terminations: FiberSides[PatchPortBlockInactive]
 
 
@@ -27,6 +28,7 @@ class OpticalFiberPatchBlockProvisioning(
 ):
     """Provisioning state of a Fiber Patch product block."""
 
+    optical_pipe_identifier: str | None
     optical_pipe_terminations: FiberSides[PatchPortBlockProvisioning]
 
 
@@ -37,4 +39,5 @@ class OpticalFiberPatchBlock(
 ):
     """Active state of a Fiber Patch product block."""
 
+    optical_pipe_identifier: str
     optical_pipe_terminations: FiberSides[PatchPortBlock]

@@ -17,6 +17,7 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import (
 class OpticalFiberSpanBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberSpanBlock"):
     """Inactive state of a Fiber Span product block."""
 
+    optical_pipe_identifier: str | None = None
     optical_pipe_terminations: FiberSides[SpanPortBlockInactive]
 
 
@@ -27,6 +28,7 @@ class OpticalFiberSpanBlockProvisioning(
 ):
     """Provisioning state of a Fiber Span product block."""
 
+    optical_pipe_identifier: str | None
     optical_pipe_terminations: FiberSides[SpanPortBlockProvisioning]
 
 
@@ -37,4 +39,5 @@ class OpticalFiberSpanBlock(
 ):
     """Active state of a Fiber Span product block."""
 
+    optical_pipe_identifier: str
     optical_pipe_terminations: FiberSides[SpanPortBlock]

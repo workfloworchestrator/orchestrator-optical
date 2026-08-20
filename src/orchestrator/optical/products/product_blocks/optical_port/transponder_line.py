@@ -22,6 +22,8 @@ class OpticalTransponderLinePortBlockInactive(
     """Optical Transponder Line Port Product Block that is inactive."""
 
     optical_port_role: Literal[OpticalPortRole.TRANSPONDER_LINE] = OpticalPortRole.TRANSPONDER_LINE
+    optical_port_name: str | None = None
+    optical_port_description: str | None = None
     optical_port_host_node: AbstractOpticalNodeBlockInactive
 
 
@@ -32,6 +34,9 @@ class OpticalTransponderLinePortBlockProvisioning(
 ):
     """Optical Transponder Line Port Product Block that is inactive."""
 
+    optical_port_role: Literal[OpticalPortRole.TRANSPONDER_LINE] = OpticalPortRole.TRANSPONDER_LINE
+    optical_port_name: str
+    optical_port_description: str | None
     optical_port_host_node: AbstractOpticalNodeBlockProvisioning
 
 
@@ -40,4 +45,7 @@ class OpticalTransponderLinePortBlock(
 ):
     """Optical Transponder Line Port Product Block that is inactive."""
 
+    optical_port_role: Literal[OpticalPortRole.TRANSPONDER_LINE] = OpticalPortRole.TRANSPONDER_LINE
+    optical_port_name: str
+    optical_port_description: str | None
     optical_port_host_node: AbstractOpticalNodeBlock

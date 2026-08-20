@@ -2,6 +2,8 @@
 
 from typing import Literal
 
+from pydantic import Field
+
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlock,
@@ -12,6 +14,7 @@ from orchestrator.optical.products.product_blocks.optical_port.abstracts import 
     AbstractOpticalOlsPortBlock,
     AbstractOpticalOlsPortBlockInactive,
     AbstractOpticalOlsPortBlockProvisioning,
+    OpticalPassbandList,
     OpticalPortRole,
 )
 
@@ -20,6 +23,9 @@ class OlsLinePortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_bloc
     """OLS Add Drop Port Product Block that is inactive."""
 
     optical_port_role: Literal[OpticalPortRole.OLS_LINE] = OpticalPortRole.OLS_LINE
+    optical_port_name: str | None = None
+    optical_port_description: str | None = None
+    optical_passbands: OpticalPassbandList = Field(default_factory=list)
     optical_port_host_node: AbstractOpticalNodeBlockInactive
 
 
@@ -28,6 +34,10 @@ class OlsLinePortBlockProvisioning(
 ):
     """OLS Add Drop Port Product Block that is inactive."""
 
+    optical_port_role: Literal[OpticalPortRole.OLS_LINE] = OpticalPortRole.OLS_LINE
+    optical_port_name: str
+    optical_port_description: str | None
+    optical_passbands: OpticalPassbandList
     optical_port_host_node: AbstractOpticalNodeBlockProvisioning
 
 
@@ -36,4 +46,8 @@ class OlsLinePortBlock(
 ):
     """OLS Add Drop Port Product Block that is inactive."""
 
+    optical_port_role: Literal[OpticalPortRole.OLS_LINE] = OpticalPortRole.OLS_LINE
+    optical_port_name: str
+    optical_port_description: str | None
+    optical_passbands: OpticalPassbandList
     optical_port_host_node: AbstractOpticalNodeBlock
