@@ -67,6 +67,7 @@ build-backend = "uv_build"
 
 [tool.uv]
 prerelease = "if-necessary"
+exclude-newer = "30 days"
 
 [tool.uv.build-backend]
 # TODO: We want to move to a namespace package, but that depens on upstream changes in orchestrator-core.
