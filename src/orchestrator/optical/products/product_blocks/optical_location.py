@@ -6,7 +6,7 @@ from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordina
 from orchestrator.optical.utils.custom_types.dns import SubdomainPrefix
 
 
-class AbstractOpticalLocationBlockInactive(ProductBlockModel, product_block_name="AbstractOpticalLocationBlock"):
+class OpticalModuleLocationBlockInactive(ProductBlockModel, product_block_name="OpticalModuleLocationBlock"):
     """A Location that hosts optical equipment that is inactive."""
 
     longitude: LongitudeCoordinate | None = None
@@ -14,8 +14,8 @@ class AbstractOpticalLocationBlockInactive(ProductBlockModel, product_block_name
     fqdn_subdomain: SubdomainPrefix | None = None
 
 
-class AbstractOpticalLocationBlockProvisioning(
-    AbstractOpticalLocationBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class OpticalModuleLocationBlockProvisioning(
+    OpticalModuleLocationBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """A Location that hosts optical equipment that is provisioning."""
 
@@ -24,7 +24,7 @@ class AbstractOpticalLocationBlockProvisioning(
     fqdn_subdomain: SubdomainPrefix
 
 
-class AbstractOpticalLocationBlock(AbstractOpticalLocationBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalModuleLocationBlock(OpticalModuleLocationBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """A Location that hosts optical equipment."""
 
     longitude: LongitudeCoordinate

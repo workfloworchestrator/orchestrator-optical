@@ -7,7 +7,7 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
-from orchestrator.core.workflow import step
+from orchestrator.core.workflow import StepList, begin, step
 
 
 def terminate_initial_input_form_generator(
@@ -37,6 +37,12 @@ def terminate_initial_input_form_generator(
 
 
 @step("Delete subscription from OSS/BSS")
-def delete_optical_node_from_oss_bss(subscription: SubscriptionModel) -> State:
+def delete_optical_node_from_oss_bss(subscription: SubscriptionModel) -> State:  # noqa: ARG001
     """Delete the Optical Node subscription from OSS/BSS systems."""
     return {}
+
+
+#: Termination steps shared by every Optical Node product. Consumers declare
+#: their own ``@terminate_workflow`` with this step list and the shipped
+#: :func:`terminate_initial_input_form_generator` form.
+OPTICAL_NODE_TERMINATE_STEPS: StepList = begin >> delete_optical_node_from_oss_bss

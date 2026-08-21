@@ -1,19 +1,29 @@
-"""Create Nokia Groove G30 Optical Node Workflow."""
+"""Create Nokia Groove G30 Optical Node workflow.
+
+This module ships the ready-to-use ``create_optical_node_nokia_groove_g30``
+workflow for the shipped Nokia Groove G30 product type, together with the
+importable parts: the form generator, the block population logic and the step
+list that operates on the Nokia Groove G30 node block found in the state under
+``OPTICAL_NODE_BLOCK_STATE_KEY``. Consumers that keep the shipped product type
+register the shipped workflow; consumers with their own model that has-a the
+shipped block compose their own ``@create_workflow`` with the parts.
+"""
 
 from collections.abc import Sequence
-from functools import partial
-from typing import Any
+from typing import Annotated
 
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, Workflow, begin, step
+from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import (
+    NokiaGrooveG30BlockInactive,
+)
 from orchestrator.optical.products.product_types.optical_node.nokia_groove_g30 import (
     OpticalNodeNokiaGrooveG30Inactive,
     OpticalNodeNokiaGrooveG30Provisioning,
@@ -23,21 +33,24 @@ from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
 from orchestrator.optical.workflows.optical_node.shared import (
+    OPTICAL_NODE_BLOCK_STATE_KEY,
     optical_node_subscription_description,
     populate_abstract_optical_node_fields,
+    save_optical_node_block,
     validate_pqdn_uniqueness,
 )
 from orchestrator.optical.workflows.shared import create_summary_form
 
-logger = get_logger(__name__)
 
-
-def initial_input_form_generator(
+def create_optical_node_nokia_groove_g30_form_generator(
     product_name: str,
     extra_form_pages: Sequence[type[FormPage]] = (),
     extra_summary_fields: Sequence[str] = (),
 ) -> FormGenerator:
     """Generate the initial input form for creating a Nokia Groove G30 Optical Node.
+
+    The form emits the flat ``optical_*`` state keys consumed by the shipped
+    steps of :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`.
 
     Args:
         product_name: Name of the product being created.
@@ -53,7 +66,10 @@ def initial_input_form_generator(
         customer_id: customer_choice
         location_id: location_choice
         optical_node_role: OpticalNodeRole = OpticalNodeRole.TRANSPONDER
-        pqdn: Pqdn
+        pqdn: Annotated[
+            Pqdn,
+            Field(title="PQDN of the Optical Node. (e.g. if FQDN is `trx1.siteA.domain.com`, PQDN is `trx1.siteA`)"),
+        ]
         optical_management_ip: IPAddress | None = None
         optical_loopback_ip: IPAddress | None = None
         optical_node_software_version: str | None = None
@@ -89,8 +105,77 @@ def initial_input_form_generator(
     return user_input_dict
 
 
+def populate_optical_node_nokia_groove_g30_block(
+    optical_node_block: NokiaGrooveG30BlockInactive,
+    location_id: UUIDstr,
+    optical_node_role: OpticalNodeRole,
+    pqdn: Pqdn,
+    optical_management_ip: IPAddress | None = None,
+    optical_loopback_ip: IPAddress | None = None,
+    optical_node_software_version: str | None = None,
+) -> None:
+    """Populate a Nokia Groove G30 node block from the create-form state keys.
+
+    This is the anti-corruption point for consumers that keep their own model:
+    call it from their own construct step on the shipped block they compose,
+    before their subscription model is transitioned to the next lifecycle.
+
+    Args:
+        optical_node_block: The Nokia Groove G30 node block to populate (any lifecycle variant).
+        location_id: Subscription id of the Optical Location hosting the node.
+        optical_node_role: Role of the node.
+        pqdn: PQDN of the node.
+        optical_management_ip: Management IP through which the node can be reached directly.
+        optical_loopback_ip: Loopback IP through which the node can be reached directly.
+        optical_node_software_version: Software version of the node.
+    """
+    populate_abstract_optical_node_fields(
+        optical_node_block=optical_node_block,
+        location_id=location_id,
+        optical_node_role=optical_node_role,
+        pqdn=pqdn,
+        optical_management_ip=optical_management_ip,
+        optical_loopback_ip=optical_loopback_ip,
+        optical_node_software_version=optical_node_software_version,
+    )
+
+
+@step("Populate Nokia Groove G30 node block")
+def populate_optical_node_nokia_groove_g30_block_step(
+    optical_node_block: NokiaGrooveG30BlockInactive,
+    location_id: UUIDstr,
+    optical_node_role: OpticalNodeRole,
+    pqdn: Pqdn,
+    optical_management_ip: IPAddress | None = None,
+    optical_loopback_ip: IPAddress | None = None,
+    optical_node_software_version: str | None = None,
+) -> State:
+    """Populate the Nokia Groove G30 node block found in the state from the create-form keys.
+
+    Args:
+        optical_node_block: The Nokia Groove G30 node block in the state under
+            ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+        location_id: Subscription id of the Optical Location hosting the node.
+        optical_node_role: Role of the node.
+        pqdn: PQDN of the node.
+        optical_management_ip: Management IP through which the node can be reached directly.
+        optical_loopback_ip: Loopback IP through which the node can be reached directly.
+        optical_node_software_version: Software version of the node.
+    """
+    populate_optical_node_nokia_groove_g30_block(
+        optical_node_block=optical_node_block,
+        location_id=location_id,
+        optical_node_role=optical_node_role,
+        pqdn=pqdn,
+        optical_management_ip=optical_management_ip,
+        optical_loopback_ip=optical_loopback_ip,
+        optical_node_software_version=optical_node_software_version,
+    )
+    return {OPTICAL_NODE_BLOCK_STATE_KEY: optical_node_block}
+
+
 @step("Construct Subscription model")
-def construct_optical_node_nokia_groove_g30_model(
+def construct_optical_node_nokia_groove_g30_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
     location_id: UUIDstr,
@@ -100,14 +185,22 @@ def construct_optical_node_nokia_groove_g30_model(
     optical_loopback_ip: IPAddress | None = None,
     optical_node_software_version: str | None = None,
 ) -> State:
-    """Construct the initial domain subscription model for a Nokia Groove G30 Optical Node."""
+    """Construct the initial domain subscription model for a Nokia Groove G30 Optical Node.
+
+    This step builds the shipped ``OpticalNodeNokiaGrooveG30`` subscription
+    model and populates its node block. Consumers that define their own product
+    type (composing the ``NokiaGrooveG30Block`` under their own attribute name)
+    write their own construct step instead and can reuse
+    :func:`populate_optical_node_nokia_groove_g30_block` as the anti-corruption
+    point between their model and the shipped block.
+    """
     subscription = OpticalNodeNokiaGrooveG30Inactive.from_product_id(
         product_id=product,
         customer_id=customer_id,
         status=SubscriptionLifecycle.INITIAL,
     )
 
-    populate_abstract_optical_node_fields(
+    populate_optical_node_nokia_groove_g30_block(
         optical_node_block=subscription.optical_node,
         location_id=location_id,
         optical_node_role=optical_node_role,
@@ -129,40 +222,33 @@ def construct_optical_node_nokia_groove_g30_model(
     }
 
 
-def create_optical_node_nokia_groove_g30_workflow(
-    *,
-    pre_steps: StepList = begin,
-    post_steps: StepList = begin,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-    **kwargs: Any,
-) -> Workflow:
-    """Build the create_optical_node_nokia_groove_g30 workflow, optionally extended with user hooks.
+#: Create steps operating on the Nokia Groove G30 node block in the state.
+#: Consumers that keep the shipped product type do not need this list (the
+#: shipped construct step populates the block itself); consumers with their own
+#: model run it after constructing their (inactive) subscription and putting
+#: their block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS: StepList = (
+    begin >> populate_optical_node_nokia_groove_g30_block_step >> save_optical_node_block
+)
 
-    Args:
-        pre_steps: Steps run before the shipped workflow steps.
-        post_steps: Steps run after the shipped workflow steps.
-        extra_form_pages: Additional form pages shown before the summary form.
-        extra_summary_fields: Extra field names to append to the summary.
-        **kwargs: Extra arguments forwarded to the ``create_workflow`` decorator.
+
+@create_workflow(initial_input_form=create_optical_node_nokia_groove_g30_form_generator)
+def create_optical_node_nokia_groove_g30() -> StepList:
+    """Workflow to create a new Nokia Groove G30 Optical Node subscription.
+
+    The workflow is valid for the shipped :class:`OpticalNodeNokiaGrooveG30`
+    product type only: the construct step builds the shipped subscription
+    model. Consumers with their own product type compose their own create
+    workflow with the shipped parts.
     """
+    return begin >> construct_optical_node_nokia_groove_g30_subscription >> store_process_subscription()
 
-    @create_workflow(
-        initial_input_form=partial(
-            initial_input_form_generator,
-            extra_form_pages=extra_form_pages,
-            extra_summary_fields=extra_summary_fields,
-        ),
-        **kwargs,
-    )
-    def create_optical_node_nokia_groove_g30() -> StepList:
-        """Workflow to create a new Nokia Groove G30 Optical Node."""
-        return (
-            pre_steps
-            >> begin
-            >> construct_optical_node_nokia_groove_g30_model
-            >> store_process_subscription()
-            >> post_steps
-        )
 
-    return create_optical_node_nokia_groove_g30
+__all__ = [
+    "CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS",
+    "construct_optical_node_nokia_groove_g30_subscription",
+    "create_optical_node_nokia_groove_g30",
+    "create_optical_node_nokia_groove_g30_form_generator",
+    "populate_optical_node_nokia_groove_g30_block",
+    "populate_optical_node_nokia_groove_g30_block_step",
+]

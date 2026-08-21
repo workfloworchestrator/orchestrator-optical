@@ -1,6 +1,14 @@
-"""Shared workflow steps and utilities for Optical Nodes."""
+"""Shared workflow parts and utilities for Optical Nodes.
+
+The shared parts are the block-level steps and the state key under which the
+Optical Node block travels in the workflow state
+(``OPTICAL_NODE_BLOCK_STATE_KEY``). The shipped block steps bind to that state
+key and never to a specific subscription model: consumers compose the shipped
+block with a has-a relation on their own model and inject it into the state.
+"""
 
 from orchestrator.optical.workflows.optical_node.shared.create import (
+    OPTICAL_NODE_BLOCK_STATE_KEY,
     OPTICAL_NODE_PRODUCT_TYPES,
     optical_node_subscription_description,
     populate_abstract_optical_node_fields,
@@ -9,27 +17,36 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
     validate_pqdn_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.modify import (
+    load_optical_node_block,
     optical_node_modify_input_form,
-    update_optical_node_fields,
+    save_optical_node_block,
+    update_optical_node_block_fields,
     update_optical_node_subscription_description,
 )
 from orchestrator.optical.workflows.optical_node.shared.terminate import (
+    OPTICAL_NODE_TERMINATE_STEPS,
     delete_optical_node_from_oss_bss,
     terminate_initial_input_form_generator,
 )
 from orchestrator.optical.workflows.optical_node.shared.validate import (
+    OPTICAL_NODE_VALIDATE_STEPS,
     load_initial_state_optical_node,
 )
 
 __all__ = [
+    "OPTICAL_NODE_BLOCK_STATE_KEY",
     "OPTICAL_NODE_PRODUCT_TYPES",
+    "OPTICAL_NODE_TERMINATE_STEPS",
+    "OPTICAL_NODE_VALIDATE_STEPS",
     "delete_optical_node_from_oss_bss",
     "load_initial_state_optical_node",
+    "load_optical_node_block",
     "optical_node_modify_input_form",
     "optical_node_subscription_description",
     "populate_abstract_optical_node_fields",
+    "save_optical_node_block",
     "terminate_initial_input_form_generator",
-    "update_optical_node_fields",
+    "update_optical_node_block_fields",
     "update_optical_node_subscription_description",
     "validate_gmpls_id_uniqueness",
     "validate_management_ips_uniqueness",

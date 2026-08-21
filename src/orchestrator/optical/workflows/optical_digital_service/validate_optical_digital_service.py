@@ -1,11 +1,11 @@
 """Validate Optical Digital Service Workflow."""
 
-from typing import Any, cast
+from typing import cast
 
 from pydantic_forms.types import State
 from structlog import get_logger
 
-from orchestrator.core.workflow import StepList, Workflow, begin, step
+from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.hal.optical_digital_service import (
     get_signal_bandwidth,
@@ -155,33 +155,15 @@ def verify_optical_transport_channels(subscription: OpticalDigitalService) -> St
     return {}
 
 
-def validate_optical_digital_service_workflow(
-    *,
-    pre_steps: StepList = begin,
-    post_steps: StepList = begin,
-    **kwargs: Any,
-) -> Workflow:
-    """Build the validate_optical_digital_service workflow, optionally extended with user hooks.
-
-    Args:
-        pre_steps: Steps run before the shipped workflow steps.
-        post_steps: Steps run after the shipped workflow steps.
-        **kwargs: Extra arguments forwarded to the ``validate_workflow`` decorator.
-    """
-
-    @validate_workflow(**kwargs)
-    def validate_optical_digital_service() -> StepList:
-        """Workflow to validate an Optical Digital Service."""
-        return (
-            pre_steps
-            >> begin
-            >> load_initial_state_optical_digital_service
-            >> update_subscription_description
-            >> verify_trx_line_ports
-            >> verify_trx_client_ports
-            >> verify_transponder_crossconnects
-            >> verify_optical_transport_channels
-            >> post_steps
-        )
-
-    return validate_optical_digital_service
+@validate_workflow()
+def validate_optical_digital_service() -> StepList:
+    """Workflow to validate an Optical Digital Service."""
+    return (
+        begin
+        >> load_initial_state_optical_digital_service
+        >> update_subscription_description
+        >> verify_trx_line_ports
+        >> verify_trx_client_ports
+        >> verify_transponder_crossconnects
+        >> verify_optical_transport_channels
+    )

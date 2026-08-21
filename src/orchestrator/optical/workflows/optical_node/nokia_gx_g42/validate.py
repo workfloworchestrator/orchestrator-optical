@@ -1,38 +1,22 @@
-"""Validate Nokia GX G42 Optical Node Workflow."""
+"""Validate Nokia GX G42 Optical Node workflow.
 
-from typing import Any
+This module ships the ready-to-use ``validate_optical_node_nokia_gx_g42``
+workflow for the shipped Nokia GX G42 product type. The validation steps are
+shared by every Optical Node product (see
+:data:`orchestrator.optical.workflows.optical_node.shared.OPTICAL_NODE_VALIDATE_STEPS`).
+Consumers with their own model that has-a the shipped block declare their own
+``@validate_workflow`` with the shared step list.
+"""
 
-from orchestrator.core.workflow import StepList, Workflow, begin
+from orchestrator.core.workflow import StepList, begin
 from orchestrator.core.workflows.utils import validate_workflow
-from orchestrator.optical.workflows.optical_node.shared import (
-    load_initial_state_optical_node,
-    update_optical_node_subscription_description,
-)
+from orchestrator.optical.workflows.optical_node.shared import OPTICAL_NODE_VALIDATE_STEPS
 
 
-def validate_optical_node_nokia_gx_g42_workflow(
-    *,
-    pre_steps: StepList = begin,
-    post_steps: StepList = begin,
-    **kwargs: Any,
-) -> Workflow:
-    """Build the validate_optical_node_nokia_gx_g42 workflow, optionally extended with user hooks.
+@validate_workflow()
+def validate_optical_node_nokia_gx_g42() -> StepList:
+    """Workflow to validate a Nokia GX G42 Optical Node subscription."""
+    return begin >> OPTICAL_NODE_VALIDATE_STEPS
 
-    Args:
-        pre_steps: Steps run before the shipped workflow steps.
-        post_steps: Steps run after the shipped workflow steps.
-        **kwargs: Extra arguments forwarded to the ``validate_workflow`` decorator.
-    """
 
-    @validate_workflow(**kwargs)
-    def validate_optical_node_nokia_gx_g42() -> StepList:
-        """Workflow to validate a Nokia GX G42 Optical Node."""
-        return (
-            pre_steps
-            >> begin
-            >> load_initial_state_optical_node
-            >> update_optical_node_subscription_description
-            >> post_steps
-        )
-
-    return validate_optical_node_nokia_gx_g42
+__all__ = ["validate_optical_node_nokia_gx_g42"]

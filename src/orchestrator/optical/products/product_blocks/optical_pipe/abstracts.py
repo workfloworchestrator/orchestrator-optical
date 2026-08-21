@@ -6,20 +6,20 @@ from annotated_types import Len
 
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SI, SubscriptionLifecycle
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
-    AbstractOpticalPortBlock,
-    AbstractOpticalPortBlockInactive,
-    AbstractOpticalPortBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_port.unions import (
+    AnyOpticalPortBlock,
+    AnyOpticalPortBlockInactive,
+    AnyOpticalPortBlockProvisioning,
 )
 
 FiberSides = Annotated[list[SI], Len(min_length=2, max_length=2), "List of the 2 ports connected by the fiber."]
 
 
-class AbstractOpticalPipeBlockInactive(ProductBlockModel, product_block_name="AbstractOpticalPipeBlock"):
+class AbstractOpticalPipeBlockInactive(ProductBlockModel):
     """Abstract base class for all optical pipe blocks in the INACTIVE state."""
 
     optical_pipe_identifier: str | None = None
-    optical_pipe_terminations: FiberSides[AbstractOpticalPortBlockInactive]
+    optical_pipe_terminations: FiberSides[AnyOpticalPortBlockInactive] | None = None
 
 
 class AbstractOpticalPipeBlockProvisioning(
@@ -28,11 +28,11 @@ class AbstractOpticalPipeBlockProvisioning(
     """Abstract base class for all optical pipe blocks in the PROVISIONING state."""
 
     optical_pipe_identifier: str | None
-    optical_pipe_terminations: FiberSides[AbstractOpticalPortBlockProvisioning]
+    optical_pipe_terminations: FiberSides[AnyOpticalPortBlockProvisioning]
 
 
 class AbstractOpticalPipeBlock(AbstractOpticalPipeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Abstract base class for all optical pipe blocks in the ACTIVE state."""
 
     optical_pipe_identifier: str
-    optical_pipe_terminations: FiberSides[AbstractOpticalPortBlock]
+    optical_pipe_terminations: FiberSides[AnyOpticalPortBlock]

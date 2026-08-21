@@ -1,11 +1,16 @@
 """Shared creation utilities and steps for Optical Nodes."""
 
+from typing import Any
+
 from pydantic_forms.types import UUIDstr
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products import ProductType
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlockInactive,
+    OpticalNodeRole,
+)
 from orchestrator.optical.utils.custom_types.dns import Pqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.optical_location.shared import location_block_from_subscription
@@ -17,10 +22,26 @@ OPTICAL_NODE_PRODUCT_TYPES = [
     ProductType.OPTICAL_NODE_NOKIA_GX_G42.value,
 ]
 
+#: State key under which the Optical Node block of the subscription is passed
+#: between the shipped block steps. Consumers put the block they compose (under
+#: any attribute name of their own model) in the state under this key.
+OPTICAL_NODE_BLOCK_STATE_KEY = "optical_node_block"
 
-def optical_node_subscription_description(subscription: SubscriptionModel) -> str:
-    """Generate human-readable subscription description for an Optical Node."""
-    node = getattr(subscription, "optical_node", None)
+
+def optical_node_subscription_description(
+    subscription: SubscriptionModel,
+    optical_node_block: AbstractOpticalNodeBlockInactive | None = None,
+) -> str:
+    """Generate human-readable subscription description for an Optical Node.
+
+    Args:
+        subscription: The Optical Node subscription.
+        optical_node_block: The Optical Node block of the subscription. When
+            given, it is used instead of the ``optical_node`` attribute of the
+            shipped subscription models, so the helper also works for consumer
+            models that compose the block under a different attribute name.
+    """
+    node = optical_node_block or getattr(subscription, "optical_node", None)
     if node and getattr(node, "pqdn", None):
         return f"{node.pqdn} ({subscription.product.name})"
     return subscription.product.name
@@ -103,7 +124,7 @@ def validate_gmpls_id_uniqueness(gmpls_id: IPAddress, exclude_subscription_id: U
 
 
 def populate_abstract_optical_node_fields(
-    optical_node_block,
+    optical_node_block: Any,
     location_id: UUIDstr,
     optical_node_role: OpticalNodeRole,
     pqdn: Pqdn,
@@ -111,7 +132,12 @@ def populate_abstract_optical_node_fields(
     optical_loopback_ip: IPAddress | None = None,
     optical_node_software_version: str | None = None,
 ) -> None:
-    """Populate the abstract fields on an optical node product block."""
+    """Populate the abstract fields on an optical node product block.
+
+    The block is intentionally untyped: the abstract Optical Node block does
+    not declare the fields populated here (they are vendor-specific), and the
+    helper is shared by all vendors and their consumers.
+    """
     optical_node_block.location = location_block_from_subscription(location_id)
     optical_node_block.optical_node_role = optical_node_role
     optical_node_block.pqdn = pqdn

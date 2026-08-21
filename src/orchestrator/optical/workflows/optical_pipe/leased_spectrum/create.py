@@ -7,8 +7,7 @@ input is silently dropped.
 """
 
 from collections.abc import Sequence
-from functools import partial
-from typing import Any, cast
+from typing import cast
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field, model_validator
@@ -17,7 +16,7 @@ from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, Workflow, begin, step
+from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.optical_node import Vendor, retrieve_ports_spectral_occupations, vendor_of
@@ -258,42 +257,13 @@ def retrieve_leased_spectrum_used_passbands(subscription: OpticalLeasedSpectrumP
     return {"subscription": subscription}
 
 
-def create_leased_spectrum_workflow(
-    *,
-    pre_steps: StepList = begin,
-    post_steps: StepList = begin,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-    **kwargs: Any,
-) -> Workflow:
-    """Build the create_leased_spectrum workflow, optionally extended with user hooks.
-
-    Args:
-        pre_steps: Steps run before the shipped workflow steps.
-        post_steps: Steps run after the shipped workflow steps.
-        extra_form_pages: Additional form pages shown before the summary form.
-        extra_summary_fields: Extra field names to append to the summary.
-        **kwargs: Extra arguments forwarded to the ``create_workflow`` decorator.
-    """
-
-    @create_workflow(
-        initial_input_form=partial(
-            initial_input_form_generator,
-            extra_form_pages=extra_form_pages,
-            extra_summary_fields=extra_summary_fields,
-        ),
-        **kwargs,
+@create_workflow(initial_input_form=initial_input_form_generator)
+def create_leased_spectrum() -> StepList:
+    """Workflow to create a new Optical Leased Spectrum pipe."""
+    return (
+        begin
+        >> construct_leased_spectrum_model
+        >> store_process_subscription()
+        >> configure_leased_spectrum_terminations
+        >> retrieve_leased_spectrum_used_passbands
     )
-    def create_leased_spectrum() -> StepList:
-        """Workflow to create a new Optical Leased Spectrum pipe."""
-        return (
-            pre_steps
-            >> begin
-            >> construct_leased_spectrum_model
-            >> store_process_subscription()
-            >> configure_leased_spectrum_terminations
-            >> retrieve_leased_spectrum_used_passbands
-            >> post_steps
-        )
-
-    return create_leased_spectrum

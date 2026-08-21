@@ -1,14 +1,12 @@
 """Terminate Optical Spectrum Service Workflow."""
 
 from collections.abc import Sequence
-from functools import partial
-from typing import Any
 
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
-from orchestrator.core.workflow import StepList, Workflow, begin, step
+from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.optical_node import vendor_of
 from orchestrator.optical.hal.optical_spectrum import delete_optical_circuit
@@ -66,31 +64,7 @@ def delete_optical_sections(subscription: OpticalSpectrum) -> State:
     }
 
 
-def terminate_optical_spectrum_workflow(
-    *,
-    pre_steps: StepList = begin,
-    post_steps: StepList = begin,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    **kwargs: Any,
-) -> Workflow:
-    """Build the terminate_optical_spectrum workflow, optionally extended with user hooks.
-
-    Args:
-        pre_steps: Steps run before the shipped workflow steps.
-        post_steps: Steps run after the shipped workflow steps.
-        extra_form_pages: Additional form pages shown after the shipped confirmation page.
-        **kwargs: Extra arguments forwarded to the ``terminate_workflow`` decorator.
-    """
-
-    @terminate_workflow(
-        initial_input_form=partial(
-            terminate_initial_input_form_generator,
-            extra_form_pages=extra_form_pages,
-        ),
-        **kwargs,
-    )
-    def terminate_optical_spectrum() -> StepList:
-        """Workflow to terminate an Optical Spectrum service."""
-        return pre_steps >> begin >> delete_optical_sections >> update_used_passbands_step >> post_steps
-
-    return terminate_optical_spectrum
+@terminate_workflow(initial_input_form=terminate_initial_input_form_generator)
+def terminate_optical_spectrum() -> StepList:
+    """Workflow to terminate an Optical Spectrum service."""
+    return begin >> delete_optical_sections >> update_used_passbands_step

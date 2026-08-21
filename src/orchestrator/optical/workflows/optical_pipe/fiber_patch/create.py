@@ -1,8 +1,7 @@
 """Create Optical Fiber Patch Workflow."""
 
 from collections.abc import Sequence
-from functools import partial
-from typing import Any, cast
+from typing import cast
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field, model_validator
@@ -11,7 +10,7 @@ from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, Workflow, begin, step
+from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.optical_node import Vendor, vendor_of
@@ -219,41 +218,7 @@ def configure_patch_terminations(subscription: OpticalFiberPatchProvisioning) ->
     return {"configuration_results": configuration_results, "subscription": subscription}
 
 
-def create_fiber_patch_workflow(
-    *,
-    pre_steps: StepList = begin,
-    post_steps: StepList = begin,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-    **kwargs: Any,
-) -> Workflow:
-    """Build the create_fiber_patch workflow, optionally extended with user hooks.
-
-    Args:
-        pre_steps: Steps run before the shipped workflow steps.
-        post_steps: Steps run after the shipped workflow steps.
-        extra_form_pages: Additional form pages shown before the summary form.
-        extra_summary_fields: Extra field names to append to the summary.
-        **kwargs: Extra arguments forwarded to the ``create_workflow`` decorator.
-    """
-
-    @create_workflow(
-        initial_input_form=partial(
-            initial_input_form_generator,
-            extra_form_pages=extra_form_pages,
-            extra_summary_fields=extra_summary_fields,
-        ),
-        **kwargs,
-    )
-    def create_fiber_patch() -> StepList:
-        """Workflow to create a new Optical Fiber Patch."""
-        return (
-            pre_steps
-            >> begin
-            >> construct_fiber_patch_model
-            >> store_process_subscription()
-            >> configure_patch_terminations
-            >> post_steps
-        )
-
-    return create_fiber_patch
+@create_workflow(initial_input_form=initial_input_form_generator)
+def create_fiber_patch() -> StepList:
+    """Workflow to create a new Optical Fiber Patch."""
+    return begin >> construct_fiber_patch_model >> store_process_subscription() >> configure_patch_terminations

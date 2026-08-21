@@ -3,27 +3,27 @@
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_location import (
-    AbstractOpticalLocationBlock,
-    AbstractOpticalLocationBlockInactive,
-    AbstractOpticalLocationBlockProvisioning,
+    OpticalModuleLocationBlock,
+    OpticalModuleLocationBlockInactive,
+    OpticalModuleLocationBlockProvisioning,
 )
 
 
-class AbstractOpticalLocationInactive(SubscriptionModel, is_base=True):
+class OpticalModuleLocationSubscriptionInactive(SubscriptionModel, is_base=True):
     """Abstract model of an Optical Location that is inactive."""
 
-    optical_location: AbstractOpticalLocationBlockInactive
+    optical_location: OpticalModuleLocationBlockInactive
 
 
-class AbstractOpticalLocationProvisioning(
-    AbstractOpticalLocationInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class OpticalModuleLocationSubscriptionProvisioning(
+    OpticalModuleLocationSubscriptionInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Abstract model of an Optical Location that is provisioning."""
 
-    optical_location: AbstractOpticalLocationBlockProvisioning
+    optical_location: OpticalModuleLocationBlockProvisioning
 
 
-class AbstractOpticalLocation(AbstractOpticalLocationProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalModuleLocationSubscription(OpticalModuleLocationSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Abstract model of an Optical Location that is active."""
 
-    optical_location: AbstractOpticalLocationBlock
+    optical_location: OpticalModuleLocationBlock

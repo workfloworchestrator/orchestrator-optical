@@ -7,9 +7,9 @@ from pydantic import computed_field
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_packet_node import (
-    AbstractOpticalPacketNodeBlock,
-    AbstractOpticalPacketNodeBlockInactive,
-    AbstractOpticalPacketNodeBlockProvisioning,
+    OpticalModulePacketNode,
+    OpticalModulePacketNodeInactive,
+    OpticalModulePacketNodeProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalPortBlock,
@@ -27,8 +27,9 @@ class OpticalCoherentPluggableBlockInactive(
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
     optical_port_name: str | None = None
     optical_port_description: str | None = None
-    optical_port_host_node: AbstractOpticalPacketNodeBlockInactive | None = None
     optical_coherent_pluggable_firmware_version: str | None = None
+
+    optical_port_host_node: OpticalModulePacketNodeInactive
 
     @computed_field
     @property
@@ -48,8 +49,9 @@ class OpticalCoherentPluggableBlockProvisioning(
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
     optical_port_name: str
     optical_port_description: str | None
-    optical_port_host_node: AbstractOpticalPacketNodeBlockProvisioning
     optical_coherent_pluggable_firmware_version: str
+
+    optical_port_host_node: OpticalModulePacketNodeProvisioning
 
 
 class OpticalCoherentPluggableBlock(
@@ -60,5 +62,6 @@ class OpticalCoherentPluggableBlock(
     optical_port_role: Literal[OpticalPortRole.COHERENT_PLUGGABLE] = OpticalPortRole.COHERENT_PLUGGABLE
     optical_port_name: str
     optical_port_description: str | None
-    optical_port_host_node: AbstractOpticalPacketNodeBlock
     optical_coherent_pluggable_firmware_version: str
+
+    optical_port_host_node: OpticalModulePacketNode

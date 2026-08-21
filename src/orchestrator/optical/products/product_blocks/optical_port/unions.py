@@ -30,6 +30,31 @@ from orchestrator.optical.products.product_blocks.optical_port.transponder_line 
     OpticalTransponderLinePortBlockProvisioning,
 )
 
+AnyOpticalPortBlockInactive = Annotated[
+    OpticalTransponderClientPortBlockInactive
+    | OpticalTransponderLinePortBlockInactive
+    | OlsAddDropPortBlockInactive
+    | OlsLinePortBlockInactive
+    | OpticalCoherentPluggableBlockInactive,
+    Field(discriminator="optical_port_role"),
+]
+AnyOpticalPortBlockProvisioning = Annotated[
+    OpticalTransponderClientPortBlockProvisioning
+    | OpticalTransponderLinePortBlockProvisioning
+    | OlsAddDropPortBlockProvisioning
+    | OlsLinePortBlockProvisioning
+    | OpticalCoherentPluggableBlockProvisioning,
+    Field(discriminator="optical_port_role"),
+]
+AnyOpticalPortBlock = Annotated[
+    OpticalTransponderClientPortBlock
+    | OpticalTransponderLinePortBlock
+    | OlsAddDropPortBlock
+    | OlsLinePortBlock
+    | OpticalCoherentPluggableBlock,
+    Field(discriminator="optical_port_role"),
+]
+
 PatchPortBlockInactive = Annotated[
     OpticalTransponderClientPortBlockInactive
     | OpticalTransponderLinePortBlockInactive

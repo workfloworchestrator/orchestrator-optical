@@ -3,7 +3,7 @@
 from pydantic_forms.types import UUIDstr
 from pydantic_forms.validators import Choice
 
-from orchestrator.optical.products.product_blocks.optical_location import AbstractOpticalLocationBlockInactive
+from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockInactive
 from orchestrator.optical.products.product_types.optical_location import AbstractOpticalLocationInactive
 from orchestrator.optical.workflows.shared import (
     active_subscription_selector_by_block_type,
@@ -16,7 +16,7 @@ def active_location_subscription_selector(prompt: str | None = None) -> type[Cho
 
     Every concrete Optical Location product implementing the abstract location contract
     is matched through the product block names registered in
-    ``AbstractOpticalLocationBlockInactive.__names__``, regardless of how the users
+    ``OpticalModuleLocationBlockInactive.__names__``, regardless of how the users
     implement their concrete product blocks and subscriptions.
 
     Args:
@@ -27,10 +27,10 @@ def active_location_subscription_selector(prompt: str | None = None) -> type[Cho
         type[Choice]: A `Choice` class configured with the active location subscription
         options.
     """
-    return active_subscription_selector_by_block_type(AbstractOpticalLocationBlockInactive, prompt=prompt)
+    return active_subscription_selector_by_block_type(OpticalModuleLocationBlockInactive, prompt=prompt)
 
 
-def location_block_from_subscription(location_id: UUIDstr) -> AbstractOpticalLocationBlockInactive:
+def location_block_from_subscription(location_id: UUIDstr) -> OpticalModuleLocationBlockInactive:
     """Return the Optical Location product block of the given location subscription.
 
     The concrete subscription model is resolved through the subscription model registry,

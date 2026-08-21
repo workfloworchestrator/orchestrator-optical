@@ -217,7 +217,7 @@ def active_subscription_selector_by_block_type(
 
     Args:
         abstract_block_type: The abstract product block type of the contract (e.g.
-            ``AbstractOpticalLocationBlockInactive``).
+            ``OpticalModuleLocationBlockInactive``).
         prompt: Prompt to display in the selection. If not provided, a default prompt
             will be generated.
 

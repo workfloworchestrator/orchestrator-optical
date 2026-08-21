@@ -5,47 +5,37 @@ from annotated_types import Len
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_location import (
-    AbstractOpticalLocationBlock,
-    AbstractOpticalLocationBlockInactive,
-    AbstractOpticalLocationBlockProvisioning,
+    OpticalModuleLocationBlock,
+    OpticalModuleLocationBlockInactive,
+    OpticalModuleLocationBlockProvisioning,
 )
-from orchestrator.optical.utils.custom_types.dns import Pqdn
-from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.products.product_blocks.optical_node_management import (
+    OpticalModuleNodeManagementBlock,
+    OpticalModuleNodeManagementBlockInactive,
+    OpticalModuleNodeManagementBlockProvisioning,
+)
 
-IpAddressesList = Annotated[
-    list[IPAddress], Len(min_length=1, max_length=10), "List of the management IP addresses of the device."
-]
 
-
-class AbstractOpticalPacketNodeBlockInactive(ProductBlockModel, product_block_name="AbstractOpticalPacketNodeBlock"):
+class OpticalModulePacketNodeInactive(ProductBlockModel, product_block_name="OpticalModulePacketNode"):
     """A packet layer Node that accepts Optical Coherent Pluggables that is inactive."""
 
-    optical_packet_node_software_version: str | None = None
-    optical_packet_node_vendor_and_platform: str | None = None
-    pqdn: Pqdn | None = None  # without SLD and TLD, e.g. router01.roomA.siteB, not router01.roomA.siteB.domain.com
-    optical_packet_node_management_ips: IpAddressesList | None = None
-    location: AbstractOpticalLocationBlockInactive
+    management: OpticalModuleNodeManagementBlockInactive
+    location: OpticalModuleLocationBlockInactive
 
 
-class AbstractOpticalPacketNodeBlockProvisioning(
-    AbstractOpticalPacketNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class OpticalModulePacketNodeProvisioning(
+    OpticalModulePacketNodeInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """A packet layer Node that accepts Optical Coherent Pluggables that is provisioning."""
 
-    optical_packet_node_software_version: str
-    optical_packet_node_vendor_and_platform: str
-    pqdn: Pqdn
-    optical_packet_node_management_ips: IpAddressesList
-    location: AbstractOpticalLocationBlockProvisioning
+    management: OpticalModuleNodeManagementBlockProvisioning
+    location: OpticalModuleLocationBlockProvisioning
 
 
-class AbstractOpticalPacketNodeBlock(
-    AbstractOpticalPacketNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+class OpticalModulePacketNode(
+    OpticalModulePacketNodeProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """A packet layer Node that accepts Optical Coherent Pluggables."""
 
-    optical_packet_node_software_version: str
-    optical_packet_node_vendor_and_platform: str
-    pqdn: Pqdn
-    optical_packet_node_management_ips: IpAddressesList
-    location: AbstractOpticalLocationBlock
+    management: OpticalModuleNodeManagementBlock
+    location: OpticalModuleLocationBlock

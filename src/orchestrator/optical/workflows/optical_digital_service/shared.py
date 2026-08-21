@@ -75,13 +75,11 @@ def trx_line_port_patched_but_not_used_selector(
     node_vendor = vendor_of(node)
     shelf_id, slot_id, _ = _parse_port_identifiers(client_port_name, node_vendor)
 
-    patched_ports_subscription_instance_values = (
-        subscription_instance_values_by_block_type_depending_on_instance_id(
-            product_block_type="OpticalTransponderLinePortBlock",
-            resource_type="optical_port_name",
-            depending_on_instance_id=str(node.subscription_instance_id),
-            states=[SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING],
-        )
+    patched_ports_subscription_instance_values = subscription_instance_values_by_block_type_depending_on_instance_id(
+        product_block_type="OpticalTransponderLinePortBlock",
+        resource_type="optical_port_name",
+        depending_on_instance_id=str(node.subscription_instance_id),
+        states=[SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING],
     )
 
     available_ports_siv = []

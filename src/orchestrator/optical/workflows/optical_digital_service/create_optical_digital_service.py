@@ -1,9 +1,8 @@
 """Create Optical Digital Service Workflow."""
 
 from collections.abc import Sequence
-from functools import partial
 from time import sleep
-from typing import Annotated, Any, cast
+from typing import Annotated, cast
 from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field, model_validator
@@ -17,7 +16,7 @@ from orchestrator.core.domain.base import ProductModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import Divider, Label
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, Workflow, begin, step
+from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.optical_digital_service import (
@@ -727,50 +726,21 @@ def set_trx_transmitted_power(
     }
 
 
-def create_optical_digital_service_workflow(
-    *,
-    pre_steps: StepList = begin,
-    post_steps: StepList = begin,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-    **kwargs: Any,
-) -> Workflow:
-    """Build the create_optical_digital_service workflow, optionally extended with user hooks.
-
-    Args:
-        pre_steps: Steps run before the shipped workflow steps.
-        post_steps: Steps run after the shipped workflow steps.
-        extra_form_pages: Additional form pages shown before the form is submitted.
-        extra_summary_fields: Accepted for uniformity but unused, because this workflow has no summary form.
-        **kwargs: Extra arguments forwarded to the ``create_workflow`` decorator.
-    """
-
-    @create_workflow(
-        initial_input_form=partial(
-            initial_input_form_generator,
-            extra_form_pages=extra_form_pages,
-            extra_summary_fields=extra_summary_fields,
-        ),
-        **kwargs,
+@create_workflow(initial_input_form=initial_input_form_generator)
+def create_optical_digital_service() -> StepList:
+    """Workflow to create a new Optical Digital Service."""
+    return (
+        begin
+        >> construct_optical_digital_service_model
+        >> store_process_subscription()
+        >> divide_path_into_sections
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> update_subscription_description
+        >> configure_trx_line_side
+        >> configure_trx_client_side
+        >> configure_trx_crossconnects
+        >> provision_optical_sections
+        >> update_used_passbands_step
+        >> step("Sleeping for 30 seconds")(lambda: sleep(30))
+        >> set_trx_transmitted_power
     )
-    def create_optical_digital_service() -> StepList:
-        """Workflow to create a new Optical Digital Service."""
-        return (
-            pre_steps
-            >> begin
-            >> construct_optical_digital_service_model
-            >> store_process_subscription()
-            >> divide_path_into_sections
-            >> set_status(SubscriptionLifecycle.PROVISIONING)
-            >> update_subscription_description
-            >> configure_trx_line_side
-            >> configure_trx_client_side
-            >> configure_trx_crossconnects
-            >> provision_optical_sections
-            >> update_used_passbands_step
-            >> step("Sleeping for 30 seconds")(lambda: sleep(30))
-            >> set_trx_transmitted_power
-            >> post_steps
-        )
-
-    return create_optical_digital_service

@@ -1,34 +1,42 @@
-"""Modify Nokia GX G42 Optical Node Workflow."""
+"""Modify Nokia GX G42 Optical Node workflow.
+
+This module ships the ready-to-use ``modify_optical_node_nokia_gx_g42``
+workflow for the shipped Nokia GX G42 product type, together with the
+importable parts: the form generator (parameterized by the subscription model
+and the attribute name of the composed block) and the step list that updates
+and persists the Nokia GX G42 node block found in the state under
+``OPTICAL_NODE_BLOCK_STATE_KEY``. Consumers that keep the shipped product type
+register the shipped workflow; consumers with their own model that has-a the
+shipped block compose their own ``@modify_workflow`` with the parts.
+"""
 
 from collections.abc import Sequence
-from functools import partial
-from typing import Any
 
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from structlog import get_logger
 
+from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, Workflow, begin, step
+from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import (
-    OpticalNodeNokiaGxG42,
-    OpticalNodeNokiaGxG42Provisioning,
-)
+from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
+from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42
 from orchestrator.optical.utils.custom_types.dns import Pqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.optical_node.shared import (
+    OPTICAL_NODE_BLOCK_STATE_KEY,
+    load_optical_node_block,
     optical_node_modify_input_form,
-    update_optical_node_fields,
-    update_optical_node_subscription_description,
+    save_optical_node_block,
+    update_optical_node_block_fields,
 )
 
-logger = get_logger(__name__)
 
-
-def initial_input_form_generator(
+def modify_optical_node_nokia_gx_g42_form_generator(
     subscription_id: UUIDstr,
+    subscription_model: type[SubscriptionModel] = OpticalNodeNokiaGxG42,
+    block_field_name: str = "optical_node",
     extra_form_pages: Sequence[type[FormPage]] = (),
     extra_summary_fields: Sequence[str] = (),
 ) -> FormGenerator:
@@ -36,75 +44,81 @@ def initial_input_form_generator(
 
     Args:
         subscription_id: The identifier of the subscription being modified.
+        subscription_model: The ACTIVE subscription model class of the Optical Node product.
+            Defaults to the shipped :class:`OpticalNodeNokiaGxG42`; consumers that compose
+            the shipped block under a different attribute name pass their own model class here.
+        block_field_name: Name of the attribute of the subscription model holding
+            the Nokia GX G42 node block. Consumers that compose the shipped
+            block under a different attribute name pass their own attribute name here.
         extra_form_pages: Additional form pages shown before the summary form.
         extra_summary_fields: Extra field names to append to the summary.
     """
     yield from optical_node_modify_input_form(
         subscription_id,
-        subscription_model=OpticalNodeNokiaGxG42,
+        subscription_model=subscription_model,
+        block_field_name=block_field_name,
         extra_form_pages=extra_form_pages,
         extra_summary_fields=extra_summary_fields,
     )
 
 
-@step("Updating subscription model")
-def update_optical_node_nokia_gx_g42_subscription(
-    subscription: OpticalNodeNokiaGxG42Provisioning,
-    customer_id: UUIDstr,
+@step("Updating Nokia GX G42 node block")
+def update_optical_node_nokia_gx_g42_block(
+    optical_node_block: NokiaGxG42BlockProvisioning,
     location_id: UUIDstr,
     pqdn: Pqdn,
     optical_management_ip: IPAddress | None = None,
     optical_loopback_ip: IPAddress | None = None,
 ) -> State:
-    """Update fields on the Nokia GX G42 Optical Node subscription."""
-    update_optical_node_fields(
-        subscription=subscription,
-        customer_id=customer_id,
+    """Update the Nokia GX G42 node block in the state from the modify-form keys.
+
+    Args:
+        optical_node_block: The Nokia GX G42 node block in the state under
+            ``OPTICAL_NODE_BLOCK_STATE_KEY`` (the provisioning variant, while
+            the subscription is being modified).
+        location_id: Subscription id of the Optical Location hosting the node.
+        pqdn: PQDN of the node.
+        optical_management_ip: Management IP through which the node can be reached directly.
+        optical_loopback_ip: Loopback IP through which the node can be reached directly.
+    """
+    update_optical_node_block_fields(
+        optical_node_block=optical_node_block,
         location_id=location_id,
         pqdn=pqdn,
         optical_management_ip=optical_management_ip,
         optical_loopback_ip=optical_loopback_ip,
     )
 
-    return {"subscription": subscription}
+    return {OPTICAL_NODE_BLOCK_STATE_KEY: optical_node_block}
 
 
-def modify_optical_node_nokia_gx_g42_workflow(
-    *,
-    pre_steps: StepList = begin,
-    post_steps: StepList = begin,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-    **kwargs: Any,
-) -> Workflow:
-    """Build the modify_optical_node_nokia_gx_g42 workflow, optionally extended with user hooks.
+#: Modify steps operating on the Nokia GX G42 node block in the state. The
+#: block is persisted by the last step, because workflow steps reload the
+#: subscription from the database and would otherwise lose the mutations.
+MODIFY_NOKIA_GX_G42_BLOCK_STEPS: StepList = begin >> update_optical_node_nokia_gx_g42_block >> save_optical_node_block
 
-    Args:
-        pre_steps: Steps run before the shipped workflow steps.
-        post_steps: Steps run after the shipped workflow steps.
-        extra_form_pages: Additional form pages shown before the summary form.
-        extra_summary_fields: Extra field names to append to the summary.
-        **kwargs: Extra arguments forwarded to the ``modify_workflow`` decorator.
+
+@modify_workflow(initial_input_form=modify_optical_node_nokia_gx_g42_form_generator)
+def modify_optical_node_nokia_gx_g42() -> StepList:
+    """Workflow to modify an existing Nokia GX G42 Optical Node subscription.
+
+    The workflow is valid for the shipped :class:`OpticalNodeNokiaGxG42`
+    product type only: it loads the block from the ``optical_node`` attribute
+    of the shipped subscription models. Consumers with their own product type
+    compose their own modify workflow with the shipped parts.
     """
-
-    @modify_workflow(
-        initial_input_form=partial(
-            initial_input_form_generator,
-            extra_form_pages=extra_form_pages,
-            extra_summary_fields=extra_summary_fields,
-        ),
-        **kwargs,
+    return (
+        begin
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> load_optical_node_block
+        >> MODIFY_NOKIA_GX_G42_BLOCK_STEPS
+        >> set_status(SubscriptionLifecycle.ACTIVE)
     )
-    def modify_optical_node_nokia_gx_g42() -> StepList:
-        """Workflow to modify an existing Nokia GX G42 Optical Node."""
-        return (
-            pre_steps
-            >> begin
-            >> set_status(SubscriptionLifecycle.PROVISIONING)
-            >> update_optical_node_nokia_gx_g42_subscription
-            >> update_optical_node_subscription_description
-            >> set_status(SubscriptionLifecycle.ACTIVE)
-            >> post_steps
-        )
 
-    return modify_optical_node_nokia_gx_g42
+
+__all__ = [
+    "MODIFY_NOKIA_GX_G42_BLOCK_STEPS",
+    "modify_optical_node_nokia_gx_g42",
+    "modify_optical_node_nokia_gx_g42_form_generator",
+    "update_optical_node_nokia_gx_g42_block",
+]

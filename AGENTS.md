@@ -40,14 +40,17 @@ src/orchestrator/optical/
 │   │                         #   auto-generated data_models/data_navigators), tnms (TAPI client)
 │   ├── netbox.py             #   lazy Netbox client (settings-driven)
 │   └── asyncsshcli/          #   async SSH terminal helper
-├── workflows/                # WFO workflows
-│   ├── __init__.py           #   SHIPPED_WORKFLOW_NAMES + register_workflows() (consumers declare 1:1 in their code)
+├── workflows/                # WFO workflows of the shipped product types (ready-to-use) + importable parts
+│   ├── __init__.py           #   docs the consumption model (register shipped workflows with LazyWorkflowInstance,
+│   │                         #   compose your own with the parts)
 │   ├── shared.py             #   DB query helpers, selectors, summary forms
-│   ├── optical_node/         #   per-vendor create/modify/terminate/validate + shared step helpers
-│   ├── optical_pipe/         #   fiber_span / fiber_patch / leased_spectrum
+│   ├── optical_node/         #   per-vendor create/modify workflows + parts; terminate/validate workflows are
+│   │                         #   per-vendor thin wrappers over shared step lists (shared/terminate.py, shared/validate.py)
+│   ├── optical_pipe/         #   fiber_span / fiber_patch / leased_spectrum (workflows + parts)
 │   ├── optical_spectrum_service/   #  path-finding engine (shared.py) + workflows
 │   ├── optical_digital_service/    #  4-form create + modify/terminate/validate
-│   ├── optical_coherent_pluggable/
+│   ├── optical_coherent_pluggable/ #   create/modify/terminate/validate workflows + parts + shared helpers
+│   │                         #   (block-based, state key OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY)
 │   └── optical_location/     #   (WIP) location selectors/helpers
 ├── settings.py               # pydantic-settings, env prefix OPTICAL_, lazy get_settings()
 ├── translations/en-GB.json   # workflow display strings (1:1 with registered workflows)
@@ -110,19 +113,37 @@ defined in the user code-space.
   Use `get_settings()`; keep clients lazy (`get_netbox_api()`, `get_tnms_client()`).
 
 ### Workflows
-- One `@create_workflow`/`@modify_workflow`/`@terminate_workflow`/`@validate_workflow` per product (decorators from
-  `orchestrator.core.workflows.utils`, chains from `orchestrator.core.workflow`), chains with
-  `begin >> …`, `store_process_subscription()`, `set_status(...)`; state returns `subscription` /
-  `subscription_id` / `subscription_description`.
-- Every workflow is a **factory** (`<name>_workflow` in its module, returning the decorated workflow whose name is
-  the shipped name) and is **not registered by this package**: consumers declare one workflow per shipped workflow
-  in their own code and register them via `register_workflows()` (see `workflows/__init__.py`). Factories accept
-  `pre_steps`/`post_steps` (run before/after the shipped steps, while the subscription is unsynced) and, for
-  create/modify workflows, `extra_form_pages`/`extra_summary_fields`, for terminate workflows `extra_form_pages`
-  only (no summary form in termination) and for validate workflows only `pre_steps`/`post_steps` (no input forms).
-  Keep the display strings in `translations/en-GB.json` (keys are the workflow function names).
-- Workflow factory inner functions MUST keep the shipped workflow name (product bindings and translations depend on
-  it).
+- The module ships the **ready-to-use workflows of the shipped product types**: one module-level
+  `@create_workflow`/`@modify_workflow`/`@terminate_workflow`/`@validate_workflow`-decorated function per product
+  (decorators from `orchestrator.core.workflows.utils`, chains from `orchestrator.core.workflow`), named exactly as
+  the shipped name (the translation keys in `translations/en-GB.json`). No factories, no hooks, no `**kwargs`; the
+  workflow function name MUST keep the shipped name. The shipped workflows are bound to the shipped subscription
+  models (the `construct_*_subscription` steps build them), so they are only valid for consumers keeping the shipped
+  product types. State returns `subscription` / `subscription_id` / `subscription_description`.
+- The module ships the **parts** alongside the workflows: per product, an importable form generator plus block-level
+  steps exported as `StepList` constants (e.g. `CREATE_NOKIA_FLEXILS_BLOCK_STEPS`, `MODIFY_NOKIA_FLEXILS_BLOCK_STEPS`)
+  and shared step lists (`OPTICAL_NODE_TERMINATE_STEPS`, `OPTICAL_NODE_VALIDATE_STEPS`). Consumers with their own
+  model compose their own workflows with these parts and their own construct/store steps. Shipped create workflows
+  pass the raw form generator (no `partial`): core injects `product_name`/`subscription_id` from the database at
+  runtime.
+- **Composition, not inheritance**: consumers never subclass the shipped blocks; their model has-a the shipped block
+  under an attribute of their choosing. The shipped block steps bind to a per-family state key
+  (`OPTICAL_NODE_BLOCK_STATE_KEY`/`optical_node_block`, `OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY`/
+  `optical_coherent_pluggable_block`) and never to a consumer model. Shipped blocks are always persisted by the
+  consumer's own store/`set_status` steps; the shipped block step lists end with a save step
+  (`save_optical_node_block`, `save_optical_coherent_pluggable_block`) because workflow steps reload the subscription
+  from the database on every step (in-memory block mutations would be lost otherwise).
+- Shipped **create** steps: block-free steps (e.g. `discover_optical_node_nokia_flexils`) plus
+  `populate_optical_node_<vendor>_block` (plain function = the anti-corruption point consumers call from their own
+  construct step) plus a thin `@step` wrapper and a shipped `construct_optical_node_<vendor>_subscription` step that
+  builds the shipped product type. Shipped **modify** form generators take `subscription_model` (defaulting to the
+  shipped model class) and `block_field_name` (default `"optical_node"` or `"optical_coherent_pluggable"`).
+- **Registration is the consumer's job**: this module never registers workflows itself (no `register_workflows()`,
+  no `SHIPPED_WORKFLOW_NAMES`, no `LazyWorkflowInstance` calls at import). Consumers register the shipped workflows
+  with the standard orchestrator-core mechanism — one `LazyWorkflowInstance(<module>, <name>)` line per workflow in
+  their own workflows package — and persist them with `orchestrator db migrate-workflows`.
+- Keep the display strings in `translations/en-GB.json` (keys are the shipped workflow function names); they apply
+  when consumers keep the shipped workflow names, otherwise they are a reference for consumers' own translations.
 - `from_product_id` is unusable for pipes and digital services (required fields/validators) — those workflows
   assemble the subscription manually (see `optical_pipe/shared.py::new_optical_pipe_subscription`).
 - Some terminate/deprovision steps are deliberate stubs returning `{}` (framework signatures keep `customer_id` →
@@ -147,10 +168,15 @@ uv build                        # package build
   `.bumpversion.cfg` path) — left as-is; do not "fix" pyproject.toml as a side quest.
 
 ### Current status (branch `porting/workflows`)
-- 36 workflow factories (workflows are declared and registered in the user code-space, see README); optical_node ×3
-  vendors, optical_pipe ×3, optical_spectrum_service, optical_digital_service, optical_coherent_pluggable;
-  optical_location workflows are WIP.
-- No test suite yet (pyproject has pytest config; `testpaths = ["test"]` but no test dir).
+- Every product family (`optical_node` ×3 vendors, `optical_coherent_pluggable`, `optical_pipe` ×3,
+  `optical_spectrum_service`, `optical_digital_service`) ships the ready-to-use workflows of its shipped product
+  types (module-level decorated functions, 36 in total, listed in the README) plus the importable parts. There are
+  no workflow factories or hooks anymore; `register_workflows()`/`SHIPPED_WORKFLOW_NAMES` are gone. Consumers
+  register the shipped workflows with `LazyWorkflowInstance` lines in their own workflows package (see README);
+  `optical_location` workflows are WIP.
+- Test suite: composition tests + shipped-workflow contract tests (`test/test_workflow_composition.py`,
+  `test/test_optical_node_composition.py`, `test/test_optical_coherent_pluggable_composition.py`,
+  `test/test_shipped_workflows.py`), database-free.
 - The legacy `optical.old/` and the GARR admin `tasks/` workflows are there for reference only (`/hal` corresponds to old `products/services`) — do not reintroduce.
 - Model files are actively being refined by maintainers: **ask before changing `products/`**; adapt code to their
   changes instead (e.g. field renames must be propagated to `hal/` and `workflows/`).

@@ -1,8 +1,7 @@
 """Terminate Optical Leased Spectrum Workflow."""
 
 from collections.abc import Sequence
-from functools import partial
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -10,7 +9,7 @@ from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
-from orchestrator.core.workflow import StepList, Workflow, begin, step
+from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.optical_port import factory_reset_port_configuration
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrum
@@ -77,31 +76,7 @@ def factory_reset_leased_spectrum_ports(subscription: OpticalLeasedSpectrum) -> 
     return {"configuration_results": configuration_results}
 
 
-def terminate_leased_spectrum_workflow(
-    *,
-    pre_steps: StepList = begin,
-    post_steps: StepList = begin,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    **kwargs: Any,
-) -> Workflow:
-    """Build the terminate_leased_spectrum workflow, optionally extended with user hooks.
-
-    Args:
-        pre_steps: Steps run before the shipped workflow steps.
-        post_steps: Steps run after the shipped workflow steps.
-        extra_form_pages: Additional form pages shown after the shipped confirmation page.
-        **kwargs: Extra arguments forwarded to the ``terminate_workflow`` decorator.
-    """
-
-    @terminate_workflow(
-        initial_input_form=partial(
-            terminate_initial_input_form_generator,
-            extra_form_pages=extra_form_pages,
-        ),
-        **kwargs,
-    )
-    def terminate_leased_spectrum() -> StepList:
-        """Workflow to terminate an Optical Leased Spectrum pipe."""
-        return pre_steps >> begin >> factory_reset_leased_spectrum_ports >> post_steps
-
-    return terminate_leased_spectrum
+@terminate_workflow(initial_input_form=terminate_initial_input_form_generator)
+def terminate_leased_spectrum() -> StepList:
+    """Workflow to terminate an Optical Leased Spectrum pipe."""
+    return begin >> factory_reset_leased_spectrum_ports

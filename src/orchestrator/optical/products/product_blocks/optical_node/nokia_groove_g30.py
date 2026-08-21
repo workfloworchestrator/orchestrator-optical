@@ -1,10 +1,14 @@
 """Product Blocks of Nokia Groove G30 Optical Nodes."""
 
+from typing import Literal
+
+from pydantic import model_validator
+
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_location import (
-    AbstractOpticalLocationBlock,
-    AbstractOpticalLocationBlockInactive,
-    AbstractOpticalLocationBlockProvisioning,
+    OpticalModuleLocationBlock,
+    OpticalModuleLocationBlockInactive,
+    OpticalModuleLocationBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlock,
@@ -12,19 +16,22 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     AbstractOpticalNodeBlockProvisioning,
     OpticalNodeRole,
 )
-from orchestrator.optical.utils.custom_types.dns import Pqdn
-from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.products.product_blocks.optical_node_management import (
+    OpticalModuleNodeManagementBlock,
+    OpticalModuleNodeManagementBlockInactive,
+    OpticalModuleNodeManagementBlockProvisioning,
+    Platform,
+    Vendor,
+)
 
 
 class NokiaGrooveG30BlockInactive(AbstractOpticalNodeBlockInactive, product_block_name="NokiaGrooveG30Block"):
     """Product Block of a Nokia Groove G30 Optical Node that is inactive."""
 
-    optical_node_role: OpticalNodeRole | None = None
-    optical_node_software_version: str | None = None
-    pqdn: Pqdn | None = None
-    optical_management_ip: IPAddress | None = None
-    optical_loopback_ip: IPAddress | None = None
-    location: AbstractOpticalLocationBlockInactive | None = None
+    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER, OpticalNodeRole.TRANSPONDER_XOADM] | None = None
+
+    management: OpticalModuleNodeManagementBlockInactive
+    location: OpticalModuleLocationBlockInactive
 
 
 class NokiaGrooveG30BlockProvisioning(
@@ -32,12 +39,24 @@ class NokiaGrooveG30BlockProvisioning(
 ):
     """Product Block of a Nokia Groove G30 Optical Node that is provisioning."""
 
-    optical_node_role: OpticalNodeRole
-    optical_node_software_version: str | None
-    pqdn: Pqdn
-    optical_management_ip: IPAddress | None = None
-    optical_loopback_ip: IPAddress | None = None
-    location: AbstractOpticalLocationBlockProvisioning
+    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER, OpticalNodeRole.TRANSPONDER_XOADM]
+
+    management: OpticalModuleNodeManagementBlockProvisioning
+    location: OpticalModuleLocationBlockProvisioning
+
+    @model_validator(mode="after")
+    def enforce_g30(self):
+        """Ensure that the Optical Node is a Nokia Groove G30."""
+        if self.management.optical_module_node_vendor != Vendor.NOKIA:
+            msg = f"Nokia Groove G30 can only have vendor 'Nokia', got {self.management.optical_module_node_vendor}."
+            raise ValueError(msg)
+        if self.management.optical_module_node_platform != Platform.GROOVE_G30:
+            msg = (
+                f"Nokia Groove G30 can only have platform 'GROOVE G30', "
+                f"got {self.management.optical_module_node_platform}."
+            )
+            raise ValueError(msg)
+        return self
 
 
 class NokiaGrooveG30Block(
@@ -45,9 +64,7 @@ class NokiaGrooveG30Block(
 ):
     """Product Block of a Nokia Groove G30 Optical Node that is active."""
 
-    optical_node_role: OpticalNodeRole
-    optical_node_software_version: str
-    pqdn: Pqdn
-    optical_management_ip: IPAddress | None = None
-    optical_loopback_ip: IPAddress | None = None
-    location: AbstractOpticalLocationBlock
+    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER, OpticalNodeRole.TRANSPONDER_XOADM]
+
+    management: OpticalModuleNodeManagementBlock
+    location: OpticalModuleLocationBlock

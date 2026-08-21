@@ -5,10 +5,10 @@ from typing import Literal
 from pydantic import Field
 
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlock,
-    AbstractOpticalNodeBlockInactive,
-    AbstractOpticalNodeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node.unions import (
+    OlsBlockInactiveUnion,
+    OlsBlockProvisioningUnion,
+    OlsBlockUnion,
 )
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalOlsPortBlock,
@@ -26,7 +26,7 @@ class OlsLinePortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_bloc
     optical_port_name: str | None = None
     optical_port_description: str | None = None
     optical_passbands: OpticalPassbandList = Field(default_factory=list)
-    optical_port_host_node: AbstractOpticalNodeBlockInactive
+    optical_port_host_node: OlsBlockInactiveUnion
 
 
 class OlsLinePortBlockProvisioning(
@@ -38,7 +38,7 @@ class OlsLinePortBlockProvisioning(
     optical_port_name: str
     optical_port_description: str | None
     optical_passbands: OpticalPassbandList
-    optical_port_host_node: AbstractOpticalNodeBlockProvisioning
+    optical_port_host_node: OlsBlockProvisioningUnion
 
 
 class OlsLinePortBlock(
@@ -50,4 +50,4 @@ class OlsLinePortBlock(
     optical_port_name: str
     optical_port_description: str | None
     optical_passbands: OpticalPassbandList
-    optical_port_host_node: AbstractOpticalNodeBlock
+    optical_port_host_node: OlsBlockUnion

@@ -3,10 +3,10 @@
 from typing import Literal
 
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlock,
-    AbstractOpticalNodeBlockInactive,
-    AbstractOpticalNodeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node.unions import (
+    TransponderBlockInactiveUnion,
+    TransponderBlockProvisioningUnion,
+    TransponderBlockUnion,
 )
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalPortBlock,
@@ -24,7 +24,7 @@ class OpticalTransponderClientPortBlockInactive(
     optical_port_role: Literal[OpticalPortRole.TRANSPONDER_CLIENT] = OpticalPortRole.TRANSPONDER_CLIENT
     optical_port_name: str | None = None
     optical_port_description: str | None = None
-    optical_port_host_node: AbstractOpticalNodeBlockInactive
+    optical_port_host_node: TransponderBlockInactiveUnion
 
 
 class OpticalTransponderClientPortBlockProvisioning(
@@ -37,7 +37,7 @@ class OpticalTransponderClientPortBlockProvisioning(
     optical_port_role: Literal[OpticalPortRole.TRANSPONDER_CLIENT] = OpticalPortRole.TRANSPONDER_CLIENT
     optical_port_name: str
     optical_port_description: str | None
-    optical_port_host_node: AbstractOpticalNodeBlockProvisioning
+    optical_port_host_node: TransponderBlockProvisioningUnion
 
 
 class OpticalTransponderClientPortBlock(
@@ -48,4 +48,4 @@ class OpticalTransponderClientPortBlock(
     optical_port_role: Literal[OpticalPortRole.TRANSPONDER_CLIENT] = OpticalPortRole.TRANSPONDER_CLIENT
     optical_port_name: str
     optical_port_description: str | None
-    optical_port_host_node: AbstractOpticalNodeBlock
+    optical_port_host_node: TransponderBlockUnion

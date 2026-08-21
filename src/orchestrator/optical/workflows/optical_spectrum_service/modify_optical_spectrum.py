@@ -1,8 +1,7 @@
 """Modify Optical Spectrum Service Workflow."""
 
 from collections.abc import Sequence
-from functools import partial
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -12,7 +11,7 @@ from structlog import get_logger
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import Divider
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, Workflow, begin, step
+from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.hal.optical_node import vendor_of
@@ -276,45 +275,16 @@ def modify_optical_sections(
     }
 
 
-def modify_optical_spectrum_workflow(
-    *,
-    pre_steps: StepList = begin,
-    post_steps: StepList = begin,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-    **kwargs: Any,
-) -> Workflow:
-    """Build the modify_optical_spectrum workflow, optionally extended with user hooks.
-
-    Args:
-        pre_steps: Steps run before the shipped workflow steps.
-        post_steps: Steps run after the shipped workflow steps.
-        extra_form_pages: Additional form pages shown before the summary form.
-        extra_summary_fields: Extra field names to append to the summary.
-        **kwargs: Extra arguments forwarded to the ``modify_workflow`` decorator.
-    """
-
-    @modify_workflow(
-        initial_input_form=partial(
-            initial_input_form_generator,
-            extra_form_pages=extra_form_pages,
-            extra_summary_fields=extra_summary_fields,
-        ),
-        **kwargs,
+@modify_workflow(initial_input_form=initial_input_form_generator)
+def modify_optical_spectrum() -> StepList:
+    """Workflow to modify an existing Optical Spectrum service."""
+    return (
+        begin
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> update_subscription
+        >> update_subscription_description
+        >> divide_path_into_sections
+        >> modify_optical_sections
+        >> update_used_passbands_step
+        >> set_status(SubscriptionLifecycle.ACTIVE)
     )
-    def modify_optical_spectrum() -> StepList:
-        """Workflow to modify an existing Optical Spectrum service."""
-        return (
-            pre_steps
-            >> begin
-            >> set_status(SubscriptionLifecycle.PROVISIONING)
-            >> update_subscription
-            >> update_subscription_description
-            >> divide_path_into_sections
-            >> modify_optical_sections
-            >> update_used_passbands_step
-            >> set_status(SubscriptionLifecycle.ACTIVE)
-            >> post_steps
-        )
-
-    return modify_optical_spectrum
