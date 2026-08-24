@@ -120,12 +120,22 @@ defined in the user code-space.
   workflow function name MUST keep the shipped name. The shipped workflows are bound to the shipped subscription
   models (the `construct_*_subscription` steps build them), so they are only valid for consumers keeping the shipped
   product types. State returns `subscription` / `subscription_id` / `subscription_description`.
-- The module ships the **parts** alongside the workflows: per product, an importable form generator plus block-level
-  steps exported as `StepList` constants (e.g. `CREATE_NOKIA_FLEXILS_BLOCK_STEPS`, `MODIFY_NOKIA_FLEXILS_BLOCK_STEPS`)
-  and shared step lists (`OPTICAL_NODE_TERMINATE_STEPS`, `OPTICAL_NODE_VALIDATE_STEPS`). Consumers with their own
-  model compose their own workflows with these parts and their own construct/store steps. Shipped create workflows
-  pass the raw form generator (no `partial`): core injects `product_name`/`subscription_id` from the database at
-  runtime.
+- The module ships the **parts** alongside the workflows: per product, the **FormPages** of the shipped forms plus
+  block-level steps exported as `StepList` constants (e.g. `CREATE_NOKIA_FLEXILS_BLOCK_STEPS`,
+  `MODIFY_NOKIA_FLEXILS_BLOCK_STEPS`) and shared step lists (`OPTICAL_NODE_TERMINATE_STEPS`,
+  `OPTICAL_NODE_VALIDATE_STEPS`). **No hooks**: shipped form generators do not take `extra_form_pages`/
+  `extra_summary_fields` (or similar) parameters — they are thin compositions of the shipped pages and the summary
+  form. Each form ships as a page **sequence** (a `FormGenerator` that yields the `FormPage` classes in order and
+  returns the collected user input as a flat dict, e.g. `create_optical_module_location_form_pages(product_name)`);
+  consumers compose their own form generator by yielding from the shipped page sequence in **one line** and
+  optionally interleaving their own pages:
+  `user_input_dict = yield from create_optical_module_location_form_pages(product_name)`, then `yield from
+  create_summary_form(user_input_dict, product_name, summary_fields)`. Page factories returning the prefilled pages
+  (e.g. `modify_optical_module_location_form(subscription, block_field_name)`) are also exported for consumers that
+  pick pages individually. The `optical_location` family is the reference implementation of this model; the other
+  families still carry the legacy hook-style generators, mid-port. Consumers with their own model compose their own
+  workflows with these parts and their own construct/store steps. Shipped create workflows pass the raw form
+  generator (no `partial`): core injects `product_name`/`subscription_id` from the database at runtime.
 - **Composition, not inheritance**: consumers never subclass the shipped blocks; their model has-a the shipped block
   under an attribute of their choosing. The shipped block steps bind to a per-family state key
   (`OPTICAL_NODE_BLOCK_STATE_KEY`/`optical_node_block`, `OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY`/
@@ -169,14 +179,17 @@ uv build                        # package build
 
 ### Current status (branch `porting/workflows`)
 - Every product family (`optical_node` ×3 vendors, `optical_coherent_pluggable`, `optical_pipe` ×3,
-  `optical_spectrum_service`, `optical_digital_service`) ships the ready-to-use workflows of its shipped product
-  types (module-level decorated functions, 36 in total, listed in the README) plus the importable parts. There are
-  no workflow factories or hooks anymore; `register_workflows()`/`SHIPPED_WORKFLOW_NAMES` are gone. Consumers
-  register the shipped workflows with `LazyWorkflowInstance` lines in their own workflows package (see README);
-  `optical_location` workflows are WIP.
+  `optical_spectrum_service`, `optical_digital_service`, `optical_module_location`) ships the ready-to-use workflows
+  of its shipped product types (module-level decorated functions, 40 in total, listed in the README) plus the
+  importable parts. There are no workflow factories or hooks anymore; `register_workflows()`/`SHIPPED_WORKFLOW_NAMES`
+  are gone. Consumers register the shipped workflows with `LazyWorkflowInstance` lines in their own workflows
+  package (see README); `optical_location` workflows were ported and the family ships its workflows. The
+  `optical_location` family is the reference implementation of the FormPage consumption model (shipped page sequences
+  + one-line `yield from` composition, no `extra_form_pages`/`extra_summary_fields` hooks); the other families still
+  carry the legacy hook-style form generators, mid-port.
 - Test suite: composition tests + shipped-workflow contract tests (`test/test_workflow_composition.py`,
   `test/test_optical_node_composition.py`, `test/test_optical_coherent_pluggable_composition.py`,
-  `test/test_shipped_workflows.py`), database-free.
+  `test/test_optical_module_location_composition.py`, `test/test_shipped_workflows.py`), database-free.
 - The legacy `optical.old/` and the GARR admin `tasks/` workflows are there for reference only (`/hal` corresponds to old `products/services`) — do not reintroduce.
 - Model files are actively being refined by maintainers: **ask before changing `products/`**; adapt code to their
   changes instead (e.g. field renames must be propagated to `hal/` and `workflows/`).

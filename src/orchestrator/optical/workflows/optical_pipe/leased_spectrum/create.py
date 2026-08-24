@@ -2,7 +2,7 @@
 
 The subscription model has no dedicated provider field: the ``provider_name``
 collected by the form is always persisted by prefixing it to the
-``optical_pipe_identifier`` (``"<provider> <circuit id or default>"``), so that no
+``optical_pipe_name`` (``"<provider> <circuit id or default>"``), so that no
 input is silently dropped.
 """
 
@@ -105,7 +105,7 @@ def initial_input_form_generator(
         model_config = ConfigDict(title=f"{product_name} - Terminations")
 
         provider_name: str = Field(..., title="Third-Party Provider Name", min_length=1)
-        optical_pipe_identifier: str | None = Field(
+        optical_pipe_name: str | None = Field(
             None,
             title="Leased Spectrum Identifier",
             description="Circuit ID or provider reference. Leave empty to use the default "
@@ -117,14 +117,14 @@ def initial_input_form_generator(
     user_input_2 = yield CreateLeasedSpectrumForm2
     user_input_dict.update(user_input_2.model_dump())
 
-    user_input_dict["optical_pipe_identifier"] = user_input_dict["optical_pipe_identifier"] or default_pipe_identifier(
+    user_input_dict["optical_pipe_name"] = user_input_dict["optical_pipe_name"] or default_pipe_identifier(
         node_a_block, user_input_dict["port_a_name"], node_b_block, user_input_dict["port_b_name"]
     )
 
     summary_fields = [
         "customer_id",
         "provider_name",
-        "optical_pipe_identifier",
+        "optical_pipe_name",
         "node_a_id",
         "port_a_name",
         "node_b_id",
@@ -165,7 +165,7 @@ def construct_leased_spectrum_model(
     node_b_id: UUIDstr,
     port_a_name: str,
     port_b_name: str,
-    optical_pipe_identifier: str,
+    optical_pipe_name: str,
 ) -> State:
     """Construct the OpticalLeasedSpectrum domain subscription model."""
     node_a_block = node_block_from_subscription(node_a_id)
@@ -195,8 +195,8 @@ def construct_leased_spectrum_model(
     )
     provider_name = provider_name.strip()
     if provider_name:
-        optical_pipe_identifier = f"{provider_name} {optical_pipe_identifier}"
-    pipe_block.optical_pipe_identifier = optical_pipe_identifier
+        optical_pipe_name = f"{provider_name} {optical_pipe_name}"
+    pipe_block.optical_pipe_name = optical_pipe_name
 
     subscription = new_optical_pipe_subscription(OpticalLeasedSpectrumInactive, product, customer_id, pipe_block)
     subscription = OpticalLeasedSpectrumProvisioning.from_other_lifecycle(

@@ -93,7 +93,7 @@ def initial_input_form_generator(
     class CreateFiberPatchForm2(FormPage):
         model_config = ConfigDict(title=f"{product_name} - Terminations")
 
-        optical_pipe_identifier: str | None = Field(
+        optical_pipe_name: str | None = Field(
             None,
             title="Fiber Patch Identifier",
             description="Unique patch ID or code. Leave empty to use the default 'node A port A --- node B port B'.",
@@ -104,13 +104,13 @@ def initial_input_form_generator(
     user_input_2 = yield CreateFiberPatchForm2
     user_input_dict.update(user_input_2.model_dump())
 
-    user_input_dict["optical_pipe_identifier"] = user_input_dict["optical_pipe_identifier"] or default_pipe_identifier(
+    user_input_dict["optical_pipe_name"] = user_input_dict["optical_pipe_name"] or default_pipe_identifier(
         node_a_block, user_input_dict["port_a_name"], node_b_block, user_input_dict["port_b_name"]
     )
 
     summary_fields = [
         "customer_id",
-        "optical_pipe_identifier",
+        "optical_pipe_name",
         "node_a_id",
         "port_a_name",
         "node_b_id",
@@ -151,7 +151,7 @@ def construct_fiber_patch_model(
     node_b_id: UUIDstr,
     port_a_name: str,
     port_b_name: str,
-    optical_pipe_identifier: str,
+    optical_pipe_name: str,
 ) -> State:
     """Construct the OpticalFiberPatch domain subscription model."""
     node_a_block = node_block_from_subscription(node_a_id)
@@ -179,7 +179,7 @@ def construct_fiber_patch_model(
         subscription_id=subscription_id,
         optical_pipe_terminations=cast(list[PatchPortBlockInactive], [port_a, port_b]),
     )
-    pipe_block.optical_pipe_identifier = optical_pipe_identifier
+    pipe_block.optical_pipe_name = optical_pipe_name
 
     subscription = new_optical_pipe_subscription(OpticalFiberPatchInactive, product, customer_id, pipe_block)
     subscription = OpticalFiberPatchProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)

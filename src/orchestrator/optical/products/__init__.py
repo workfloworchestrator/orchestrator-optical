@@ -17,12 +17,12 @@ from pydantic_forms.types import strEnum
 from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import OpticalCoherentPluggable
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalService
-from orchestrator.optical.products.product_types.optical_location import AbstractOpticalLocation
+from orchestrator.optical.products.product_types.optical_location import OpticalModuleLocationSubscription
 from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
 from orchestrator.optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIls
 from orchestrator.optical.products.product_types.optical_node.nokia_groove_g30 import OpticalNodeNokiaGrooveG30
 from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42
-from orchestrator.optical.products.product_types.optical_packet_node import AbstractOpticalPacketNode
+from orchestrator.optical.products.product_types.optical_packet_node import OpticalModulePacketNodeSubscription
 from orchestrator.optical.products.product_types.optical_pipe.abstracts import AbstractOpticalPipe
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatch
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
@@ -45,8 +45,8 @@ class ProductName(strEnum):
     OPTICAL_NODE_NOKIA_GX_G42 = "Nokia GX G42 Optical Node"
     OPTICAL_LEASED_SPECTRUM = "Optical Leased Spectrum"
     OPTICAL_SPECTRUM = "Optical Spectrum"
-    ABSTRACT_OPTICAL_LOCATION = "Abstract Optical Location"
-    ABSTRACT_OPTICAL_PACKET_NODE = "Abstract Optical Packet Node"
+    OPTICAL_MODULE_LOCATION = "Optical Module Location"
+    OPTICAL_MODULE_PACKET_NODE = "Optical Module Packet Node"
     ABSTRACT_OPTICAL_NODE = "Abstract Optical Node"
     ABSTRACT_OPTICAL_PIPE = "Abstract Optical Pipe"
 
@@ -66,8 +66,8 @@ class ProductType(strEnum):
     OPTICAL_NODE_NOKIA_GX_G42 = OpticalNodeNokiaGxG42.__name__
     OPTICAL_LEASED_SPECTRUM = OpticalLeasedSpectrum.__name__
     OPTICAL_SPECTRUM = OpticalSpectrum.__name__
-    ABSTRACT_OPTICAL_LOCATION = AbstractOpticalLocation.__name__
-    ABSTRACT_OPTICAL_PACKET_NODE = AbstractOpticalPacketNode.__name__
+    OPTICAL_MODULE_LOCATION = OpticalModuleLocationSubscription.__name__
+    OPTICAL_MODULE_PACKET_NODE = OpticalModulePacketNodeSubscription.__name__
     ABSTRACT_OPTICAL_NODE = AbstractOpticalNode.__name__
     ABSTRACT_OPTICAL_PIPE = AbstractOpticalPipe.__name__
 
@@ -86,8 +86,8 @@ SUBSCRIPTION_MODEL_REGISTRY.update(
         ProductName.OPTICAL_NODE_NOKIA_GX_G42.value: OpticalNodeNokiaGxG42,
         ProductName.OPTICAL_LEASED_SPECTRUM.value: OpticalLeasedSpectrum,
         ProductName.OPTICAL_SPECTRUM.value: OpticalSpectrum,
-        ProductName.ABSTRACT_OPTICAL_LOCATION.value: AbstractOpticalLocation,
-        ProductName.ABSTRACT_OPTICAL_PACKET_NODE.value: AbstractOpticalPacketNode,
+        ProductName.OPTICAL_MODULE_LOCATION.value: OpticalModuleLocationSubscription,
+        ProductName.OPTICAL_MODULE_PACKET_NODE.value: OpticalModulePacketNodeSubscription,
         ProductName.ABSTRACT_OPTICAL_NODE.value: AbstractOpticalNode,
         ProductName.ABSTRACT_OPTICAL_PIPE.value: AbstractOpticalPipe,
         # FIXME: For some reason this is not enough, check later.

@@ -48,8 +48,8 @@ PORT_BLOCK_TYPES = [
 def optical_pipe_subscription_description(subscription: SubscriptionModel) -> str:
     """Generate a standard description for an optical pipe subscription."""
     pipe = getattr(subscription, "optical_pipe", None)
-    if pipe and getattr(pipe, "optical_pipe_identifier", None):
-        return f"{pipe.optical_pipe_identifier} ({subscription.product.name})"
+    if pipe and getattr(pipe, "optical_pipe_name", None):
+        return f"{pipe.optical_pipe_name} ({subscription.product.name})"
     return subscription.product.name
 
 

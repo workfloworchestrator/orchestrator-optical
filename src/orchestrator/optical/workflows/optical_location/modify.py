@@ -1,0 +1,256 @@
+"""Modify Optical Module Location workflow.
+
+This module ships the ready-to-use ``modify_optical_module_location``
+workflow for the shipped Optical Module Location product type, together
+with the importable parts: the FormPages of the modify form (as the
+:func:`modify_optical_module_location_form_pages` page sequence, prefilled
+with the current subscription values) and the step list that updates and
+persists the Optical Module Location block found in the state under
+``OPTICAL_LOCATION_BLOCK_STATE_KEY``.
+
+Consumers that keep the shipped product type register the shipped workflow;
+consumers with their own model that has-a the shipped block compose their own
+``@modify_workflow`` with the parts. The shipped form generator is a thin
+composition of the shipped pages and the summary form, without hooks:
+consumers build their own form generator by yielding from the shipped page
+sequence in one line and adding their own pages::
+
+    user_input_dict = yield from modify_optical_module_location_form_pages(
+        subscription, block_field_name="router"
+    )
+    user_input_dict.update((yield my_own_page).model_dump())
+"""
+
+from typing import Annotated
+
+from pydantic import Field
+from pydantic_forms.types import FormGenerator, State, UUIDstr
+
+from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.forms import FormPage
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.steps import set_status
+from orchestrator.core.workflows.utils import modify_workflow
+from orchestrator.optical.products.product_blocks.optical_location import (
+    LocationCode,
+    OpticalModuleLocationBlockProvisioning,
+)
+from orchestrator.optical.products.product_types.optical_location import OpticalModuleLocationSubscription
+from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
+from orchestrator.optical.workflows.customer import customer_choice_selector
+from orchestrator.optical.workflows.optical_location.shared import (
+    OPTICAL_LOCATION_BLOCK_STATE_KEY,
+    load_optical_module_location_block,
+    optical_location_block_from_state,
+    save_optical_module_location_block,
+)
+from orchestrator.optical.workflows.shared import modify_summary_form
+
+Instruction = Annotated[
+    str,
+    Field(
+        "Modify the location fields. Unchanged fields will remain intact. "
+        "Tick the 'clear location name' checkbox to remove the optional location name.",
+        title="Instruction",
+        json_schema_extra={"disabled": True},
+    ),
+]
+
+
+def modify_optical_module_location_form(
+    subscription: SubscriptionModel,
+    block_field_name: str = "optical_location",
+) -> type[FormPage]:
+    """Return the modify FormPage of the Optical Module Location subscription.
+
+    The page is prefilled with the current values of the subscription, so
+    unchanged fields remain intact. The optional ``location_name`` field can be
+    deleted by ticking the ``clear_location_name`` checkbox.
+
+    Args:
+        subscription: The ACTIVE subscription model of the Optical Module
+            Location product being modified (any consumer model that has-a the
+            shipped block works).
+        block_field_name: Name of the attribute of the subscription model holding
+            the Optical Module Location block.
+
+    Returns:
+        The prefilled modify FormPage of the shipped modify form.
+    """
+    location = getattr(subscription, block_field_name)
+    customer_choice = customer_choice_selector(include=str(subscription.customer_id))
+
+    class ModifyOpticalModuleLocationForm(FormPage):
+        instruction: Instruction
+        customer_id: customer_choice
+        longitude: Annotated[
+            LongitudeCoordinate,
+            Field(title="Longitude", description="Longitude of the location, between -180 and +180 degrees."),
+        ] = location.longitude
+        latitude: Annotated[
+            LatitudeCoordinate,
+            Field(title="Latitude", description="Latitude of the location, between -90 and +90 degrees."),
+        ] = location.latitude
+        location_code: Annotated[
+            LocationCode,
+            Field(
+                title="Location Code",
+            ),
+        ] = location.location_code
+        location_name: str | None = Field(
+            location.location_name,
+            title="Location Name",
+            description="Human-readable name of the location, e.g. 'Amsterdam'.",
+        )
+        clear_location_name: bool = Field(
+            default=False,
+            title="Clear location name",
+            description="Tick to remove the location name from the subscription.",
+        )
+
+    return ModifyOpticalModuleLocationForm
+
+
+def modify_optical_module_location_form_pages(
+    subscription: SubscriptionModel,
+    block_field_name: str = "optical_location",
+) -> FormGenerator:
+    """Yield the FormPage of the Optical Module Location modify form.
+
+    This is the shipped modify form as a page sequence: it yields the prefilled
+    modify page and returns the collected user input as a flat dict of the
+    ``optical_*`` state keys plus ``customer_id``, consumed by the shipped
+    steps of :data:`MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS`. Consumers
+    yield from it in one line inside their own modify form generator, optionally
+    interleaving their own pages.
+
+    Args:
+        subscription: The ACTIVE subscription model of the Optical Module
+            Location product being modified (any consumer model that has-a the
+            shipped block works).
+        block_field_name: Name of the attribute of the subscription model holding
+            the Optical Module Location block.
+
+    Returns:
+        The collected user input of the shipped pages.
+    """
+    user_input = yield modify_optical_module_location_form(subscription, block_field_name)
+    return user_input.model_dump()
+
+
+def modify_optical_module_location_form_generator(
+    subscription_id: UUIDstr,
+    subscription_model: type[SubscriptionModel] = OpticalModuleLocationSubscription,
+    block_field_name: str = "optical_location",
+) -> FormGenerator:
+    """Generate the initial input form for modifying an Optical Module Location subscription.
+
+    The form is prefilled with the current values of the subscription, so
+    unchanged fields remain intact. It is a thin composition of the shipped
+    page sequence (:func:`modify_optical_module_location_form_pages`) and the
+    summary form.
+
+    Args:
+        subscription_id: The identifier of the subscription being modified.
+        subscription_model: The ACTIVE subscription model class of the Optical
+            Module Location product. Consumers that compose the shipped block
+            under a different attribute name pass their own model class here.
+        block_field_name: Name of the attribute of the subscription model holding
+            the Optical Module Location block.
+    """
+    subscription = subscription_model.from_subscription(subscription_id)
+    location = getattr(subscription, block_field_name)
+
+    user_input_dict = yield from modify_optical_module_location_form_pages(subscription, block_field_name)
+
+    summary_fields = [
+        "customer_id",
+        "longitude",
+        "latitude",
+        "location_code",
+        "location_name",
+    ]
+    yield from modify_summary_form(
+        user_input_dict,
+        location,
+        summary_fields,
+        extra_before={"customer_id": str(subscription.customer_id)},
+    )
+
+    return user_input_dict | {"subscription": subscription}
+
+
+@step("Updating Optical Module Location block")
+def update_optical_module_location_block(
+    optical_location_block: OpticalModuleLocationBlockProvisioning,
+    longitude: LongitudeCoordinate,
+    latitude: LatitudeCoordinate,
+    location_code: LocationCode,
+    location_name: str | None,
+    clear_location_name: bool = False,  # noqa: FBT001, FBT002
+) -> State:
+    """Update the Optical Module Location block in the state from the modify-form keys.
+
+    All fields are overwritten with the form values; the optional
+    ``location_name`` is removed when the ``clear_location_name`` checkbox is
+    ticked. Workflow steps execute with the state serialized between steps, so
+    the block is re-hydrated from the database by its ``subscription_instance_id``
+    before it is updated.
+
+    Args:
+        optical_location_block: The Optical Module Location block
+            in the state under ``OPTICAL_LOCATION_BLOCK_STATE_KEY``
+            (the provisioning variant, while the subscription is being modified).
+        longitude: Longitude of the location.
+        latitude: Latitude of the location.
+        location_code: Code of the location.
+        location_name: Human-readable name of the location.
+        clear_location_name: Whether to remove the location name.
+    """
+    location_block = optical_location_block_from_state(optical_location_block)
+    if location_block is None:
+        msg = "No Optical Module Location block in the state under OPTICAL_LOCATION_BLOCK_STATE_KEY"
+        raise ValueError(msg)
+    location_block.longitude = longitude
+    location_block.latitude = latitude
+    location_block.location_code = location_code
+    location_block.location_name = None if clear_location_name else location_name
+
+    return {OPTICAL_LOCATION_BLOCK_STATE_KEY: location_block}
+
+
+#: Modify steps operating on the Optical Module Location block in the state.
+#: The block is persisted by the last step, because workflow steps reload the
+#: subscription from the database and would otherwise lose the mutations.
+MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS: StepList = (
+    begin >> update_optical_module_location_block >> save_optical_module_location_block
+)
+
+
+@modify_workflow(initial_input_form=modify_optical_module_location_form_generator)
+def modify_optical_module_location() -> StepList:
+    """Workflow to modify an existing Optical Module Location subscription.
+
+    The workflow is valid for the shipped :class:`OpticalModuleLocationSubscription`
+    product type only: it loads the block from the ``optical_location``
+    attribute of the shipped subscription models. Consumers with their own
+    product type compose their own modify workflow with the shipped parts.
+    """
+    return (
+        begin
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> load_optical_module_location_block
+        >> MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS
+        >> set_status(SubscriptionLifecycle.ACTIVE)
+    )
+
+
+__all__ = [
+    "MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS",
+    "modify_optical_module_location",
+    "modify_optical_module_location_form",
+    "modify_optical_module_location_form_generator",
+    "modify_optical_module_location_form_pages",
+    "update_optical_module_location_block",
+]

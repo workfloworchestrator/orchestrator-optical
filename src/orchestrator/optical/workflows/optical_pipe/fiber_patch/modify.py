@@ -41,12 +41,12 @@ def initial_input_form_generator(
 
     class ModifyFiberPatchForm(FormPage):
         customer_id: customer_choice
-        optical_pipe_identifier: str = pipe.optical_pipe_identifier
+        optical_pipe_name: str = pipe.optical_pipe_name
 
     user_input = yield ModifyFiberPatchForm
     user_input_dict = user_input.model_dump()
 
-    summary_fields = ["customer_id", "optical_pipe_identifier"]
+    summary_fields = ["customer_id", "optical_pipe_name"]
     for page in extra_form_pages:
         user_input_dict.update((yield page).model_dump())
     yield from modify_pipe_summary_form(
@@ -64,10 +64,10 @@ def initial_input_form_generator(
 def update_fiber_patch(
     subscription: OpticalFiberPatchProvisioning,
     customer_id: UUIDstr,
-    optical_pipe_identifier: str,
+    optical_pipe_name: str,
 ) -> State:
     """Update subscription attributes."""
-    subscription.optical_pipe.optical_pipe_identifier = optical_pipe_identifier
+    subscription.optical_pipe.optical_pipe_name = optical_pipe_name
     subscription.customer_id = customer_id
     return {"subscription": subscription}
 

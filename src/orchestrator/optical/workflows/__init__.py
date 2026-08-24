@@ -8,9 +8,15 @@ in ``orchestrator/optical/translations/en-GB.json``). The workflows are bound
 to the shipped subscription models and are therefore only valid when the
 shipped product types are used as-is.
 
-The package also ships the **parts** of the workflows — importable form
-generators and step lists — for consumers that define their own product type
+The package also ships the **parts** of the workflows — the **FormPages** of the
+shipped forms (as page sequences, e.g. ``create_optical_module_location_form_pages``)
+and importable step lists — for consumers that define their own product type
 that has-a a shipped block and compose their own workflows with the parts.
+Shipped form generators are thin compositions of the shipped pages and the
+summary form; they carry no hooks, so consumers compose their own form
+generators by yielding from the shipped page sequences in one line and
+optionally interleaving their own pages. See the README for the complete
+consumption model.
 
 This package never registers workflows itself. Consumers register the shipped
 workflows with the standard orchestrator-core mechanism, one

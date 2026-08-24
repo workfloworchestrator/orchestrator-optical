@@ -39,7 +39,11 @@
       "validate_optical_spectrum": "validate optical spectrum service",
       "create_optical_digital_service": "create optical digital service",
       "modify_optical_digital_service": "modify optical digital service",
-      "terminate_optical_digital_service": "terminate optical digital service",
-      "validate_optical_digital_service": "validate optical digital service"
+       "terminate_optical_digital_service": "terminate optical digital service",
+       "validate_optical_digital_service": "validate optical digital service",
+       "create_optical_module_location": "create optical module location",
+       "modify_optical_module_location": "modify optical module location",
+       "terminate_optical_module_location": "terminate optical module location",
+       "validate_optical_module_location": "validate optical module location"
    }
 }

@@ -17,7 +17,7 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import (
 class OpticalLeasedSpectrumBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="LeasedSpectrumBlock"):
     """Inactive state of a Leased Spectrum product block."""
 
-    optical_pipe_identifier: str | None = None
+    optical_pipe_name: str | None = None
     optical_pipe_terminations: FiberSides[LeasedSpectrumPortBlockInactive]
 
 
@@ -28,7 +28,7 @@ class OpticalLeasedSpectrumBlockProvisioning(
 ):
     """Provisioning state of a Leased Spectrum product block."""
 
-    optical_pipe_identifier: str | None
+    optical_pipe_name: str | None
     optical_pipe_terminations: FiberSides[LeasedSpectrumPortBlockProvisioning]
 
 
@@ -39,5 +39,5 @@ class OpticalLeasedSpectrumBlock(
 ):
     """Active state of a Leased Spectrum product block."""
 
-    optical_pipe_identifier: str
+    optical_pipe_name: str
     optical_pipe_terminations: FiberSides[LeasedSpectrumPortBlock]

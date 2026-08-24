@@ -286,7 +286,7 @@ def build_constrained_graph_from_active_fibers(
         return True
 
     sifted_fibers = list(filter(does_fiber_pass_exclusion, active_fibers))
-    logger.debug("Graph edges for path computation", sifted_fibers=[f.optical_pipe_identifier for f in sifted_fibers])
+    logger.debug("Graph edges for path computation", sifted_fibers=[f.optical_pipe_name for f in sifted_fibers])
 
     # convert the fibers into an adjacency list
     graph: dict[Node, list[NeighborConnection]] = {}

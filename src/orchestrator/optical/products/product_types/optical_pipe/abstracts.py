@@ -9,7 +9,7 @@ from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import 
 )
 
 
-class AbstractOpticalPipeInactive(SubscriptionModel):
+class AbstractOpticalPipeInactive(SubscriptionModel, is_base=True):
     """Abstract base model for generic optical pipe subscription handling."""
 
     optical_pipe: AbstractOpticalPipeBlockInactive

@@ -20,7 +20,7 @@ from orchestrator.optical.products.product_types.optical_coherent_pluggable impo
     OpticalCoherentPluggable,
     OpticalCoherentPluggableInactive,
 )
-from orchestrator.optical.products.product_types.optical_packet_node import AbstractOpticalPacketNodeInactive
+from orchestrator.optical.products.product_types.optical_packet_node import OpticalModulePacketNodeSubscriptionInactive
 from orchestrator.optical.workflows.shared import subscription_from_subscription
 
 #: State key under which the Optical Coherent Pluggable block of the
@@ -48,7 +48,9 @@ def packet_node_block_from_subscription(subscription_id: UUIDstr) -> OpticalModu
     Raises:
         ValueError: If the subscription is not an Optical Packet Node subscription.
     """
-    packet_node_subscription = subscription_from_subscription(AbstractOpticalPacketNodeInactive, subscription_id)
+    packet_node_subscription = subscription_from_subscription(
+        OpticalModulePacketNodeSubscriptionInactive, subscription_id
+    )
     return packet_node_subscription.optical_packet_node
 
 

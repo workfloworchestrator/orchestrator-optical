@@ -56,6 +56,10 @@ WORKFLOW_MODULES = {
     "modify_optical_digital_service": "orchestrator.optical.workflows.optical_digital_service.modify_optical_digital_service",  # noqa: E501
     "terminate_optical_digital_service": "orchestrator.optical.workflows.optical_digital_service.terminate_optical_digital_service",  # noqa: E501
     "validate_optical_digital_service": "orchestrator.optical.workflows.optical_digital_service.validate_optical_digital_service",  # noqa: E501
+    "create_optical_module_location": "orchestrator.optical.workflows.optical_location.create",
+    "modify_optical_module_location": "orchestrator.optical.workflows.optical_location.modify",
+    "terminate_optical_module_location": "orchestrator.optical.workflows.optical_location.terminate",
+    "validate_optical_module_location": "orchestrator.optical.workflows.optical_location.validate",
 }
 
 EXPECTED_TARGETS = {

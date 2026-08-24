@@ -12,18 +12,18 @@ To use the models and services from this module, you will need to make some chan
 WFO. Please follow the steps below to install the WFO Optical module, including some file edits:
 
 1. `uv add orchestrator-optical`
-2. Generate a database migration for this module in your local `migrations` setup (e.g. via the orchestrator-core
-   shell commands). This package no longer ships a migrations module, so no module hook needs to be added.
+2. Generate a database migration for this module in your local `migrations` setup via the orchestrator-core
+   shell commands.
 3. The module is currently a work in progress (ported from a GARR-specific implementation): the model files are still
    being finalized and are subject to change between releases. See the "Consumption model" section below for how to
    decouple your own products from those changes.
 
 ## Consumption model
 
-The module ships **concrete product blocks** (e.g. `NokiaFlexIlsBlock`, `OpticalFiberSpanBlock`), the matching
-subscription product types, `hal/` services, the **ready-to-use workflows of the shipped product types** (one
-create/modify/terminate/validate per product) and the **parts of the workflows** (importable form generators and step
-lists). The module does **not** expect you to subclass its models: the shipped concrete blocks are a **shared
+The module ships **concrete product blocks** (e.g. `OpticalNodeBlock`, `OpticalFiberSpanBlock`), the matching
+subscription product types, hardware abstraction layer `hal/` services, the **ready-to-use workflows of the shipped product types** (one
+create/modify/terminate/validate per product) and the **parts of the workflows** (the FormPages of the shipped forms,
+as page sequences, and the step lists). The module expects you to use the shipped concrete blocks as a **shared
 interface** that you compose with your own model.
 
 There are two consumption paths:
@@ -49,8 +49,7 @@ LazyWorkflowInstance("orchestrator.optical.workflows.optical_node.nokia_flexils.
 ```
 
 Then persist the workflows to the database with the orchestrator-core CLI (`orchestrator db migrate-workflows`) and
-bind them to your product types. The create forms derive their title from the product name in the database at runtime,
-so no per-product configuration is needed. If you keep the shipped workflow names, the display strings in
+bind them to your product types. If you keep the shipped workflow names, the display strings in
 `orchestrator/optical/translations/en-GB.json` apply as-is; otherwise declare your own translations.
 
 The full list of shipped workflows and their import paths:
@@ -93,6 +92,10 @@ The full list of shipped workflows and their import paths:
 | `modify_optical_digital_service`      | `orchestrator.optical.workflows.optical_digital_service.modify_optical_digital_service`             |
 | `terminate_optical_digital_service`   | `orchestrator.optical.workflows.optical_digital_service.terminate_optical_digital_service`          |
 | `validate_optical_digital_service`    | `orchestrator.optical.workflows.optical_digital_service.validate_optical_digital_service`           |
+| `create_optical_module_location`      | `orchestrator.optical.workflows.optical_location.create`                                            |
+| `modify_optical_module_location`      | `orchestrator.optical.workflows.optical_location.modify`                                            |
+| `terminate_optical_module_location`   | `orchestrator.optical.workflows.optical_location.terminate`                                         |
+| `validate_optical_module_location`    | `orchestrator.optical.workflows.optical_location.validate`                                          |
 
 ### 2. Define your own product type that has-a the shipped block (composition + optional anti-corruption layer)
 
@@ -102,8 +105,7 @@ This is needed because the module's logic read the database by shipped block nam
 shipped blocks in-memory during steps execution. You are free to sync the same information outside the shipped blocks
 using thin "anti-corruption" wiring code that links your custom fields to the shipped fields (e.g. using `computed_fields`).
 
-Your product block chain references the shipped block's lifecycle variants in the matching lifecycle slots (core
-validates this at class definition time):
+Your product block chain references the shipped block's lifecycle variants in the matching lifecycle slots:
 
 ```python
 # mywfo/models.py
@@ -227,6 +229,28 @@ Notes:
 - The shipped create form is reusable as-is: it emits the flat `optical_*` keys the shipped steps consume. If you
   write your own form, you must either emit the same keys or write your own steps. The shipped terminate/validate
   forms and step lists compose the same way.
+- The shipped forms are **page sequences** (a `FormGenerator` that yields the shipped `FormPage` classes in order and
+  returns the collected user input as a flat dict), not hook-laden generators. Consumers compose their own form
+  generator by yielding from the shipped pages in one line, optionally interleaving their own pages, and finishing
+  with the shipped summary helpers (`create_summary_form` / `modify_summary_form`). The `optical_location` family is
+  the reference implementation:
+
+  ```python
+  # mywfo/forms.py
+  from orchestrator.optical.workflows.optical_location.create import create_optical_module_location_form_pages
+  from orchestrator.optical.workflows.shared import create_summary_form
+
+  def my_create_form_generator(product_name):
+      user_input_dict = yield from create_optical_module_location_form_pages(product_name)  # all shipped pages
+      user_input_dict.update((yield MyOwnFormPage).model_dump())                            # own pages in between
+      yield from create_summary_form(user_input_dict, product_name, ["customer_id", ..., "my_own_field"])
+      return user_input_dict
+  ```
+
+  For modify, the shipped page sequence is prefilled from the subscription and is composed the same way:
+  `user_input_dict = yield from modify_optical_module_location_form_pages(subscription, block_field_name="router")`.
+  The page factories returning individual prefilled pages (e.g. `modify_optical_module_location_form(subscription,
+  block_field_name)`) are exported for consumers that pick pages individually.
 - How much of your own information you keep is up to you: you can mirror your own fields into the shipped block (a
   thin anti-corruption layer, representing some information twice — in your shape and in the shipped block) or store
   everything in the shipped block only. Both are the same consumption path with different amounts of duplication;
@@ -244,8 +268,10 @@ persistence step saves it back into the owner subscription.
 |--------------------------------------|-----------------------------------------------|----------------------------------------------------------------|
 | `optical_node_block`                 | any shipped Optical Node vendor block         | optical node create/modify block steps                         |
 | `optical_coherent_pluggable_block`   | the shipped `OpticalCoherentPluggableBlock`   | coherent pluggable create/modify block steps, validate step    |
+| `optical_module_location_block`      | the shipped `OpticalModuleLocationBlock`      | optical module location create/modify block steps, validate step |
 
-The constants are exported as `OPTICAL_NODE_BLOCK_STATE_KEY` and `OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY`. The flat form keys
+The constants are exported as `OPTICAL_NODE_BLOCK_STATE_KEY`, `OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY` and
+`OPTICAL_LOCATION_BLOCK_STATE_KEY`. The flat form keys
 (`pqdn`, `optical_management_ip`, `optical_loopback_ip`, `optical_flexils_*`, `optical_node_role`,
 `optical_node_software_version`, `location_id`, `customer_id`) are the second half of the contract: the shipped forms
 emit them and the shipped steps consume them.
@@ -283,10 +309,14 @@ is opened.
 
 ## Status of the port
 
-Every product family ships the ready-to-use workflows of its shipped product types (the 36 workflows listed above)
-plus the importable parts (form generators and step lists). There are no workflow factories or hooks anymore; the
-shipped workflows are plain decorated functions bound to the shipped subscription models, so they are only valid
-when the shipped product types are used as-is.
+Every product family ships the ready-to-use workflows of its shipped product types (the 40 workflows listed above)
+plus the importable parts (the FormPages of the shipped forms and the step lists). There are no workflow factories or
+hooks; the shipped workflows are plain decorated functions bound to the shipped subscription models, so they are only
+valid when the shipped product types are used as-is. The shipped workflows are built using the same shipped forms and
+steps that can also be used on custom subscriptions as long as they have-a the shipped blocks and use the appropriate
+`state key` listed in the table above. The `optical_location` family is the reference implementation of the FormPage
+consumption model (shipped page sequences + one-line `yield from` composition, no `extra_form_pages`/
+`extra_summary_fields` hooks); the other families still carry the legacy hook-style form generators, mid-port.
 
 Coherent pluggable specifics:
 
@@ -301,8 +331,15 @@ Coherent pluggable specifics:
 - The shipped modify block steps do not persist a changed `customer_id` (the form still emits it); add your own step
   if your product tracks it.
 
-The `optical_location` family is still a work in progress (location selectors/helpers only) and ships no workflows
-yet.
+The `optical_location` family ships the ready-to-use workflows of the shipped `OpticalModuleLocationSubscription`
+product type (create/modify/terminate/validate) plus the importable parts: the FormPages of the shipped forms (as page
+sequences, e.g. `create_optical_module_location_form_pages(product_name)`, consumed with a one-line
+`yield from`) and the block step lists operating on the shipped `OpticalModuleLocationBlock` under the
+`optical_module_location_block` state key. The shipped form generators are thin compositions of the shipped pages and
+the summary form, without hooks — this family is the reference implementation of the FormPage consumption model. The
+shipped modify form offers a `clear location name` checkbox to delete the optional `location_name` field. The family
+also ships the location subscription selectors/helpers (`active_location_subscription_selector`,
+`location_block_from_subscription`).
 
 ## Development
 

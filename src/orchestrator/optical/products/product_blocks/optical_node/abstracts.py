@@ -25,7 +25,7 @@ class OpticalNodeRole(strEnum):
     TRANSPONDER_XOADM = "Transponder and xOADM"
 
 
-class AbstractOpticalNodeBlockInactive(ProductBlockModel):
+class AbstractOpticalNodeBlockInactive(ProductBlockModel, product_block_name="AbstractOpticalNodeBlock"):
     """Abstract implementation of an Optical Node that is inactive."""
 
     optical_node_role: OpticalNodeRole | None = None
