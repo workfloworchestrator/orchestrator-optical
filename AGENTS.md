@@ -65,8 +65,7 @@ src/orchestrator/optical/
 2. Generate a DB migration locally (the module ships **no** migrations — consumers create them, e.g. via
    orchestrator-core shell commands).
 3. The module is a **work in progress** (ported from a GARR-specific implementation): model files are still being
-   finalized and may change between releases. There are currently **no `#FIXME` markers** in the models — consumer-facing
-   subclassing guidance will be provided once the port stabilizes.
+   finalized and may change between releases.
 
 ## Core conventions (follow these in every session)
 

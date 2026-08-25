@@ -162,8 +162,13 @@ def _make_flexils_block() -> NokiaFlexIlsBlockInactive:
     )
 
 
-def _stub_location(_location_id) -> None:
-    return None
+def _stub_location(_location_id) -> OpticalModuleLocationBlockInactive:
+    subscription_id = uuid.uuid4()
+    return OpticalModuleLocationBlockInactive(
+        name="OpticalModuleLocationBlock",
+        subscription_instance_id=uuid.uuid4(),
+        owner_subscription_id=subscription_id,
+    )
 
 
 def test_populate_optical_node_nokia_flexils_block(monkeypatch) -> None:

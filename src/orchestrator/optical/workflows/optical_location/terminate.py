@@ -68,8 +68,12 @@ def terminate_initial_input_form_generator(
     Args:
         subscription_id: The identifier of the subscription being terminated.
         customer_id: The identifier of the subscription customer (kept for the WFO form signature).
+
+    Returns:
+        The collected user input of the confirmation page.
     """
-    return terminate_optical_module_location_form_pages(subscription_id)
+    user_input = yield from terminate_optical_module_location_form_pages(subscription_id)
+    return user_input
 
 
 @step("Deprovision Optical Module Location")

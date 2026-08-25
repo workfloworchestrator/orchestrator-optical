@@ -12,7 +12,9 @@ from typing import Any, cast
 from pydantic_forms.types import State
 from pydantic_forms.validators import Choice
 
+from orchestrator.core.db import SubscriptionInstanceTable, db
 from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
 from orchestrator.optical.db import subscription_instances_by_block_type_and_resource_value
@@ -101,12 +103,12 @@ def optical_location_block_from_state(
 
     Workflow steps execute with the state serialized between steps, so a block
     passed under ``OPTICAL_LOCATION_BLOCK_STATE_KEY`` arrives as a plain dict
-    (its serialized form, carrying the ``subscription_instance_id``) rather
-    than as a domain model. This helper returns the value unchanged when it is
-    already a domain model (in-process usage, e.g. in tests) and re-hydrates
-    the block from the database by its ``subscription_instance_id`` otherwise.
-    The most-derived block class is used, so blocks of any lifecycle are
-    loaded.
+    (its serialized form, carrying the full block data) rather than as a domain
+    model. This helper returns the value unchanged when it is already a domain
+    model (in-process usage, e.g. in tests) and reconstructs the block from the
+    serialized data otherwise. The lifecycle variant of the block is resolved
+    from the status of its owner subscription, so blocks of any lifecycle are
+    loaded as their matching variant (INITIAL, PROVISIONING or ACTIVE).
 
     Args:
         optical_location_block: The block value from the workflow state, or None.
@@ -122,11 +124,48 @@ def optical_location_block_from_state(
         return None
     if isinstance(optical_location_block, OpticalModuleLocationBlockInactive):
         return optical_location_block
+    return _optical_module_location_block_from_state(optical_location_block)
+
+
+def _optical_module_location_block_from_state(
+    optical_location_block: dict[str, Any],
+) -> OpticalModuleLocationBlockInactive:
+    """Reconstruct an Optical Module Location block from its serialized form.
+
+    The state dict carries the full block data (the block is serialized with
+    ``model_dump``), so the block is reconstructed from it rather than reloaded
+    from the database: reloading would discard the mutations made by the
+    preceding step, which workflow steps only persist when they explicitly save.
+    The lifecycle variant of the block is resolved from the status of its owner
+    subscription: the ACTIVE class cannot construct an INITIAL block (whose
+    required fields are unset) and the base class rejects non-INITIAL blocks, so
+    the specialized variant must be resolved explicitly, mirroring the
+    block-based resolution in ``orchestrator.optical.db``.
+
+    Args:
+        optical_location_block: The serialized block from the workflow state.
+
+    Returns:
+        The Optical Module Location block as a domain model.
+
+    Raises:
+        ValueError: If the block in the state has no ``subscription_instance_id``,
+            or if no subscription instance exists with the given id.
+    """
     subscription_instance_id = optical_location_block.get("subscription_instance_id")
     if subscription_instance_id is None:
         msg = "Optical Module Location block in the state has no subscription_instance_id"
         raise ValueError(msg)
-    return OpticalModuleLocationBlock.from_db(subscription_instance_id=subscription_instance_id)
+    instance = db.session.get(SubscriptionInstanceTable, subscription_instance_id)
+    if instance is None:
+        msg = f"No subscription instance with id {subscription_instance_id}"
+        raise ValueError(msg)
+    status = SubscriptionLifecycle(instance.subscription.status)
+    block_class = cast(
+        type[OpticalModuleLocationBlockInactive],
+        lookup_specialized_type(OpticalModuleLocationBlockInactive, status),
+    )
+    return block_class.model_validate(optical_location_block)
 
 
 def _optical_module_location_block_of_subscription(

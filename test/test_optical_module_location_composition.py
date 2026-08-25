@@ -247,11 +247,11 @@ def test_optical_location_block_from_state_rehydrates_a_round_tripped_block(monk
     """Workflow steps execute with the state serialized between steps: the block arrives as a dict."""
     block = _make_location_block()
 
-    def fake_from_db(cls, subscription_instance_id):
-        assert subscription_instance_id == str(block.subscription_instance_id)
+    def fake_from_state(block_dict):
+        assert block_dict["subscription_instance_id"] == str(block.subscription_instance_id)
         return block
 
-    monkeypatch.setattr(OpticalModuleLocationBlock, "from_db", classmethod(fake_from_db))
+    monkeypatch.setattr(location_shared, "_optical_module_location_block_from_state", fake_from_state)
 
     assert optical_location_block_from_state(None) is None
     assert optical_location_block_from_state(block) is block
@@ -265,11 +265,11 @@ def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch)
     """The populate step re-hydrates the block from the database by its subscription_instance_id."""
     block = _make_location_block()
 
-    def fake_from_db(cls, subscription_instance_id):
-        assert subscription_instance_id == str(block.subscription_instance_id)
+    def fake_from_state(block_dict):
+        assert block_dict["subscription_instance_id"] == str(block.subscription_instance_id)
         return block
 
-    monkeypatch.setattr(OpticalModuleLocationBlock, "from_db", classmethod(fake_from_db))
+    monkeypatch.setattr(location_shared, "_optical_module_location_block_from_state", fake_from_state)
 
     round_tripped = cast(Any, json_loads(json_dumps({OPTICAL_LOCATION_BLOCK_STATE_KEY: block})))
     state = round_tripped | {
