@@ -25,7 +25,10 @@ from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlock
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlock,
+    AbstractOpticalNodeBlockInactive,
+)
 from orchestrator.optical.products.product_blocks.optical_packet_node import (
     OpticalModulePacketNode,
     OpticalModulePacketNodeInactive,
@@ -304,7 +307,7 @@ def location_block_from_subscription(location_id: UUIDstr) -> OpticalModuleLocat
     return OpticalModuleLocationBlock.from_db(subscription_instance_id=instance.subscription_instance_id)
 
 
-def node_block_from_subscription(node_subscription_id: UUIDstr) -> AbstractOpticalNodeBlockInactive:
+def node_block_from_subscription(node_subscription_id: UUIDstr) -> AbstractOpticalNodeBlock:
     """Return the Optical Node product block of the given node subscription.
 
     The resolution is block-based: the subscription instance whose product
@@ -334,13 +337,13 @@ def node_block_from_subscription(node_subscription_id: UUIDstr) -> AbstractOptic
     # The ACTIVE variant is the most-derived subclass, so it can load INITIAL,
     # PROVISIONING and ACTIVE blocks (unlike the PROVISIONING class).
     active_class = cast(
-        type[AbstractOpticalNodeBlockInactive],
+        type[AbstractOpticalNodeBlock],
         lookup_specialized_type(block_class, SubscriptionLifecycle.ACTIVE),
     )
     return active_class.from_db(subscription_instance_id=instance.subscription_instance_id)
 
 
-def packet_node_block_from_subscription(subscription_id: UUIDstr) -> OpticalModulePacketNodeInactive:
+def packet_node_block_from_subscription(subscription_id: UUIDstr) -> OpticalModulePacketNode:
     """Return the Optical Module Packet Node product block of the given subscription.
 
     The resolution is block-based: the subscription instance whose product
