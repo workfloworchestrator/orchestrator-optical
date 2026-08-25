@@ -23,7 +23,7 @@ sequence in one line and adding their own pages::
 
 from typing import Annotated
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from orchestrator.core.domain import SubscriptionModel
@@ -41,6 +41,7 @@ from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordina
 from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_location.shared import (
     OPTICAL_LOCATION_BLOCK_STATE_KEY,
+    check_location_code_uniqueness,
     load_optical_module_location_block,
     optical_location_block_from_state,
     save_optical_module_location_block,
@@ -66,7 +67,9 @@ def modify_optical_module_location_form(
 
     The page is prefilled with the current values of the subscription, so
     unchanged fields remain intact. The optional ``location_name`` field can be
-    deleted by ticking the ``clear_location_name`` checkbox.
+    deleted by ticking the ``clear_location_name`` checkbox. The page validates
+    that the entered ``location_code`` is not already in use by another
+    location subscription, excluding the subscription being modified.
 
     Args:
         subscription: The ACTIVE subscription model of the Optical Module
@@ -108,6 +111,14 @@ def modify_optical_module_location_form(
             title="Clear location name",
             description="Tick to remove the location name from the subscription.",
         )
+
+        @model_validator(mode="after")
+        def validate_unique_location_code(self) -> "ModifyOpticalModuleLocationForm":
+            """Raise if the entered location code is already in use by another subscription."""
+            check_location_code_uniqueness(
+                self.location_code, exclude_subscription_id=str(subscription.subscription_id)
+            )
+            return self
 
     return ModifyOpticalModuleLocationForm
 
@@ -194,7 +205,10 @@ def update_optical_module_location_block(
 
     All fields are overwritten with the form values; the optional
     ``location_name`` is removed when the ``clear_location_name`` checkbox is
-    ticked. Workflow steps execute with the state serialized between steps, so
+    ticked. The step re-checks the uniqueness of the ``location_code`` at
+    execution time, excluding the subscription being modified, so consumers
+    bypassing the form validation are still guarded against duplicates.
+    Workflow steps execute with the state serialized between steps, so
     the block is re-hydrated from the database by its ``subscription_instance_id``
     before it is updated.
 
@@ -207,11 +221,15 @@ def update_optical_module_location_block(
         location_code: Code of the location.
         location_name: Human-readable name of the location.
         clear_location_name: Whether to remove the location name.
+
+    Raises:
+        ValueError: If the location code is already in use by another subscription.
     """
     location_block = optical_location_block_from_state(optical_location_block)
     if location_block is None:
         msg = "No Optical Module Location block in the state under OPTICAL_LOCATION_BLOCK_STATE_KEY"
         raise ValueError(msg)
+    check_location_code_uniqueness(location_code, exclude_subscription_id=str(location_block.owner_subscription_id))
     location_block.longitude = longitude
     location_block.latitude = latitude
     location_block.location_code = location_code

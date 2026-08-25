@@ -7,12 +7,13 @@ selectors, the human-readable subscription description, the block re-hydration
 and persistence steps.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from pydantic_forms.types import State, UUIDstr
 from pydantic_forms.validators import Choice
 
 from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
 from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlock,
@@ -22,6 +23,7 @@ from orchestrator.optical.products.product_types.optical_location import Optical
 from orchestrator.optical.workflows.shared import (
     active_subscription_selector_by_block_type,
     subscription_from_subscription,
+    subscription_instances_by_block_type_and_resource_value,
 )
 
 #: State key under which the Optical Module Location block of the subscription
@@ -29,6 +31,52 @@ from orchestrator.optical.workflows.shared import (
 #: compose (under any attribute name of their own model) in the state under
 #: this key.
 OPTICAL_LOCATION_BLOCK_STATE_KEY = "optical_location_block"
+
+
+def check_location_code_uniqueness(
+    location_code: str,
+    exclude_subscription_id: str | None = None,
+) -> None:
+    """Raise if the location code is already in use by another location subscription.
+
+    The check is block-based: it queries the subscription instances of the
+    shipped ``OpticalModuleLocationBlock`` block type whose ``location_code``
+    resource value equals the given code and whose owner subscription is
+    INITIAL, PROVISIONING or ACTIVE. Because every consumer that composes the
+    shipped block persists it under the shipped block name, the check also
+    covers composed product types without hardcoding a product type. The
+    subscription being modified is excluded by ``exclude_subscription_id``, so
+    a subscription never conflicts with its own location block.
+
+    This is an application-level check only: the module ships no database
+    migrations (consumers generate them), so no unique constraint enforces the
+    uniqueness in the database. As a known limitation there is a residual
+    TOCTOU race between the check and the subsequent block save; the block
+    population and update steps re-check at execution time to shrink the
+    window, but it cannot be fully closed by the module.
+
+    Args:
+        location_code: The location code to check.
+        exclude_subscription_id: Identifier of the subscription being modified,
+            whose own location block is not a conflict.
+
+    Raises:
+        ValueError: If another subscription already uses the location code,
+            naming the conflicting code and the conflicting subscription.
+    """
+    instances = subscription_instances_by_block_type_and_resource_value(
+        cast(str, OpticalModuleLocationBlock.name),
+        "location_code",
+        location_code,
+        [SubscriptionLifecycle.INITIAL, SubscriptionLifecycle.PROVISIONING, SubscriptionLifecycle.ACTIVE],
+    )
+    for instance in instances:
+        if exclude_subscription_id is not None and str(instance.subscription_id) == str(exclude_subscription_id):
+            continue
+        description = instance.subscription.description if instance.subscription is not None else None
+        conflicting = str(instance.subscription_id) + (f" ('{description}')" if description else "")
+        msg = f"Location code '{location_code}' is already in use by subscription {conflicting}"
+        raise ValueError(msg)
 
 
 def active_location_subscription_selector(prompt: str | None = None) -> type[Choice]:
@@ -211,6 +259,7 @@ def save_optical_module_location_block(
 __all__ = [
     "OPTICAL_LOCATION_BLOCK_STATE_KEY",
     "active_location_subscription_selector",
+    "check_location_code_uniqueness",
     "load_optical_module_location_block",
     "location_block_from_subscription",
     "optical_location_block_from_state",

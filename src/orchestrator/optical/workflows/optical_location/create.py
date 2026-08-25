@@ -25,7 +25,7 @@ their own pages::
 
 from typing import Annotated
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
 
@@ -43,6 +43,7 @@ from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordina
 from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_location.shared import (
     OPTICAL_LOCATION_BLOCK_STATE_KEY,
+    check_location_code_uniqueness,
     optical_location_block_from_state,
     save_optical_module_location_block,
     set_optical_module_location_subscription_description,
@@ -60,6 +61,8 @@ def create_optical_module_location_identity_form(
     and the human-readable name of the location. It is a building block for
     consumers that compose their own create form generator: the shipped page
     sequence (:func:`create_optical_module_location_form_pages`) yields it first.
+    The page validates that the entered ``location_code`` is not already in use
+    by another location subscription.
 
     Args:
         product_name: Name of the product being created, used as the page title.
@@ -85,6 +88,12 @@ def create_optical_module_location_identity_form(
             title="Location Name",
             description="Human-readable name of the location, e.g. 'Amsterdam'.",
         )
+
+        @model_validator(mode="after")
+        def validate_unique_location_code(self) -> "CreateOpticalModuleLocationIdentityForm":
+            """Raise if the entered location code is already in use by another subscription."""
+            check_location_code_uniqueness(self.location_code)
+            return self
 
     return CreateOpticalModuleLocationIdentityForm
 
@@ -181,7 +190,10 @@ def populate_optical_module_location_block(
 
     This is the anti-corruption point for consumers that keep their own model:
     call it from their own construct step on the shipped block they compose,
-    before their subscription model is transitioned to the next lifecycle.
+    before their subscription model is transitioned to the next lifecycle. It
+    re-checks the uniqueness of the ``location_code`` at execution time, so
+    consumers bypassing the form validation are still guarded against
+    duplicates.
 
     Args:
         optical_location_block: The Optical Module Location block to populate (any lifecycle variant).
@@ -189,7 +201,14 @@ def populate_optical_module_location_block(
         latitude: Latitude of the location.
         location_code: Code of the location.
         location_name: Human-readable name of the location.
+
+    Raises:
+        ValueError: If the location code is already in use by another subscription.
     """
+    check_location_code_uniqueness(
+        location_code,
+        exclude_subscription_id=str(optical_location_block.owner_subscription_id),
+    )
     optical_location_block.longitude = longitude
     optical_location_block.latitude = latitude
     optical_location_block.location_code = location_code

@@ -11,6 +11,7 @@ import uuid
 from functools import partial
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import Mock
 
 import pytest
 from pydantic_forms.validators import Choice
@@ -30,6 +31,7 @@ from orchestrator.optical.products.product_blocks.optical_location import (
 )
 from orchestrator.optical.workflows.optical_location import create as location_create
 from orchestrator.optical.workflows.optical_location import modify as location_modify
+from orchestrator.optical.workflows.optical_location import shared as location_shared
 from orchestrator.optical.workflows.optical_location import terminate as location_terminate
 from orchestrator.optical.workflows.optical_location.create import (
     CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
@@ -104,6 +106,16 @@ def _make_location_block() -> OpticalModuleLocationBlockInactive:
         subscription_instance_id=uuid.uuid4(),
         owner_subscription_id=uuid.uuid4(),
     )
+
+
+@pytest.fixture(autouse=True)
+def _mock_location_code_uniqueness_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DB-free: the uniqueness check never queries the database in the composition tests.
+
+    Tests exercising the check itself re-patch the helper with a fake.
+    """
+    monkeypatch.setattr(location_create, "check_location_code_uniqueness", Mock(return_value=None))
+    monkeypatch.setattr(location_modify, "check_location_code_uniqueness", Mock(return_value=None))
 
 
 def _step_functions(steps):
@@ -272,6 +284,148 @@ def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch)
     assert block.location_name == "Rome"
 
 
+def _make_conflicting_location_instance(
+    description: str | None = None,
+    subscription_id: uuid.UUID | None = None,
+) -> SimpleNamespace:
+    """Return a fake subscription instance row for the uniqueness query helper."""
+    return SimpleNamespace(
+        subscription_id=subscription_id or uuid.uuid4(),
+        subscription=None if description is None else SimpleNamespace(description=description),
+    )
+
+
+def test_check_location_code_uniqueness_passes_when_unused(monkeypatch) -> None:
+    monkeypatch.setattr(
+        location_shared, "subscription_instances_by_block_type_and_resource_value", Mock(return_value=[])
+    )
+
+    location_shared.check_location_code_uniqueness("rom-01")
+
+
+def test_check_location_code_uniqueness_raises_on_conflict(monkeypatch) -> None:
+    conflicting = _make_conflicting_location_instance(description="Rome (rom-01)")
+    monkeypatch.setattr(
+        location_shared,
+        "subscription_instances_by_block_type_and_resource_value",
+        Mock(return_value=[conflicting]),
+    )
+
+    with pytest.raises(ValueError, match="already in use") as exc_info:
+        location_shared.check_location_code_uniqueness("rom-01")
+
+    assert str(conflicting.subscription_id) in str(exc_info.value)
+    assert "Rome (rom-01)" in str(exc_info.value)
+
+
+def test_check_location_code_uniqueness_ignores_only_the_excluded_subscription(monkeypatch) -> None:
+    excluded = uuid.uuid4()
+    excluded_instance = _make_conflicting_location_instance(description="Rome (rom-01)", subscription_id=excluded)
+    other = _make_conflicting_location_instance(description="Amsterdam (ams-01)")
+    monkeypatch.setattr(
+        location_shared,
+        "subscription_instances_by_block_type_and_resource_value",
+        Mock(return_value=[excluded_instance, other]),
+    )
+
+    with pytest.raises(ValueError, match=r"Amsterdam \(ams-01\)"):
+        location_shared.check_location_code_uniqueness("rom-01", exclude_subscription_id=str(excluded))
+
+
+def test_create_identity_form_rejects_duplicate_location_code(monkeypatch) -> None:
+    def fake_check(location_code, exclude_subscription_id=None):
+        assert exclude_subscription_id is None
+        msg = f"Location code '{location_code}' is already in use by subscription {uuid.uuid4()}"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(location_create, "check_location_code_uniqueness", fake_check)
+    page = cast(
+        Any,
+        location_create.create_optical_module_location_identity_form(
+            "Optical Module Location", _fake_customer_choice()
+        ),
+    )
+
+    with pytest.raises(ValueError, match="already in use"):
+        page(customer_id="cust-1", location_code="rom-01", location_name="Rome")
+
+
+def test_modify_form_rejects_duplicate_location_code_excluding_self(monkeypatch) -> None:
+    monkeypatch.setattr(location_modify, "customer_choice_selector", _fake_customer_choice)
+
+    block = _make_location_block()
+    block.longitude = "4.9041"
+    block.latitude = "52.3676"
+    block.location_code = "ams-01"
+    block.location_name = "Amsterdam"
+    subscription = cast(
+        Any,
+        SimpleNamespace(customer_id="cust-1", subscription_id=uuid.uuid4(), optical_location=block),
+    )
+
+    def fake_check(location_code, exclude_subscription_id=None):
+        assert exclude_subscription_id == str(subscription.subscription_id)
+        msg = f"Location code '{location_code}' is already in use by subscription {uuid.uuid4()}"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(location_modify, "check_location_code_uniqueness", fake_check)
+    page = cast(Any, location_modify.modify_optical_module_location_form(subscription))
+
+    with pytest.raises(ValueError, match="already in use"):
+        page(
+            customer_id="cust-1",
+            longitude="4.9041",
+            latitude="52.3676",
+            location_code="ams-01",
+            location_name="Amsterdam",
+        )
+
+
+def test_populate_block_rejects_duplicate_location_code(monkeypatch) -> None:
+    block = _make_location_block()
+
+    def fake_check(location_code, exclude_subscription_id=None):
+        assert exclude_subscription_id == str(block.owner_subscription_id)
+        msg = f"Location code '{location_code}' is already in use by subscription {uuid.uuid4()}"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(location_create, "check_location_code_uniqueness", fake_check)
+
+    with pytest.raises(ValueError, match="already in use"):
+        populate_optical_module_location_block(
+            optical_location_block=block,
+            longitude="12.4964",
+            latitude="41.9028",
+            location_code="rom-01",
+            location_name="Rome",
+        )
+
+    assert block.location_code is None
+
+
+def test_update_block_rejects_duplicate_location_code_excluding_self(monkeypatch) -> None:
+    block = _make_location_block()
+
+    def fake_check(location_code, exclude_subscription_id=None):
+        assert exclude_subscription_id == str(block.owner_subscription_id)
+        msg = f"Location code '{location_code}' is already in use by subscription {uuid.uuid4()}"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(location_modify, "check_location_code_uniqueness", fake_check)
+
+    with pytest.raises(ValueError, match="already in use"):
+        cast(Any, update_optical_module_location_block).__wrapped__(
+            optical_location_block=block,
+            longitude="4.9041",
+            latitude="52.3676",
+            location_code="ams-01",
+            location_name="Amsterdam",
+            clear_location_name=False,
+        )
+
+    assert block.location_code is None
+
+
 def test_set_optical_module_location_subscription_description() -> None:
     block = _make_location_block()
     block.location_code = "rom-01"
@@ -375,7 +529,10 @@ def test_modify_form_pages_yield_the_prefilled_page(monkeypatch) -> None:
     block.latitude = "52.3676"
     block.location_code = "ams-01"
     block.location_name = "Amsterdam"
-    subscription = cast(Any, SimpleNamespace(customer_id="cust-1", optical_location=block))
+    subscription = cast(
+        Any,
+        SimpleNamespace(customer_id="cust-1", subscription_id=uuid.uuid4(), optical_location=block),
+    )
 
     generator = location_modify.modify_optical_module_location_form_pages(subscription)
     page = next(generator)
