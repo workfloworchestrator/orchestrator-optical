@@ -199,8 +199,8 @@ def unused_node_port_selector(
     unused_ports = [port for port in ports if port not in used_ports]
 
     if not prompt:
-        prompt = f"Select an unused port on {node_block.pqdn}"
-    options = {port: f"{node_block.pqdn} {port}" for port in unused_ports}
+        prompt = f"Select an unused port on {node_block.management.optical_module_node_fqdn}"
+    options = {port: f"{node_block.management.optical_module_node_fqdn} {port}" for port in unused_ports}
     return cast(type[Choice], Choice(prompt, zip(options.keys(), options.items(), strict=False)))
 
 
@@ -367,4 +367,7 @@ def default_pipe_identifier(
     port_b_name: str,
 ) -> str:
     """Return the default identifier of a pipe, e.g. ``"nodeA portA --- nodeB portB"``."""
-    return f"{node_a_block.pqdn} {port_a_name} --- {node_b_block.pqdn} {port_b_name}"
+    return (
+        f"{node_a_block.management.optical_module_node_fqdn} {port_a_name}"
+        f" --- {node_b_block.management.optical_module_node_fqdn} {port_b_name}"
+    )

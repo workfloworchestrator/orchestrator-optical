@@ -190,12 +190,12 @@ def initial_input_form_generator(
 
     ClientAChoice = unused_optical_client_port_selector(  # noqa: N806
         user_input_dict["id_node_a"],
-        prompt=f"Select the client port on {optical_node_a.pqdn}",
+        prompt=f"Select the client port on {optical_node_a.management.optical_module_node_fqdn}",
         product_block_type="OpticalTransponderClientPortBlock",
     )
     ClientBChoice = unused_optical_client_port_selector(  # noqa: N806
         user_input_dict["id_node_b"],
-        prompt=f"Select the client port on {optical_node_b.pqdn}",
+        prompt=f"Select the client port on {optical_node_b.management.optical_module_node_fqdn}",
         product_block_type="OpticalTransponderClientPortBlock",
     )
 
@@ -215,7 +215,7 @@ def initial_input_form_generator(
     LinesAChoice = trx_line_port_patched_but_not_used_multiple_selector(  # noqa: N806
         optical_node_subscription_id=user_input_dict["id_node_a"],
         client_port_name=user_input_dict["name_client_port_a"],
-        prompt=f"Select the line port for each carrier on {optical_node_a.pqdn}",
+        prompt=f"Select the line port for each carrier on {optical_node_a.management.optical_module_node_fqdn}",
         min_items=num_carriers,
         max_items=num_carriers,
         unique_items=True,
@@ -223,7 +223,7 @@ def initial_input_form_generator(
     LinesBChoice = trx_line_port_patched_but_not_used_multiple_selector(  # noqa: N806
         optical_node_subscription_id=user_input_dict["id_node_b"],
         client_port_name=user_input_dict["name_client_port_b"],
-        prompt=f"Select the line port for each carrier on {optical_node_b.pqdn}",
+        prompt=f"Select the line port for each carrier on {optical_node_b.management.optical_module_node_fqdn}",
         min_items=num_carriers,
         max_items=num_carriers,
         unique_items=True,
@@ -383,13 +383,19 @@ def construct_optical_digital_service_model(
             subscription_id=subscription_id,
             optical_port_name=name_client_port_a,
             optical_port_host_node=node_a,
-            optical_port_description=(f"{optical_digital_service_name} remote:{node_b.pqdn} {name_client_port_b}"),
+            optical_port_description=(
+                f"{optical_digital_service_name} remote:{node_b.management.optical_module_node_fqdn}"
+                f" {name_client_port_b}"
+            ),
         ),
         OpticalTransponderClientPortBlockInactive.new(
             subscription_id=subscription_id,
             optical_port_name=name_client_port_b,
             optical_port_host_node=node_b,
-            optical_port_description=(f"{optical_digital_service_name} remote:{node_a.pqdn} {name_client_port_a}"),
+            optical_port_description=(
+                f"{optical_digital_service_name} remote:{node_a.management.optical_module_node_fqdn}"
+                f" {name_client_port_a}"
+            ),
         ),
     ]
 
@@ -551,7 +557,7 @@ def configure_trx_line_side(subscription: OpticalDigitalServiceProvisioning) -> 
 
     results = {}
     for i, device in enumerate(devices):
-        results[device.pqdn] = configure_line_transceivers(
+        results[device.management.optical_module_node_fqdn] = configure_line_transceivers(
             device,
             port_names[i],
             tuple(central_freqs),
@@ -571,7 +577,7 @@ def configure_trx_client_side(subscription: OpticalDigitalServiceProvisioning) -
     results = {}
     for port in ods.optical_digital_service_client_ports:
         device = cast(AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
-        results[device.pqdn] = configure_transceiver_client(
+        results[device.management.optical_module_node_fqdn] = configure_transceiver_client(
             device,
             port.optical_port_name,
             port.optical_port_description or "",
@@ -603,7 +609,7 @@ def configure_trx_crossconnects(
         client_name = client.optical_port_name
         line_names = [line.optical_port_name for line in lines]
 
-        result_key = f"{device.pqdn}"
+        result_key = f"{device.management.optical_module_node_fqdn}"
         results[result_key] = configure_transponder_crossconnect(
             device,
             client_name,
@@ -641,7 +647,7 @@ def provision_optical_sections(
         for section in spectrum.optical_spectrum_sections:
             src_port = section.optical_spectrum_section_add_drop_ports[0]
             src_device = src_port.optical_port_host_node
-            result_key = f"{src_device.pqdn} {src_port.optical_port_name}"
+            result_key = f"{src_device.management.optical_module_node_fqdn} {src_port.optical_port_name}"
             results[result_key] = deploy_optical_circuit(
                 src_device,
                 section,
@@ -703,14 +709,14 @@ def set_trx_transmitted_power(
             min_acceptable_diff = 0.0
             max_acceptable_diff = 1.5
             if min_acceptable_diff <= db_from_target <= max_acceptable_diff:
-                result_key = f"{trib_device.pqdn} {trib_port.optical_port_name}"
+                result_key = f"{trib_device.management.optical_module_node_fqdn} {trib_port.optical_port_name}"
                 results[result_key] = f"P_rx_measured - P_rx_target = {db_from_target} dB"
                 continue
 
             trx_line_port = line_ports[i]
             trx = cast(AbstractOpticalNodeBlockInactive, trx_line_port.optical_port_host_node)
             trx_port_name = trx_line_port.optical_port_name
-            result_key = f"{trx.pqdn} {trx_port_name}"
+            result_key = f"{trx.management.optical_module_node_fqdn} {trx_port_name}"
             results[result_key] = allign_tx_power_to_target(trx, trx_port_name, db_from_target)
             sleep(5)  # wait for the power to stabilize before measuring the next port
             db_from_target = diff_btw_current_rx_power_and_target(
@@ -718,7 +724,7 @@ def set_trx_transmitted_power(
                 spectrum_name,
                 circuit_identifier=channel.optical_transport_channel_name,
             )
-            result_key = f"{trib_device.pqdn} {trib_port.optical_port_name}"
+            result_key = f"{trib_device.management.optical_module_node_fqdn} {trib_port.optical_port_name}"
             results[result_key] = f"P_rx_measured - P_rx_target = {db_from_target} dB"
 
     return {

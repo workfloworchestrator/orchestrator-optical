@@ -2,114 +2,206 @@
 
 This module ships the ready-to-use ``create_optical_node_nokia_flexils``
 workflow for the shipped Nokia FlexILS product type, together with the
-importable parts: the form generator, the discovery step, the block population
-logic and the step list that operates on the Nokia FlexILS node block found in
-the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``. Consumers that keep the
-shipped product type register the shipped workflow; consumers with their own
-model that has-a the shipped block compose their own ``@create_workflow`` with
-the parts.
+importable parts: the FormPages of the create form (as the
+:func:`create_optical_node_nokia_flexils_form_pages` page sequence), the
+discovery step, the block population logic and the step list that operates on
+the Nokia FlexILS node block found in the state under
+``OPTICAL_NODE_BLOCK_STATE_KEY``.
+
+Consumers that keep the shipped product type register the shipped workflow;
+consumers with their own model that has-a the shipped block compose their own
+``@create_workflow`` with the parts. The shipped workflow itself is composed
+from the shipped parts: the discovery step contacts the node and stores its
+role and software version, the construct step builds the shipped subscription
+model and puts its block in the state, the shipped block steps populate and
+persist the block, and the shipped description step finalizes the
+subscription. The shipped form generator is a thin composition of the shipped
+pages and the summary form, without hooks: consumers build their own form
+generator by yielding from the shipped page sequence in one line and adding
+their own pages::
+
+    user_input_dict = yield from create_optical_node_nokia_flexils_form_pages(product_name)
+    user_input_dict.update((yield my_own_page).model_dump())
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
 """
 
-from collections.abc import Sequence
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+from pydantic_forms.validators import Choice
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.steps import store_process_subscription
+from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.optical_node import discover_flexils_node
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
-from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockInactive
-from orchestrator.optical.products.product_types.optical_node.nokia_flexils import (
-    OpticalNodeNokiaFlexIlsInactive,
-    OpticalNodeNokiaFlexIlsProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlockInactive,
+    OpticalNodeRole,
 )
-from orchestrator.optical.utils.custom_types.dns import Pqdn
+from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIlsInactive
+from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_BLOCK_STATE_KEY,
-    optical_node_subscription_description,
+    optical_node_block_from_state,
     populate_abstract_optical_node_fields,
     save_optical_node_block,
+    update_optical_node_subscription_description,
     validate_gmpls_id_uniqueness,
     validate_management_ips_uniqueness,
-    validate_pqdn_uniqueness,
+    validate_optical_node_fqdn_uniqueness,
 )
 from orchestrator.optical.workflows.shared import create_summary_form
 
 
-def create_optical_node_nokia_flexils_form_generator(
+def create_optical_node_nokia_flexils_identity_form(
     product_name: str,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-) -> FormGenerator:
-    """Generate the initial input form for creating a Nokia FlexILS Optical Node.
+    customer_choice: type[Choice],
+) -> type[FormPage]:
+    """Return the identity FormPage of the Nokia FlexILS Optical Node create form.
 
-    The form emits the flat ``optical_*`` state keys consumed by the shipped
-    steps of :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`.
+    This is the first page of the shipped create form: the customer, the
+    location, the FQDN and the Target Identifier (TID) of the node. It is a
+    building block for consumers that compose their own create form generator:
+    the shipped page sequence (:func:`create_optical_node_nokia_flexils_form_pages`)
+    yields it first. The page validates that the FQDN is not already in use by
+    another Optical Node subscription.
 
     Args:
-        product_name: Name of the product being created.
-        extra_form_pages: Additional form pages shown before the summary form.
-        extra_summary_fields: Extra field names to append to the summary.
-    """
-    location_choice = active_location_subscription_selector()
-    customer_choice = customer_choice_selector()
+        product_name: Name of the product being created, used as the page title.
+        customer_choice: The ``Choice`` selector of the subscription customer,
+            as built by :func:`orchestrator.optical.workflows.customer.customer_choice_selector`.
 
-    class CreateNokiaFlexIlsForm(FormPage):
-        model_config = ConfigDict(title=product_name)
+    Returns:
+        The identity FormPage of the shipped create form.
+    """
+
+    class CreateNokiaFlexIlsIdentityForm(FormPage):
+        model_config = ConfigDict(title=f"{product_name} - Identity")
 
         customer_id: customer_choice
-        location_id: location_choice
-        pqdn: Annotated[
-            Pqdn,
-            Field(title="PQDN of the Optical Node. (e.g. if FQDN is `trx1.siteA.domain.com`, PQDN is `trx1.siteA`)"),
+        location_id: active_location_subscription_selector()
+        optical_module_node_fqdn: Annotated[
+            Fqdn,
+            Field(title="FQDN of the Optical Node"),
         ]
         optical_flexils_target_id: Annotated[
-            str, Field(title="Target Identifier (TID) of this FlexILS node (unique NENAME in the GMPLS network).")
+            str,
+            Field(title="Target Identifier (TID) of this FlexILS node (unique NENAME in the GMPLS network)."),
         ]
-        optical_management_ip: IPAddress | None = None
-        optical_loopback_ip: IPAddress | None = None
+
+        @model_validator(mode="after")
+        def validate_fqdn(self) -> "CreateNokiaFlexIlsIdentityForm":
+            """Raise if the FQDN is already in use by another subscription."""
+            validate_optical_node_fqdn_uniqueness(self.optical_module_node_fqdn)
+            return self
+
+    return CreateNokiaFlexIlsIdentityForm
+
+
+def create_optical_node_nokia_flexils_management_form(product_name: str) -> type[FormPage]:
+    """Return the management FormPage of the Nokia FlexILS Optical Node create form.
+
+    This is the second page of the shipped create form: the DCN interface and
+    loopback IPs and the GMPLS ID of the node. The page requires at least one
+    of the DCN IPs or the GMPLS ID and validates that the DCN IPs and the GMPLS
+    ID are not already in use by another Optical Node subscription.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+
+    Returns:
+        The management FormPage of the shipped create form.
+    """
+
+    class CreateNokiaFlexIlsManagementForm(FormPage):
+        model_config = ConfigDict(title=f"{product_name} - Management")
+
+        optical_module_node_dcn_loopback_ip: IPAddress | None = None
+        optical_module_node_dcn_interface_ip: IPAddress | None = None
         optical_flexils_gmpls_id: IPAddress | None = None
 
         @model_validator(mode="after")
-        def validate_form(self) -> "CreateNokiaFlexIlsForm":
-            if not self.optical_management_ip and not self.optical_loopback_ip and not self.optical_flexils_gmpls_id:
-                msg = "At least one of management IP or loopback IP or GMPLS ID must be provided."
+        def validate_form(self) -> "CreateNokiaFlexIlsManagementForm":
+            """Raise if the management values are incomplete or not unique."""
+            if (
+                not self.optical_module_node_dcn_loopback_ip
+                and not self.optical_module_node_dcn_interface_ip
+                and not self.optical_flexils_gmpls_id
+            ):
+                msg = "At least one of DCN loopback IP, DCN interface IP or GMPLS ID must be provided."
                 raise ValueError(msg)
-            validate_pqdn_uniqueness(self.pqdn)
             validate_management_ips_uniqueness(
-                [ip for ip in (self.optical_management_ip, self.optical_loopback_ip) if ip is not None]
+                [
+                    ip
+                    for ip in (self.optical_module_node_dcn_loopback_ip, self.optical_module_node_dcn_interface_ip)
+                    if ip is not None
+                ]
             )
             if self.optical_flexils_gmpls_id is not None:
                 validate_gmpls_id_uniqueness(self.optical_flexils_gmpls_id)
             return self
 
-    user_input = yield CreateNokiaFlexIlsForm
-    user_input_dict = user_input.model_dump()
+    return CreateNokiaFlexIlsManagementForm
+
+
+def create_optical_node_nokia_flexils_form_pages(product_name: str) -> FormGenerator:
+    """Yield the FormPages of the Nokia FlexILS Optical Node create form, in order.
+
+    This is the shipped create form as a page sequence: it yields the identity
+    page and the management page, and returns the collected user input as a
+    flat dict of the ``optical_*`` state keys plus ``customer_id`` and
+    ``location_id``, consumed by the shipped steps of
+    :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`. Consumers yield from it in one
+    line inside their own create form generator, optionally interleaving their
+    own pages.
+
+    Args:
+        product_name: Name of the product being created.
+
+    Returns:
+        The collected user input of the shipped pages.
+    """
+    customer_choice = customer_choice_selector()
+
+    user_input_dict: dict[str, str | None] = {}
+    identity_input = yield create_optical_node_nokia_flexils_identity_form(product_name, customer_choice)
+    user_input_dict.update(identity_input.model_dump())
+    management_input = yield create_optical_node_nokia_flexils_management_form(product_name)
+    user_input_dict.update(management_input.model_dump())
+    return user_input_dict
+
+
+def create_optical_node_nokia_flexils_form_generator(product_name: str) -> FormGenerator:
+    """Generate the initial input form for creating a Nokia FlexILS Optical Node.
+
+    The form emits the flat ``optical_*`` state keys consumed by the shipped
+    steps of :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`. It is a thin composition
+    of the shipped page sequence
+    (:func:`create_optical_node_nokia_flexils_form_pages`) and the summary form.
+
+    Args:
+        product_name: Name of the product being created.
+    """
+    user_input_dict = yield from create_optical_node_nokia_flexils_form_pages(product_name)
+
     summary_fields = [
         "customer_id",
         "location_id",
-        "pqdn",
-        "optical_management_ip",
-        "optical_loopback_ip",
-        "optical_flexils_gmpls_id",
+        "optical_module_node_fqdn",
         "optical_flexils_target_id",
+        "optical_module_node_dcn_loopback_ip",
+        "optical_module_node_dcn_interface_ip",
+        "optical_flexils_gmpls_id",
     ]
-    for page in extra_form_pages:
-        user_input_dict.update((yield page).model_dump())
-    yield from create_summary_form(
-        user_input_dict,
-        product_name,
-        summary_fields,
-        extra_summary_fields=extra_summary_fields,
-    )
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
 
     return user_input_dict
 
@@ -118,8 +210,8 @@ def create_optical_node_nokia_flexils_form_generator(
 def discover_optical_node_nokia_flexils(
     location_id: UUIDstr,
     optical_flexils_target_id: str,
-    optical_management_ip: IPAddress | None = None,
-    optical_loopback_ip: IPAddress | None = None,
+    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
+    optical_module_node_dcn_interface_ip: IPAddress | None = None,
     optical_flexils_gmpls_id: IPAddress | None = None,
 ) -> State:
     """Connect to the node and retrieve its role and software version.
@@ -131,8 +223,8 @@ def discover_optical_node_nokia_flexils(
     role, software_version = discover_flexils_node(
         location_id=location_id,
         optical_flexils_target_id=optical_flexils_target_id,
-        optical_management_ip=optical_management_ip,
-        optical_loopback_ip=optical_loopback_ip,
+        optical_management_ip=optical_module_node_dcn_interface_ip,
+        optical_loopback_ip=optical_module_node_dcn_loopback_ip,
         optical_flexils_gmpls_id=optical_flexils_gmpls_id,
     )
     return {
@@ -143,12 +235,13 @@ def discover_optical_node_nokia_flexils(
 
 def populate_optical_node_nokia_flexils_block(
     optical_node_block: NokiaFlexIlsBlockInactive,
+    *,
     location_id: UUIDstr,
     optical_node_role: OpticalNodeRole,
-    pqdn: Pqdn,
+    optical_module_node_fqdn: Fqdn,
     optical_node_software_version: str,
-    optical_management_ip: IPAddress | None = None,
-    optical_loopback_ip: IPAddress | None = None,
+    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
+    optical_module_node_dcn_interface_ip: IPAddress | None = None,
     optical_flexils_gmpls_id: IPAddress | None = None,
     optical_flexils_target_id: str | None = None,
 ) -> None:
@@ -162,10 +255,10 @@ def populate_optical_node_nokia_flexils_block(
         optical_node_block: The Nokia FlexILS node block to populate (any lifecycle variant).
         location_id: Subscription id of the Optical Location hosting the node.
         optical_node_role: Role of the node, as discovered from the device.
-        pqdn: PQDN of the node.
+        optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_node_software_version: Software version of the node, as discovered from the device.
-        optical_management_ip: Management IP through which the node can be reached directly.
-        optical_loopback_ip: Loopback IP through which the node can be reached directly.
+        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
+        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
         optical_flexils_gmpls_id: GMPLS ID of the node.
         optical_flexils_target_id: Target Identifier (TID) of the node.
     """
@@ -173,10 +266,12 @@ def populate_optical_node_nokia_flexils_block(
         optical_node_block=optical_node_block,
         location_id=location_id,
         optical_node_role=optical_node_role,
-        pqdn=pqdn,
-        optical_management_ip=optical_management_ip,
-        optical_loopback_ip=optical_loopback_ip,
-        optical_node_software_version=optical_node_software_version,
+        optical_module_node_fqdn=optical_module_node_fqdn,
+        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        optical_module_node_software_version=optical_node_software_version,
+        optical_module_node_vendor=Vendor.NOKIA,
+        optical_module_node_platform=Platform.FLEXILS,
     )
     optical_node_block.optical_flexils_gmpls_id = optical_flexils_gmpls_id
     optical_node_block.optical_flexils_target_id = optical_flexils_target_id
@@ -184,63 +279,66 @@ def populate_optical_node_nokia_flexils_block(
 
 @step("Populate Nokia FlexILS node block")
 def populate_optical_node_nokia_flexils_block_step(
-    optical_node_block: NokiaFlexIlsBlockInactive,
+    optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
     location_id: UUIDstr,
     optical_node_role: OpticalNodeRole,
-    pqdn: Pqdn,
+    optical_module_node_fqdn: Fqdn,
     optical_node_software_version: str,
-    optical_management_ip: IPAddress | None = None,
-    optical_loopback_ip: IPAddress | None = None,
+    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
+    optical_module_node_dcn_interface_ip: IPAddress | None = None,
     optical_flexils_gmpls_id: IPAddress | None = None,
     optical_flexils_target_id: str | None = None,
 ) -> State:
     """Populate the Nokia FlexILS node block found in the state from the create-form keys.
+
+    Workflow steps execute with the state serialized between steps, so the
+    block is re-hydrated from the database by its ``subscription_instance_id``
+    before it is populated.
 
     Args:
         optical_node_block: The Nokia FlexILS node block in the state under
             ``OPTICAL_NODE_BLOCK_STATE_KEY``.
         location_id: Subscription id of the Optical Location hosting the node.
         optical_node_role: Role of the node, as discovered from the device.
-        pqdn: PQDN of the node.
+        optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_node_software_version: Software version of the node, as discovered from the device.
-        optical_management_ip: Management IP through which the node can be reached directly.
-        optical_loopback_ip: Loopback IP through which the node can be reached directly.
+        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
+        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
         optical_flexils_gmpls_id: GMPLS ID of the node.
         optical_flexils_target_id: Target Identifier (TID) of the node.
+
+    Raises:
+        ValueError: If there is no Nokia FlexILS node block in the state under
+            ``OPTICAL_NODE_BLOCK_STATE_KEY``.
     """
+    node_block = optical_node_block_from_state(optical_node_block)
+    if node_block is None:
+        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
+        raise ValueError(msg)
     populate_optical_node_nokia_flexils_block(
-        optical_node_block=optical_node_block,
+        optical_node_block=cast(NokiaFlexIlsBlockInactive, node_block),
         location_id=location_id,
         optical_node_role=optical_node_role,
-        pqdn=pqdn,
-        optical_management_ip=optical_management_ip,
-        optical_loopback_ip=optical_loopback_ip,
+        optical_module_node_fqdn=optical_module_node_fqdn,
         optical_node_software_version=optical_node_software_version,
+        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
         optical_flexils_gmpls_id=optical_flexils_gmpls_id,
         optical_flexils_target_id=optical_flexils_target_id,
     )
-    return {OPTICAL_NODE_BLOCK_STATE_KEY: optical_node_block}
+    return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
 
 
 @step("Construct Subscription model")
-def construct_optical_node_nokia_flexils_subscription(
-    product: UUIDstr,
-    customer_id: UUIDstr,
-    location_id: UUIDstr,
-    optical_node_role: OpticalNodeRole,
-    pqdn: Pqdn,
-    optical_flexils_target_id: str,
-    optical_node_software_version: str,
-    optical_management_ip: IPAddress | None = None,
-    optical_loopback_ip: IPAddress | None = None,
-    optical_flexils_gmpls_id: IPAddress | None = None,
-) -> State:
+def construct_optical_node_nokia_flexils_subscription(product: UUIDstr, customer_id: UUIDstr) -> State:
     """Construct the initial domain subscription model for a Nokia FlexILS Optical Node.
 
     This step builds the shipped ``OpticalNodeNokiaFlexIls`` subscription model
-    and populates its node block. Consumers that define their own product type
-    (composing the ``NokiaFlexIlsBlock`` under their own attribute name) write
-    their own construct step instead and can reuse
+    and puts its block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY`` for
+    the shipped block steps of :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`.
+    Consumers that define their own product type (composing the
+    ``NokiaFlexIlsBlock`` under their own attribute name) write their own
+    construct step instead and can reuse
     :func:`populate_optical_node_nokia_flexils_block` as the anti-corruption
     point between their model and the shipped block.
     """
@@ -250,35 +348,19 @@ def construct_optical_node_nokia_flexils_subscription(
         status=SubscriptionLifecycle.INITIAL,
     )
 
-    populate_optical_node_nokia_flexils_block(
-        optical_node_block=subscription.optical_node,
-        location_id=location_id,
-        optical_node_role=optical_node_role,
-        pqdn=pqdn,
-        optical_management_ip=optical_management_ip,
-        optical_loopback_ip=optical_loopback_ip,
-        optical_node_software_version=optical_node_software_version,
-        optical_flexils_gmpls_id=optical_flexils_gmpls_id,
-        optical_flexils_target_id=optical_flexils_target_id,
-    )
-
-    subscription = OpticalNodeNokiaFlexIlsProvisioning.from_other_lifecycle(
-        subscription, SubscriptionLifecycle.PROVISIONING
-    )
-    subscription.description = optical_node_subscription_description(subscription)
-
     return {
         "subscription": subscription,
         "subscription_id": subscription.subscription_id,
-        "subscription_description": subscription.description,
+        OPTICAL_NODE_BLOCK_STATE_KEY: subscription.optical_node,
     }
 
 
 #: Create steps operating on the Nokia FlexILS node block in the state.
-#: Consumers that keep the shipped product type do not need this list (the
-#: shipped construct step populates the block itself); consumers with their own
-#: model run it after constructing their (inactive) subscription and putting
-#: their block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+#: The block is re-hydrated from the database and persisted by the last step,
+#: because workflow steps execute with the state serialized between steps.
+#: Consumers with their own model run this list after constructing their
+#: (inactive) subscription and putting their block in the state under
+#: ``OPTICAL_NODE_BLOCK_STATE_KEY``.
 CREATE_NOKIA_FLEXILS_BLOCK_STEPS: StepList = (
     begin >> populate_optical_node_nokia_flexils_block_step >> save_optical_node_block
 )
@@ -288,15 +370,21 @@ CREATE_NOKIA_FLEXILS_BLOCK_STEPS: StepList = (
 def create_optical_node_nokia_flexils() -> StepList:
     """Workflow to create a new Nokia FlexILS Optical Node subscription.
 
-    The workflow is valid for the shipped :class:`OpticalNodeNokiaFlexIls`
-    product type only: the construct step builds the shipped subscription
-    model. Consumers with their own product type compose their own create
-    workflow with the shipped parts.
+    The workflow is composed from the shipped parts: the discovery step
+    contacts the node and stores its role and software version, the construct
+    step builds the shipped :class:`OpticalNodeNokiaFlexIls` model and puts its
+    block in the state, the shipped block steps populate and persist the block,
+    and the shipped description step finalizes the subscription. It is
+    therefore only valid for the shipped product type; consumers with their own
+    product type compose their own create workflow with the same parts.
     """
     return (
         begin
         >> discover_optical_node_nokia_flexils
         >> construct_optical_node_nokia_flexils_subscription
+        >> CREATE_NOKIA_FLEXILS_BLOCK_STEPS
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> update_optical_node_subscription_description
         >> store_process_subscription()
     )
 
@@ -306,6 +394,9 @@ __all__ = [
     "construct_optical_node_nokia_flexils_subscription",
     "create_optical_node_nokia_flexils",
     "create_optical_node_nokia_flexils_form_generator",
+    "create_optical_node_nokia_flexils_form_pages",
+    "create_optical_node_nokia_flexils_identity_form",
+    "create_optical_node_nokia_flexils_management_form",
     "discover_optical_node_nokia_flexils",
     "populate_optical_node_nokia_flexils_block",
     "populate_optical_node_nokia_flexils_block_step",

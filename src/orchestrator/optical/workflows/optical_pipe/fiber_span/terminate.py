@@ -69,11 +69,11 @@ def factory_reset_span_ports(subscription: OpticalFiberSpan) -> State:
     """Prune the configuration of the terminating line ports of the fiber span."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
     configuration_results = {
-        f"{port_a.optical_port_host_node.pqdn} {port_a.optical_port_name}": factory_reset_port_configuration(
-            port_a, port_b
+        f"{port_a.optical_port_host_node.management.optical_module_node_fqdn} {port_a.optical_port_name}": (
+            factory_reset_port_configuration(port_a, port_b)
         ),
-        f"{port_b.optical_port_host_node.pqdn} {port_b.optical_port_name}": factory_reset_port_configuration(
-            port_b, port_a
+        f"{port_b.optical_port_host_node.management.optical_module_node_fqdn} {port_b.optical_port_name}": (
+            factory_reset_port_configuration(port_b, port_a)
         ),
     }
     return {"configuration_results": configuration_results}

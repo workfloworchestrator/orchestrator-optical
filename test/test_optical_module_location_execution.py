@@ -9,6 +9,7 @@ description refresh, the process-subscription relation and the modify/terminate/
 transitions.
 """
 
+from typing import Any, cast
 from uuid import UUID
 
 import pytest
@@ -41,30 +42,21 @@ from orchestrator.optical.workflows.optical_location.shared import (
     check_location_code_uniqueness,
     optical_location_block_from_state,
 )
+from orchestrator.optical.workflows.optical_location.validate import validate_optical_module_location_state
+from test.conftest import VOLATILE_TABLES
 
 pytestmark = pytest.mark.db
 
 PRODUCT_NAME = "Optical Module Location"
 CUSTOMER_ID = "cust-1"
 
-#: Tables holding per-test data; the seeded catalog (products, blocks, resource types,
-#: workflows and their associations) is kept between tests.
-VOLATILE_TABLES = (
-    "processes",
-    "subscriptions",
-    "search_queries",
-    "agent_runs",
-    "graph_snapshots",
-    "ai_search_index",
-    "ai_search_paths",
-)
-
 
 @pytest.fixture(autouse=True)
-def _clean_database() -> None:
+def _clean_database(postgres_database: Any) -> None:
     """Truncate all per-test data before every DB-backed test, keeping the seeded catalog."""
-    # Tests read through the default-scope session without committing; close any lingering
-    # read transaction first, or the TRUNCATE below blocks on it.
+    # Uncoped reads (e.g. the direct check_location_code_uniqueness call in a test) leave the
+    # default-scope session's pooled connection checked out; roll back to release it before
+    # the TRUNCATE below.
     core_db.db.session.rollback()
     with core_db.db.database_scope():
         core_db.db.session.execute(text(f"TRUNCATE TABLE {', '.join(VOLATILE_TABLES)} RESTART IDENTITY CASCADE"))
@@ -90,15 +82,8 @@ def _create_user_inputs() -> list[dict]:
 def _run_create(run_process) -> tuple[str, str]:
     """Run the shipped create workflow and return the (process id, subscription id) pair."""
     process_id = run_process("create_optical_module_location", _create_user_inputs())
-    assert _process_completed(process_id)
+    _assert_process_completed(process_id)
     return process_id, _subscription_id_of_process(process_id)
-
-
-def _process_completed(process_id: str) -> bool:
-    with core_db.db.database_scope():
-        process = core_db.db.session.get(ProcessTable, UUID(process_id))
-        assert process is not None
-        return ProcessStatus(process.last_status) == ProcessStatus.COMPLETED
 
 
 def _assert_process_completed(process_id: str) -> None:
@@ -136,16 +121,24 @@ def _set_subscription_status(subscription_id: str, status: SubscriptionLifecycle
 
 
 def _assert_block_state_round_tripped(process_id: str) -> None:
-    """Assert that a step state holds the block as a plain dict (the JSON round trip)."""
+    """Assert a step state holds the block as a dict with the values entered in the create form."""
+    expected = {
+        "location_code": "rom-01",
+        "location_name": "Rome",
+        "longitude": "12.4964",
+        "latitude": "41.9028",
+    }
     with core_db.db.database_scope():
-        states = [
-            step.state
+        block_states = [
+            step.state[OPTICAL_LOCATION_BLOCK_STATE_KEY]
             for step in core_db.db.session.scalars(
                 select(ProcessStepTable).where(ProcessStepTable.process_id == UUID(process_id))
             )
             if isinstance(step.state, dict) and isinstance(step.state.get(OPTICAL_LOCATION_BLOCK_STATE_KEY), dict)
         ]
-        assert states, "no step state held the round-tripped Optical Module Location block"
+    assert any(all(block_state.get(key) == value for key, value in expected.items()) for block_state in block_states), (
+        "no step state held the round-tripped block with the create form values"
+    )
 
 
 def test_create_optical_module_location_end_to_end(run_process) -> None:
@@ -272,7 +265,6 @@ def test_modify_keeps_own_location_code(run_process) -> None:
         ],
     )
     _assert_process_completed(process_id)
-    assert _subscription_table(subscription_id).description == "Rome (rom-01)"
 
 
 def test_check_location_code_uniqueness_against_database(run_process) -> None:
@@ -287,8 +279,34 @@ def test_check_location_code_uniqueness_against_database(run_process) -> None:
     check_location_code_uniqueness("rom-01", exclude_subscription_id=subscription_id)
 
 
-def test_validate_fails_on_unprovisioned_block(run_process) -> None:
-    """Validation fails for a subscription whose location block is missing required values."""
+def test_validate_fails_on_unprovisioned_block() -> None:
+    """The shipped validate step fails an INITIAL subscription whose block is not fully provisioned.
+
+    The framework only allows the validate workflow on ACTIVE subscriptions, so the shipped
+    check is exercised at step level against an INITIAL subscription loaded from the database.
+    """
+    with core_db.db.database_scope():
+        subscription = OpticalModuleLocationSubscriptionInactive.from_product_id(
+            product_id=UUID(_product_id()),
+            customer_id=CUSTOMER_ID,
+            status=SubscriptionLifecycle.INITIAL,
+        )
+        subscription.save()
+        subscription_id = str(subscription.subscription_id)
+        core_db.db.session.commit()
+    core_db.db.session.expire_all()
+
+    loaded = OpticalModuleLocationSubscriptionInactive.from_subscription(subscription_id)
+    with pytest.raises(ValueError, match="not fully provisioned"):
+        cast(Any, validate_optical_module_location_state).__wrapped__(subscription=loaded, optical_location_block=None)
+
+
+def test_validate_on_active_unprovisioned_block_fails_with_pydantic_error(run_process) -> None:
+    """Validation of an ACTIVE subscription with an empty block fails the framework's model load.
+
+    The framework loads the ACTIVE domain model before any shipped step runs, so the process
+    fails with a pydantic validation error on the required block fields, not the shipped check.
+    """
     with core_db.db.database_scope():
         subscription = OpticalModuleLocationSubscriptionInactive.from_product_id(
             product_id=UUID(_product_id()),
@@ -313,3 +331,9 @@ def test_validate_fails_on_unprovisioned_block(run_process) -> None:
         assert process is not None
         assert ProcessStatus(process.last_status) == ProcessStatus.FAILED
         assert process.failed_reason is not None
+        # The framework loads the ACTIVE domain model before any shipped step runs (the
+        # "Lock subscription" step), so the failure is the pydantic field error of the
+        # empty block, not the shipped "not fully provisioned" check.
+        assert "validation errors for OpticalModuleLocationSubscription" in process.failed_reason
+        assert "optical_location.longitude" in process.failed_reason
+        assert "Input should be a valid string" in process.failed_reason

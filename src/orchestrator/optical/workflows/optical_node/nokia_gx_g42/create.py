@@ -2,115 +2,226 @@
 
 This module ships the ready-to-use ``create_optical_node_nokia_gx_g42``
 workflow for the shipped Nokia GX G42 product type, together with the
-importable parts: the form generator, the block population logic and the step
-list that operates on the Nokia GX G42 node block found in the state under
-``OPTICAL_NODE_BLOCK_STATE_KEY``. Consumers that keep the shipped product type
-register the shipped workflow; consumers with their own model that has-a the
-shipped block compose their own ``@create_workflow`` with the parts.
+importable parts: the FormPages of the create form (as the
+:func:`create_optical_node_nokia_gx_g42_form_pages` page sequence), the
+discovery step, the block population logic and the step list that operates on
+the Nokia GX G42 node block found in the state under
+``OPTICAL_NODE_BLOCK_STATE_KEY``.
+
+Consumers that keep the shipped product type register the shipped workflow;
+consumers with their own model that has-a the shipped block compose their own
+``@create_workflow`` with the parts. The shipped workflow itself is composed
+from the shipped parts: the discovery step reads the software version from the
+device, the construct step builds the shipped subscription model and puts its
+block in the state, the shipped block steps populate and persist the block,
+and the shipped description step finalizes the subscription. The shipped form
+generator is a thin composition of the shipped pages and the summary form,
+without hooks: consumers build their own form generator by yielding from the
+shipped page sequence in one line and adding their own pages::
+
+    user_input_dict = yield from create_optical_node_nokia_gx_g42_form_pages(product_name)
+    user_input_dict.update((yield my_own_page).model_dump())
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
 """
 
-from collections.abc import Sequence
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
+from pydantic_forms.validators import Choice
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.steps import store_process_subscription
+from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
-from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockInactive
-from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import (
-    OpticalNodeNokiaGxG42Inactive,
-    OpticalNodeNokiaGxG42Provisioning,
+from orchestrator.optical.hal.optical_node import retrieve_g42_software_version
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlockInactive,
+    OpticalNodeRole,
 )
-from orchestrator.optical.utils.custom_types.dns import Pqdn
+from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockInactive
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42Inactive
+from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_BLOCK_STATE_KEY,
-    optical_node_subscription_description,
+    optical_node_block_from_state,
     populate_abstract_optical_node_fields,
     save_optical_node_block,
-    validate_pqdn_uniqueness,
+    update_optical_node_subscription_description,
+    validate_management_ips_uniqueness,
+    validate_optical_node_fqdn_uniqueness,
 )
 from orchestrator.optical.workflows.shared import create_summary_form
 
 
-def create_optical_node_nokia_gx_g42_form_generator(
+def create_optical_node_nokia_gx_g42_identity_form(
     product_name: str,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-) -> FormGenerator:
-    """Generate the initial input form for creating a Nokia GX G42 Optical Node.
+    customer_choice: type[Choice],
+) -> type[FormPage]:
+    """Return the identity FormPage of the Nokia GX G42 create form.
 
-    The form emits the flat ``optical_*`` state keys consumed by the shipped
-    steps of :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`.
+    This is the first page of the shipped create form: the customer, the
+    hosting location, the node role and the FQDN of the node. It is a building
+    block for consumers that compose their own create form generator: the
+    shipped page sequence (:func:`create_optical_node_nokia_gx_g42_form_pages`)
+    yields it first. The page validates that the FQDN is not already in use by
+    another Optical Node subscription.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+        customer_choice: The ``Choice`` selector of the subscription customer,
+            as built by :func:`orchestrator.optical.workflows.customer.customer_choice_selector`.
+
+    Returns:
+        The identity FormPage of the shipped create form.
+    """
+
+    class CreateOpticalNodeNokiaGxG42IdentityForm(FormPage):
+        model_config = ConfigDict(title=f"{product_name} - Identity")
+
+        customer_id: customer_choice
+        location_id: active_location_subscription_selector()
+        optical_node_role: OpticalNodeRole = OpticalNodeRole.TRANSPONDER
+        optical_module_node_fqdn: Annotated[
+            Fqdn,
+            Field(title="FQDN of the Optical Node"),
+        ]
+
+        @model_validator(mode="after")
+        def validate_fqdn(self) -> "CreateOpticalNodeNokiaGxG42IdentityForm":
+            """Raise if the FQDN is already in use by another subscription."""
+            validate_optical_node_fqdn_uniqueness(self.optical_module_node_fqdn)
+            return self
+
+    return CreateOpticalNodeNokiaGxG42IdentityForm
+
+
+def create_optical_node_nokia_gx_g42_management_form(product_name: str) -> type[FormPage]:
+    """Return the management FormPage of the Nokia GX G42 create form.
+
+    This is the second page of the shipped create form: the DCN loopback and
+    interface IPs of the node. It is a building block for consumers that
+    compose their own create form generator: the shipped page sequence
+    (:func:`create_optical_node_nokia_gx_g42_form_pages`) yields it second.
+    The page requires at least one of the two DCN IPs and validates that the
+    management IPs are not already in use by another Optical Node subscription.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+
+    Returns:
+        The management FormPage of the shipped create form.
+    """
+
+    class CreateOpticalNodeNokiaGxG42ManagementForm(FormPage):
+        model_config = ConfigDict(title=f"{product_name} - Management")
+
+        optical_module_node_dcn_loopback_ip: IPAddress | None = None
+        optical_module_node_dcn_interface_ip: IPAddress | None = None
+
+        @model_validator(mode="after")
+        def validate_form(self) -> "CreateOpticalNodeNokiaGxG42ManagementForm":
+            """Validate the management data and the uniqueness of the management IPs."""
+            if not self.optical_module_node_dcn_loopback_ip and not self.optical_module_node_dcn_interface_ip:
+                msg = "At least one of DCN loopback IP or DCN interface IP must be provided."
+                raise ValueError(msg)
+            validate_management_ips_uniqueness(
+                [
+                    ip
+                    for ip in (self.optical_module_node_dcn_loopback_ip, self.optical_module_node_dcn_interface_ip)
+                    if ip is not None
+                ]
+            )
+            return self
+
+    return CreateOpticalNodeNokiaGxG42ManagementForm
+
+
+def create_optical_node_nokia_gx_g42_form_pages(product_name: str) -> FormGenerator:
+    """Yield the FormPages of the Nokia GX G42 create form, in order.
+
+    This is the shipped create form as a page sequence: it yields the identity
+    page and the management page, and returns the collected user input as a
+    flat dict of the ``optical_*`` state keys plus ``customer_id`` and
+    ``location_id``, consumed by the shipped steps of
+    :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`. Consumers yield from it in one
+    line inside their own create form generator, optionally interleaving their
+    own pages.
 
     Args:
         product_name: Name of the product being created.
-        extra_form_pages: Additional form pages shown before the summary form.
-        extra_summary_fields: Extra field names to append to the summary.
+
+    Returns:
+        The collected user input of the shipped pages.
     """
-    location_choice = active_location_subscription_selector()
     customer_choice = customer_choice_selector()
 
-    class CreateNokiaGxG42Form(FormPage):
-        model_config = ConfigDict(title=product_name)
+    user_input_dict: dict[str, str | None] = {}
+    user_input_dict.update(
+        (yield create_optical_node_nokia_gx_g42_identity_form(product_name, customer_choice)).model_dump()
+    )
+    user_input_dict.update((yield create_optical_node_nokia_gx_g42_management_form(product_name)).model_dump())
+    return user_input_dict
 
-        customer_id: customer_choice
-        location_id: location_choice
-        optical_node_role: OpticalNodeRole = OpticalNodeRole.TRANSPONDER
-        pqdn: Annotated[
-            Pqdn,
-            Field(title="PQDN of the Optical Node. (e.g. if FQDN is `trx1.siteA.domain.com`, PQDN is `trx1.siteA`)"),
-        ]
-        optical_management_ip: IPAddress | None = None
-        optical_loopback_ip: IPAddress | None = None
-        optical_node_software_version: str | None = None
 
-        @model_validator(mode="after")
-        def validate_form(self) -> "CreateNokiaGxG42Form":
-            validate_pqdn_uniqueness(self.pqdn)
-            if not self.optical_management_ip and not self.optical_loopback_ip:
-                msg = "At least one of management IP or loopback IP must be provided."
-                raise ValueError(msg)
-            return self
+def create_optical_node_nokia_gx_g42_form_generator(product_name: str) -> FormGenerator:
+    """Generate the initial input form for creating a Nokia GX G42 Optical Node.
 
-    user_input = yield CreateNokiaGxG42Form
-    user_input_dict = user_input.model_dump()
+    The form emits the flat ``optical_*`` state keys consumed by the shipped
+    steps of :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`. It is a thin composition
+    of the shipped page sequence
+    (:func:`create_optical_node_nokia_gx_g42_form_pages`) and the summary form.
+
+    Args:
+        product_name: Name of the product being created.
+    """
+    user_input_dict = yield from create_optical_node_nokia_gx_g42_form_pages(product_name)
+
     summary_fields = [
         "customer_id",
         "location_id",
         "optical_node_role",
-        "pqdn",
-        "optical_management_ip",
-        "optical_loopback_ip",
-        "optical_node_software_version",
+        "optical_module_node_fqdn",
+        "optical_module_node_dcn_loopback_ip",
+        "optical_module_node_dcn_interface_ip",
     ]
-    for page in extra_form_pages:
-        user_input_dict.update((yield page).model_dump())
-    yield from create_summary_form(
-        user_input_dict,
-        product_name,
-        summary_fields,
-        extra_summary_fields=extra_summary_fields,
-    )
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
 
     return user_input_dict
 
 
+@step("Discover Nokia GX G42 node properties")
+def discover_optical_node_nokia_gx_g42(
+    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
+    optical_module_node_dcn_interface_ip: IPAddress | None = None,
+) -> State:
+    """Connect to the node and retrieve its software version.
+
+    The step is block-free: it only adds the discovered
+    ``optical_node_software_version`` key to the state, which the shipped
+    populate step consumes.
+    """
+    software_version = retrieve_g42_software_version(
+        dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        dcn_interface_ip=optical_module_node_dcn_interface_ip,
+    )
+    return {"optical_node_software_version": software_version}
+
+
 def populate_optical_node_nokia_gx_g42_block(
     optical_node_block: NokiaGxG42BlockInactive,
+    *,
     location_id: UUIDstr,
     optical_node_role: OpticalNodeRole,
-    pqdn: Pqdn,
-    optical_management_ip: IPAddress | None = None,
-    optical_loopback_ip: IPAddress | None = None,
-    optical_node_software_version: str | None = None,
+    optical_module_node_fqdn: Fqdn,
+    optical_node_software_version: str,
+    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
+    optical_module_node_dcn_interface_ip: IPAddress | None = None,
 ) -> None:
     """Populate a Nokia GX G42 node block from the create-form state keys.
 
@@ -122,73 +233,79 @@ def populate_optical_node_nokia_gx_g42_block(
         optical_node_block: The Nokia GX G42 node block to populate (any lifecycle variant).
         location_id: Subscription id of the Optical Location hosting the node.
         optical_node_role: Role of the node.
-        pqdn: PQDN of the node.
-        optical_management_ip: Management IP through which the node can be reached directly.
-        optical_loopback_ip: Loopback IP through which the node can be reached directly.
-        optical_node_software_version: Software version of the node.
+        optical_module_node_fqdn: Fully qualified domain name of the node.
+        optical_node_software_version: Software version of the node, as discovered from the device.
+        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
+        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
     """
     populate_abstract_optical_node_fields(
         optical_node_block=optical_node_block,
         location_id=location_id,
         optical_node_role=optical_node_role,
-        pqdn=pqdn,
-        optical_management_ip=optical_management_ip,
-        optical_loopback_ip=optical_loopback_ip,
-        optical_node_software_version=optical_node_software_version,
+        optical_module_node_fqdn=optical_module_node_fqdn,
+        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        optical_module_node_software_version=optical_node_software_version,
+        optical_module_node_vendor=Vendor.NOKIA,
+        optical_module_node_platform=Platform.GX_G42,
     )
 
 
 @step("Populate Nokia GX G42 node block")
 def populate_optical_node_nokia_gx_g42_block_step(
-    optical_node_block: NokiaGxG42BlockInactive,
+    optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
+    *,
     location_id: UUIDstr,
     optical_node_role: OpticalNodeRole,
-    pqdn: Pqdn,
-    optical_management_ip: IPAddress | None = None,
-    optical_loopback_ip: IPAddress | None = None,
-    optical_node_software_version: str | None = None,
+    optical_module_node_fqdn: Fqdn,
+    optical_node_software_version: str,
+    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
+    optical_module_node_dcn_interface_ip: IPAddress | None = None,
 ) -> State:
     """Populate the Nokia GX G42 node block found in the state from the create-form keys.
+
+    Workflow steps execute with the state serialized between steps, so the
+    block is re-hydrated from its serialized form before it is populated.
 
     Args:
         optical_node_block: The Nokia GX G42 node block in the state under
             ``OPTICAL_NODE_BLOCK_STATE_KEY``.
         location_id: Subscription id of the Optical Location hosting the node.
         optical_node_role: Role of the node.
-        pqdn: PQDN of the node.
-        optical_management_ip: Management IP through which the node can be reached directly.
-        optical_loopback_ip: Loopback IP through which the node can be reached directly.
-        optical_node_software_version: Software version of the node.
+        optical_module_node_fqdn: Fully qualified domain name of the node.
+        optical_node_software_version: Software version of the node, as discovered from the device.
+        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
+        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
+
+    Raises:
+        ValueError: If there is no Nokia GX G42 node block in the state.
     """
+    node_block = optical_node_block_from_state(optical_node_block)
+    if node_block is None:
+        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
+        raise ValueError(msg)
     populate_optical_node_nokia_gx_g42_block(
-        optical_node_block=optical_node_block,
+        optical_node_block=cast(NokiaGxG42BlockInactive, node_block),
         location_id=location_id,
         optical_node_role=optical_node_role,
-        pqdn=pqdn,
-        optical_management_ip=optical_management_ip,
-        optical_loopback_ip=optical_loopback_ip,
+        optical_module_node_fqdn=optical_module_node_fqdn,
+        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
         optical_node_software_version=optical_node_software_version,
     )
-    return {OPTICAL_NODE_BLOCK_STATE_KEY: optical_node_block}
+    return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
 
 
 @step("Construct Subscription model")
-def construct_optical_node_nokia_gx_g42_subscription(
-    product: UUIDstr,
-    customer_id: UUIDstr,
-    location_id: UUIDstr,
-    optical_node_role: OpticalNodeRole,
-    pqdn: Pqdn,
-    optical_management_ip: IPAddress | None = None,
-    optical_loopback_ip: IPAddress | None = None,
-    optical_node_software_version: str | None = None,
-) -> State:
+def construct_optical_node_nokia_gx_g42_subscription(product: UUIDstr, customer_id: UUIDstr) -> State:
     """Construct the initial domain subscription model for a Nokia GX G42 Optical Node.
 
     This step builds the shipped ``OpticalNodeNokiaGxG42`` subscription model
-    and populates its node block. Consumers that define their own product type
-    (composing the ``NokiaGxG42Block`` under their own attribute name) write
-    their own construct step instead and can reuse
+    and puts its node block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``
+    for the shipped block steps of :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`.
+    Consumers that define their own product type (composing the
+    ``NokiaGxG42Block`` under their own attribute name) write their own
+    construct step instead and can reuse
     :func:`populate_optical_node_nokia_gx_g42_block` as the anti-corruption
     point between their model and the shipped block.
     """
@@ -198,33 +315,19 @@ def construct_optical_node_nokia_gx_g42_subscription(
         status=SubscriptionLifecycle.INITIAL,
     )
 
-    populate_optical_node_nokia_gx_g42_block(
-        optical_node_block=subscription.optical_node,
-        location_id=location_id,
-        optical_node_role=optical_node_role,
-        pqdn=pqdn,
-        optical_management_ip=optical_management_ip,
-        optical_loopback_ip=optical_loopback_ip,
-        optical_node_software_version=optical_node_software_version,
-    )
-
-    subscription = OpticalNodeNokiaGxG42Provisioning.from_other_lifecycle(
-        subscription, SubscriptionLifecycle.PROVISIONING
-    )
-    subscription.description = optical_node_subscription_description(subscription)
-
     return {
         "subscription": subscription,
         "subscription_id": subscription.subscription_id,
-        "subscription_description": subscription.description,
+        OPTICAL_NODE_BLOCK_STATE_KEY: subscription.optical_node,
     }
 
 
 #: Create steps operating on the Nokia GX G42 node block in the state.
-#: Consumers that keep the shipped product type do not need this list (the
-#: shipped construct step populates the block itself); consumers with their own
-#: model run it after constructing their (inactive) subscription and putting
-#: their block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+#: The block is re-hydrated from the database and persisted by the last step,
+#: because workflow steps execute with the state serialized between steps.
+#: Consumers with their own model run this list after constructing their
+#: (inactive) subscription and putting their block in the state under
+#: ``OPTICAL_NODE_BLOCK_STATE_KEY``.
 CREATE_NOKIA_GX_G42_BLOCK_STEPS: StepList = (
     begin >> populate_optical_node_nokia_gx_g42_block_step >> save_optical_node_block
 )
@@ -234,12 +337,23 @@ CREATE_NOKIA_GX_G42_BLOCK_STEPS: StepList = (
 def create_optical_node_nokia_gx_g42() -> StepList:
     """Workflow to create a new Nokia GX G42 Optical Node subscription.
 
-    The workflow is valid for the shipped :class:`OpticalNodeNokiaGxG42`
-    product type only: the construct step builds the shipped subscription
-    model. Consumers with their own product type compose their own create
-    workflow with the shipped parts.
+    The workflow is composed from the shipped parts: the discovery step reads
+    the software version from the device, the construct step builds the shipped
+    :class:`OpticalNodeNokiaGxG42` model and puts its block in the state, the
+    shipped block steps populate and persist the block, and the shipped
+    description step finalizes the subscription. It is therefore only valid for
+    the shipped product type; consumers with their own product type compose
+    their own create workflow with the same parts.
     """
-    return begin >> construct_optical_node_nokia_gx_g42_subscription >> store_process_subscription()
+    return (
+        begin
+        >> discover_optical_node_nokia_gx_g42
+        >> construct_optical_node_nokia_gx_g42_subscription
+        >> CREATE_NOKIA_GX_G42_BLOCK_STEPS
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> update_optical_node_subscription_description
+        >> store_process_subscription()
+    )
 
 
 __all__ = [
@@ -247,6 +361,10 @@ __all__ = [
     "construct_optical_node_nokia_gx_g42_subscription",
     "create_optical_node_nokia_gx_g42",
     "create_optical_node_nokia_gx_g42_form_generator",
+    "create_optical_node_nokia_gx_g42_form_pages",
+    "create_optical_node_nokia_gx_g42_identity_form",
+    "create_optical_node_nokia_gx_g42_management_form",
+    "discover_optical_node_nokia_gx_g42",
     "populate_optical_node_nokia_gx_g42_block",
     "populate_optical_node_nokia_gx_g42_block_step",
 ]

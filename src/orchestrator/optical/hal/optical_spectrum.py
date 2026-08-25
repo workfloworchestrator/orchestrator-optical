@@ -62,9 +62,9 @@ def _get_flex_client(optical_node_block: OpticalNodeBlock) -> FlexilsClientProto
 
 
 def _node_id(optical_node_block: OpticalNodeBlock) -> str:
-    """Return the pqdn of the given Optical Node block, for use in identifiers and messages."""
-    pqdn = optical_node_block.pqdn
-    return pqdn if pqdn is not None else "<no pqdn>"
+    """Return the fqdn of the given Optical Node block, for use in identifiers and messages."""
+    fqdn = optical_node_block.management.optical_module_node_fqdn
+    return fqdn if fqdn is not None else "<no fqdn>"
 
 
 def _port_name(port: OlsPortBlock) -> str:

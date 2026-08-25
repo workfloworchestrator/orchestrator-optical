@@ -217,7 +217,7 @@ def modify_optical_sections(
 
         for section in spectrum.optical_spectrum_sections:
             src_device = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-            results[src_device.pqdn] = modify_optical_circuit(
+            results[src_device.management.optical_module_node_fqdn] = modify_optical_circuit(
                 src_device,
                 section,
                 spectrum_name,

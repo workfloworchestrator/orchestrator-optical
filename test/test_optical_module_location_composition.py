@@ -287,6 +287,47 @@ def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch)
     assert block.location_name == "Rome"
 
 
+def test_optical_location_block_from_state_rejects_dict_without_subscription_instance_id() -> None:
+    """A serialized block without a ``subscription_instance_id`` cannot be re-hydrated."""
+    with pytest.raises(ValueError, match="subscription_instance_id"):
+        optical_location_block_from_state({})
+
+
+def test_optical_location_block_from_state_rejects_unknown_subscription_instance_id(monkeypatch) -> None:
+    """An unknown ``subscription_instance_id`` cannot be re-hydrated (no such instance)."""
+    fake_session = Mock()
+    fake_session.get.return_value = None
+    monkeypatch.setattr(location_shared, "db", SimpleNamespace(session=fake_session))
+
+    with pytest.raises(ValueError, match="No subscription instance"):
+        optical_location_block_from_state({"subscription_instance_id": str(uuid.uuid4())})
+
+
+def test_populate_block_step_fails_fast_when_state_has_no_block() -> None:
+    """The populate step fails fast when the state holds no Optical Module Location block."""
+    with pytest.raises(ValueError, match="No Optical Module Location block in the state"):
+        cast(Any, populate_optical_module_location_block_step).__wrapped__(
+            optical_location_block=None,
+            longitude="12.4964",
+            latitude="41.9028",
+            location_code="rom-01",
+            location_name="Rome",
+        )
+
+
+def test_update_block_step_fails_fast_when_state_has_no_block() -> None:
+    """The update step fails fast when the state holds no Optical Module Location block."""
+    with pytest.raises(ValueError, match="No Optical Module Location block in the state"):
+        cast(Any, update_optical_module_location_block).__wrapped__(
+            optical_location_block=None,
+            longitude="4.9041",
+            latitude="52.3676",
+            location_code="ams-01",
+            location_name="Amsterdam",
+            clear_location_name=False,
+        )
+
+
 def _make_conflicting_location_instance(
     description: str | None = None,
     subscription_id: uuid.UUID | None = None,

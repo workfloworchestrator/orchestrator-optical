@@ -48,7 +48,7 @@ def retrieve_span_used_passbands(subscription: OpticalFiberSpan) -> State:
         ):
             continue
         if port.optical_port_name is None:
-            msg = f"Optical port block of {host_node.pqdn} has no port name"
+            msg = f"Optical port block of {host_node.management.optical_module_node_fqdn} has no port name"
             raise ValueError(msg)
         port.optical_passbands = retrieve_ports_spectral_occupations(host_node).get(port.optical_port_name, [])
     return {"subscription": subscription}

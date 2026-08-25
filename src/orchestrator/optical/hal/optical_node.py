@@ -42,6 +42,7 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
 )
 from orchestrator.optical.services.nokia import G30Client, G42Client
 from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
+from orchestrator.optical.services.nokia.g30.data_models.ne import FwStateEnum
 from orchestrator.optical.utils.custom_types.frequencies import available_to_used_passbands
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.utils.datadiff import compare_pydantic_objects
@@ -80,7 +81,14 @@ class FlexilsGneProvider:
                 )
                 continue
 
-            management_ips = block.optical_management_ip if block.optical_management_ip else block.optical_loopback_ip
+            management_ips = [
+                ip
+                for ip in (
+                    block.management.optical_module_node_dcn_loopback_ip,
+                    block.management.optical_module_node_dcn_interface_ip,
+                )
+                if ip is not None
+            ]
             if not management_ips:
                 continue
 
@@ -102,7 +110,7 @@ class FlexilsGneProvider:
 
             cos_lat = cos(lat)
             vector = (cos_lat * cos(lon), cos_lat * sin(lon), sin(lat))
-            gnes.append((block.pqdn, management_ips[0], vector))
+            gnes.append((block.optical_flexils_target_id, management_ips[0], vector))
 
         cls._tid_ip_xyz_of_gnes = gnes
         logger.debug("Initialized FlexilsGneProvider cache", gnes=[tid for tid, _, _ in gnes])
@@ -409,14 +417,17 @@ def get_flex_client(optical_node_block: NokiaFlexIlsBlockInactive) -> FlexilsCli
     Raises:
         ValueError: If the node cannot be reached or identified.
     """
-    tid = optical_node_block.pqdn
+    tid = optical_node_block.optical_flexils_target_id
     if tid is None:
         msg = "Cannot create a FlexILS client: the node has no Target ID"
         raise ValueError(msg)
 
     gne_ips = [
         ip
-        for ip in [optical_node_block.optical_management_ip, optical_node_block.optical_loopback_ip]
+        for ip in [
+            optical_node_block.management.optical_module_node_dcn_loopback_ip,
+            optical_node_block.management.optical_module_node_dcn_interface_ip,
+        ]
         if ip is not None
     ]
 
@@ -454,8 +465,8 @@ def get_g30_client(optical_node_block: AbstractOpticalNodeBlockInactive) -> G30C
         A Groove G30 RESTCONF client.
     """
     return G30Client(
-        loopback_ip=str(optical_node_block.optical_loopback_ip or "") or None,
-        management_ip=str(optical_node_block.optical_management_ip or "") or None,
+        loopback_ip=str(optical_node_block.management.optical_module_node_dcn_loopback_ip or "") or None,
+        management_ip=str(optical_node_block.management.optical_module_node_dcn_interface_ip or "") or None,
     )
 
 
@@ -469,8 +480,8 @@ def get_g42_client(optical_node_block: AbstractOpticalNodeBlockInactive) -> G42C
         A GX G42 RESTCONF client.
     """
     return G42Client(
-        loopback_ip=str(optical_node_block.optical_loopback_ip or "") or None,
-        management_ip=str(optical_node_block.optical_management_ip or "") or None,
+        loopback_ip=str(optical_node_block.management.optical_module_node_dcn_loopback_ip or "") or None,
+        management_ip=str(optical_node_block.management.optical_module_node_dcn_interface_ip or "") or None,
     )
 
 
@@ -492,6 +503,123 @@ def get_optical_node_client(
             return get_g30_client(optical_node_block)
         case Vendor.GX_G42:
             return get_g42_client(optical_node_block)
+
+
+def retrieve_g30_software_version(
+    dcn_loopback_ip: IPAddress | None = None,
+    dcn_interface_ip: IPAddress | None = None,
+) -> str:
+    """Retrieve the software version of a Groove G30 node from the device via RESTCONF.
+
+    Args:
+        dcn_loopback_ip: The DCN loopback IP of the node.
+        dcn_interface_ip: The DCN interface IP of the node.
+
+    Returns:
+        The software version of the node.
+
+    Raises:
+        ValueError: If no firmware version can be found on the node.
+    """
+    g30 = G30Client(
+        loopback_ip=str(dcn_loopback_ip or "") or None,
+        management_ip=str(dcn_interface_ip or "") or None,
+    )
+    current_fw = g30.data.ne_ne.system.sw_management.current_fw_version.retrieve(content="all", depth=2)
+
+    version = next(
+        (
+            item.system_fw_version or item.device_fw_version
+            for item in current_fw
+            if item.fw_state == FwStateEnum.CURRENT
+        ),
+        None,
+    )
+    if version is None:
+        version = next(
+            (
+                item.system_fw_version or item.device_fw_version
+                for item in current_fw
+                if item.system_fw_version is not None or item.device_fw_version is not None
+            ),
+            None,
+        )
+    if version is None:
+        msg = "No current firmware version found on the Groove G30 node"
+        raise ValueError(msg)
+    logger.info("Retrieved Groove G30 software version", g30_url=g30.url, software_version=version)
+    return version
+
+
+def retrieve_g42_software_version(
+    dcn_loopback_ip: IPAddress | None = None,
+    dcn_interface_ip: IPAddress | None = None,
+) -> str:
+    """Retrieve the software version of a GX G42 node from the device via RESTCONF.
+
+    Args:
+        dcn_loopback_ip: The DCN loopback IP of the node.
+        dcn_interface_ip: The DCN interface IP of the node.
+
+    Returns:
+        The software version of the node.
+
+    Raises:
+        ValueError: If no firmware version can be found on the node.
+    """
+    g42 = G42Client(
+        loopback_ip=str(dcn_loopback_ip or "") or None,
+        management_ip=str(dcn_interface_ip or "") or None,
+    )
+    chassis_items = g42.data.ne.equipment.chassis.retrieve(depth=2)
+    controller = next((c for c in chassis_items if c.is_node_controller), None)
+    if controller is None and chassis_items:
+        controller = chassis_items[0]
+    if controller is None:
+        msg = "No chassis found to retrieve the software version of the GX G42 node"
+        raise ValueError(msg)
+
+    current_fw = g42.data.ne.equipment.chassis(controller.name).inventory.current_fw.retrieve(content="all", depth=2)
+    version = next((item.fw_version for item in current_fw if item.fw_version is not None), None)
+    if version is None:
+        msg = f"No current firmware version found on GX G42 node {g42.url}"
+        raise ValueError(msg)
+    logger.info("Retrieved GX G42 software version", g42_url=g42.url, software_version=version)
+    return version
+
+
+def retrieve_software_version(optical_node_block: AbstractOpticalNodeBlockInactive) -> str:
+    """Retrieve the software version of the node from the device, dispatching on the vendor.
+
+    Args:
+        optical_node_block: The Optical Node block (any lifecycle variant).
+
+    Returns:
+        The software version of the node.
+
+    Raises:
+        ValueError: If the software version cannot be retrieved from the node.
+    """
+    match vendor_of(optical_node_block):
+        case Vendor.FLEXILS:
+            flexils_block = _as_flexils_block(optical_node_block)
+            flex = cast(Any, get_flex_client(flexils_block))
+            target_id = flexils_block.optical_flexils_target_id
+            if target_id is None:
+                msg = "Cannot retrieve the software version: the FlexILS node has no Target ID"
+                raise ValueError(msg)
+            _, version = _retrieve_node_properties(flex, target_id)
+            return version
+        case Vendor.GROOVE_G30:
+            return retrieve_g30_software_version(
+                optical_node_block.management.optical_module_node_dcn_loopback_ip,
+                optical_node_block.management.optical_module_node_dcn_interface_ip,
+            )
+        case Vendor.GX_G42:
+            return retrieve_g42_software_version(
+                optical_node_block.management.optical_module_node_dcn_loopback_ip,
+                optical_node_block.management.optical_module_node_dcn_interface_ip,
+            )
 
 
 def _retrieve_omses_flexils(optical_node_block: NokiaFlexIlsBlockInactive) -> list[dict[str, Any]]:
@@ -617,8 +745,8 @@ def _validate_management_network_config_g30(optical_node_block: NokiaGrooveG30Bl
     rtp_config = rtp_navigator.retrieve(content="config", depth=5)
     opt_intf_config = g30.data.ne_ne.services.optical_interfaces.retrieve(content="config", depth=4)
 
-    lo_ip = optical_node_block.optical_loopback_ip
-    eth1_ip = optical_node_block.optical_management_ip
+    lo_ip = optical_node_block.management.optical_module_node_dcn_loopback_ip
+    eth1_ip = optical_node_block.management.optical_module_node_dcn_interface_ip
 
     eth1_intf_name, eth1_gateway, is_g30_connected_to_switch, eth1_prefix_len = _get_eth1_details(eth1_ip)
 
@@ -655,7 +783,11 @@ def _validate_management_network_config_g30(optical_node_block: NokiaGrooveG30Bl
     }
 
     if any(diffs.values()):
-        msg = f"Configuration mismatch for {optical_node_block.pqdn}:\n{json.dumps(diffs, indent=2, sort_keys=True)}\n"
+        msg = (
+            f"Configuration mismatch for "
+            f"{optical_node_block.management.optical_module_node_fqdn}:\n"
+            f"{json.dumps(diffs, indent=2, sort_keys=True)}\n"
+        )
         raise ValueError(msg)
 
 

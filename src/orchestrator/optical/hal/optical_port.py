@@ -75,12 +75,12 @@ def _port_name(optical_port_block: AbstractOpticalPortBlockInactive) -> str:
 
 
 def _node_id(optical_node_block: AbstractOpticalNodeBlockInactive) -> str:
-    """Return the node id (pqdn) of the given Optical Node block."""
-    pqdn = optical_node_block.pqdn
-    if pqdn is None:
-        msg = f"Optical Node block {type(optical_node_block).__name__} has no pqdn"
+    """Return the node id (fqdn) of the given Optical Node block."""
+    fqdn = optical_node_block.management.optical_module_node_fqdn
+    if fqdn is None:
+        msg = f"Optical Node block {type(optical_node_block).__name__} has no fqdn"
         raise ValueError(msg)
-    return pqdn
+    return fqdn
 
 
 def _same_node(
@@ -90,9 +90,9 @@ def _same_node(
     """Return whether two Optical Node blocks refer to the same device."""
     if node_a is node_b:
         return True
-    pqdn_a = node_a.pqdn
-    pqdn_b = node_b.pqdn
-    return pqdn_a is not None and pqdn_a == pqdn_b
+    fqdn_a = node_a.management.optical_module_node_fqdn
+    fqdn_b = node_b.management.optical_module_node_fqdn
+    return fqdn_a is not None and fqdn_a == fqdn_b
 
 
 def g30_ids_from_port_name(port_name: str) -> tuple[int, int, int | None, int, int | None]:
@@ -777,7 +777,7 @@ def _get_remote_node_id(remote_port_block: AbstractOpticalPortBlockInactive) -> 
         remote_port_block: Optical Port product block of the remote port.
 
     Returns:
-        The Groove G30 shelf serial number, or the pqdn for the other vendors.
+        The Groove G30 shelf serial number, or the fqdn for the other vendors.
 
     Raises:
         ValueError: If the node id cannot be determined.
@@ -792,11 +792,14 @@ def _get_remote_node_id(remote_port_block: AbstractOpticalPortBlockInactive) -> 
                 if item.equipment_type == EquipmentTypeEnum_1.SHELF and item.shelf_id == 1:
                     serial_number = item.serial_number
                     if serial_number is None:
-                        msg = f"Shelf 1 of G30 device {host_node.pqdn} has no serial number"
+                        msg = (
+                            f"Shelf 1 of G30 device "
+                            f"{host_node.management.optical_module_node_fqdn} has no serial number"
+                        )
                         raise ValueError(msg)
                     return serial_number
 
-            msg = f"Could not find shelf serial number for G30 device {host_node.pqdn}"
+            msg = f"Could not find shelf serial number for G30 device {host_node.management.optical_module_node_fqdn}"
             raise ValueError(msg)
         case Vendor.GX_G42 | Vendor.FLEXILS:
             return _node_id(host_node)

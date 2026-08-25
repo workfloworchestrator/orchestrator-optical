@@ -82,12 +82,12 @@ def initial_input_form_generator(
     port_a_choice = unused_node_port_selector(
         user_input_dict["node_a_id"],
         patch_ports_of_node(node_a_block),
-        prompt=f"Select an unused port on {node_a_block.pqdn}",
+        prompt=f"Select an unused port on {node_a_block.management.optical_module_node_fqdn}",
     )
     port_b_choice = unused_node_port_selector(
         user_input_dict["node_b_id"],
         patch_ports_of_node(node_b_block),
-        prompt=f"Select an unused port on {node_b_block.pqdn}",
+        prompt=f"Select an unused port on {node_b_block.management.optical_module_node_fqdn}",
     )
 
     class CreateFiberPatchForm2(FormPage):
@@ -164,14 +164,14 @@ def construct_fiber_patch_model(
         subscription_id,
         node_a_block,
         port_a_name,
-        f"Physically connected to {node_b_block.pqdn} {port_b_name}.",
+        f"Physically connected to {node_b_block.management.optical_module_node_fqdn} {port_b_name}.",
         patch_port_block_class(node_a_block, port_a_name, client_ports_a),
     )
     port_b = new_pipe_port_block(
         subscription_id,
         node_b_block,
         port_b_name,
-        f"Physically connected to {node_a_block.pqdn} {port_a_name}.",
+        f"Physically connected to {node_a_block.management.optical_module_node_fqdn} {port_a_name}.",
         patch_port_block_class(node_b_block, port_b_name, client_ports_b),
     )
 
@@ -208,10 +208,10 @@ def configure_patch_terminations(subscription: OpticalFiberPatchProvisioning) ->
         port_a, port_b = port_b, port_a
 
     configuration_results = {
-        f"{port_a.optical_port_host_node.pqdn} {port_a.optical_port_name}": (
+        f"{port_a.optical_port_host_node.management.optical_module_node_fqdn} {port_a.optical_port_name}": (
             configure_termination_when_attaching_new_fiber(port_a, port_b)
         ),
-        f"{port_b.optical_port_host_node.pqdn} {port_b.optical_port_name}": (
+        f"{port_b.optical_port_host_node.management.optical_module_node_fqdn} {port_b.optical_port_name}": (
             configure_termination_when_attaching_new_fiber(port_b, port_a)
         ),
     }

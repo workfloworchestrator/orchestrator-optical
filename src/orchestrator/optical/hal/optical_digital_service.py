@@ -51,9 +51,7 @@ from orchestrator.optical.services.nokia.g42.data_models.ioa_network_element imp
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
 from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects
 
-OpticalNodeBlock = (
-    AbstractOpticalNodeBlock | AbstractOpticalNodeBlockProvisioning | AbstractOpticalNodeBlockInactive
-)
+OpticalNodeBlock = AbstractOpticalNodeBlock | AbstractOpticalNodeBlockProvisioning | AbstractOpticalNodeBlockInactive
 
 
 class FlexilsClientProtocol(Protocol):
@@ -188,9 +186,9 @@ def _get_flex_client(optical_node_block: OpticalNodeBlock) -> FlexilsClientProto
 
 
 def _node_id(optical_node_block: OpticalNodeBlock) -> str:
-    """Return the pqdn of the given Optical Node block, for use in identifiers and messages."""
-    pqdn = optical_node_block.pqdn
-    return pqdn if pqdn is not None else "<no pqdn>"
+    """Return the fqdn of the given Optical Node block, for use in identifiers and messages."""
+    fqdn = optical_node_block.management.optical_module_node_fqdn
+    return fqdn if fqdn is not None else "<no fqdn>"
 
 
 def _g30_client_speed_config(speed: OpticalDigitalServiceSpeed) -> tuple[str, str, str]:
@@ -289,8 +287,11 @@ def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -
         case Vendor.GROOVE_G30:
             g30 = get_g30_client(optical_node_block)
             shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
-            och_os = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os.retrieve(
-                depth=2, content="config"
+            och_os = (
+                g30.data.ne_ne.shelf(shelf_id)
+                .slot(slot_id)
+                .card.port(port_id)
+                .och_os.retrieve(depth=2, content="config")
             )
             if och_os.fec_type == "SDFEC27ND":
                 bw = 75_000
@@ -683,8 +684,7 @@ def _configure_transponder_crossconnect_g30(  # noqa: PLR0912, PLR0915
         l_shelf_id, l_slot_id, _, line_port_id, _ = g30_ids_from_port_name(lpn)
         if shelf_id != l_shelf_id or slot_id != l_slot_id:
             msg = (
-                f"Client and line ports should be on the same shelf and slot. "
-                f"Client: {client_port_name}, Line: {lpn}."
+                f"Client and line ports should be on the same shelf and slot. Client: {client_port_name}, Line: {lpn}."
             )
             raise ValueError(msg)
         line_port_ids.append(line_port_id)

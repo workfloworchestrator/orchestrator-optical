@@ -112,7 +112,7 @@ def trx_line_port_patched_but_not_used_selector(
         line_ports[str(siv.subscription_instance_id)] = port_name
 
     if not prompt:
-        prompt = f"Select line optical port on {node.pqdn}"
+        prompt = f"Select line optical port on {node.management.optical_module_node_fqdn}"
     dynamic_class = Choice(prompt, zip(line_ports.keys(), line_ports.items(), strict=False))
     return cast(type[Choice], dynamic_class)
 

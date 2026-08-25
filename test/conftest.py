@@ -14,6 +14,10 @@ All database configuration lives in this harness only: the module under test kee
 no-import-time-side-effects rule and its settings are never touched. Set
 ``OPTICAL_TEST_PG_URL`` to an existing PostgreSQL URL to reuse an external instance
 instead of spinning up a container.
+
+The session-scoped ``postgres_database`` fixture rewrites the global
+``core_settings.app_settings`` process-wide; after the session ends it keeps pointing
+at the (stopped) container.
 """
 
 import os
@@ -32,6 +36,7 @@ import orchestrator.core.db as core_db
 import orchestrator.core.settings as core_settings
 import orchestrator.optical.migrations.generate as migrations
 import orchestrator.optical.products  # noqa: F401  # register the shipped product types in the registry
+from orchestrator.core.services.processes import start_process
 from orchestrator.core.workflows import LazyWorkflowInstance
 from orchestrator.optical.workflows.customer import register_customer_choice
 
@@ -153,8 +158,6 @@ def run_process(postgres_database: Any) -> Callable[[str, list[dict[str, Any]]],
     """
 
     def _run_process(workflow_name: str, user_inputs: list[dict[str, Any]]) -> str:
-        from orchestrator.core.services.processes import start_process
-
         process_id = start_process(workflow_name, user_inputs=user_inputs)
         # The worker thread committed its own session; expire the main-thread session so
         # subsequent queries observe the committed rows.

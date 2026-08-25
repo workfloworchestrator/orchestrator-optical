@@ -95,9 +95,13 @@ class NoOpticalPathFoundError(RuntimeError):
         super().__init__(msg)
 
 
-def _node_pqdn(node: AbstractOpticalNodeBlockInactive) -> str:
-    """Return the pqdn of an Optical Node block, tolerating unset values."""
-    return str(node.pqdn) if node.pqdn is not None else "<unknown>"
+def _node_fqdn(node: AbstractOpticalNodeBlockInactive) -> str:
+    """Return the fqdn of an Optical Node block, tolerating unset values."""
+    return (
+        str(node.management.optical_module_node_fqdn)
+        if node.management.optical_module_node_fqdn is not None
+        else "<unknown>"
+    )
 
 
 def _load_ols_port(port_id: UUIDstr) -> AbstractOpticalOlsPortBlockInactive:
@@ -537,7 +541,7 @@ def human_readable_optical_spectrum_path_selector(
     for path in paths:
         human_readable_path = ""
         first_port = _load_ols_port(path[0])
-        ne_name = _node_pqdn(first_port.optical_port_host_node)
+        ne_name = _node_fqdn(first_port.optical_port_host_node)
         human_readable_path += f"{ne_name} ({first_port.optical_port_name}) ⇋ "
 
         for i in range(1, len(path) - 1):
@@ -546,11 +550,11 @@ def human_readable_optical_spectrum_path_selector(
 
             port_i = _load_ols_port(path[i])
             port_ii = _load_ols_port(path[i + 1])
-            ne_name = _node_pqdn(port_i.optical_port_host_node)
+            ne_name = _node_fqdn(port_i.optical_port_host_node)
             human_readable_path += f"{ne_name} ({port_i.optical_port_name} × {port_ii.optical_port_name}) ⇋ "  # noqa: RUF001
 
         last_port = _load_ols_port(path[-1])
-        ne_name = _node_pqdn(last_port.optical_port_host_node)
+        ne_name = _node_fqdn(last_port.optical_port_host_node)
         human_readable_path += f"{ne_name} ({last_port.optical_port_name})"
 
         path_subscription_ids = ";".join(str(port_id) for port_id in path)
@@ -577,7 +581,7 @@ def human_readable_transport_channel_path_selector(
 
             port_i = _load_ols_port(path[i])
             port_ii = _load_ols_port(path[i + 1])
-            ne_name = _node_pqdn(port_i.optical_port_host_node)
+            ne_name = _node_fqdn(port_i.optical_port_host_node)
             human_readable_path += f"{ne_name} ({port_i.optical_port_name} × {port_ii.optical_port_name}) ⇋ "  # noqa: RUF001
             # g30.na01 (port-1/3.1/1 x port-1/3.3/1.1) <-> flex.na01 (1-E1-1-T2A x 1-A-1-L1) <-> ...
 
@@ -729,11 +733,15 @@ def update_used_passbands(optical_spectrum: OpticalSpectrumBlockProvisioning) ->
             node = port.optical_port_host_node
             if node.optical_node_role not in (OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER_XOADM):
                 continue
-            if node.pqdn is None or port.optical_port_name is None:
+            if node.management.optical_module_node_fqdn is None or port.optical_port_name is None:
                 continue
-            if node.pqdn not in passbands_by_device:
-                passbands_by_device[node.pqdn] = retrieve_ports_spectral_occupations(node)
-            port.optical_passbands = passbands_by_device[node.pqdn].get(port.optical_port_name, [])
+            if node.management.optical_module_node_fqdn not in passbands_by_device:
+                passbands_by_device[node.management.optical_module_node_fqdn] = retrieve_ports_spectral_occupations(
+                    node
+                )
+            port.optical_passbands = passbands_by_device[node.management.optical_module_node_fqdn].get(
+                port.optical_port_name, []
+            )
 
 
 def get_optical_node_subscriptions_by_roles(roles: list[OpticalNodeRole]) -> list[SubscriptionTable]:
@@ -820,7 +828,7 @@ def optical_port_selector(optical_node_subscription_id: UUIDstr, prompt: str = "
     node = subscription.optical_node
     ports = get_device_ports_names(node)
     if not prompt:
-        prompt = f"Select optical port on {_node_pqdn(node)}"
+        prompt = f"Select optical port on {_node_fqdn(node)}"
     dynamic_class = Choice(prompt, zip(ports, ports, strict=False))
     return cast(type[Choice], dynamic_class)
 
@@ -855,7 +863,7 @@ def unused_optical_port_selector(
 
     unused_ports = [port for port in ports if port not in ports_in_db]
     if not prompt:
-        prompt = f"Select optical port on {_node_pqdn(node)}"
+        prompt = f"Select optical port on {_node_fqdn(node)}"
     dynamic_class = Choice(prompt, zip(unused_ports, unused_ports, strict=False))
     return cast(type[Choice], dynamic_class)
 
@@ -874,7 +882,7 @@ def optical_client_port_selector(
     node = subscription.optical_node
     ports = get_device_client_ports_names(node)
     if not prompt:
-        prompt = f"Select client optical port on {_node_pqdn(node)}"
+        prompt = f"Select client optical port on {_node_fqdn(node)}"
     dynamic_class = Choice(prompt, zip(ports, ports, strict=False))
     return cast(type[Choice], dynamic_class)
 
@@ -909,7 +917,7 @@ def unused_optical_client_port_selector(
 
     unused_ports = [port for port in ports if port not in ports_in_db]
     if not prompt:
-        prompt = f"Select client optical port on {_node_pqdn(node)}"
+        prompt = f"Select client optical port on {_node_fqdn(node)}"
     dynamic_class = Choice(prompt, zip(unused_ports, unused_ports, strict=False))
     return cast(type[Choice], dynamic_class)
 
@@ -928,7 +936,7 @@ def optical_line_port_selector(
     node = subscription.optical_node
     ports = get_device_line_ports_names(node)
     if not prompt:
-        prompt = f"Select line optical port on {_node_pqdn(node)}"
+        prompt = f"Select line optical port on {_node_fqdn(node)}"
     dynamic_class = Choice(prompt, zip(ports, ports, strict=False))
     return cast(type[Choice], dynamic_class)
 
@@ -963,7 +971,7 @@ def unused_optical_line_port_selector(
 
     unused_ports = [port for port in ports if port not in ports_in_db]
     if not prompt:
-        prompt = f"Select line optical port on {_node_pqdn(node)}"
+        prompt = f"Select line optical port on {_node_fqdn(node)}"
     dynamic_class = Choice(prompt, zip(unused_ports, unused_ports, strict=False))
     return cast(type[Choice], dynamic_class)
 

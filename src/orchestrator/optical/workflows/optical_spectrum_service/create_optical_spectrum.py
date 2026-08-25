@@ -120,11 +120,17 @@ def initial_input_form_generator(
 
     SrcOpticalPortSelector = optical_client_port_selector(  # noqa: N806
         user_input_dict["src_optical_device_id"],
-        prompt=f"Select the Add/Drop Port on {optical_node_a.pqdn}. Please be careful to select the correct port.",
+        prompt=(
+            f"Select the Add/Drop Port on {optical_node_a.management.optical_module_node_fqdn}."
+            " Please be careful to select the correct port."
+        ),
     )
     DstOpticalPortSelector = optical_client_port_selector(  # noqa: N806
         user_input_dict["dst_optical_device_id"],
-        prompt=f"Select the Add/Drop Port on {optical_node_b.pqdn}. Please be careful to select the correct port.",
+        prompt=(
+            f"Select the Add/Drop Port on {optical_node_b.management.optical_module_node_fqdn}."
+            " Please be careful to select the correct port."
+        ),
     )
 
     class OpticalSpectrumAddDropForm(FormPage):
@@ -286,7 +292,8 @@ def divide_path_into_sections(
         optical_port_name=src_optical_port_name,
         optical_port_host_node=src_device,
         optical_port_description=(
-            f"Remotely connected to {dst_device.pqdn} {dst_optical_port_name} via {spectrum.optical_spectrum_name}. "
+            f"Remotely connected to {dst_device.management.optical_module_node_fqdn}"
+            f" {dst_optical_port_name} via {spectrum.optical_spectrum_name}. "
         ),
     )
     src_port.save(subscription_id=subscription.subscription_id, status=SubscriptionLifecycle.INITIAL)
@@ -296,7 +303,8 @@ def divide_path_into_sections(
         optical_port_name=dst_optical_port_name,
         optical_port_host_node=dst_device,
         optical_port_description=(
-            f"Remotely connected to {src_device.pqdn} {src_optical_port_name} via {spectrum.optical_spectrum_name}. "
+            f"Remotely connected to {src_device.management.optical_module_node_fqdn}"
+            f" {src_optical_port_name} via {spectrum.optical_spectrum_name}. "
         ),
     )
     dst_port.save(subscription_id=subscription.subscription_id, status=SubscriptionLifecycle.INITIAL)

@@ -61,7 +61,9 @@ def factory_reset_trx_crossconnects(subscription: OpticalDigitalService) -> Stat
     results = {}
     for client in subscription.optical_digital_service.optical_digital_service_client_ports:
         device = cast(AbstractOpticalNodeBlockInactive, client.optical_port_host_node)
-        results[device.pqdn] = delete_transponder_crossconnect(device, client.optical_port_name)
+        results[device.management.optical_module_node_fqdn] = delete_transponder_crossconnect(
+            device, client.optical_port_name
+        )
 
     return {
         "deleted_xcon": results,
@@ -74,7 +76,9 @@ def factory_reset_trx_client_side(subscription: OpticalDigitalService) -> State:
     results = {}
     for port in subscription.optical_digital_service.optical_digital_service_client_ports:
         device = cast(AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
-        results[device.pqdn] = factory_reset_transponder_client(device, port.optical_port_name)
+        results[device.management.optical_module_node_fqdn] = factory_reset_transponder_client(
+            device, port.optical_port_name
+        )
 
     return {
         "clients_config": results,
@@ -97,7 +101,9 @@ def factory_reset_trx_line_side(subscription: OpticalDigitalService) -> State:
 
     results = {}
     for i, device in enumerate(devices):
-        results[device.pqdn] = factory_reset_transponder_lines(device, list(port_names[i]))
+        results[device.management.optical_module_node_fqdn] = factory_reset_transponder_lines(
+            device, list(port_names[i])
+        )
 
     return {
         "lines_config": results,
@@ -115,7 +121,7 @@ def delete_optical_sections(subscription: OpticalDigitalService) -> State:
         circuit_identifier = channel.optical_transport_channel_name
         for section in spectrum.optical_spectrum_sections:
             src_device = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-            results[src_device.pqdn] = delete_optical_circuit(
+            results[src_device.management.optical_module_node_fqdn] = delete_optical_circuit(
                 src_device,
                 section,
                 spectrum_name,
