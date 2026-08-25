@@ -56,6 +56,7 @@ dev = [
     "pytest-env==1.1.5",
     "responses==0.25.7",
     "ruff==0.12.1",
+    "testcontainers[postgres]==4.15.0",
     "ty>=0.0.21",
     "types-requests==2.32.4.20250611",
     "types-PyYAML==6.0.12.20241230",
@@ -74,7 +75,10 @@ exclude-newer = "30 days"
 # https://github.com/workfloworchestrator/orchestrator-core/issues/1471
 module-name = "orchestrator.optical"
 namespace = false
-source-include = ["orchestrator/optical/migrations/alembic.ini"]
+source-include = [
+    "orchestrator/optical/migrations/alembic.ini",
+    "orchestrator/optical/migrations/versions/**",
+]
 
 [tool.ty.src]
 exclude = ["docs"]
@@ -176,7 +180,7 @@ known-third-party = ["pydantic", "migrations"]
 known-first-party = ["test", "docs"]
 
 [tool.pytest.ini_options]
-markers = ["noautofixt"]
+markers = ["noautofixt", "db"]
 filterwarnings = ["ignore"]
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["test"]
@@ -188,6 +192,14 @@ TRANSLATIONS_DIR = "orchestrator/optical/translations"
 branch = true
 fail_under = 90
 omit = ["orchestrator/optical/migrations/*"]
+# The DB-backed execution tests exercise the Optical Module Location family end to end; the
+# coverage gate is scoped to that family (85% from the DB-free composition tests alone, >= 90%
+# with the execution tests). The gate widens as more product families get execution-level tests.
+source = [
+    "orchestrator.optical.products.product_blocks.optical_location",
+    "orchestrator.optical.products.product_types.optical_location",
+    "orchestrator.optical.workflows.optical_location",
+]
 
 [tool.pyrefly]
 search-path = ["src"]

@@ -12,11 +12,76 @@ To use the models and services from this module, you will need to make some chan
 WFO. Please follow the steps below to install the WFO Optical module, including some file edits:
 
 1. `uv add orchestrator-optical`
-2. Generate a database migration for this module in your local `migrations` setup via the orchestrator-core
-   shell commands.
+2. Provision the shipped catalog in your database. See "Database migrations" below: until the module reaches a
+   stable release this is done with the orchestrator-core CLI wizards; from the first stable release the module ships
+   the catalog as Alembic migrations.
 3. The module is currently a work in progress (ported from a GARR-specific implementation): the model files are still
    being finalized and are subject to change between releases. See the "Consumption model" section below for how to
    decouple your own products from those changes.
+
+## Database migrations
+
+The module ships **coded programmatic migrations**: its catalog (products, product blocks, resource types and the
+shipped workflows) is provisioned as data migrations, exactly like orchestrator-core provisions its own domain. The
+module owns **no tables** — everything lives in the core catalog tables — so there is no DDL.
+
+### Until the first stable release (module < 1.0)
+
+The models are still being finalized and shipped Alembic revisions would have to be rewritten between releases
+(rewriting a shipped revision breaks consumers mid-upgrade). Until 1.0 the shipped `versions/schema` directory is
+**empty** and consumers provision the catalog with the orchestrator-core CLI, the same way they provision their own
+products:
+
+```shell
+orchestrator db migrate-domain-models -m "add optical products"
+orchestrator db migrate-workflows -m "add optical workflows"
+orchestrator db upgrade head
+```
+
+The diff-based wizards scan the whole `SUBSCRIPTION_MODEL_REGISTRY` (the module's models plus your own), so set
+`SKIP_MODEL_FOR_MIGRATION_DB_DIFF` to the optical product names if you run the wizards for your own products as well,
+to avoid the module's products being picked up by your diffs.
+
+### From the first stable release (module >= 1.0)
+
+The module ships one generated Alembic revision per release in
+`orchestrator.optical.migrations.versions.schema`, chained linearly onto a pinned orchestrator-core schema revision
+(the revision ids are deterministic — the same models always produce the same revision). Consumers:
+
+1. Point Alembic at the shipped directory. Either add the installed package's
+   `orchestrator/optical/migrations/versions/schema` directory to your `alembic.ini` `version_locations`, or call the
+   shipped helper from your migration entrypoint:
+
+   ```python
+   from alembic.config import Config
+   from orchestrator.optical.migrations import add_optical_module_migrations
+
+   config = Config("alembic.ini")
+   add_optical_module_migrations(config)
+   ```
+
+2. Merge the optical head with your `data` head **once** after installing:
+
+   ```shell
+   orchestrator db merge <your data head> <optical head>
+   ```
+
+3. `orchestrator db upgrade head` — from then on every upgrade is a plain `upgrade head`.
+
+The module's migrations are **generated, never hand-written**: the pipeline in
+`orchestrator.optical.migrations.generate` derives the catalog directly from the shipped models (the models are the
+single source of truth) and discovers the shipped workflows from the workflows package. Maintainers run it to commit
+the baseline at 1.0 and each later release's delta:
+
+```shell
+python -m orchestrator.optical.migrations --commit     # write the baseline into versions/schema
+python -m orchestrator.optical.migrations --verify    # apply pending migrations, fail on model drift
+```
+
+`--verify` is the drift gate: it applies the migrations to a scratch database and re-runs the orchestrator-core
+domain-model diff, failing if the applied catalog is not a faithful projection of the shipped models. It is exercised
+end to end by the DB-backed test suite (`test/test_migrations.py`, `test/conftest.py`), which provisions the test
+database exactly the way a consumer would.
 
 ## Consumption model
 
