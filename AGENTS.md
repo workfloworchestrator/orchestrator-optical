@@ -43,7 +43,7 @@ src/orchestrator/optical/
 ├── workflows/                # WFO workflows of the shipped product types (ready-to-use) + importable parts
 │   ├── __init__.py           #   docs the consumption model (register shipped workflows with LazyWorkflowInstance,
 │   │                         #   compose your own with the parts)
-│   ├── shared.py             #   DB query helpers, selectors, summary forms
+│   ├── shared.py             #   selectors, summary forms (form-layer; DB queries live in db.py)
 │   ├── optical_node/         #   per-vendor create/modify workflows + parts; terminate/validate workflows are
 │   │                         #   per-vendor thin wrappers over shared step lists (shared/terminate.py, shared/validate.py)
 │   ├── optical_pipe/         #   fiber_span / fiber_patch / leased_spectrum (workflows + parts)
@@ -53,6 +53,7 @@ src/orchestrator/optical/
 │   │                         #   (block-based, state key OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY)
 │   └── optical_location/     #   (WIP) location selectors/helpers
 ├── settings.py               # pydantic-settings, env prefix OPTICAL_, lazy get_settings()
+├── db.py                     # neutral DB query helpers + block resolution shared by hal/ and workflows/ (blocks as contracts)
 ├── translations/en-GB.json   # workflow display strings (1:1 with registered workflows)
 └── utils/                    # custom_types (dns Pqdn/Fqdn, coordinates, frequencies, ip_address), datadiff,
                               # singledispatch
@@ -99,6 +100,14 @@ must follow the rule.
 - Platform/vendor dispatch is on `vendor_of(block)` (from `hal.optical_node`, values: `Vendor.FLEXILS`,
   `Vendor.GROOVE_G30`, `Vendor.GX_G42`), covering all lifecycle variants. `hal/` dispatches with `match/case`;
   workflows use `if vendor_of(...) == Vendor.X` comparisons. Attribute dispatch was removed — never reintroduce it.
+
+### Layering (hal depends on blocks, never on workflows)
+- `hal/` implements device-facing logic and depends only on **blocks** — the shared contracts between the module
+  and its consumers — never on subscription models: no module under `hal/` may import from
+  `orchestrator.optical.workflows.*`. Subscription ids are acceptable input parameters, but they are resolved to
+  blocks (never to subscription models), via the neutral DB query helpers in `orchestrator/optical/db.py` — the
+  shared home for database queries used by both `hal/` and `workflows/`. Workflow-layer code may load subscription
+  models; `hal/` may not.
 
 ### Hard rules (generalization invariants)
 - **No** `.garr.net`, pop codes, `fXXXcYY` naming, `garrxdb_id`/`netbox_id`/`nms_uuid` — anywhere.
@@ -172,7 +181,7 @@ uv build                        # package build
 ### Known pre-existing noise (do NOT "fix" these as a side quest)
 - `services/nokia/{g30,g42}/data_models|data_navigators/*` — auto-generated YANG models, tens of thousands of
   ruff/ty findings; never edit manually.
-- `workflows/shared.py` — 3 pre-existing ty diagnostics (committed file).
+- `workflows/shared.py` — pre-existing ty diagnostics in the form/selector helpers (committed file).
 - `ARG001` on terminate-form `customer_id`/`subscription` params in stub steps.
 - Dangling config references to the removed `migrations/` dir (pyproject `source-include`/coverage `omit`,
   `.bumpversion.cfg` path) — left as-is; do not "fix" pyproject.toml as a side quest.

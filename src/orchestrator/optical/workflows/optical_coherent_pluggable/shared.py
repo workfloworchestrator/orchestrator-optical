@@ -8,50 +8,24 @@ description (a shipped-product-type concept, because the part number lives on
 the subscription) and the block persistence steps.
 """
 
-from pydantic_forms.types import State, UUIDstr
+from pydantic_forms.types import State
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import step
+from orchestrator.optical.db import packet_node_block_from_subscription
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
     OpticalCoherentPluggableBlockInactive,
 )
-from orchestrator.optical.products.product_blocks.optical_packet_node import OpticalModulePacketNodeInactive
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
     OpticalCoherentPluggable,
     OpticalCoherentPluggableInactive,
 )
-from orchestrator.optical.products.product_types.optical_packet_node import OpticalModulePacketNodeSubscriptionInactive
-from orchestrator.optical.workflows.shared import subscription_from_subscription
 
 #: State key under which the Optical Coherent Pluggable block of the
 #: subscription is passed between the shipped block steps. Consumers put the
 #: block they compose (under any attribute name of their own model) in the
 #: state under this key.
 OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY = "optical_coherent_pluggable_block"
-
-
-def packet_node_block_from_subscription(subscription_id: UUIDstr) -> OpticalModulePacketNodeInactive:
-    """Return the Optical Module Packet Node product block of the given subscription.
-
-    The concrete subscription model is resolved through the subscription model
-    registry: the packet-node product must be the shipped abstract packet node
-    model or a subclass of it (the same contract the Optical Location family
-    uses). Consumers whose packet-node product does not subclass the shipped
-    abstract model resolve the block with their own helper instead.
-
-    Args:
-        subscription_id: Subscription id of an active Optical Packet Node subscription.
-
-    Returns:
-        The Optical Module Packet Node product block of the subscription.
-
-    Raises:
-        ValueError: If the subscription is not an Optical Packet Node subscription.
-    """
-    packet_node_subscription = subscription_from_subscription(
-        OpticalModulePacketNodeSubscriptionInactive, subscription_id
-    )
-    return packet_node_subscription.optical_packet_node
 
 
 def optical_coherent_pluggable_subscription_description(subscription: OpticalCoherentPluggableInactive) -> str:

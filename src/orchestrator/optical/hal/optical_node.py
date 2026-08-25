@@ -13,7 +13,6 @@ blocks of all the supported vendors.
 
 import ipaddress
 import json
-from dataclasses import dataclass
 from math import cos, radians, sin
 from typing import Any, ClassVar, cast
 
@@ -21,6 +20,7 @@ from pydantic_forms.types import strEnum
 from structlog import get_logger
 
 from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.optical.db import location_block_from_subscription, subscription_instances_by_block_type
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
@@ -45,8 +45,6 @@ from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
 from orchestrator.optical.utils.custom_types.frequencies import available_to_used_passbands
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.utils.datadiff import compare_pydantic_objects
-from orchestrator.optical.workflows.optical_location.shared import location_block_from_subscription
-from orchestrator.optical.workflows.shared import subscription_instances_by_block_type
 
 logger = get_logger(__name__)
 

@@ -9,14 +9,12 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.workflow import step
+from orchestrator.optical.db import location_block_from_subscription
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
 from orchestrator.optical.utils.custom_types.dns import Pqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_selector
-from orchestrator.optical.workflows.optical_location.shared import (
-    active_location_subscription_selector,
-    location_block_from_subscription,
-)
+from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
 from orchestrator.optical.workflows.optical_node.shared.create import (
     OPTICAL_NODE_BLOCK_STATE_KEY,
     optical_node_subscription_description,

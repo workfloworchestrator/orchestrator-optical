@@ -9,22 +9,18 @@ and persistence steps.
 
 from typing import Any, cast
 
-from pydantic_forms.types import State, UUIDstr
+from pydantic_forms.types import State
 from pydantic_forms.validators import Choice
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
+from orchestrator.optical.db import subscription_instances_by_block_type_and_resource_value
 from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlock,
     OpticalModuleLocationBlockInactive,
 )
-from orchestrator.optical.products.product_types.optical_location import OpticalModuleLocationSubscriptionInactive
-from orchestrator.optical.workflows.shared import (
-    active_subscription_selector_by_block_type,
-    subscription_from_subscription,
-    subscription_instances_by_block_type_and_resource_value,
-)
+from orchestrator.optical.workflows.shared import active_subscription_selector_by_block_type
 
 #: State key under which the Optical Module Location block of the subscription
 #: is passed between the shipped block steps. Consumers put the block they
@@ -96,26 +92,6 @@ def active_location_subscription_selector(prompt: str | None = None) -> type[Cho
         options.
     """
     return active_subscription_selector_by_block_type(OpticalModuleLocationBlockInactive, prompt=prompt)
-
-
-def location_block_from_subscription(location_id: UUIDstr) -> OpticalModuleLocationBlockInactive:
-    """Return the Optical Module Location product block of the given location subscription.
-
-    The concrete subscription model is resolved through the subscription model registry,
-    because the abstract Optical Module Location model cannot load a subscription: its root
-    block type never matches the concrete product block stored in the database.
-
-    Args:
-        location_id: Subscription id of an active Optical Location subscription.
-
-    Returns:
-        The Optical Module Location product block of the subscription.
-
-    Raises:
-        ValueError: If the subscription is not an Optical Module Location subscription.
-    """
-    location_subscription = subscription_from_subscription(OpticalModuleLocationSubscriptionInactive, location_id)
-    return location_subscription.optical_location
 
 
 def optical_location_block_from_state(
@@ -261,7 +237,6 @@ __all__ = [
     "active_location_subscription_selector",
     "check_location_code_uniqueness",
     "load_optical_module_location_block",
-    "location_block_from_subscription",
     "optical_location_block_from_state",
     "optical_module_location_subscription_description",
     "save_optical_module_location_block",

@@ -26,6 +26,15 @@ create/modify/terminate/validate per product) and the **parts of the workflows**
 as page sequences, and the step lists). The module expects you to use the shipped concrete blocks as a **shared
 interface** that you compose with your own model.
 
+### Architecture
+
+The module is strictly layered: `products/` (blocks and subscription models) → `hal/` (device-facing logic) →
+`workflows/` (orchestration), with `services/` (device integrations) under `hal/`. **Blocks are the shared
+contracts**: `hal/` depends only on blocks, never on subscription models — a subscription id may be an input
+parameter, but it is resolved to a block, never to a model. Consequently nothing under `hal/` imports from
+`workflows/`; the database queries both layers need live in the neutral `orchestrator/optical/db.py`. This keeps the
+hardware layer usable, maintainable and evolvable independently of any workflow or consumer model.
+
 There are two consumption paths:
 
 ### 1. Use the shipped product types and their workflows as-is
@@ -322,8 +331,9 @@ Coherent pluggable specifics:
 
 - The create form validates port uniqueness **by shipped block name** (not by product type), so it also guards
   consumer product types that have-a the shipped block. It resolves the selected packet node through
-  `packet_node_block_from_subscription`: the packet-node product must be the shipped abstract packet node model or a
-  subclass of it (the same contract the Optical Location family uses) — otherwise write your own form/validator.
+  `packet_node_block_from_subscription` (block-based, from the neutral `orchestrator/optical/db.py`, like the
+  Optical Location family): any subscription persisting the shipped packet-node block qualifies — otherwise write
+  your own form/validator.
 - The subscription description includes the subscription-level part number, so it is only computed by the shipped
   construct step and the shipped-type description refresh step
   (`shared.update_optical_coherent_pluggable_subscription_description`); the shipped block steps never touch
@@ -338,8 +348,9 @@ sequences, e.g. `create_optical_module_location_form_pages(product_name)`, consu
 `optical_module_location_block` state key. The shipped form generators are thin compositions of the shipped pages and
 the summary form, without hooks — this family is the reference implementation of the FormPage consumption model. The
 shipped modify form offers a `clear location name` checkbox to delete the optional `location_name` field. The family
-also ships the location subscription selectors/helpers (`active_location_subscription_selector`,
-`location_block_from_subscription`).
+also ships the location subscription selector `active_location_subscription_selector`; the block-based
+`location_block_from_subscription` (used by the shipped optical node workflows) lives in the neutral
+`orchestrator/optical/db.py` module.
 
 ## Development
 

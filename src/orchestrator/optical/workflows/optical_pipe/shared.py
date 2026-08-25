@@ -13,6 +13,11 @@ from orchestrator.core.db import ProductTable, SubscriptionTable, db
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel, ProductModel
 from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.optical.db import (
+    node_block_from_subscription,
+    subscription_instance_values_by_block_type_depending_on_instance_id,
+    subscriptions_by_product_type,
+)
 from orchestrator.optical.hal.optical_node import Vendor, vendor_of
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
@@ -27,13 +32,8 @@ from orchestrator.optical.products.product_blocks.optical_port.transponder_clien
 from orchestrator.optical.products.product_blocks.optical_port.transponder_line import (
     OpticalTransponderLinePortBlockInactive,
 )
-from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNodeInactive
 from orchestrator.optical.workflows.optical_node.shared import OPTICAL_NODE_PRODUCT_TYPES
-from orchestrator.optical.workflows.shared import (
-    merge_summary_fields,
-    subscription_from_subscription,
-    subscription_instance_values_by_block_type_depending_on_instance_id,
-)
+from orchestrator.optical.workflows.shared import merge_summary_fields
 
 T = TypeVar("T", bound=AbstractOpticalPortBlockInactive)
 
@@ -53,19 +53,9 @@ def optical_pipe_subscription_description(subscription: SubscriptionModel) -> st
     return subscription.product.name
 
 
-def active_subscriptions_by_product_type(product_type: str) -> list[SubscriptionTable]:
-    """Retrieve all active subscriptions of a given product type."""
-    return (
-        SubscriptionTable.query.join(SubscriptionTable.product)
-        .filter(SubscriptionTable.product.has(product_type=product_type))
-        .filter(SubscriptionTable.status == SubscriptionLifecycle.ACTIVE)
-        .all()
-    )
-
-
 def optical_pipe_selector(product_type: str, prompt: str | None = None) -> type[Choice]:
     """Create a Choice selector for active optical pipe subscriptions of a given product type."""
-    subscriptions = active_subscriptions_by_product_type(product_type)
+    subscriptions = subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE])
     products = {str(sub.subscription_id): sub.description for sub in sorted(subscriptions, key=lambda x: x.description)}
 
     if not prompt:
@@ -156,31 +146,10 @@ def optical_node_selector(prompt: str = "Select an Optical Node") -> type[Choice
     """Create a Choice selector for active Optical Node subscriptions of any vendor."""
     subscriptions: list[SubscriptionTable] = []
     for product_type in OPTICAL_NODE_PRODUCT_TYPES:
-        subscriptions.extend(active_subscriptions_by_product_type(product_type))
+        subscriptions.extend(subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE]))
 
     products = {str(sub.subscription_id): sub.description for sub in sorted(subscriptions, key=lambda x: x.description)}
     return cast(type[Choice], Choice(prompt, zip(products.keys(), products.items(), strict=False)))
-
-
-def node_block_from_subscription(node_subscription_id: UUIDstr) -> AbstractOpticalNodeBlockInactive:
-    """Return the Optical Node product block of the given node subscription.
-
-    The concrete subscription model is resolved through the subscription model registry,
-    because the abstract Optical Node model cannot load a subscription: its root block
-    type has no product block name, so the concrete node block is never matched during
-    loading.
-
-    Args:
-        node_subscription_id: Subscription id of an active Optical Node subscription.
-
-    Returns:
-        The Optical Node product block of the subscription.
-
-    Raises:
-        ValueError: If the subscription is not an Optical Node subscription.
-    """
-    node_subscription = subscription_from_subscription(AbstractOpticalNodeInactive, node_subscription_id)
-    return node_subscription.optical_node
 
 
 def used_port_names_on_node(node_block: AbstractOpticalNodeBlockInactive) -> set[str]:

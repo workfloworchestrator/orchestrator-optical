@@ -35,6 +35,11 @@ from orchestrator.core.db import SubscriptionTable
 from orchestrator.core.db.models import SubscriptionInstanceValueTable
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.optical.db import (
+    subscription_instance_values_by_block_type_depending_on_instance_id,
+    subscriptions_by_product_type,
+    subscriptions_by_product_type_and_instance_value,
+)
 from orchestrator.optical.hal.optical_node import Vendor, retrieve_ports_spectral_occupations, vendor_of
 from orchestrator.optical.hal.optical_port import (
     get_device_client_ports_names,
@@ -62,11 +67,6 @@ from orchestrator.optical.products.product_blocks.optical_spectrum_section impor
 from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
 from orchestrator.optical.utils.custom_types.frequencies import Passband, disjoint_intervals_overlap_search
-from orchestrator.optical.workflows.shared import (
-    subscription_instance_values_by_block_type_depending_on_instance_id,
-    subscriptions_by_product_type,
-    subscriptions_by_product_type_and_instance_value,
-)
 
 logger = get_logger(__name__)
 

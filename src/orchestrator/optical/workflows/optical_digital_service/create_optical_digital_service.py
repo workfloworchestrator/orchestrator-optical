@@ -19,6 +19,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
+from orchestrator.optical.db import subscriptions_by_product_type_and_instance_value
 from orchestrator.optical.hal.optical_digital_service import (
     allign_tx_power_to_target,
     configure_line_transceivers,
@@ -72,7 +73,6 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     unused_optical_client_port_selector,
     update_used_passbands,
 )
-from orchestrator.optical.workflows.shared import subscriptions_by_product_type_and_instance_value
 
 logger = get_logger(__name__)
 

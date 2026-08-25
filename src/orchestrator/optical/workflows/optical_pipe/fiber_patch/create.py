@@ -13,6 +13,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
+from orchestrator.optical.db import node_block_from_subscription
 from orchestrator.optical.hal.optical_node import Vendor, vendor_of
 from orchestrator.optical.hal.optical_port import (
     configure_termination_when_attaching_new_fiber,
@@ -34,7 +35,6 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     default_pipe_identifier,
     new_optical_pipe_subscription,
     new_pipe_port_block,
-    node_block_from_subscription,
     optical_node_selector,
     optical_pipe_subscription_description,
     patch_port_block_class,

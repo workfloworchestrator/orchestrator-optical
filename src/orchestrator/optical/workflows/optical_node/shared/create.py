@@ -6,6 +6,7 @@ from pydantic_forms.types import UUIDstr
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.optical.db import location_block_from_subscription, subscriptions_by_product_type_and_instance_value
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
@@ -13,8 +14,6 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
 )
 from orchestrator.optical.utils.custom_types.dns import Pqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
-from orchestrator.optical.workflows.optical_location.shared import location_block_from_subscription
-from orchestrator.optical.workflows.shared import subscriptions_by_product_type_and_instance_value
 
 OPTICAL_NODE_PRODUCT_TYPES = [
     ProductType.OPTICAL_NODE_NOKIA_FLEXILS.value,

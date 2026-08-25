@@ -22,6 +22,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
+from orchestrator.optical.db import subscription_instances_by_block_type_and_resource_value
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
     OpticalCoherentPluggableBlock,
     OpticalCoherentPluggableBlockInactive,
@@ -41,11 +42,7 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     packet_node_block_from_subscription,
     save_optical_coherent_pluggable_block,
 )
-from orchestrator.optical.workflows.shared import (
-    active_subscription_selector_by_block_type,
-    create_summary_form,
-    subscription_instances_by_block_type_and_resource_value,
-)
+from orchestrator.optical.workflows.shared import active_subscription_selector_by_block_type, create_summary_form
 
 
 def create_optical_coherent_pluggable_form_generator(

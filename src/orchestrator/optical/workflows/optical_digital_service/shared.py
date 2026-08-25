@@ -15,11 +15,9 @@ from pydantic_forms.types import UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 
 from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.optical.db import subscription_instance_values_by_block_type_depending_on_instance_id
 from orchestrator.optical.hal.optical_node import Vendor, vendor_of
 from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
-from orchestrator.optical.workflows.shared import (
-    subscription_instance_values_by_block_type_depending_on_instance_id,
-)
 
 max_g30_line_port_id = 2
 
