@@ -17,7 +17,10 @@ from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockInactive
-from orchestrator.optical.workflows.optical_location.shared import optical_location_block_from_state
+from orchestrator.optical.workflows.optical_location.shared import (
+    _optical_module_location_block_of_subscription,
+    optical_location_block_from_state,
+)
 
 logger = get_logger(__name__)
 
@@ -54,11 +57,13 @@ def validate_optical_module_location_state(
             ``OPTICAL_LOCATION_BLOCK_STATE_KEY``.
 
     Raises:
-        ValueError: If the location block is not fully provisioned.
+        ValueError: If the subscription has no Optical Module Location block
+            under the ``optical_location`` attribute and no block was passed,
+            or if the location block is not fully provisioned.
     """
     location = optical_location_block_from_state(optical_location_block) if optical_location_block is not None else None
-    location = location or getattr(subscription, "optical_location", None)
-    if location is None or location.longitude is None or location.latitude is None or location.location_code is None:
+    location = location or _optical_module_location_block_of_subscription(subscription)
+    if location.longitude is None or location.latitude is None or location.location_code is None:
         msg = "Optical Module Location block is not fully provisioned"
         raise ValueError(msg)
     logger.info(

@@ -58,7 +58,10 @@ from orchestrator.optical.workflows.optical_location.terminate import (
 from orchestrator.optical.workflows.optical_location.terminate import (
     terminate_initial_input_form_generator as location_terminate_initial_input_form_generator,
 )
-from orchestrator.optical.workflows.optical_location.validate import OPTICAL_MODULE_LOCATION_VALIDATE_STEPS
+from orchestrator.optical.workflows.optical_location.validate import (
+    OPTICAL_MODULE_LOCATION_VALIDATE_STEPS,
+    validate_optical_module_location_state,
+)
 
 
 class RouterBlockInactive(ProductBlockModel, product_block_name="LocationRouterBlock"):
@@ -615,6 +618,71 @@ def test_terminate_and_validate_shared_step_lists_compose() -> None:
     assert validate_my_location.name == "validate_my_location"
     assert "Deprovision Optical Module Location" in [step.name for step in terminate_my_location.steps]
     assert "Load initial state" in [step.name for step in validate_my_location.steps]
+
+
+@pytest.mark.parametrize(
+    "subscription",
+    [
+        cast(Any, SimpleNamespace()),
+        cast(Any, SimpleNamespace(optical_location=None)),
+    ],
+)
+def test_load_optical_module_location_block_fails_fast_when_subscription_has_no_block(subscription) -> None:
+    with pytest.raises(ValueError, match="under attribute 'optical_location'") as exc_info:
+        cast(Any, load_optical_module_location_block).__wrapped__(subscription)
+
+    assert "must have-a" in str(exc_info.value)
+
+
+def test_load_optical_module_location_block_returns_block_in_state() -> None:
+    block = _make_location_block()
+    subscription = cast(Any, SimpleNamespace(optical_location=block))
+
+    state = cast(Any, load_optical_module_location_block).__wrapped__(subscription)
+
+    assert state == {OPTICAL_LOCATION_BLOCK_STATE_KEY: block}
+
+
+def test_optical_module_location_subscription_description_fails_fast_without_block() -> None:
+    subscription = cast(Any, SimpleNamespace())
+
+    with pytest.raises(ValueError, match="must have-a"):
+        optical_module_location_subscription_description(subscription)
+
+
+def test_optical_module_location_subscription_description_takes_the_explicit_block() -> None:
+    block = _make_location_block()
+    block.location_code = "rom-01"
+    block.location_name = "Rome"
+    subscription = cast(Any, SimpleNamespace())
+
+    assert optical_module_location_subscription_description(subscription, block) == "Rome (rom-01)"
+
+
+def test_validate_optical_module_location_state_fails_fast_when_subscription_has_no_block() -> None:
+    subscription = cast(Any, SimpleNamespace())
+
+    with pytest.raises(ValueError, match="under attribute 'optical_location'") as exc_info:
+        cast(Any, validate_optical_module_location_state).__wrapped__(
+            subscription=subscription, optical_location_block=None
+        )
+
+    assert "must have-a" in str(exc_info.value)
+    assert "not fully provisioned" not in str(exc_info.value)
+
+
+def test_validate_optical_module_location_state_validates_the_block_from_the_state() -> None:
+    block = _make_location_block()
+    block.longitude = "12.4964"
+    block.latitude = "41.9028"
+    block.location_code = "rom-01"
+    subscription = cast(Any, SimpleNamespace())
+
+    state = cast(Any, validate_optical_module_location_state).__wrapped__(
+        subscription=subscription, optical_location_block=block
+    )
+
+    assert state == {}
 
 
 def test_optical_module_location_subscription_description() -> None:

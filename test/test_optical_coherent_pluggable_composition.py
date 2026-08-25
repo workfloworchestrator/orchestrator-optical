@@ -8,6 +8,7 @@ workflow execution.
 
 import inspect
 import uuid
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -36,12 +37,14 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.modify import (
 )
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY,
+    load_optical_coherent_pluggable_block,
 )
 from orchestrator.optical.workflows.optical_coherent_pluggable.terminate import (
     OPTICAL_COHERENT_PLUGGABLE_TERMINATE_STEPS,
 )
 from orchestrator.optical.workflows.optical_coherent_pluggable.validate import (
     OPTICAL_COHERENT_PLUGGABLE_VALIDATE_STEPS,
+    validate_optical_coherent_pluggable_state,
 )
 
 
@@ -221,3 +224,50 @@ def test_populate_block_step_resolves_the_state(monkeypatch) -> None:
     assert block.optical_port_name == "port-1"
     assert block.optical_port_description == "desc"
     assert block.optical_coherent_pluggable_firmware_version == "1.0"
+
+
+@pytest.mark.parametrize(
+    "subscription",
+    [
+        cast(Any, SimpleNamespace()),
+        cast(Any, SimpleNamespace(optical_coherent_pluggable=None)),
+    ],
+)
+def test_load_optical_coherent_pluggable_block_fails_fast_when_subscription_has_no_block(subscription) -> None:
+    with pytest.raises(ValueError, match="under attribute 'optical_coherent_pluggable'") as exc_info:
+        cast(Any, load_optical_coherent_pluggable_block).__wrapped__(subscription)
+
+    assert "must have-a" in str(exc_info.value)
+
+
+def test_load_optical_coherent_pluggable_block_returns_block_in_state() -> None:
+    block = _make_pluggable_block()
+    subscription = cast(Any, SimpleNamespace(optical_coherent_pluggable=block))
+
+    state = cast(Any, load_optical_coherent_pluggable_block).__wrapped__(subscription)
+
+    assert state == {OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: block}
+
+
+def test_validate_optical_coherent_pluggable_state_fails_fast_when_subscription_has_no_block() -> None:
+    subscription = cast(Any, SimpleNamespace())
+
+    with pytest.raises(ValueError, match="under attribute 'optical_coherent_pluggable'") as exc_info:
+        cast(Any, validate_optical_coherent_pluggable_state).__wrapped__(
+            subscription=subscription, optical_coherent_pluggable_block=None
+        )
+
+    assert "must have-a" in str(exc_info.value)
+    assert "not fully provisioned" not in str(exc_info.value)
+
+
+def test_validate_optical_coherent_pluggable_state_validates_the_block_from_the_state() -> None:
+    block = _make_pluggable_block()
+    block.optical_port_name = "port-1"
+    subscription = cast(Any, SimpleNamespace())
+
+    state = cast(Any, validate_optical_coherent_pluggable_state).__wrapped__(
+        subscription=subscription, optical_coherent_pluggable_block=block
+    )
+
+    assert state == {}

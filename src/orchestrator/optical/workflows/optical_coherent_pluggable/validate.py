@@ -19,6 +19,9 @@ from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
     OpticalCoherentPluggableBlockInactive,
 )
+from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
+    _optical_coherent_pluggable_block_of_subscription,
+)
 
 logger = get_logger(__name__)
 
@@ -49,10 +52,12 @@ def validate_optical_coherent_pluggable_state(
             ``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY``.
 
     Raises:
-        ValueError: If the pluggable block is not fully provisioned.
+        ValueError: If the subscription has no Optical Coherent Pluggable block
+            under the ``optical_coherent_pluggable`` attribute and no block was
+            passed, or if the pluggable block is not fully provisioned.
     """
-    pluggable = optical_coherent_pluggable_block or getattr(subscription, "optical_coherent_pluggable", None)
-    if pluggable is None or pluggable.optical_port_name is None or pluggable.optical_port_host_node is None:
+    pluggable = optical_coherent_pluggable_block or _optical_coherent_pluggable_block_of_subscription(subscription)
+    if pluggable.optical_port_name is None or pluggable.optical_port_host_node is None:
         msg = "Optical Coherent Pluggable block is not fully provisioned"
         raise ValueError(msg)
     logger.info(

@@ -129,6 +129,35 @@ def optical_location_block_from_state(
     return OpticalModuleLocationBlock.from_db(subscription_instance_id=subscription_instance_id)
 
 
+def _optical_module_location_block_of_subscription(
+    subscription: SubscriptionModel,
+) -> OpticalModuleLocationBlockInactive:
+    """Return the Optical Module Location block under the ``optical_location`` attribute.
+
+    This is the shipped-model fallback of the family: it reads the block from
+    the ``optical_location`` attribute of the subscription, which the shipped
+    subscription models always have.
+
+    Args:
+        subscription: The Optical Module Location subscription.
+
+    Returns:
+        The Optical Module Location block of the subscription.
+
+    Raises:
+        ValueError: If the subscription has no block under the attribute.
+    """
+    location = getattr(subscription, "optical_location", None)
+    if location is None:
+        msg = (
+            "Optical Module Location subscription has no Optical Module Location block under attribute "
+            "'optical_location': the subscription model must have-a the Optical Module Location block, "
+            "e.g. under 'optical_location'"
+        )
+        raise ValueError(msg)
+    return location
+
+
 def optical_module_location_subscription_description(
     subscription: SubscriptionModel,
     optical_location_block: OpticalModuleLocationBlockInactive | None = None,
@@ -150,12 +179,10 @@ def optical_module_location_subscription_description(
         The subscription description, e.g. ``"Amsterdam (ams-01)"`` or ``"ams-01"``.
 
     Raises:
-        ValueError: If the subscription has no Optical Module Location block.
+        ValueError: If the subscription has no Optical Module Location block
+            under the ``optical_location`` attribute and no block was passed.
     """
-    location = optical_location_block or getattr(subscription, "optical_location", None)
-    if location is None:
-        msg = "Optical Module Location subscription has no Optical Module Location block"
-        raise ValueError(msg)
+    location = optical_location_block or _optical_module_location_block_of_subscription(subscription)
     if location.location_name:
         return f"{location.location_name} ({location.location_code})"
     return f"{location.location_code}"
@@ -200,8 +227,12 @@ def load_optical_module_location_block(subscription: SubscriptionModel) -> State
 
     Returns:
         The state with the block under the ``optical_location_block`` key.
+
+    Raises:
+        ValueError: If the subscription has no Optical Module Location block
+            under the ``optical_location`` attribute.
     """
-    return {OPTICAL_LOCATION_BLOCK_STATE_KEY: getattr(subscription, "optical_location", None)}
+    return {OPTICAL_LOCATION_BLOCK_STATE_KEY: _optical_module_location_block_of_subscription(subscription)}
 
 
 @step("Persist optical module location block")

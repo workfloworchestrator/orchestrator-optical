@@ -8,12 +8,15 @@ workflow execution.
 
 import inspect
 import uuid
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
 from orchestrator.core.domain.base import ProductBlockModel, SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.utils.state import inject_args
+from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockInactive
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
     NokiaFlexIlsBlock,
@@ -35,6 +38,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_VALIDATE_STEPS,
 )
 from orchestrator.optical.workflows.optical_node.shared import create as shared_create
+from orchestrator.optical.workflows.optical_node.shared.modify import load_optical_node_block
 
 
 class RouterBlockInactive(ProductBlockModel, product_block_name="TestRouterBlock"):
@@ -140,14 +144,20 @@ def test_shared_step_lists_are_block_agnostic() -> None:
 
 
 def _make_flexils_block() -> NokiaFlexIlsBlockInactive:
+    subscription_id = uuid.uuid4()
     return NokiaFlexIlsBlockInactive(
         name="NokiaFlexIlsBlock",
-        subscription_instance_id=uuid.uuid4(),
-        owner_subscription_id=uuid.uuid4(),
+        subscription_instance_id=subscription_id,
+        owner_subscription_id=subscription_id,
         management=OpticalModuleNodeManagementBlockInactive(
             name="OpticalModuleNodeManagementBlock",
             subscription_instance_id=uuid.uuid4(),
-            owner_subscription_id=uuid.uuid4(),
+            owner_subscription_id=subscription_id,
+        ),
+        location=OpticalModuleLocationBlockInactive(
+            name="OpticalModuleLocationBlock",
+            subscription_instance_id=uuid.uuid4(),
+            owner_subscription_id=subscription_id,
         ),
     )
 
@@ -202,3 +212,47 @@ def test_populate_block_step_resolves_the_state(monkeypatch) -> None:
     assert result[OPTICAL_NODE_BLOCK_STATE_KEY] is block
     assert block.optical_node_role == OpticalNodeRole.ROADM
     assert str(block.optical_flexils_target_id) == "TID-1"
+
+
+@pytest.mark.parametrize(
+    "subscription",
+    [
+        cast(Any, SimpleNamespace()),
+        cast(Any, SimpleNamespace(optical_node=None)),
+    ],
+)
+def test_load_optical_node_block_fails_fast_when_subscription_has_no_block(subscription) -> None:
+    with pytest.raises(ValueError, match="under attribute 'optical_node'") as exc_info:
+        cast(Any, load_optical_node_block).__wrapped__(subscription)
+
+    assert "must have-a" in str(exc_info.value)
+
+
+def test_load_optical_node_block_returns_block_in_state() -> None:
+    block = _make_flexils_block()
+    subscription = cast(Any, SimpleNamespace(optical_node=block))
+
+    state = cast(Any, load_optical_node_block).__wrapped__(subscription)
+
+    assert state == {OPTICAL_NODE_BLOCK_STATE_KEY: block}
+
+
+def test_optical_node_subscription_description_fails_fast_without_block() -> None:
+    subscription = cast(Any, SimpleNamespace())
+
+    with pytest.raises(ValueError, match="must have-a"):
+        shared_create.optical_node_subscription_description(subscription)
+
+
+def test_optical_node_subscription_description_takes_the_explicit_block() -> None:
+    block = cast(Any, SimpleNamespace(pqdn="flex.ba01"))
+    subscription = cast(Any, SimpleNamespace(product=SimpleNamespace(name="Nokia FlexILS")))
+
+    assert shared_create.optical_node_subscription_description(subscription, block) == "flex.ba01 (Nokia FlexILS)"
+
+
+def test_optical_node_subscription_description_falls_back_to_the_attribute() -> None:
+    block = SimpleNamespace(pqdn="flex.ba01")
+    subscription = cast(Any, SimpleNamespace(product=SimpleNamespace(name="Nokia FlexILS"), optical_node=block))
+
+    assert shared_create.optical_node_subscription_description(subscription) == "flex.ba01 (Nokia FlexILS)"

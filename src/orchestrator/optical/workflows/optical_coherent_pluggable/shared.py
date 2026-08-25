@@ -53,6 +53,35 @@ def optical_coherent_pluggable_subscription_description(subscription: OpticalCoh
     return f"{host_name} {pluggable.optical_port_name} ({part_number})"
 
 
+def _optical_coherent_pluggable_block_of_subscription(
+    subscription: SubscriptionModel,
+) -> OpticalCoherentPluggableBlockInactive:
+    """Return the Optical Coherent Pluggable block under the ``optical_coherent_pluggable`` attribute.
+
+    This is the shipped-model fallback of the family: it reads the block from
+    the ``optical_coherent_pluggable`` attribute of the subscription, which the
+    shipped subscription models always have.
+
+    Args:
+        subscription: The Optical Coherent Pluggable subscription.
+
+    Returns:
+        The Optical Coherent Pluggable block of the subscription.
+
+    Raises:
+        ValueError: If the subscription has no block under the attribute.
+    """
+    pluggable = getattr(subscription, "optical_coherent_pluggable", None)
+    if pluggable is None:
+        msg = (
+            "Optical Coherent Pluggable subscription has no Optical Coherent Pluggable block under attribute "
+            "'optical_coherent_pluggable': the subscription model must have-a the Optical Coherent Pluggable "
+            "block, e.g. under 'optical_coherent_pluggable'"
+        )
+        raise ValueError(msg)
+    return pluggable
+
+
 @step("Load optical coherent pluggable block")
 def load_optical_coherent_pluggable_block(subscription: SubscriptionModel) -> State:
     """Put the Optical Coherent Pluggable block of the subscription in the state.
@@ -69,8 +98,12 @@ def load_optical_coherent_pluggable_block(subscription: SubscriptionModel) -> St
 
     Returns:
         The state with the block under the ``optical_coherent_pluggable_block`` key.
+
+    Raises:
+        ValueError: If the subscription has no Optical Coherent Pluggable block
+            under the ``optical_coherent_pluggable`` attribute.
     """
-    return {OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: getattr(subscription, "optical_coherent_pluggable", None)}
+    return {OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: _optical_coherent_pluggable_block_of_subscription(subscription)}
 
 
 @step("Persist optical coherent pluggable block")

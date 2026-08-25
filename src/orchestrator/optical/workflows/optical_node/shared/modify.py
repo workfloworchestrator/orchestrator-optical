@@ -17,6 +17,7 @@ from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
 from orchestrator.optical.workflows.optical_node.shared.create import (
     OPTICAL_NODE_BLOCK_STATE_KEY,
+    _optical_node_block_of_subscription,
     optical_node_subscription_description,
     validate_management_ips_uniqueness,
     validate_pqdn_uniqueness,
@@ -177,8 +178,12 @@ def load_optical_node_block(subscription: SubscriptionModel) -> State:
 
     Returns:
         The state with the block under the ``optical_node_block`` key.
+
+    Raises:
+        ValueError: If the subscription has no Optical Node block under the
+            ``optical_node`` attribute.
     """
-    return {OPTICAL_NODE_BLOCK_STATE_KEY: subscription.optical_node}  # type: ignore[unresolved-attribute]
+    return {OPTICAL_NODE_BLOCK_STATE_KEY: _optical_node_block_of_subscription(subscription)}
 
 
 @step("Updating subscription description")

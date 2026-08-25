@@ -27,6 +27,32 @@ OPTICAL_NODE_PRODUCT_TYPES = [
 OPTICAL_NODE_BLOCK_STATE_KEY = "optical_node_block"
 
 
+def _optical_node_block_of_subscription(subscription: SubscriptionModel) -> AbstractOpticalNodeBlockInactive:
+    """Return the Optical Node block under the ``optical_node`` attribute.
+
+    This is the shipped-model fallback of the family: it reads the block from
+    the ``optical_node`` attribute of the subscription, which the shipped
+    subscription models always have.
+
+    Args:
+        subscription: The Optical Node subscription.
+
+    Returns:
+        The Optical Node block of the subscription.
+
+    Raises:
+        ValueError: If the subscription has no block under the attribute.
+    """
+    node = getattr(subscription, "optical_node", None)
+    if node is None:
+        msg = (
+            "Optical Node subscription has no Optical Node block under attribute 'optical_node': "
+            "the subscription model must have-a the Optical Node block, e.g. under 'optical_node'"
+        )
+        raise ValueError(msg)
+    return node
+
+
 def optical_node_subscription_description(
     subscription: SubscriptionModel,
     optical_node_block: AbstractOpticalNodeBlockInactive | None = None,
@@ -39,10 +65,19 @@ def optical_node_subscription_description(
             given, it is used instead of the ``optical_node`` attribute of the
             shipped subscription models, so the helper also works for consumer
             models that compose the block under a different attribute name.
+
+    Returns:
+        The subscription description, e.g. ``"node.example.com (Nokia FlexILS)"``
+        or the product name when the node has no ``pqdn`` yet.
+
+    Raises:
+        ValueError: If the subscription has no Optical Node block under the
+            ``optical_node`` attribute and no block was passed.
     """
-    node = optical_node_block or getattr(subscription, "optical_node", None)
-    if node and getattr(node, "pqdn", None):
-        return f"{node.pqdn} ({subscription.product.name})"
+    node = optical_node_block or _optical_node_block_of_subscription(subscription)
+    pqdn = getattr(node, "pqdn", None)
+    if pqdn:
+        return f"{pqdn} ({subscription.product.name})"
     return subscription.product.name
 
 
