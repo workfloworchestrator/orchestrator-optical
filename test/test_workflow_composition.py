@@ -6,10 +6,12 @@ These tests verify that the parts compose into well-formed workflows without
 needing a database.
 """
 
+import uuid
 from functools import partial
 
 import pytest
 
+from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import Workflow, begin
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
@@ -50,6 +52,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_VALIDATE_STEPS,
     load_optical_node_block,
     terminate_initial_input_form_generator,
+    terminate_optical_node_form_pages,
 )
 from orchestrator.optical.workflows.shared import merge_summary_fields
 
@@ -128,6 +131,16 @@ def test_terminate_and_validate_shared_step_lists_compose() -> None:
     assert validate_my_router.name == "validate_my_router"
     assert "Delete subscription from OSS/BSS" in [step.name for step in terminate_my_router.steps]
     assert "Load initial state" in [step.name for step in validate_my_router.steps]
+
+
+def test_terminate_form_pages_yield_the_confirmation_page() -> None:
+    subscription_id = str(uuid.uuid4())
+
+    generator = terminate_optical_node_form_pages(subscription_id)
+    page = next(generator)
+    assert issubclass(page, FormPage)
+    assert set(page.model_fields) == {"subscription_id"}
+    assert page.model_fields["subscription_id"].default == subscription_id
 
 
 def test_shipped_type_coherent_pluggable_create_workflow_composition() -> None:

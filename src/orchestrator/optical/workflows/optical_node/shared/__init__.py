@@ -28,6 +28,8 @@ from orchestrator.optical.workflows.optical_node.shared.terminate import (
     OPTICAL_NODE_TERMINATE_STEPS,
     delete_optical_node_from_oss_bss,
     terminate_initial_input_form_generator,
+    terminate_optical_node_form,
+    terminate_optical_node_form_pages,
 )
 from orchestrator.optical.workflows.optical_node.shared.validate import (
     OPTICAL_NODE_VALIDATE_STEPS,
@@ -49,6 +51,8 @@ __all__ = [
     "refresh_optical_node_software_version",
     "save_optical_node_block",
     "terminate_initial_input_form_generator",
+    "terminate_optical_node_form",
+    "terminate_optical_node_form_pages",
     "update_optical_node_block_fields",
     "update_optical_node_subscription_description",
     "validate_gmpls_id_uniqueness",
