@@ -13,10 +13,13 @@ consumers with their own model that has-a the shipped block compose their own
 ``@modify_workflow`` with the parts. The shipped form generator is a thin
 composition of the shipped pages and the summary form, without hooks:
 consumers build their own form generator by yielding from the shipped page
-sequence in one line and adding their own pages::
+sequence in one line and adding their own pages. When the block is not a
+direct attribute of the subscription (for example, when it is nested under one
+of the consumer's own product blocks), the consumer passes the block
+explicitly::
 
     user_input_dict = yield from modify_optical_module_location_form_pages(
-        subscription, block_field_name="router"
+        subscription, location=subscription.router.for_the_optical_module
     )
     user_input_dict.update((yield my_own_page).model_dump())
 """
@@ -34,6 +37,7 @@ from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_blocks.optical_location import (
     LocationCode,
+    OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
 from orchestrator.optical.products.product_types.optical_location import OpticalModuleLocationSubscription
@@ -62,6 +66,7 @@ Instruction = Annotated[
 def modify_optical_module_location_form(
     subscription: SubscriptionModel,
     block_field_name: str = "optical_location",
+    location: OpticalModuleLocationBlockInactive | None = None,
 ) -> type[FormPage]:
     """Return the modify FormPage of the Optical Module Location subscription.
 
@@ -77,11 +82,15 @@ def modify_optical_module_location_form(
             shipped block works).
         block_field_name: Name of the attribute of the subscription model holding
             the Optical Module Location block.
+        location: The Optical Module Location block, when it is not available
+            under the ``block_field_name`` attribute. Consumer models that
+            compose the block deeper (for example under one of their own product
+            blocks) pass the block explicitly.
 
     Returns:
         The prefilled modify FormPage of the shipped modify form.
     """
-    location = getattr(subscription, block_field_name)
+    location = location or getattr(subscription, block_field_name)
     customer_choice = customer_choice_selector(include=str(subscription.customer_id))
 
     class ModifyOpticalModuleLocationForm(FormPage):
@@ -126,6 +135,7 @@ def modify_optical_module_location_form(
 def modify_optical_module_location_form_pages(
     subscription: SubscriptionModel,
     block_field_name: str = "optical_location",
+    location: OpticalModuleLocationBlockInactive | None = None,
 ) -> FormGenerator:
     """Yield the FormPage of the Optical Module Location modify form.
 
@@ -142,11 +152,15 @@ def modify_optical_module_location_form_pages(
             shipped block works).
         block_field_name: Name of the attribute of the subscription model holding
             the Optical Module Location block.
+        location: The Optical Module Location block, when it is not available
+            under the ``block_field_name`` attribute. Consumer models that
+            compose the block deeper (for example under one of their own product
+            blocks) pass the block explicitly.
 
     Returns:
         The collected user input of the shipped pages.
     """
-    user_input = yield modify_optical_module_location_form(subscription, block_field_name)
+    user_input = yield modify_optical_module_location_form(subscription, block_field_name, location)
     return user_input.model_dump()
 
 
@@ -166,7 +180,11 @@ def modify_optical_module_location_form_generator(
         subscription_id: The identifier of the subscription being modified.
         subscription_model: The ACTIVE subscription model class of the Optical
             Module Location product. Consumers that compose the shipped block
-            under a different attribute name pass their own model class here.
+            under a different attribute name pass their own model class when they
+            call this generator from their own form generator (a thin wrapper that
+            yields from it; pre-binding with ``functools.partial`` is not supported
+            by the core form-argument injection, which passes the bound parameters
+            positionally from their signature defaults).
         block_field_name: Name of the attribute of the subscription model holding
             the Optical Module Location block.
     """

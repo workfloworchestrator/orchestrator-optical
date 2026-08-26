@@ -158,10 +158,12 @@ defined in the user code-space.
   consumer's own store/`set_status` steps; the shipped block step lists end with a save step
   (`save_optical_node_block`, `save_optical_coherent_pluggable_block`) because workflow steps reload the subscription
   from the database on every step (in-memory block mutations would be lost otherwise).
-- Shipped **create** steps: block-free steps (e.g. `discover_optical_node_nokia_flexils`) plus
-  `populate_optical_node_<vendor>_block` (plain function = the anti-corruption point consumers call from their own
-  construct step) plus a thin `@step` wrapper and a shipped `construct_optical_node_<vendor>_subscription` step that
-  builds the shipped product type. Shipped **modify** form generators take `subscription_model` (defaulting to the
+- Shipped **create** steps: the `CREATE_<VENDOR>_BLOCK_STEPS` list, which starts with the block-free device
+  discovery step (`discover_optical_node_<vendor>`, adds the discovered `optical_node_role`/
+  `optical_node_software_version` state keys that the populate step consumes), then the populate `@step` wrapper
+  and the save step; plus the `populate_optical_node_<vendor>_block` plain function (the anti-corruption point
+  consumers call from their own construct step) and the shipped `construct_optical_node_<vendor>_subscription`
+  step that builds the shipped product type. Shipped **modify** form generators take `subscription_model` (defaulting to the
   shipped model class) and `block_field_name` (default `"optical_node"` or `"optical_coherent_pluggable"`).
 - **Registration is the consumer's job**: this module never registers workflows itself (no `register_workflows()`,
   no `SHIPPED_WORKFLOW_NAMES`, no `LazyWorkflowInstance` calls at import). Consumers register the shipped workflows
@@ -208,7 +210,9 @@ Always end the session leaving the code of this module more usable, maintainabil
   package (see README); `optical_location` workflows were ported and the family ships its workflows. The
   `optical_location` and `optical_pipe` families are the reference implementations of the FormPage consumption model
   (shipped page sequences - one-line `yield from` composition, no `extra_form_pages`/`extra_summary_fields` hooks);
-  only the `optical_spectrum_service` and `optical_digital_service` families still carry the legacy hook-style form
+  the `optical_coherent_pluggable` family ships its forms the same way (hook-free page sequences and page factories)
+  and its block is re-hydrated between steps through `optical_coherent_pluggable_block_from_state`; only the
+  `optical_spectrum_service` and `optical_digital_service` families still carry the legacy hook-style form
   generators, mid-port.
 - Test suite: composition tests + shipped-workflow contract tests (`test/test_workflow_composition.py`,
   `test/test_optical_node_composition.py`, `test/test_optical_coherent_pluggable_composition.py`,

@@ -233,6 +233,7 @@ from orchestrator.core.workflows.steps import set_status, store_process_subscrip
 from orchestrator.core.workflows.utils import create_workflow, modify_workflow
 from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
     create_optical_node_nokia_flexils_form_generator,
+    discover_optical_node_nokia_flexils,
     populate_optical_node_nokia_flexils_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import (
@@ -271,6 +272,7 @@ def load_my_router_block(subscription):
 def create_my_router():
     return (
         begin
+        >> discover_optical_node_nokia_flexils     # block-free; adds the discovered keys the construct step consumes
         >> construct_my_router
         >> store_process_subscription()
     )
@@ -299,7 +301,11 @@ Notes:
   would otherwise lose the mutations. The `CREATE_*_BLOCK_STEPS` lists exist for consumers that want to populate the
   block as separate steps (construct the inactive subscription, put the block in the returned `state` under
   `optical_node_block`, run the block steps, then transition); populating the block inside the construct step as
-  shown above keeps the same guarantees with fewer moving parts.
+  shown above keeps the same guarantees with fewer moving parts. The `CREATE_*_BLOCK_STEPS` lists start with the
+  block-free device discovery step, which adds the discovered `optical_node_role`/`optical_node_software_version`
+  state keys the populate step consumes, so running the list is self-contained; the discovery step is also
+  exported on its own for consumers that populate the block inside their own construct step (they run it before
+  the construct step, as in the example above).
 - The shipped create form is reusable as-is: it emits the flat `optical_*` keys the shipped steps consume. If you
   write your own form, you must either emit the same keys or write your own steps. The shipped terminate/validate
   forms and step lists compose the same way.
@@ -392,7 +398,8 @@ valid when the shipped product types are used as-is. The shipped workflows are b
 steps that can also be used on custom subscriptions as long as they have-a the shipped blocks and use the appropriate
 `state key` listed in the table above. The `optical_location` and `optical_pipe` families are the reference
 implementations of the FormPage consumption model (shipped page sequences + one-line `yield from` composition, no
-`extra_form_pages`/`extra_summary_fields` hooks); the `optical_spectrum_service` and `optical_digital_service`
+`extra_form_pages`/`extra_summary_fields` hooks); the `optical_coherent_pluggable` family ships its forms the same
+way (hook-free page sequences and page factories); the `optical_spectrum_service` and `optical_digital_service`
 families still carry the legacy hook-style form generators, mid-port.
 
 Coherent pluggable specifics:
@@ -401,11 +408,23 @@ Coherent pluggable specifics:
   consumer product types that have-a the shipped block. It resolves the selected packet node through
   `packet_node_block_from_subscription` (block-based, from the neutral `orchestrator/optical/db.py`, like the
   Optical Location family): any subscription persisting the shipped packet-node block qualifies — otherwise write
-  your own form/validator.
+  your own form/validator. The shipped populate step re-checks the uniqueness at execution time, so consumers that
+  bypass the form validation are still guarded against duplicates.
+- The family ships the hook-free page sequences and page factories of the shipped forms
+  (`create_optical_coherent_pluggable_form_pages(product_name)` and `create_optical_coherent_pluggable_form(...)`,
+  `modify_optical_coherent_pluggable_form_pages(subscription, block_field_name="optical_coherent_pluggable")` and
+  `modify_optical_coherent_pluggable_form(...)`, `terminate_optical_coherent_pluggable_form_pages(subscription_id)`
+  and `terminate_optical_coherent_pluggable_form(...)`), the step lists (`CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`,
+  `MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`, `OPTICAL_COHERENT_PLUGGABLE_TERMINATE_STEPS`,
+  `OPTICAL_COHERENT_PLUGGABLE_VALIDATE_STEPS`) and the shared steps under the `optical_coherent_pluggable_block`
+  state key. The shipped create and modify workflows are composed from the same parts. The shipped block is
+  re-hydrated between steps through `optical_coherent_pluggable_block_from_state`, because workflow steps execute
+  with the state serialized to plain dicts.
 - The subscription description includes the subscription-level part number, so it is only computed by the shipped
   construct step and the shipped-type description refresh step
   (`shared.update_optical_coherent_pluggable_subscription_description`); the shipped block steps never touch
-  subscription-level state.
+  subscription-level state. The shipped modify workflow refreshes the description (the modify form cannot change
+  the host node, port name or part number it is derived from).
 - The shipped modify block steps do not persist a changed `customer_id` (the form still emits it); add your own step
   if your product tracks it.
 

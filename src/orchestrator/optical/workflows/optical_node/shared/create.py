@@ -16,7 +16,6 @@ from orchestrator.optical.db import (
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
-    OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
 from orchestrator.optical.products.product_blocks.optical_node_management import (
@@ -243,11 +242,9 @@ def populate_abstract_optical_node_fields(
     optical_node_block: Any,
     *,
     location_id: UUIDstr,
-    optical_node_role: OpticalNodeRole,
     optical_module_node_fqdn: Fqdn,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
-    optical_module_node_software_version: str | None = None,
     optical_module_node_vendor: Vendor | None = None,
     optical_module_node_platform: Platform | None = None,
 ) -> None:
@@ -255,25 +252,23 @@ def populate_abstract_optical_node_fields(
 
     The block is intentionally untyped: the abstract Optical Node block does
     not declare the fields populated here (they are vendor-specific), and the
-    helper is shared by all vendors and their consumers.
+    helper is shared by all vendors and their consumers. The node role and the
+    software version are not set here: the block-level discovery step writes
+    them onto the block before this helper runs.
 
     Args:
         optical_node_block: The Optical Node block to populate (any lifecycle variant).
         location_id: Subscription id of the Optical Location hosting the node.
-        optical_node_role: Role of the node.
         optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
         optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
-        optical_module_node_software_version: Software version of the node.
         optical_module_node_vendor: Vendor of the node.
         optical_module_node_platform: Platform of the node.
     """
     optical_node_block.location = location_block_from_subscription(location_id)
-    optical_node_block.optical_node_role = optical_node_role
     optical_node_block.management.optical_module_node_fqdn = optical_module_node_fqdn
     optical_node_block.management.optical_module_node_dcn_loopback_ip = optical_module_node_dcn_loopback_ip
     optical_node_block.management.optical_module_node_dcn_interface_ip = optical_module_node_dcn_interface_ip
-    optical_node_block.management.optical_module_node_software_version = optical_module_node_software_version
     optical_node_block.management.optical_module_node_vendor = optical_module_node_vendor
     optical_node_block.management.optical_module_node_platform = optical_module_node_platform
 

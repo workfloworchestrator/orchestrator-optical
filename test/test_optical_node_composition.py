@@ -132,7 +132,10 @@ def test_shipped_block_step_lists_are_non_empty(steps) -> None:
 
 @pytest.mark.parametrize("steps", [CREATE_NOKIA_FLEXILS_BLOCK_STEPS, MODIFY_NOKIA_FLEXILS_BLOCK_STEPS])
 def test_block_steps_consume_the_block_state_key(steps) -> None:
-    for step_func in _step_functions(steps):
+    # The leading device discovery step of the create list is block-free;
+    # the remaining steps consume the block state key.
+    block_steps = steps[1:] if steps is CREATE_NOKIA_FLEXILS_BLOCK_STEPS else steps
+    for step_func in _step_functions(block_steps):
         signature = inspect.signature(step_func)
         assert OPTICAL_NODE_BLOCK_STATE_KEY in signature.parameters
 

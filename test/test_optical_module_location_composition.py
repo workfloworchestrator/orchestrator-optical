@@ -635,13 +635,20 @@ def test_shipped_type_modify_workflow_composition() -> None:
 
 
 def test_consumer_model_modify_workflow_composition() -> None:
-    @modify_workflow(
-        initial_input_form=partial(
-            modify_optical_module_location_form_generator,
+    # The core form-argument injection builds the generator arguments by name from the
+    # workflow state, so the shipped generator's subscription_model/block_field_name
+    # parameters cannot be pre-bound with functools.partial (the bound parameters would
+    # be passed positionally from their signature defaults). The consumer binds them
+    # with a thin wrapper that delegates to the shipped generator as a direct call.
+    def my_modify_form_generator(subscription_id):
+        user_input_dict = yield from modify_optical_module_location_form_generator(
+            subscription_id,
             subscription_model=AbstractRouter,
             block_field_name="router",
         )
-    )
+        return user_input_dict
+
+    @modify_workflow(initial_input_form=my_modify_form_generator)
     def modify_my_router():
         return begin >> MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS
 

@@ -39,9 +39,9 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.validate import (
     OPTICAL_COHERENT_PLUGGABLE_VALIDATE_STEPS,
 )
 from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
+    CREATE_NOKIA_FLEXILS_BLOCK_STEPS,
     construct_optical_node_nokia_flexils_subscription,
     create_optical_node_nokia_flexils_form_generator,
-    discover_optical_node_nokia_flexils,
 )
 from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import (
     MODIFY_NOKIA_FLEXILS_BLOCK_STEPS,
@@ -64,15 +64,16 @@ def test_shipped_type_create_workflow_composition() -> None:
     def create_optical_node_nokia_flexils():
         return (
             begin
-            >> discover_optical_node_nokia_flexils
             >> construct_optical_node_nokia_flexils_subscription
+            >> CREATE_NOKIA_FLEXILS_BLOCK_STEPS
             >> store_process_subscription()
         )
 
     workflow: Workflow = create_optical_node_nokia_flexils
     assert workflow.name == "create_optical_node_nokia_flexils"
     names = [step.name for step in workflow.steps]
-    assert names.index("Discover Nokia FlexILS node properties") < names.index("Construct Subscription model")
+    assert names.index("Construct Subscription model") < names.index("Discover Nokia FlexILS node properties")
+    assert names.index("Discover Nokia FlexILS node properties") < names.index("Populate Nokia FlexILS node block")
     assert names.index("Construct Subscription model") < names.index("Create Process Subscription relation")
 
 

@@ -11,14 +11,13 @@ operates on the Nokia Groove G30 node block found in the state under
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
 ``@create_workflow`` with the parts. The shipped workflow itself is composed
-from the shipped parts: the discovery step retrieves the node software version
-from the device, the construct step builds the shipped subscription model and
-puts its block in the state, the shipped block steps populate and persist the
-block, and the shipped description step finalizes the subscription. The
-shipped form generator is a thin composition of the shipped pages and the
-summary form, without hooks: consumers build their own form generator by
-yielding from the shipped page sequence in one line and adding their own
-pages::
+from the shipped parts: the construct step builds the shipped subscription
+model and puts its block in the state, the shipped block steps retrieve the
+node software version from the device, populate and persist the block, and
+the shipped description step finalizes the subscription. The shipped form
+generator is a thin composition of the shipped pages and the summary form,
+without hooks: consumers build their own form generator by yielding from the
+shipped page sequence in one line and adding their own pages::
 
     user_input_dict = yield from create_optical_node_nokia_groove_g30_form_pages(product_name)
     user_input_dict.update((yield my_own_page).model_dump())
@@ -210,7 +209,9 @@ def discover_optical_node_nokia_groove_g30(
 
     The step is block-free: it only adds the discovered
     ``optical_node_software_version`` key to the state, which the shipped
-    populate step consumes.
+    populate step consumes. It is the first step of
+    :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`; consumers that populate the
+    block inside their own construct step can run it separately before it.
     """
     software_version = retrieve_g30_software_version(
         dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
@@ -326,13 +327,19 @@ def construct_optical_node_nokia_groove_g30_subscription(product: UUIDstr, custo
 
 
 #: Create steps operating on the Nokia Groove G30 node block in the state.
-#: The block is re-hydrated from the database and persisted by the last step,
-#: because workflow steps execute with the state serialized between steps.
-#: Consumers with their own model run this list after constructing their
-#: (inactive) subscription and putting their block in the state under
-#: ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+#: The list starts with the block-free device discovery step (it adds the
+#: discovered ``optical_node_software_version`` state key that the populate
+#: step consumes), then populates the block from the create-form state keys,
+#: and persists it with the last step, because workflow steps execute with
+#: the state serialized between steps (the block is re-hydrated from the
+#: database before it is populated). Consumers with their own model run this
+#: list after constructing their (inactive) subscription and putting their
+#: block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
 CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS: StepList = (
-    begin >> populate_optical_node_nokia_groove_g30_block_step >> save_optical_node_block
+    begin
+    >> discover_optical_node_nokia_groove_g30
+    >> populate_optical_node_nokia_groove_g30_block_step
+    >> save_optical_node_block
 )
 
 
@@ -340,17 +347,16 @@ CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS: StepList = (
 def create_optical_node_nokia_groove_g30() -> StepList:
     """Workflow to create a new Nokia Groove G30 Optical Node subscription.
 
-    The workflow is composed from the shipped parts: the discovery step
-    retrieves the node software version from the device, the construct step
+    The workflow is composed from the shipped parts: the construct step
     builds the shipped :class:`OpticalNodeNokiaGrooveG30` model and puts its
-    block in the state, the shipped block steps populate and persist the
-    block, and the shipped description step finalizes the subscription. It is
-    therefore only valid for the shipped product type; consumers with their
-    own product type compose their own create workflow with the same parts.
+    block in the state, the shipped block steps retrieve the node software
+    version from the device, populate and persist the block, and the shipped
+    description step finalizes the subscription. It is therefore only valid
+    for the shipped product type; consumers with their own product type
+    compose their own create workflow with the same parts.
     """
     return (
         begin
-        >> discover_optical_node_nokia_groove_g30
         >> construct_optical_node_nokia_groove_g30_subscription
         >> CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS
         >> set_status(SubscriptionLifecycle.PROVISIONING)
