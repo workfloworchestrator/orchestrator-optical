@@ -82,7 +82,11 @@ source-include = [
 ]
 
 [tool.ty.src]
-exclude = ["docs"]
+exclude = [
+    "docs",
+    "src/orchestrator/optical.old",
+    "src/orchestrator/optical/services"
+]
 
 [tool.ty.rules]
 call-non-callable = "ignore"
@@ -205,6 +209,10 @@ source = [
 [tool.pyrefly]
 search-path = ["src"]
 python-interpreter-path = ".venv/bin/python"
+project-excludes = [
+    "src/orchestrator/optical.old/**",
+    "src/orchestrator/optical/services/**",
+]
 
 [[tool.pyrefly.sub-config]]
 matches = "src/orchestrator/optical/products/**"   # or "subdir/**", "**/legacy/**", etc.

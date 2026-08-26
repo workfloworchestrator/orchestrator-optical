@@ -179,10 +179,15 @@ defined in the user code-space.
 ```bash
 uv run ruff check <path>        # lint (line-length 120, google docstrings); ported code must be 0-findings
 uv run ruff format --check <path>
-uv run ty check                 # type check (pyrefly)
+uv run ty check                 # type check (Astral's ty)
+uv run pyrefly check            # type check (Meta's pyrefly)
 uv run python -c "import orchestrator.optical.<module>"   # import smoke (no env vars required)
 uv build                        # package build
 ```
+
+### Mindset
+
+Always end the session leaving the code of this module more usable, maintainabile, and evolvable than you found at the start.
 
 ### Known pre-existing noise (do NOT "fix" these as a side quest)
 
@@ -211,7 +216,3 @@ uv build                        # package build
 - The legacy `optical.old/` and the GARR admin `tasks/` workflows are there for reference only (`/hal` corresponds to old `products/services`) — do not reintroduce.
 - Model files are actively being refined by maintainers: **ask before changing `products/`**; adapt code to their
   changes instead (e.g. field renames must be propagated to `hal/` and `workflows/`).
-
-## Agentic mindset
-
-Always be hypercritical and always strive to maximize usability, maintainability, and evolvability of this module.
