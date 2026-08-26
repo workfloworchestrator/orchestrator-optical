@@ -60,6 +60,7 @@ dev = [
     "ty>=0.0.21",
     "types-requests==2.32.4.20250611",
     "types-PyYAML==6.0.12.20241230",
+    "pyrefly>=1.1.1",
 ]
 
 [build-system]
