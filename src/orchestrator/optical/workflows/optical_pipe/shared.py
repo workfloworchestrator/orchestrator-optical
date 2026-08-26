@@ -1,18 +1,26 @@
-"""Shared workflow utilities for optical pipes."""
+"""Shared workflow utilities for Optical Pipes.
 
-from collections.abc import Generator, Sequence
+This module ships the parts shared by the workflows of the family: the state
+key under which the shipped Optical Pipe block travels in the workflow state,
+the block re-hydration, load, save and update steps, the human-readable
+subscription description, and the form-layer selectors and pipe assembly
+helpers (``new_pipe_port_block``, ``new_optical_pipe_subscription``). Database
+queries live in the neutral ``orchestrator/optical/db.py`` module.
+"""
+
 from typing import Annotated, Any, TypeVar, cast
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
-from pydantic_forms.core import FormPage
-from pydantic_forms.types import UUIDstr
-from pydantic_forms.validators import Choice, MigrationSummary, choice_list, migration_summary
+from pydantic import Field
+from pydantic_forms.types import State, UUIDstr
+from pydantic_forms.validators import Choice, choice_list
 
-from orchestrator.core.db import ProductTable, SubscriptionTable, db
+from orchestrator.core.db import ProductTable, SubscriptionInstanceTable, SubscriptionTable, db
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel, ProductModel
+from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import step
 from orchestrator.optical.db import (
     node_block_from_subscription,
     subscription_instance_values_by_block_type_depending_on_instance_id,
@@ -22,7 +30,10 @@ from orchestrator.optical.hal.optical_node import Vendor, vendor_of
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
 )
-from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import AbstractOpticalPipeBlockInactive
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
+    AbstractOpticalPipeBlockInactive,
+    AbstractOpticalPipeBlockProvisioning,
+)
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlockInactive
@@ -33,7 +44,11 @@ from orchestrator.optical.products.product_blocks.optical_port.transponder_line 
     OpticalTransponderLinePortBlockInactive,
 )
 from orchestrator.optical.workflows.optical_node.shared import OPTICAL_NODE_PRODUCT_TYPES
-from orchestrator.optical.workflows.shared import merge_summary_fields
+
+#: State key under which the Optical Pipe block of the subscription is passed
+#: between the shipped block steps. Consumers put the block they compose (under
+#: any attribute name of their own model) in the state under this key.
+OPTICAL_PIPE_BLOCK_STATE_KEY = "optical_pipe_block"
 
 T = TypeVar("T", bound=AbstractOpticalPortBlockInactive)
 
@@ -45,12 +60,242 @@ PORT_BLOCK_TYPES = [
 ]
 
 
-def optical_pipe_subscription_description(subscription: SubscriptionModel) -> str:
-    """Generate a standard description for an optical pipe subscription."""
+def _optical_pipe_block_of_subscription(subscription: SubscriptionModel) -> AbstractOpticalPipeBlockInactive:
+    """Return the Optical Pipe block under the ``optical_pipe`` attribute.
+
+    This is the shipped-model fallback of the family: it reads the block from
+    the ``optical_pipe`` attribute of the subscription, which the shipped
+    subscription models always have.
+
+    Args:
+        subscription: The Optical Pipe subscription.
+
+    Returns:
+        The Optical Pipe block of the subscription.
+
+    Raises:
+        ValueError: If the subscription has no block under the attribute.
+    """
     pipe = getattr(subscription, "optical_pipe", None)
-    if pipe and getattr(pipe, "optical_pipe_name", None):
+    if pipe is None:
+        msg = (
+            "Optical Pipe subscription has no Optical Pipe block under attribute 'optical_pipe': "
+            "the subscription model must have-a the Optical Pipe block, e.g. under 'optical_pipe'"
+        )
+        raise ValueError(msg)
+    return pipe
+
+
+def optical_pipe_subscription_description(
+    subscription: SubscriptionModel,
+    optical_pipe_block: AbstractOpticalPipeBlockInactive | None = None,
+) -> str:
+    """Generate the human-readable description of an Optical Pipe subscription.
+
+    The description is derived from the pipe name and the product name, so the
+    same function can be reused by consumers that compose the shipped block
+    under their own attribute: pass the shipped block explicitly, otherwise it
+    falls back to the ``optical_pipe`` attribute of the shipped subscription
+    models.
+
+    Args:
+        subscription: The Optical Pipe subscription.
+        optical_pipe_block: The Optical Pipe block of the subscription. When
+            given, it is used instead of the ``optical_pipe`` attribute of the
+            shipped subscription models.
+
+    Returns:
+        The subscription description, e.g. ``"nodeA portA --- nodeB portB (Fiber Span)"``
+        or the product name when the pipe has no name yet.
+
+    Raises:
+        ValueError: If the subscription has no Optical Pipe block under the
+            ``optical_pipe`` attribute and no block was passed.
+    """
+    pipe = optical_pipe_block or _optical_pipe_block_of_subscription(subscription)
+    if pipe.optical_pipe_name:
         return f"{pipe.optical_pipe_name} ({subscription.product.name})"
     return subscription.product.name
+
+
+def optical_pipe_block_from_state(
+    optical_pipe_block: AbstractOpticalPipeBlockInactive | dict[str, Any] | None,
+) -> AbstractOpticalPipeBlockInactive | None:
+    """Return the Optical Pipe block of the workflow state as a domain model.
+
+    Workflow steps execute with the state serialized between steps, so a block
+    passed under ``OPTICAL_PIPE_BLOCK_STATE_KEY`` arrives as a plain dict
+    (its serialized form, carrying the full block data) rather than as a domain
+    model. This helper returns the value unchanged when it is already a domain
+    model (in-process usage, e.g. in tests) and reconstructs the block from the
+    serialized data otherwise. The concrete block chain is resolved by its
+    ``product_block_name`` and its lifecycle variant from the status of its
+    owner subscription, so blocks of any lifecycle are loaded as their matching
+    variant (INITIAL, PROVISIONING or ACTIVE).
+
+    Args:
+        optical_pipe_block: The block value from the workflow state, or None.
+
+    Returns:
+        The Optical Pipe block as a domain model, or None when the value is None.
+
+    Raises:
+        ValueError: If the block in the state has no ``subscription_instance_id``.
+    """
+    if optical_pipe_block is None:
+        return None
+    if isinstance(optical_pipe_block, AbstractOpticalPipeBlockInactive):
+        return optical_pipe_block
+    return _optical_pipe_block_from_state(optical_pipe_block)
+
+
+def _optical_pipe_block_from_state(optical_pipe_block: dict[str, Any]) -> AbstractOpticalPipeBlockInactive:
+    """Reconstruct an Optical Pipe block from its serialized form.
+
+    The state dict carries the full block data (the block is serialized with
+    ``model_dump``), so the block is reconstructed from it rather than reloaded
+    from the database: reloading would discard the mutations made by the
+    preceding step, which workflow steps only persist when they explicitly save.
+    The concrete block class is resolved through the product block registry (the
+    abstract Optical Pipe block has multiple concrete chains: fiber span, fiber
+    patch and leased spectrum) and its lifecycle variant from the status of its
+    owner subscription, mirroring the block-based resolution in
+    ``orchestrator.optical.db``.
+
+    Args:
+        optical_pipe_block: The serialized block from the workflow state.
+
+    Returns:
+        The Optical Pipe block as a domain model.
+
+    Raises:
+        ValueError: If the block in the state has no ``subscription_instance_id``,
+            or if no subscription instance exists with the given id.
+    """
+    subscription_instance_id = optical_pipe_block.get("subscription_instance_id")
+    if subscription_instance_id is None:
+        msg = "Optical Pipe block in the state has no subscription_instance_id"
+        raise ValueError(msg)
+    instance = db.session.get(SubscriptionInstanceTable, subscription_instance_id)
+    if instance is None:
+        msg = f"No subscription instance with id {subscription_instance_id}"
+        raise ValueError(msg)
+    block_class = cast(
+        type[AbstractOpticalPipeBlockInactive],
+        lookup_specialized_type(
+            ProductBlockModel.registry[instance.product_block.name],
+            SubscriptionLifecycle(instance.subscription.status),
+        ),
+    )
+    return block_class.model_validate(optical_pipe_block)
+
+
+@step("Load optical pipe block")
+def load_optical_pipe_block(subscription: SubscriptionModel) -> State:
+    """Put the Optical Pipe block of the subscription in the state.
+
+    This is the thin wiring step for the shipped subscription product types,
+    whose block lives under the ``optical_pipe`` attribute: it makes the block
+    available to the shipped block steps under ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+    Consumers that compose the shipped block under a different attribute name
+    write their own one-step wiring instead.
+
+    Args:
+        subscription: The Optical Pipe subscription.
+
+    Returns:
+        The state with the block under the ``optical_pipe_block`` key.
+
+    Raises:
+        ValueError: If the subscription has no Optical Pipe block under the
+            ``optical_pipe`` attribute.
+    """
+    return {OPTICAL_PIPE_BLOCK_STATE_KEY: _optical_pipe_block_of_subscription(subscription)}
+
+
+@step("Persist optical pipe block")
+def save_optical_pipe_block(
+    subscription: SubscriptionModel,
+    optical_pipe_block: AbstractOpticalPipeBlockInactive,
+) -> State:
+    """Persist the Optical Pipe block found in the state to the database.
+
+    Workflow steps execute with the state serialized between steps, so the
+    block is re-hydrated from the database by its ``subscription_instance_id``
+    before it is saved. This step saves the block tree of the loaded
+    subscription (any consumer subscription model that has-a the block)
+    and returns the block, so it can be composed by any consumer workflow.
+
+    Args:
+        subscription: The subscription owning the block.
+        optical_pipe_block: The Optical Pipe block to persist.
+
+    Returns:
+        The state with the block under the ``optical_pipe_block`` key.
+
+    Raises:
+        ValueError: If there is no Optical Pipe block in the state under
+            ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+    """
+    pipe_block = optical_pipe_block_from_state(optical_pipe_block)
+    if pipe_block is None:
+        msg = "No Optical Pipe block in the state under OPTICAL_PIPE_BLOCK_STATE_KEY"
+        raise ValueError(msg)
+    pipe_block.save(subscription_id=subscription.subscription_id, status=subscription.status)
+    return {OPTICAL_PIPE_BLOCK_STATE_KEY: pipe_block}
+
+
+@step("Updating Optical Pipe block")
+def update_optical_pipe_block(
+    optical_pipe_block: AbstractOpticalPipeBlockProvisioning,
+    optical_pipe_name: str,
+) -> State:
+    """Update the Optical Pipe block in the state from the modify-form keys.
+
+    Only the ``optical_pipe_name`` is written to the block: the shipped modify
+    block steps never persist a changed ``customer_id`` (the form still emits
+    it; add your own step if your product tracks it). Workflow steps execute
+    with the state serialized between steps, so the block is re-hydrated from
+    the database by its ``subscription_instance_id`` before it is updated.
+
+    Args:
+        optical_pipe_block: The Optical Pipe block in the state under
+            ``OPTICAL_PIPE_BLOCK_STATE_KEY`` (the provisioning variant, while
+            the subscription is being modified).
+        optical_pipe_name: The new name of the pipe.
+
+    Raises:
+        ValueError: If there is no Optical Pipe block in the state under
+            ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+    """
+    pipe_block = optical_pipe_block_from_state(optical_pipe_block)
+    if pipe_block is None:
+        msg = "No Optical Pipe block in the state under OPTICAL_PIPE_BLOCK_STATE_KEY"
+        raise ValueError(msg)
+    pipe_block.optical_pipe_name = optical_pipe_name
+    return {OPTICAL_PIPE_BLOCK_STATE_KEY: pipe_block}
+
+
+@step("Set Optical Pipe subscription description")
+def set_optical_pipe_subscription_description(
+    subscription: SubscriptionModel,
+    optical_pipe_block: AbstractOpticalPipeBlockInactive | None = None,
+) -> State:
+    """Set the description of the Optical Pipe subscription.
+
+    The block is read from the ``optical_pipe_block`` state key when present
+    (e.g. when the shipped block steps ran against a consumer-owned block under
+    a different attribute name); otherwise it falls back to the ``optical_pipe``
+    attribute of the shipped subscription models.
+
+    Args:
+        subscription: The Optical Pipe subscription.
+        optical_pipe_block: The Optical Pipe block of the subscription, when it
+            is available in the state under ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+    """
+    pipe = optical_pipe_block_from_state(optical_pipe_block)
+    subscription.description = optical_pipe_subscription_description(subscription, pipe)
+    return {"subscription": subscription, "subscription_description": subscription.description}
 
 
 def optical_pipe_selector(product_type: str, prompt: str | None = None) -> type[Choice]:
@@ -77,69 +322,6 @@ def multiple_optical_pipe_selector(
     base_choice = optical_pipe_selector(product_type, prompt)
     dynamic_class = choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items)
     return Annotated[dynamic_class, Field(title=prompt)]  # type: ignore[valid-type]
-
-
-def summary_form(product_name: str, summary_data: dict[str, Any]) -> Generator[type[FormPage]]:
-    """Generate a migration summary form."""
-
-    class SummaryForm(FormPage):
-        model_config = ConfigDict(title=f"{product_name} summary")
-
-        product_summary: cast(type[MigrationSummary], migration_summary(summary_data))  # type: ignore[valid-type]
-
-    yield SummaryForm
-
-
-def create_pipe_summary_form(
-    user_input: dict[str, Any],
-    product_name: str,
-    fields: list[str],
-    extra_summary_fields: Sequence[str] = (),
-) -> Generator[type[FormPage]]:
-    """Create a summary form for pipe creation."""
-    fields = merge_summary_fields(fields, extra_summary_fields, user_input)
-    columns = [[str(user_input.get(nm, "")) for nm in fields]]
-    yield from summary_form(product_name, {"labels": fields, "columns": columns})
-
-
-def modify_pipe_summary_form(
-    user_input: dict[str, Any],
-    block: ProductBlockModel,
-    fields: list[str],
-    extra_before: dict[str, str] | None = None,
-    extra_summary_fields: Sequence[str] = (),
-) -> Generator[type[FormPage]]:
-    """Create a summary form for pipe modification.
-
-    Args:
-        user_input: Form input values for the "after" column.
-        block: Product block of the subscription being modified.
-        fields: Field names to display.
-        extra_before: Optional mapping of field names to "before" values that cannot
-            be read from the block, e.g. the subscription customer id.
-        extra_summary_fields: Extra field names to append to the summary; their
-            "before" column is left empty, as they have no previous value.
-    """
-    fields = merge_summary_fields(fields, extra_summary_fields, user_input)
-    before = []
-    for nm in fields:
-        if extra_before and nm in extra_before:
-            before.append(extra_before[nm])
-        else:
-            before.append(str(getattr(block, nm, "")))
-    after = [str(user_input.get(nm, "")) for nm in fields]
-    subscription = block.subscription
-    if subscription is None:
-        msg = "Cannot generate a summary form for a block without a subscription"
-        raise ValueError(msg)
-    yield from summary_form(
-        subscription.product.name,
-        {
-            "labels": fields,
-            "headers": ["Before", "After"],
-            "columns": [before, after],
-        },
-    )
 
 
 def optical_node_selector(prompt: str = "Select an Optical Node") -> type[Choice]:
@@ -371,3 +553,24 @@ def default_pipe_identifier(
         f"{node_a_block.management.optical_module_node_fqdn} {port_a_name}"
         f" --- {node_b_block.management.optical_module_node_fqdn} {port_b_name}"
     )
+
+
+__all__ = [
+    "OPTICAL_PIPE_BLOCK_STATE_KEY",
+    "default_pipe_identifier",
+    "leased_spectrum_port_block_class",
+    "load_optical_pipe_block",
+    "multiple_optical_pipe_selector",
+    "new_optical_pipe_subscription",
+    "new_pipe_port_block",
+    "optical_node_selector",
+    "optical_pipe_block_from_state",
+    "optical_pipe_selector",
+    "optical_pipe_subscription_description",
+    "patch_port_block_class",
+    "save_optical_pipe_block",
+    "set_optical_pipe_subscription_description",
+    "unused_node_port_selector",
+    "update_optical_pipe_block",
+    "used_port_names_on_node",
+]

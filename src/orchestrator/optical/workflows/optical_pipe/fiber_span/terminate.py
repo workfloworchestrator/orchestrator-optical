@@ -1,11 +1,21 @@
-"""Terminate Optical Fiber Span Workflow."""
+"""Terminate Optical Fiber Span workflow.
 
-from collections.abc import Sequence
+This module ships the ready-to-use ``terminate_fiber_span`` workflow for the
+shipped Optical Fiber Span product type, together with the importable parts:
+the FormPage of the terminate confirmation form (as the
+:func:`terminate_fiber_span_form_pages` page sequence) and the termination
+steps.
+
+Consumers with their own model that has-a the shipped block declare their own
+``@terminate_workflow`` with :data:`FIBER_SPAN_TERMINATE_STEPS` and compose
+their own terminate form generator by yielding from the shipped page sequence
+in one line.
+"""
+
 from typing import Annotated
 
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
@@ -13,8 +23,6 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.optical_port import factory_reset_port_configuration
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
-
-logger = get_logger(__name__)
 
 WARNING_MSG = (
     "Terminating an Optical Fiber Span will disable line ports and remove path configurations. "
@@ -30,18 +38,16 @@ WarningField = Annotated[
 ]
 
 
-def terminate_initial_input_form_generator(
-    subscription_id: UUIDstr,
-    customer_id: UUIDstr,  # noqa: ARG001
-    extra_form_pages: Sequence[type[FormPage]] = (),
-) -> FormGenerator:
-    """Input form generator for terminating an Optical Fiber Span.
+def terminate_fiber_span_form(subscription_id: UUIDstr) -> type[FormPage]:
+    """Return the confirmation FormPage of the Optical Fiber Span terminate form.
 
     Args:
         subscription_id: The identifier of the subscription being terminated.
-        customer_id: The identifier of the subscription customer (kept for the WFO form signature).
-        extra_form_pages: Additional form pages shown after the shipped confirmation page.
+
+    Returns:
+        The confirmation FormPage of the shipped terminate form.
     """
+    # Alias is required: a class body cannot reference a same-named enclosing parameter.
     temp_subscription_id = subscription_id
 
     class TerminateFiberSpanForm(FormPage):
@@ -55,13 +61,42 @@ def terminate_initial_input_form_generator(
                 raise ValueError(msg)
             return self
 
-    user_input = yield TerminateFiberSpanForm
-    user_input_dict = user_input.model_dump()
+    return TerminateFiberSpanForm
 
-    for page in extra_form_pages:
-        user_input_dict.update((yield page).model_dump())
 
-    return user_input_dict
+def terminate_fiber_span_form_pages(subscription_id: UUIDstr) -> FormGenerator:
+    """Yield the FormPage of the Optical Fiber Span terminate form.
+
+    This is the shipped terminate form as a page sequence: it yields the
+    confirmation page and returns the collected user input. Consumers yield
+    from it in one line inside their own terminate form generator, optionally
+    adding their own pages.
+
+    Args:
+        subscription_id: The identifier of the subscription being terminated.
+
+    Returns:
+        The collected user input of the shipped pages.
+    """
+    user_input = yield terminate_fiber_span_form(subscription_id)
+    return user_input.model_dump()
+
+
+def terminate_initial_input_form_generator(
+    subscription_id: UUIDstr,
+    customer_id: UUIDstr,  # noqa: ARG001
+) -> FormGenerator:
+    """Generate the confirmation form before terminating an Optical Fiber Span subscription.
+
+    Args:
+        subscription_id: The identifier of the subscription being terminated.
+        customer_id: The identifier of the subscription customer (kept for the WFO form signature).
+
+    Returns:
+        The collected user input of the confirmation page.
+    """
+    user_input = yield from terminate_fiber_span_form_pages(subscription_id)
+    return user_input
 
 
 @step("Factory Reset Fiber Span Ports")
@@ -79,7 +114,23 @@ def factory_reset_span_ports(subscription: OpticalFiberSpan) -> State:
     return {"configuration_results": configuration_results}
 
 
+#: Termination steps of the Optical Fiber Span family. Consumers declare
+#: their own ``@terminate_workflow`` with this step list and the shipped
+#: :func:`terminate_initial_input_form_generator` form.
+FIBER_SPAN_TERMINATE_STEPS: StepList = begin >> factory_reset_span_ports
+
+
 @terminate_workflow(initial_input_form=terminate_initial_input_form_generator)
 def terminate_fiber_span() -> StepList:
-    """Workflow to terminate an Optical Fiber Span."""
-    return begin >> factory_reset_span_ports
+    """Workflow to terminate an Optical Fiber Span subscription."""
+    return begin >> FIBER_SPAN_TERMINATE_STEPS
+
+
+__all__ = [
+    "FIBER_SPAN_TERMINATE_STEPS",
+    "factory_reset_span_ports",
+    "terminate_fiber_span",
+    "terminate_fiber_span_form",
+    "terminate_fiber_span_form_pages",
+    "terminate_initial_input_form_generator",
+]

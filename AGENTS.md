@@ -70,6 +70,7 @@ src/orchestrator/optical/
 ## Core conventions (follow these in every session)
 
 ### Data model pattern
+
 - Every block/subscription has three lifecycle classes: `XInactive` → `XProvisioning` → `X` (ACTIVE), using
   `lifecycle=[SubscriptionLifecycle.X]`; `product_block_name=` is required on classes that are persisted. Abstract
   roots are marked differently per model kind: product blocks use `product_block_name="AbstractX"` on the abstract
@@ -80,6 +81,7 @@ src/orchestrator/optical/
   (optical_location).
 
 #### Persistence quirk (orchestrator-core 5.1.3)
+
 `ProductBlockModel._find_special_fields` persists **only fields declared directly in a class body** — any inherited
 field (from an abstract base or from a concrete sibling in the same chain) is silently dropped on save and missing on
 reload. It fills two class dicts: `_non_product_block_fields_` (scalar values) and `_product_block_fields_` (block
@@ -96,11 +98,13 @@ the four `optical_port` role chains — including `optical_port_role` in the Pro
 must follow the rule.
 
 ### Dispatch
+
 - Platform/vendor dispatch is on `vendor_of(block)` (from `hal.optical_node`, values: `Vendor.FLEXILS`,
   `Vendor.GROOVE_G30`, `Vendor.GX_G42`), covering all lifecycle variants. `hal/` dispatches with `match/case`;
   workflows use `if vendor_of(...) == Vendor.X` comparisons. Attribute dispatch was removed — never reintroduce it.
 
 ### Layering (hal depends on blocks, never on workflows)
+
 - `hal/` implements device-facing logic and depends only on **blocks** — the shared contracts between the module
   and its consumers — never on subscription models: no module under `hal/` may import from
   `orchestrator.optical.workflows.*`. Subscription ids are acceptable input parameters, but they are resolved to
@@ -109,6 +113,7 @@ must follow the rule.
   models; `hal/` may not.
 
 ### Hard rules (generalization invariants)
+
 - **No** `.garr.net`, pop codes, `fXXXcYY` naming, `garrxdb_id`/`netbox_id`/`nms_uuid` — anywhere.
 - Device-side identifiers (OEL/OSNC/OCRS AIDs, CKTIDSUFFIX, `optical_transport_channel_name`) are
   `subscription_instance_id` **UUID strings**; user-provided free-form names go to the device **label** fields.
@@ -116,11 +121,13 @@ must follow the rule.
 defined in the user code-space.
 
 ### Configuration
+
 - All env-driven config lives in `settings.py` (`OPTICAL_`-prefixed; e.g. `OPTICAL_FLEXILS_USER`,
   `OPTICAL_TNMS_ENDPOINT`). **No import-time side effects**: importing any module must work with zero env vars.
   Use `get_settings()`; keep clients lazy (`get_netbox_api()`, `get_tnms_client()`).
 
 ### Workflows
+
 - The module ships the **ready-to-use workflows of the shipped product types**: one module-level
   `@create_workflow`/`@modify_workflow`/`@terminate_workflow`/`@validate_workflow`-decorated function per product
   (decorators from `orchestrator.core.workflows.utils`, chains from `orchestrator.core.workflow`), named exactly as
@@ -178,6 +185,7 @@ uv build                        # package build
 ```
 
 ### Known pre-existing noise (do NOT "fix" these as a side quest)
+
 - `services/nokia/{g30,g42}/data_models|data_navigators/*` — auto-generated YANG models, tens of thousands of
   ruff/ty findings; never edit manually.
 - `workflows/shared.py` — pre-existing ty diagnostics in the form/selector helpers (committed file).
@@ -186,6 +194,7 @@ uv build                        # package build
   `.bumpversion.cfg` path) — left as-is; do not "fix" pyproject.toml as a side quest.
 
 ### Current status (branch `porting/workflows`)
+
 - Every product family (`optical_node` ×3 vendors, `optical_coherent_pluggable`, `optical_pipe` ×3,
   `optical_spectrum_service`, `optical_digital_service`, `optical_module_location`) ships the ready-to-use workflows
   of its shipped product types (module-level decorated functions, 40 in total, listed in the README) plus the
@@ -193,7 +202,7 @@ uv build                        # package build
   are gone. Consumers register the shipped workflows with `LazyWorkflowInstance` lines in their own workflows
   package (see README); `optical_location` workflows were ported and the family ships its workflows. The
   `optical_location` family is the reference implementation of the FormPage consumption model (shipped page sequences
-  + one-line `yield from` composition, no `extra_form_pages`/`extra_summary_fields` hooks); the other families still
+  - one-line `yield from` composition, no `extra_form_pages`/`extra_summary_fields` hooks); the other families still
   carry the legacy hook-style form generators, mid-port.
 - Test suite: composition tests + shipped-workflow contract tests (`test/test_workflow_composition.py`,
   `test/test_optical_node_composition.py`, `test/test_optical_coherent_pluggable_composition.py`,
@@ -201,3 +210,7 @@ uv build                        # package build
 - The legacy `optical.old/` and the GARR admin `tasks/` workflows are there for reference only (`/hal` corresponds to old `products/services`) — do not reintroduce.
 - Model files are actively being refined by maintainers: **ask before changing `products/`**; adapt code to their
   changes instead (e.g. field renames must be propagated to `hal/` and `workflows/`).
+
+## Agentic mindset
+
+Always be hypercritical and always strive to maximize usability, maintainability, and evolvability of this module.

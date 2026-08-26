@@ -1,28 +1,28 @@
-"""Validate Optical Fiber Patch Workflow."""
+"""Validate Optical Fiber Patch workflow.
+
+This module ships the ready-to-use ``validate_fiber_patch`` workflow for the
+shipped Optical Fiber Patch product type, together with the importable parts:
+the state loading step, the shared subscription description step and the
+termination check step. Consumers with their own model that has-a the shipped
+block declare their own ``@validate_workflow`` with
+:data:`FIBER_PATCH_VALIDATE_STEPS`; consumer models that compose the block
+under a different attribute name can put the block in the state under
+``OPTICAL_PIPE_BLOCK_STATE_KEY`` for the description step.
+"""
 
 from pydantic_forms.types import State
-from structlog import get_logger
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.hal.optical_port import check_fiber_terminating_port
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatch
-from orchestrator.optical.workflows.optical_pipe.shared import optical_pipe_subscription_description
-
-logger = get_logger(__name__)
+from orchestrator.optical.workflows.optical_pipe.shared import set_optical_pipe_subscription_description
 
 
 @step("Load Initial State")
 def load_initial_state_fiber_patch(subscription: OpticalFiberPatch) -> State:
     """Load the initial state of the Optical Fiber Patch."""
     return {"subscription": subscription}
-
-
-@step("Update Subscription Description")
-def update_subscription_description(subscription: OpticalFiberPatch) -> State:
-    """Update subscription description during validation."""
-    subscription.description = optical_pipe_subscription_description(subscription)
-    return {"subscription_description": subscription.description}
 
 
 @step("Check Fiber Patch Terminations")
@@ -34,7 +34,24 @@ def check_patch_terminations(subscription: OpticalFiberPatch) -> State:
     return {}
 
 
+#: Validation steps of the Optical Fiber Patch family. The subscription
+#: description refresh is a shared step that reads the block from the state
+#: under ``OPTICAL_PIPE_BLOCK_STATE_KEY`` when present, and otherwise falls
+#: back to the ``optical_pipe`` attribute of the shipped subscription models.
+FIBER_PATCH_VALIDATE_STEPS: StepList = (
+    begin >> load_initial_state_fiber_patch >> set_optical_pipe_subscription_description >> check_patch_terminations
+)
+
+
 @validate_workflow()
 def validate_fiber_patch() -> StepList:
     """Workflow to validate an Optical Fiber Patch subscription."""
-    return begin >> load_initial_state_fiber_patch >> update_subscription_description >> check_patch_terminations
+    return begin >> FIBER_PATCH_VALIDATE_STEPS
+
+
+__all__ = [
+    "FIBER_PATCH_VALIDATE_STEPS",
+    "check_patch_terminations",
+    "load_initial_state_fiber_patch",
+    "validate_fiber_patch",
+]

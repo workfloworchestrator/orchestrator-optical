@@ -1,4 +1,26 @@
-"""Create Optical Leased Spectrum Workflow.
+"""Create Optical Leased Spectrum workflow.
+
+This module ships the ready-to-use ``create_leased_spectrum`` workflow for
+the shipped Optical Leased Spectrum product type, together with the
+importable parts: the FormPages of the create form (as the
+:func:`create_leased_spectrum_form_pages` page sequence), the block
+population logic and the step list that operates on the Optical Leased
+Spectrum block found in the state under ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+
+Consumers that keep the shipped product type register the shipped workflow;
+consumers with their own model that has-a the shipped block compose their own
+``@create_workflow`` with the parts. The shipped workflow itself is composed
+from the shipped parts: the construct step builds the shipped subscription
+model and puts its block in the state, the shipped block steps persist the
+block, and the shipped description step finalizes the subscription. The
+shipped form generator is a thin composition of the shipped pages and the
+summary form, without hooks: consumers build their own form generator by
+yielding from the shipped page sequence in one line and adding their own
+pages::
+
+    user_input_dict = yield from create_leased_spectrum_form_pages(product_name)
+    user_input_dict.update((yield my_own_page).model_dump())
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
 
 The subscription model has no dedicated provider field: the ``provider_name``
 collected by the form is always persisted by prefixing it to the
@@ -6,13 +28,12 @@ collected by the form is always persisted by prefixing it to the
 input is silently dropped.
 """
 
-from collections.abc import Sequence
-from typing import cast
-from uuid import uuid4
+from typing import Any, cast
+from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from structlog import get_logger
+from pydantic_forms.validators import Choice
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
@@ -42,104 +63,17 @@ from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum im
 )
 from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_pipe.shared import (
-    create_pipe_summary_form,
+    OPTICAL_PIPE_BLOCK_STATE_KEY,
     default_pipe_identifier,
     leased_spectrum_port_block_class,
     new_optical_pipe_subscription,
     new_pipe_port_block,
     optical_node_selector,
-    optical_pipe_subscription_description,
+    save_optical_pipe_block,
+    set_optical_pipe_subscription_description,
     unused_node_port_selector,
 )
-
-logger = get_logger(__name__)
-
-
-def initial_input_form_generator(
-    product_name: str,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-) -> FormGenerator:
-    """Form generator for creating an Optical Leased Spectrum pipe.
-
-    Args:
-        product_name: Name of the product being created.
-        extra_form_pages: Additional form pages shown before the summary form.
-        extra_summary_fields: Extra field names to append to the summary.
-    """
-    node_choice = optical_node_selector(prompt="This leased spectrum connects this node:")
-    customer_choice = customer_choice_selector()
-
-    class CreateLeasedSpectrumForm1(FormPage):
-        model_config = ConfigDict(title=product_name)
-
-        customer_id: customer_choice
-        node_a_id: node_choice
-        node_b_id: node_choice
-
-        @model_validator(mode="after")
-        def validate_distinct_nodes(self) -> "CreateLeasedSpectrumForm1":
-            if self.node_a_id == self.node_b_id:
-                msg = "The two ends of a leased spectrum pipe must be on different nodes."
-                raise ValueError(msg)
-            return self
-
-    user_input_1 = yield CreateLeasedSpectrumForm1
-    user_input_dict = user_input_1.model_dump()
-
-    node_a_block = node_block_from_subscription(user_input_dict["node_a_id"])
-    node_b_block = node_block_from_subscription(user_input_dict["node_b_id"])
-
-    port_a_choice = unused_node_port_selector(
-        user_input_dict["node_a_id"],
-        leased_spectrum_ports_of_node(node_a_block),
-        prompt=f"Select an unused line or add/drop port on {node_a_block.management.optical_module_node_fqdn}",
-    )
-    port_b_choice = unused_node_port_selector(
-        user_input_dict["node_b_id"],
-        leased_spectrum_ports_of_node(node_b_block),
-        prompt=f"Select an unused line or add/drop port on {node_b_block.management.optical_module_node_fqdn}",
-    )
-
-    class CreateLeasedSpectrumForm2(FormPage):
-        model_config = ConfigDict(title=f"{product_name} - Terminations")
-
-        provider_name: str = Field(..., title="Third-Party Provider Name", min_length=1)
-        optical_pipe_name: str | None = Field(
-            None,
-            title="Leased Spectrum Identifier",
-            description="Circuit ID or provider reference. Leave empty to use the default "
-            "'<node A> <port A> --- <node B> <port B>'. The provider name is always prefixed.",
-        )
-        port_a_name: port_a_choice
-        port_b_name: port_b_choice
-
-    user_input_2 = yield CreateLeasedSpectrumForm2
-    user_input_dict.update(user_input_2.model_dump())
-
-    user_input_dict["optical_pipe_name"] = user_input_dict["optical_pipe_name"] or default_pipe_identifier(
-        node_a_block, user_input_dict["port_a_name"], node_b_block, user_input_dict["port_b_name"]
-    )
-
-    summary_fields = [
-        "customer_id",
-        "provider_name",
-        "optical_pipe_name",
-        "node_a_id",
-        "port_a_name",
-        "node_b_id",
-        "port_b_name",
-    ]
-    for page in extra_form_pages:
-        user_input_dict.update((yield page).model_dump())
-    yield from create_pipe_summary_form(
-        user_input_dict,
-        product_name,
-        summary_fields,
-        extra_summary_fields=extra_summary_fields,
-    )
-
-    return user_input_dict
+from orchestrator.optical.workflows.shared import create_summary_form
 
 
 def leased_spectrum_ports_of_node(node_block: AbstractOpticalNodeBlockInactive) -> list[str]:
@@ -156,22 +90,196 @@ def leased_spectrum_ports_of_node(node_block: AbstractOpticalNodeBlockInactive) 
     return list(dict.fromkeys(get_device_line_ports_names(node_block)))
 
 
-@step("Construct Leased Spectrum Model")
-def construct_leased_spectrum_model(
-    product: UUIDstr,
-    customer_id: UUIDstr,
-    provider_name: str,
+def create_leased_spectrum_identity_form(
+    product_name: str,
+    customer_choice: type[Choice],
+    node_choice: type[Choice],
+) -> type[FormPage]:
+    """Return the identity FormPage of the Optical Leased Spectrum create form.
+
+    This is the first page of the shipped create form: the customer and the two
+    optical nodes the leased spectrum pipe connects. It is a building block for
+    consumers that compose their own create form generator: the shipped page
+    sequence (:func:`create_leased_spectrum_form_pages`) yields it first. The page
+    validates that the two ends of the pipe are on different nodes.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+        customer_choice: The ``Choice`` selector of the subscription customer,
+            as built by :func:`orchestrator.optical.workflows.customer.customer_choice_selector`.
+        node_choice: The ``Choice`` selector of the optical node subscriptions,
+            as built by :func:`orchestrator.optical.workflows.optical_pipe.shared.optical_node_selector`.
+
+    Returns:
+        The identity FormPage of the shipped create form.
+    """
+
+    class CreateLeasedSpectrumIdentityForm(FormPage):
+        model_config = ConfigDict(title=product_name)
+
+        customer_id: customer_choice
+        node_a_id: node_choice
+        node_b_id: node_choice
+
+        @model_validator(mode="after")
+        def validate_distinct_nodes(self) -> "CreateLeasedSpectrumIdentityForm":
+            """Raise if the two ends of the pipe are on the same node."""
+            if self.node_a_id == self.node_b_id:
+                msg = "The two ends of a leased spectrum pipe must be on different nodes."
+                raise ValueError(msg)
+            return self
+
+    return CreateLeasedSpectrumIdentityForm
+
+
+def create_leased_spectrum_terminations_form(
+    product_name: str,
+    port_a_choice: type[Choice],
+    port_b_choice: type[Choice],
+) -> type[FormPage]:
+    """Return the terminations FormPage of the Optical Leased Spectrum create form.
+
+    This is the second page of the shipped create form: the third-party provider
+    name, the optional leased spectrum identifier and the two terminating ports.
+    It is a building block for consumers that compose their own create form
+    generator: the shipped page sequence
+    (:func:`create_leased_spectrum_form_pages`) yields it second.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+        port_a_choice: The ``Choice`` selector of the unused ports of the first node.
+        port_b_choice: The ``Choice`` selector of the unused ports of the second node.
+
+    Returns:
+        The terminations FormPage of the shipped create form.
+    """
+
+    class CreateLeasedSpectrumTerminationsForm(FormPage):
+        model_config = ConfigDict(title=f"{product_name} - Terminations")
+
+        provider_name: str = Field(..., title="Third-Party Provider Name", min_length=1)
+        optical_pipe_name: str | None = Field(
+            None,
+            title="Leased Spectrum Identifier",
+            description="Circuit ID or provider reference. Leave empty to use the default "
+            "'<node A> <port A> --- <node B> <port B>'. The provider name is always prefixed.",
+        )
+        port_a_name: port_a_choice
+        port_b_name: port_b_choice
+
+    return CreateLeasedSpectrumTerminationsForm
+
+
+def create_leased_spectrum_form_pages(product_name: str) -> FormGenerator:
+    """Yield the FormPages of the Optical Leased Spectrum create form, in order.
+
+    This is the shipped create form as a page sequence: it yields the identity
+    page and the terminations page, and returns the collected user input as a
+    flat dict of the ``optical_*`` state keys plus ``customer_id``, consumed by
+    the shipped steps of :data:`CREATE_LEASED_SPECTRUM_BLOCK_STEPS`. Consumers
+    yield from it in one line inside their own create form generator, optionally
+    interleaving their own pages.
+
+    Args:
+        product_name: Name of the product being created.
+
+    Returns:
+        The collected user input of the shipped pages.
+    """
+    node_choice = optical_node_selector(prompt="This leased spectrum connects this node:")
+    customer_choice = customer_choice_selector()
+
+    user_input_dict: dict[str, Any] = {}
+    user_input_dict.update(
+        (yield create_leased_spectrum_identity_form(product_name, customer_choice, node_choice)).model_dump()
+    )
+
+    node_a_block = node_block_from_subscription(user_input_dict["node_a_id"])
+    node_b_block = node_block_from_subscription(user_input_dict["node_b_id"])
+
+    port_a_choice = unused_node_port_selector(
+        user_input_dict["node_a_id"],
+        leased_spectrum_ports_of_node(node_a_block),
+        prompt=f"Select an unused line or add/drop port on {node_a_block.management.optical_module_node_fqdn}",
+    )
+    port_b_choice = unused_node_port_selector(
+        user_input_dict["node_b_id"],
+        leased_spectrum_ports_of_node(node_b_block),
+        prompt=f"Select an unused line or add/drop port on {node_b_block.management.optical_module_node_fqdn}",
+    )
+
+    user_input_dict.update(
+        (yield create_leased_spectrum_terminations_form(product_name, port_a_choice, port_b_choice)).model_dump()
+    )
+
+    user_input_dict["optical_pipe_name"] = user_input_dict["optical_pipe_name"] or default_pipe_identifier(
+        node_a_block, user_input_dict["port_a_name"], node_b_block, user_input_dict["port_b_name"]
+    )
+
+    return user_input_dict
+
+
+def create_leased_spectrum_form_generator(product_name: str) -> FormGenerator:
+    """Generate the initial input form for creating an Optical Leased Spectrum pipe.
+
+    The form emits the flat ``optical_*`` state keys consumed by the shipped
+    steps of :data:`CREATE_LEASED_SPECTRUM_BLOCK_STEPS`. It is a thin
+    composition of the shipped page sequence
+    (:func:`create_leased_spectrum_form_pages`) and the summary form.
+
+    Args:
+        product_name: Name of the product being created.
+    """
+    user_input_dict = yield from create_leased_spectrum_form_pages(product_name)
+
+    summary_fields = [
+        "customer_id",
+        "provider_name",
+        "optical_pipe_name",
+        "node_a_id",
+        "port_a_name",
+        "node_b_id",
+        "port_b_name",
+    ]
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
+
+    return user_input_dict
+
+
+def build_leased_spectrum_block(
+    subscription_id: UUID,
     node_a_id: UUIDstr,
     node_b_id: UUIDstr,
     port_a_name: str,
     port_b_name: str,
+    provider_name: str,
     optical_pipe_name: str,
-) -> State:
-    """Construct the OpticalLeasedSpectrum domain subscription model."""
+) -> OpticalLeasedSpectrumBlockInactive:
+    """Build the Optical Leased Spectrum block of a subscription from the create-form keys.
+
+    This is the anti-corruption point for consumers that keep their own model:
+    call it from their own construct step on the shipped block they compose,
+    before their subscription model is transitioned to the next lifecycle. The
+    two terminating port blocks are created on their host nodes, and the
+    third-party provider name is prefixed to the pipe name (the leased-spectrum
+    provider prefixing business logic lives here, in the anti-corruption point).
+
+    Args:
+        subscription_id: Subscription id of the pipe subscription owning the block.
+        node_a_id: Subscription id of the optical node hosting the first termination.
+        node_b_id: Subscription id of the optical node hosting the second termination.
+        port_a_name: Name of the first terminating port on its device.
+        port_b_name: Name of the second terminating port on its device.
+        provider_name: Name of the third-party provider; it is stripped and prefixed
+            to the pipe name.
+        optical_pipe_name: Name (circuit id or provider reference) of the pipe.
+
+    Returns:
+        The built Optical Leased Spectrum block in the INITIAL state.
+    """
     node_a_block = node_block_from_subscription(node_a_id)
     node_b_block = node_block_from_subscription(node_b_id)
 
-    subscription_id = uuid4()
     client_ports_a = get_device_client_ports_names(node_a_block)
     client_ports_b = get_device_client_ports_names(node_b_block)
     port_a = new_pipe_port_block(
@@ -198,16 +306,52 @@ def construct_leased_spectrum_model(
         optical_pipe_name = f"{provider_name} {optical_pipe_name}"
     pipe_block.optical_pipe_name = optical_pipe_name
 
+    return pipe_block
+
+
+@step("Construct Leased Spectrum Model")
+def construct_leased_spectrum_subscription(
+    product: UUIDstr,
+    customer_id: UUIDstr,
+    provider_name: str,
+    node_a_id: UUIDstr,
+    node_b_id: UUIDstr,
+    port_a_name: str,
+    port_b_name: str,
+    optical_pipe_name: str,
+) -> State:
+    """Construct the initial domain subscription model for an Optical Leased Spectrum pipe.
+
+    This step builds the shipped ``OpticalLeasedSpectrum`` model around a block
+    assembled by :func:`build_leased_spectrum_block` and puts the block in the
+    state under ``OPTICAL_PIPE_BLOCK_STATE_KEY`` for the shipped block steps of
+    :data:`CREATE_LEASED_SPECTRUM_BLOCK_STEPS`. Consumers that define their own
+    product type (composing the ``OpticalLeasedSpectrumBlock`` under their own
+    attribute name) write their own construct step instead and can reuse
+    :func:`build_leased_spectrum_block` as the anti-corruption point between
+    their model and the shipped block. The subscription description is not set
+    here: it is finalized by the shipped description step.
+    """
+    subscription_id = uuid4()
+    pipe_block = build_leased_spectrum_block(
+        subscription_id,
+        node_a_id,
+        node_b_id,
+        port_a_name,
+        port_b_name,
+        provider_name,
+        optical_pipe_name,
+    )
+
     subscription = new_optical_pipe_subscription(OpticalLeasedSpectrumInactive, product, customer_id, pipe_block)
     subscription = OpticalLeasedSpectrumProvisioning.from_other_lifecycle(
         subscription, SubscriptionLifecycle.PROVISIONING
     )
-    subscription.description = optical_pipe_subscription_description(subscription)
 
     return {
         "subscription": subscription,
         "subscription_id": subscription.subscription_id,
-        "subscription_description": subscription.description,
+        OPTICAL_PIPE_BLOCK_STATE_KEY: subscription.optical_pipe,
     }
 
 
@@ -257,13 +401,48 @@ def retrieve_leased_spectrum_used_passbands(subscription: OpticalLeasedSpectrumP
     return {"subscription": subscription}
 
 
-@create_workflow(initial_input_form=initial_input_form_generator)
+#: Create steps operating on the Optical Leased Spectrum block in the state.
+#: The block is re-hydrated from the database and persisted by the step,
+#: because workflow steps execute with the state serialized between steps.
+#: Consumers with their own model run this list after constructing their
+#: (inactive) subscription and putting their block in the state under
+#: ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+CREATE_LEASED_SPECTRUM_BLOCK_STEPS: StepList = begin >> save_optical_pipe_block
+
+
+@create_workflow(initial_input_form=create_leased_spectrum_form_generator)
 def create_leased_spectrum() -> StepList:
-    """Workflow to create a new Optical Leased Spectrum pipe."""
+    """Workflow to create a new Optical Leased Spectrum pipe.
+
+    The workflow is composed from the shipped parts: the construct step builds
+    the shipped :class:`OpticalLeasedSpectrum` model and puts its block in the
+    state, the shipped block steps persist the block, and the shipped
+    description step finalizes the subscription before the terminations are
+    configured on the devices. It is therefore only valid for the shipped
+    product type; consumers with their own product type compose their own create
+    workflow with the same parts.
+    """
     return (
         begin
-        >> construct_leased_spectrum_model
+        >> construct_leased_spectrum_subscription
+        >> CREATE_LEASED_SPECTRUM_BLOCK_STEPS
+        >> set_optical_pipe_subscription_description
         >> store_process_subscription()
         >> configure_leased_spectrum_terminations
         >> retrieve_leased_spectrum_used_passbands
     )
+
+
+__all__ = [
+    "CREATE_LEASED_SPECTRUM_BLOCK_STEPS",
+    "build_leased_spectrum_block",
+    "configure_leased_spectrum_terminations",
+    "construct_leased_spectrum_subscription",
+    "create_leased_spectrum",
+    "create_leased_spectrum_form_generator",
+    "create_leased_spectrum_form_pages",
+    "create_leased_spectrum_identity_form",
+    "create_leased_spectrum_terminations_form",
+    "leased_spectrum_ports_of_node",
+    "retrieve_leased_spectrum_used_passbands",
+]

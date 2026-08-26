@@ -1,4 +1,12 @@
-"""Validate Optical Leased Spectrum Workflow."""
+"""Validate Optical Leased Spectrum workflow.
+
+This module ships the ready-to-use ``validate_leased_spectrum`` workflow for
+the shipped Optical Leased Spectrum product type, together with the
+importable parts: the state loading step, the termination check step and the
+passband retrieval step. Consumers with their own model that has-a the
+shipped block declare their own ``@validate_workflow`` with
+:data:`LEASED_SPECTRUM_VALIDATE_STEPS`.
+"""
 
 from pydantic_forms.types import State
 from structlog import get_logger
@@ -11,7 +19,7 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlock
 from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlock
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrum
-from orchestrator.optical.workflows.optical_pipe.shared import optical_pipe_subscription_description
+from orchestrator.optical.workflows.optical_pipe.shared import set_optical_pipe_subscription_description
 
 logger = get_logger(__name__)
 
@@ -20,13 +28,6 @@ logger = get_logger(__name__)
 def load_initial_state_leased_spectrum(subscription: OpticalLeasedSpectrum) -> State:
     """Load the initial state of the Optical Leased Spectrum pipe."""
     return {"subscription": subscription}
-
-
-@step("Update Subscription Description")
-def update_subscription_description(subscription: OpticalLeasedSpectrum) -> State:
-    """Update subscription description during validation."""
-    subscription.description = optical_pipe_subscription_description(subscription)
-    return {"subscription_description": subscription.description}
 
 
 @step("Check Leased Spectrum Terminations")
@@ -58,13 +59,28 @@ def retrieve_leased_spectrum_used_passbands(subscription: OpticalLeasedSpectrum)
     return {"subscription": subscription}
 
 
+#: Validation steps of the Optical Leased Spectrum family. The subscription
+#: description refresh is a shipped-type-only step exported separately (see
+#: ``shared.set_optical_pipe_subscription_description``).
+LEASED_SPECTRUM_VALIDATE_STEPS: StepList = (
+    begin
+    >> load_initial_state_leased_spectrum
+    >> set_optical_pipe_subscription_description
+    >> check_leased_spectrum_terminations
+    >> retrieve_leased_spectrum_used_passbands
+)
+
+
 @validate_workflow()
 def validate_leased_spectrum() -> StepList:
     """Workflow to validate an Optical Leased Spectrum subscription."""
-    return (
-        begin
-        >> load_initial_state_leased_spectrum
-        >> update_subscription_description
-        >> check_leased_spectrum_terminations
-        >> retrieve_leased_spectrum_used_passbands
-    )
+    return begin >> LEASED_SPECTRUM_VALIDATE_STEPS
+
+
+__all__ = [
+    "LEASED_SPECTRUM_VALIDATE_STEPS",
+    "check_leased_spectrum_terminations",
+    "load_initial_state_leased_spectrum",
+    "retrieve_leased_spectrum_used_passbands",
+    "validate_leased_spectrum",
+]
