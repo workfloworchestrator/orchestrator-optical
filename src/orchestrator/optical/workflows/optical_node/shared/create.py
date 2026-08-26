@@ -167,6 +167,32 @@ def validate_gmpls_id_uniqueness(gmpls_id: IPAddress, exclude_subscription_id: U
         raise ValueError(msg)
 
 
+def validate_optical_flexils_target_id_uniqueness(
+    target_id: str,
+    exclude_subscription_id: UUIDstr | None = None,
+) -> None:
+    """Ensure the FlexILS Target Identifier (TID) is not already in use by a Nokia FlexILS subscription.
+
+    Args:
+        target_id: The Target Identifier (TID) to check for uniqueness.
+        exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
+    """
+    existing_subs = subscriptions_by_product_type_and_instance_value(
+        product_type=ProductType.OPTICAL_NODE_NOKIA_FLEXILS.value,
+        resource_type="optical_flexils_target_id",
+        value=target_id,
+        status=[
+            SubscriptionLifecycle.INITIAL,
+            SubscriptionLifecycle.PROVISIONING,
+            SubscriptionLifecycle.ACTIVE,
+        ],
+    )
+    conflicting = [sub for sub in existing_subs if str(sub.subscription_id) != exclude_subscription_id]
+    if conflicting:
+        msg = f"Target Identifier '{target_id}' is already in use by subscription {conflicting[0].subscription_id}"
+        raise ValueError(msg)
+
+
 def populate_abstract_optical_node_fields(
     optical_node_block: Any,
     *,

@@ -45,6 +45,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     update_optical_node_block_fields,
     validate_gmpls_id_uniqueness,
     validate_management_ips_uniqueness,
+    validate_optical_flexils_target_id_uniqueness,
     validate_optical_node_fqdn_uniqueness,
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
@@ -67,9 +68,9 @@ def modify_optical_node_nokia_flexils_form(
 
     The page is prefilled with the current values of the subscription, so
     unchanged fields remain intact. It validates that at least one of the two
-    DCN IPs is provided and that the FQDN, the DCN IPs and the GMPLS ID are not
-    already in use by another Optical Node subscription, excluding the
-    subscription being modified.
+    DCN IPs is provided and that the FQDN, the DCN IPs, the GMPLS ID and the
+    Target Identifier are not already in use by another Optical Node
+    subscription, excluding the subscription being modified.
 
     Args:
         subscription: The ACTIVE subscription model of the Nokia FlexILS
@@ -120,11 +121,14 @@ def modify_optical_node_nokia_flexils_form(
                 ],
                 exclude_subscription_id=str(subscription.subscription_id),
             )
-            if self.optical_flexils_gmpls_id is not None:
-                validate_gmpls_id_uniqueness(
-                    self.optical_flexils_gmpls_id,
-                    exclude_subscription_id=str(subscription.subscription_id),
-                )
+            validate_gmpls_id_uniqueness(
+                self.optical_flexils_gmpls_id,
+                exclude_subscription_id=str(subscription.subscription_id),
+            )
+            validate_optical_flexils_target_id_uniqueness(
+                self.optical_flexils_target_id,
+                exclude_subscription_id=str(subscription.subscription_id),
+            )
             return self
 
     return ModifyNokiaFlexIlsForm

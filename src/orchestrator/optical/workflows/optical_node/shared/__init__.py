@@ -15,6 +15,7 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
     populate_abstract_optical_node_fields,
     validate_gmpls_id_uniqueness,
     validate_management_ips_uniqueness,
+    validate_optical_flexils_target_id_uniqueness,
     validate_optical_node_fqdn_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.modify import (
@@ -52,5 +53,6 @@ __all__ = [
     "update_optical_node_subscription_description",
     "validate_gmpls_id_uniqueness",
     "validate_management_ips_uniqueness",
+    "validate_optical_flexils_target_id_uniqueness",
     "validate_optical_node_fqdn_uniqueness",
 ]
