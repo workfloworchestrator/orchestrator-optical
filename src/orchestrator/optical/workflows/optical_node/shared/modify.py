@@ -81,7 +81,10 @@ def update_optical_node_subscription_description(
         optical_node_block: The Optical Node block of the subscription, when it
             is available in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
     """
-    subscription.description = optical_node_subscription_description(subscription, optical_node_block)
+    # Workflow steps execute with the state serialized between steps, so the
+    # block arrives as its serialized form and is re-hydrated from the database.
+    node_block = optical_node_block_from_state(optical_node_block)
+    subscription.description = optical_node_subscription_description(subscription, node_block)
     return {"subscription": subscription, "subscription_description": subscription.description}
 
 

@@ -254,7 +254,6 @@ def populate_optical_node_nokia_gx_g42_block(
 @step("Populate Nokia GX G42 node block")
 def populate_optical_node_nokia_gx_g42_block_step(
     optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
-    *,
     location_id: UUIDstr,
     optical_node_role: OpticalNodeRole,
     optical_module_node_fqdn: Fqdn,

@@ -298,7 +298,9 @@ def test_validate_fails_on_unprovisioned_block() -> None:
 
     loaded = OpticalModuleLocationSubscriptionInactive.from_subscription(subscription_id)
     with pytest.raises(ValueError, match="not fully provisioned"):
-        cast(Any, validate_optical_module_location_state).__wrapped__(subscription=loaded, optical_location_block=None)
+        cast(Any, validate_optical_module_location_state).__wrapped__(
+            subscription=loaded, optical_module_location_block=None
+        )
 
 
 def test_validate_on_active_unprovisioned_block_fails_with_pydantic_error(run_process) -> None:

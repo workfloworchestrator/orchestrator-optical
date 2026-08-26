@@ -41,18 +41,18 @@ def load_initial_state_optical_module_location(subscription: SubscriptionModel) 
 @step("Validate Optical Module Location state")
 def validate_optical_module_location_state(
     subscription: SubscriptionModel,
-    optical_location_block: OpticalModuleLocationBlockInactive | None = None,
+    optical_module_location_block: OpticalModuleLocationBlockInactive | None = None,
 ) -> State:
     """Verify the state and integrity of the Optical Module Location block.
 
-    The block is read from the ``optical_location_block`` state key
+    The block is read from the ``optical_module_location_block`` state key
     when present (e.g. when the shipped block steps ran against a
     consumer-owned block); otherwise it falls back to the
     ``optical_location`` attribute of the shipped subscription models.
 
     Args:
         subscription: The Optical Module Location subscription being validated.
-        optical_location_block: The Optical Module Location block
+        optical_module_location_block: The Optical Module Location block
             of the subscription, when it is available in the state under
             ``OPTICAL_LOCATION_BLOCK_STATE_KEY``.
 
@@ -61,7 +61,11 @@ def validate_optical_module_location_state(
             under the ``optical_location`` attribute and no block was passed,
             or if the location block is not fully provisioned.
     """
-    location = optical_location_block_from_state(optical_location_block) if optical_location_block is not None else None
+    location = (
+        optical_location_block_from_state(optical_module_location_block)
+        if optical_module_location_block is not None
+        else None
+    )
     location = location or _optical_module_location_block_of_subscription(subscription)
     if location.longitude is None or location.latitude is None or location.location_code is None:
         msg = "Optical Module Location block is not fully provisioned"

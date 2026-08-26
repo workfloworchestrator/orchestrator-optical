@@ -180,7 +180,7 @@ def create_optical_module_location_form_generator(product_name: str) -> FormGene
 
 
 def populate_optical_module_location_block(
-    optical_location_block: OpticalModuleLocationBlockInactive,
+    optical_module_location_block: OpticalModuleLocationBlockInactive,
     longitude: LongitudeCoordinate,
     latitude: LatitudeCoordinate,
     location_code: LocationCode,
@@ -196,7 +196,7 @@ def populate_optical_module_location_block(
     duplicates.
 
     Args:
-        optical_location_block: The Optical Module Location block to populate (any lifecycle variant).
+        optical_module_location_block: The Optical Module Location block to populate (any lifecycle variant).
         longitude: Longitude of the location.
         latitude: Latitude of the location.
         location_code: Code of the location.
@@ -207,17 +207,17 @@ def populate_optical_module_location_block(
     """
     check_location_code_uniqueness(
         location_code,
-        exclude_subscription_id=str(optical_location_block.owner_subscription_id),
+        exclude_subscription_id=str(optical_module_location_block.owner_subscription_id),
     )
-    optical_location_block.longitude = longitude
-    optical_location_block.latitude = latitude
-    optical_location_block.location_code = location_code
-    optical_location_block.location_name = location_name
+    optical_module_location_block.longitude = longitude
+    optical_module_location_block.latitude = latitude
+    optical_module_location_block.location_code = location_code
+    optical_module_location_block.location_name = location_name
 
 
 @step("Populate Optical Module Location block")
 def populate_optical_module_location_block_step(
-    optical_location_block: OpticalModuleLocationBlockInactive,
+    optical_module_location_block: OpticalModuleLocationBlockInactive,
     longitude: LongitudeCoordinate,
     latitude: LatitudeCoordinate,
     location_code: LocationCode,
@@ -230,19 +230,19 @@ def populate_optical_module_location_block_step(
     before it is populated.
 
     Args:
-        optical_location_block: The Optical Module Location block
+        optical_module_location_block: The Optical Module Location block
             in the state under ``OPTICAL_LOCATION_BLOCK_STATE_KEY``.
         longitude: Longitude of the location.
         latitude: Latitude of the location.
         location_code: Code of the location.
         location_name: Human-readable name of the location.
     """
-    location_block = optical_location_block_from_state(optical_location_block)
+    location_block = optical_location_block_from_state(optical_module_location_block)
     if location_block is None:
         msg = "No Optical Module Location block in the state under OPTICAL_LOCATION_BLOCK_STATE_KEY"
         raise ValueError(msg)
     populate_optical_module_location_block(
-        optical_location_block=location_block,
+        optical_module_location_block=location_block,
         longitude=longitude,
         latitude=latitude,
         location_code=location_code,

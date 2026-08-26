@@ -194,7 +194,7 @@ def modify_optical_module_location_form_generator(
 
 @step("Updating Optical Module Location block")
 def update_optical_module_location_block(
-    optical_location_block: OpticalModuleLocationBlockProvisioning,
+    optical_module_location_block: OpticalModuleLocationBlockProvisioning,
     longitude: LongitudeCoordinate,
     latitude: LatitudeCoordinate,
     location_code: LocationCode,
@@ -213,7 +213,7 @@ def update_optical_module_location_block(
     before it is updated.
 
     Args:
-        optical_location_block: The Optical Module Location block
+        optical_module_location_block: The Optical Module Location block
             in the state under ``OPTICAL_LOCATION_BLOCK_STATE_KEY``
             (the provisioning variant, while the subscription is being modified).
         longitude: Longitude of the location.
@@ -225,7 +225,7 @@ def update_optical_module_location_block(
     Raises:
         ValueError: If the location code is already in use by another subscription.
     """
-    location_block = optical_location_block_from_state(optical_location_block)
+    location_block = optical_location_block_from_state(optical_module_location_block)
     if location_block is None:
         msg = "No Optical Module Location block in the state under OPTICAL_LOCATION_BLOCK_STATE_KEY"
         raise ValueError(msg)

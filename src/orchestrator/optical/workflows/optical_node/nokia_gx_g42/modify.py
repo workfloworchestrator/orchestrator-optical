@@ -186,7 +186,6 @@ def modify_optical_node_nokia_gx_g42_form_generator(
 @step("Updating Nokia GX G42 node block")
 def update_optical_node_nokia_gx_g42_block(
     optical_node_block: NokiaGxG42BlockProvisioning | dict[str, Any] | None,
-    *,
     optical_module_node_fqdn: Fqdn,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,

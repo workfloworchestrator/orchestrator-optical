@@ -28,7 +28,7 @@ from orchestrator.optical.workflows.shared import active_subscription_selector_b
 #: is passed between the shipped block steps. Consumers put the block they
 #: compose (under any attribute name of their own model) in the state under
 #: this key.
-OPTICAL_LOCATION_BLOCK_STATE_KEY = "optical_location_block"
+OPTICAL_LOCATION_BLOCK_STATE_KEY = "optical_module_location_block"
 
 
 def check_location_code_uniqueness(
@@ -97,7 +97,7 @@ def active_location_subscription_selector(prompt: str | None = None) -> type[Cho
 
 
 def optical_location_block_from_state(
-    optical_location_block: OpticalModuleLocationBlockInactive | dict[str, Any] | None,
+    optical_module_location_block: OpticalModuleLocationBlockInactive | dict[str, Any] | None,
 ) -> OpticalModuleLocationBlockInactive | None:
     """Return the Optical Module Location block of the workflow state as a domain model.
 
@@ -111,7 +111,7 @@ def optical_location_block_from_state(
     loaded as their matching variant (INITIAL, PROVISIONING or ACTIVE).
 
     Args:
-        optical_location_block: The block value from the workflow state, or None.
+        optical_module_location_block: The block value from the workflow state, or None.
 
     Returns:
         The Optical Module Location block as a domain model, or None when the
@@ -120,15 +120,15 @@ def optical_location_block_from_state(
     Raises:
         ValueError: If the block in the state has no ``subscription_instance_id``.
     """
-    if optical_location_block is None:
+    if optical_module_location_block is None:
         return None
-    if isinstance(optical_location_block, OpticalModuleLocationBlockInactive):
-        return optical_location_block
-    return _optical_module_location_block_from_state(optical_location_block)
+    if isinstance(optical_module_location_block, OpticalModuleLocationBlockInactive):
+        return optical_module_location_block
+    return _optical_module_location_block_from_state(optical_module_location_block)
 
 
 def _optical_module_location_block_from_state(
-    optical_location_block: dict[str, Any],
+    optical_module_location_block: dict[str, Any],
 ) -> OpticalModuleLocationBlockInactive:
     """Reconstruct an Optical Module Location block from its serialized form.
 
@@ -143,7 +143,7 @@ def _optical_module_location_block_from_state(
     block-based resolution in ``orchestrator.optical.db``.
 
     Args:
-        optical_location_block: The serialized block from the workflow state.
+        optical_module_location_block: The serialized block from the workflow state.
 
     Returns:
         The Optical Module Location block as a domain model.
@@ -152,7 +152,7 @@ def _optical_module_location_block_from_state(
         ValueError: If the block in the state has no ``subscription_instance_id``,
             or if no subscription instance exists with the given id.
     """
-    subscription_instance_id = optical_location_block.get("subscription_instance_id")
+    subscription_instance_id = optical_module_location_block.get("subscription_instance_id")
     if subscription_instance_id is None:
         msg = "Optical Module Location block in the state has no subscription_instance_id"
         raise ValueError(msg)
@@ -165,7 +165,7 @@ def _optical_module_location_block_from_state(
         type[OpticalModuleLocationBlockInactive],
         lookup_specialized_type(OpticalModuleLocationBlockInactive, status),
     )
-    return block_class.model_validate(optical_location_block)
+    return block_class.model_validate(optical_module_location_block)
 
 
 def _optical_module_location_block_of_subscription(
@@ -199,7 +199,7 @@ def _optical_module_location_block_of_subscription(
 
 def optical_module_location_subscription_description(
     subscription: SubscriptionModel,
-    optical_location_block: OpticalModuleLocationBlockInactive | None = None,
+    optical_module_location_block: OpticalModuleLocationBlockInactive | None = None,
 ) -> str:
     """Generate the human-readable description of an Optical Module Location subscription.
 
@@ -210,7 +210,7 @@ def optical_module_location_subscription_description(
 
     Args:
         subscription: The Optical Module Location subscription.
-        optical_location_block: The Optical Module Location block of the
+        optical_module_location_block: The Optical Module Location block of the
             subscription, when it is not available under the
             ``optical_location`` attribute.
 
@@ -221,7 +221,7 @@ def optical_module_location_subscription_description(
         ValueError: If the subscription has no Optical Module Location block
             under the ``optical_location`` attribute and no block was passed.
     """
-    location = optical_location_block or _optical_module_location_block_of_subscription(subscription)
+    location = optical_module_location_block or _optical_module_location_block_of_subscription(subscription)
     if location.location_name:
         return f"{location.location_name} ({location.location_code})"
     return f"{location.location_code}"
@@ -230,22 +230,22 @@ def optical_module_location_subscription_description(
 @step("Set Optical Module Location subscription description")
 def set_optical_module_location_subscription_description(
     subscription: SubscriptionModel,
-    optical_location_block: OpticalModuleLocationBlockInactive | None = None,
+    optical_module_location_block: OpticalModuleLocationBlockInactive | None = None,
 ) -> State:
     """Set the description of the Optical Module Location subscription.
 
-    The block is read from the ``optical_location_block`` state key when
+    The block is read from the ``optical_module_location_block`` state key when
     present (e.g. when the shipped block steps ran against a consumer-owned
     block under a different attribute name); otherwise it falls back to the
     ``optical_location`` attribute of the shipped subscription models.
 
     Args:
         subscription: The Optical Module Location subscription.
-        optical_location_block: The Optical Module Location block of the
+        optical_module_location_block: The Optical Module Location block of the
             subscription, when it is available in the state under
             ``OPTICAL_LOCATION_BLOCK_STATE_KEY``.
     """
-    location = optical_location_block_from_state(optical_location_block)
+    location = optical_location_block_from_state(optical_module_location_block)
     subscription.description = optical_module_location_subscription_description(subscription, location)
     return {"subscription": subscription, "subscription_description": subscription.description}
 
@@ -265,7 +265,7 @@ def load_optical_module_location_block(subscription: SubscriptionModel) -> State
         subscription: The Optical Module Location subscription.
 
     Returns:
-        The state with the block under the ``optical_location_block`` key.
+        The state with the block under the ``optical_module_location_block`` key.
 
     Raises:
         ValueError: If the subscription has no Optical Module Location block
@@ -277,7 +277,7 @@ def load_optical_module_location_block(subscription: SubscriptionModel) -> State
 @step("Persist optical module location block")
 def save_optical_module_location_block(
     subscription: SubscriptionModel,
-    optical_location_block: OpticalModuleLocationBlockInactive,
+    optical_module_location_block: OpticalModuleLocationBlockInactive,
 ) -> State:
     """Persist the Optical Module Location block found in the state to the database.
 
@@ -289,12 +289,12 @@ def save_optical_module_location_block(
 
     Args:
         subscription: The subscription owning the block.
-        optical_location_block: The Optical Module Location block to persist.
+        optical_module_location_block: The Optical Module Location block to persist.
 
     Returns:
-        The state with the block under the ``optical_location_block`` key.
+        The state with the block under the ``optical_module_location_block`` key.
     """
-    location_block = optical_location_block_from_state(optical_location_block)
+    location_block = optical_location_block_from_state(optical_module_location_block)
     if location_block is None:
         msg = "No Optical Module Location block in the state under OPTICAL_LOCATION_BLOCK_STATE_KEY"
         raise ValueError(msg)
