@@ -153,7 +153,8 @@ def test_full_lifecycle_create_modify_validate_terminate(
         ],
     )
     assert_process_completed(modify_process_id)
-    # The shipped modify workflow updates the block but does not refresh the description.
+    # The shipped modify workflow refreshes the subscription description; it reads the host
+    # node, port name and part number, none of which the modify form changes.
     assert _subscription(subscription_id).description == DESCRIPTION
     modified = OpticalCoherentPluggable.from_subscription(subscription_id)
     assert modified.optical_coherent_pluggable.optical_coherent_pluggable_firmware_version == MODIFIED_FIRMWARE_VERSION

@@ -2,16 +2,25 @@
 
 This module ships the ready-to-use ``modify_optical_coherent_pluggable``
 workflow for the shipped Optical Coherent Pluggable product type, together
-with the importable parts: the form generator (parameterized by the
-subscription model and the attribute name of the composed block) and the step
-list that updates and persists the Optical Coherent Pluggable block found in
-the state under ``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY``. Consumers that
-keep the shipped product type register the shipped workflow; consumers with
-their own model that has-a the shipped block compose their own
-``@modify_workflow`` with the parts.
+with the importable parts: the FormPage of the modify form (as the
+:func:`modify_optical_coherent_pluggable_form_pages` page sequence, prefilled
+with the current subscription values) and the step list that updates and
+persists the Optical Coherent Pluggable block found in the state under
+``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY``.
+
+Consumers that keep the shipped product type register the shipped workflow;
+consumers with their own model that has-a the shipped block compose their own
+``@modify_workflow`` with the parts. The shipped form generator is a thin
+composition of the shipped pages and the summary form, without hooks:
+consumers build their own form generator by yielding from the shipped page
+sequence in one line and adding their own pages::
+
+    user_input_dict = yield from modify_optical_coherent_pluggable_form_pages(
+        subscription, block_field_name="router"
+    )
+    user_input_dict.update((yield my_own_page).model_dump())
 """
 
-from collections.abc import Sequence
 from typing import Annotated
 
 from pydantic import Field
@@ -33,7 +42,9 @@ from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY,
     load_optical_coherent_pluggable_block,
+    optical_coherent_pluggable_block_from_state,
     save_optical_coherent_pluggable_block,
+    update_optical_coherent_pluggable_subscription_description,
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
 
@@ -47,29 +58,25 @@ Instruction = Annotated[
 ]
 
 
-def modify_optical_coherent_pluggable_form_generator(
-    subscription_id: UUIDstr,
-    subscription_model: type[SubscriptionModel] = OpticalCoherentPluggable,
+def modify_optical_coherent_pluggable_form(
+    subscription: SubscriptionModel,
     block_field_name: str = "optical_coherent_pluggable",
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-) -> FormGenerator:
-    """Generate the initial input form for modifying a Coherent Pluggable subscription.
+) -> type[FormPage]:
+    """Return the modify FormPage of the Optical Coherent Pluggable subscription.
 
-    The form is prefilled with the current values of the subscription, so
+    The page is prefilled with the current values of the subscription, so
     unchanged fields remain intact.
 
     Args:
-        subscription_id: The identifier of the subscription being modified.
-        subscription_model: The ACTIVE subscription model class of the Coherent
-            Pluggable product. Consumers that compose the shipped block under a
-            different attribute name pass their own model class here.
+        subscription: The ACTIVE subscription model of the Optical Coherent
+            Pluggable product being modified (any consumer model that has-a the
+            shipped block works).
         block_field_name: Name of the attribute of the subscription model holding
             the Optical Coherent Pluggable block.
-        extra_form_pages: Additional form pages shown before the summary form.
-        extra_summary_fields: Extra field names to append to the summary.
+
+    Returns:
+        The prefilled modify FormPage of the shipped modify form.
     """
-    subscription = subscription_model.from_subscription(subscription_id)
     pluggable = getattr(subscription, block_field_name)
     customer_choice = customer_choice_selector(include=str(subscription.customer_id))
 
@@ -79,22 +86,71 @@ def modify_optical_coherent_pluggable_form_generator(
         optical_port_description: str | None = pluggable.optical_port_description
         optical_coherent_pluggable_firmware_version: str = pluggable.optical_coherent_pluggable_firmware_version
 
-    user_input = yield ModifyOpticalCoherentPluggableForm
-    user_input_dict = user_input.model_dump()
+    return ModifyOpticalCoherentPluggableForm
+
+
+def modify_optical_coherent_pluggable_form_pages(
+    subscription: SubscriptionModel,
+    block_field_name: str = "optical_coherent_pluggable",
+) -> FormGenerator:
+    """Yield the FormPage of the Optical Coherent Pluggable modify form.
+
+    This is the shipped modify form as a page sequence: it yields the prefilled
+    modify page and returns the collected user input as a flat dict of the
+    ``optical_*`` state keys plus ``customer_id``, consumed by the shipped
+    steps of :data:`MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`. Consumers
+    yield from it in one line inside their own modify form generator, optionally
+    interleaving their own pages.
+
+    Args:
+        subscription: The ACTIVE subscription model of the Optical Coherent
+            Pluggable product being modified (any consumer model that has-a the
+            shipped block works).
+        block_field_name: Name of the attribute of the subscription model holding
+            the Optical Coherent Pluggable block.
+
+    Returns:
+        The collected user input of the shipped pages.
+    """
+    user_input = yield modify_optical_coherent_pluggable_form(subscription, block_field_name)
+    return user_input.model_dump()
+
+
+def modify_optical_coherent_pluggable_form_generator(
+    subscription_id: UUIDstr,
+    subscription_model: type[SubscriptionModel] = OpticalCoherentPluggable,
+    block_field_name: str = "optical_coherent_pluggable",
+) -> FormGenerator:
+    """Generate the initial input form for modifying a Coherent Pluggable subscription.
+
+    The form is prefilled with the current values of the subscription, so
+    unchanged fields remain intact. It is a thin composition of the shipped
+    page sequence (:func:`modify_optical_coherent_pluggable_form_pages`) and
+    the summary form.
+
+    Args:
+        subscription_id: The identifier of the subscription being modified.
+        subscription_model: The ACTIVE subscription model class of the Coherent
+            Pluggable product. Consumers that compose the shipped block under a
+            different attribute name pass their own model class here.
+        block_field_name: Name of the attribute of the subscription model holding
+            the Optical Coherent Pluggable block.
+    """
+    subscription = subscription_model.from_subscription(subscription_id)
+    pluggable = getattr(subscription, block_field_name)
+
+    user_input_dict = yield from modify_optical_coherent_pluggable_form_pages(subscription, block_field_name)
 
     summary_fields = [
         "customer_id",
         "optical_port_description",
         "optical_coherent_pluggable_firmware_version",
     ]
-    for page in extra_form_pages:
-        user_input_dict.update((yield page).model_dump())
     yield from modify_summary_form(
         user_input_dict,
         pluggable,
         summary_fields,
         extra_before={"customer_id": str(subscription.customer_id)},
-        extra_summary_fields=extra_summary_fields,
     )
 
     return user_input_dict | {"subscription": subscription}
@@ -109,6 +165,9 @@ def update_optical_coherent_pluggable_block(
     """Update the Optical Coherent Pluggable block in the state from the modify-form keys.
 
     None means "unchanged": clearing the description is not supported by the form.
+    Workflow steps execute with the state serialized between steps, so the
+    block is re-hydrated from the database by its ``subscription_instance_id``
+    before it is updated.
 
     Args:
         optical_coherent_pluggable_block: The Optical Coherent Pluggable block
@@ -116,16 +175,23 @@ def update_optical_coherent_pluggable_block(
             (the provisioning variant, while the subscription is being modified).
         optical_port_description: Description of the port.
         optical_coherent_pluggable_firmware_version: Firmware version of the pluggable.
+
+    Raises:
+        ValueError: If there is no Optical Coherent Pluggable block in the state
+            under ``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY``.
     """
+    pluggable = optical_coherent_pluggable_block_from_state(optical_coherent_pluggable_block)
+    if pluggable is None:
+        msg = "No Optical Coherent Pluggable block in the state under OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY"
+        raise ValueError(msg)
+
     if optical_port_description is not None:
-        optical_coherent_pluggable_block.optical_port_description = optical_port_description
+        pluggable.optical_port_description = optical_port_description
 
     if optical_coherent_pluggable_firmware_version:
-        optical_coherent_pluggable_block.optical_coherent_pluggable_firmware_version = (
-            optical_coherent_pluggable_firmware_version
-        )
+        pluggable.optical_coherent_pluggable_firmware_version = optical_coherent_pluggable_firmware_version
 
-    return {OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: optical_coherent_pluggable_block}
+    return {OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: pluggable}
 
 
 #: Modify steps operating on the Optical Coherent Pluggable block in the state.
@@ -151,6 +217,7 @@ def modify_optical_coherent_pluggable() -> StepList:
         >> set_status(SubscriptionLifecycle.PROVISIONING)
         >> load_optical_coherent_pluggable_block
         >> MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS
+        >> update_optical_coherent_pluggable_subscription_description
         >> set_status(SubscriptionLifecycle.ACTIVE)
     )
 
@@ -158,6 +225,8 @@ def modify_optical_coherent_pluggable() -> StepList:
 __all__ = [
     "MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS",
     "modify_optical_coherent_pluggable",
+    "modify_optical_coherent_pluggable_form",
     "modify_optical_coherent_pluggable_form_generator",
+    "modify_optical_coherent_pluggable_form_pages",
     "update_optical_coherent_pluggable_block",
 ]

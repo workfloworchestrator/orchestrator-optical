@@ -8,16 +8,20 @@ description (a shipped-product-type concept, because the part number lives on
 the subscription) and the block persistence steps.
 """
 
+from typing import Any, cast
+
 from pydantic_forms.types import State
 
+from orchestrator.core.db import SubscriptionInstanceTable, db
 from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.domain.lifecycle import lookup_specialized_type
+from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
 from orchestrator.optical.db import packet_node_block_from_subscription
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
     OpticalCoherentPluggableBlockInactive,
 )
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
-    OpticalCoherentPluggable,
     OpticalCoherentPluggableInactive,
 )
 
@@ -51,6 +55,80 @@ def optical_coherent_pluggable_subscription_description(subscription: OpticalCoh
         host_name = "Unattached Host"
     part_number = subscription.optical_coherent_pluggable_part_number
     return f"{host_name} {pluggable.optical_port_name} ({part_number})"
+
+
+def optical_coherent_pluggable_block_from_state(
+    optical_coherent_pluggable_block: OpticalCoherentPluggableBlockInactive | dict[str, Any] | None,
+) -> OpticalCoherentPluggableBlockInactive | None:
+    """Return the Optical Coherent Pluggable block of the workflow state as a domain model.
+
+    Workflow steps execute with the state serialized between steps, so a block
+    passed under ``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY`` arrives as a
+    plain dict (its serialized form, carrying the full block data) rather than
+    as a domain model. This helper returns the value unchanged when it is
+    already a domain model (in-process usage, e.g. in tests) and reconstructs
+    the block from the serialized data otherwise. The lifecycle variant of the
+    block is resolved from the status of its owner subscription, so blocks of
+    any lifecycle are loaded as their matching variant (INITIAL, PROVISIONING
+    or ACTIVE).
+
+    Args:
+        optical_coherent_pluggable_block: The block value from the workflow
+            state, or None.
+
+    Returns:
+        The Optical Coherent Pluggable block as a domain model, or None when
+        the value is None.
+
+    Raises:
+        ValueError: If the block in the state has no ``subscription_instance_id``.
+    """
+    if optical_coherent_pluggable_block is None:
+        return None
+    if isinstance(optical_coherent_pluggable_block, OpticalCoherentPluggableBlockInactive):
+        return optical_coherent_pluggable_block
+    return _optical_coherent_pluggable_block_from_state(optical_coherent_pluggable_block)
+
+
+def _optical_coherent_pluggable_block_from_state(
+    optical_coherent_pluggable_block: dict[str, Any],
+) -> OpticalCoherentPluggableBlockInactive:
+    """Reconstruct an Optical Coherent Pluggable block from its serialized form.
+
+    The state dict carries the full block data (the block is serialized with
+    ``model_dump``), so the block is reconstructed from it rather than reloaded
+    from the database: reloading would discard the mutations made by the
+    preceding step, which workflow steps only persist when they explicitly save.
+    The lifecycle variant of the block is resolved from the status of its owner
+    subscription: the ACTIVE class cannot construct an INITIAL block (whose
+    required fields are unset) and the base class rejects non-INITIAL blocks, so
+    the specialized variant must be resolved explicitly, mirroring the
+    block-based resolution in ``orchestrator.optical.db``.
+
+    Args:
+        optical_coherent_pluggable_block: The serialized block from the workflow state.
+
+    Returns:
+        The Optical Coherent Pluggable block as a domain model.
+
+    Raises:
+        ValueError: If the block in the state has no ``subscription_instance_id``,
+            or if no subscription instance exists with the given id.
+    """
+    subscription_instance_id = optical_coherent_pluggable_block.get("subscription_instance_id")
+    if subscription_instance_id is None:
+        msg = "Optical Coherent Pluggable block in the state has no subscription_instance_id"
+        raise ValueError(msg)
+    instance = db.session.get(SubscriptionInstanceTable, subscription_instance_id)
+    if instance is None:
+        msg = f"No subscription instance with id {subscription_instance_id}"
+        raise ValueError(msg)
+    status = SubscriptionLifecycle(instance.subscription.status)
+    block_class = cast(
+        type[OpticalCoherentPluggableBlockInactive],
+        lookup_specialized_type(OpticalCoherentPluggableBlockInactive, status),
+    )
+    return block_class.model_validate(optical_coherent_pluggable_block)
 
 
 def _optical_coherent_pluggable_block_of_subscription(
@@ -113,9 +191,9 @@ def save_optical_coherent_pluggable_block(
 ) -> State:
     """Persist the Optical Coherent Pluggable block found in the state to the database.
 
-    Workflow steps reload the subscription from the database on every step, so
-    mutations made on the block in the state are lost unless the block is
-    persisted explicitly. This step saves the block tree of the loaded
+    Workflow steps execute with the state serialized between steps, so the
+    block is re-hydrated from the database by its ``subscription_instance_id``
+    before it is saved. This step saves the block tree of the loaded
     subscription (any consumer subscription model that has-a the block works)
     and returns the block, so it can be composed by any consumer workflow.
 
@@ -125,14 +203,22 @@ def save_optical_coherent_pluggable_block(
 
     Returns:
         The state with the block under the ``optical_coherent_pluggable_block`` key.
+
+    Raises:
+        ValueError: If there is no Optical Coherent Pluggable block in the state
+            under ``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY``.
     """
-    optical_coherent_pluggable_block.save(subscription_id=subscription.subscription_id, status=subscription.status)
-    return {OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: optical_coherent_pluggable_block}
+    pluggable = optical_coherent_pluggable_block_from_state(optical_coherent_pluggable_block)
+    if pluggable is None:
+        msg = "No Optical Coherent Pluggable block in the state under OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY"
+        raise ValueError(msg)
+    pluggable.save(subscription_id=subscription.subscription_id, status=subscription.status)
+    return {OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: pluggable}
 
 
 @step("Updating subscription description")
 def update_optical_coherent_pluggable_subscription_description(
-    subscription: OpticalCoherentPluggable,
+    subscription: SubscriptionModel,
 ) -> State:
     """Refresh the description of an Optical Coherent Pluggable subscription.
 
@@ -145,15 +231,18 @@ def update_optical_coherent_pluggable_subscription_description(
         subscription: The Optical Coherent Pluggable subscription being modified or validated.
 
     Returns:
-        The state with the updated subscription.
+        The state with the updated subscription and its description.
     """
-    subscription.description = optical_coherent_pluggable_subscription_description(subscription)
-    return {"subscription": subscription}
+    subscription.description = optical_coherent_pluggable_subscription_description(
+        cast(OpticalCoherentPluggableInactive, subscription)
+    )
+    return {"subscription": subscription, "subscription_description": subscription.description}
 
 
 __all__ = [
     "OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY",
     "load_optical_coherent_pluggable_block",
+    "optical_coherent_pluggable_block_from_state",
     "optical_coherent_pluggable_subscription_description",
     "packet_node_block_from_subscription",
     "save_optical_coherent_pluggable_block",

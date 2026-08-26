@@ -674,6 +674,9 @@ def active_packet_node(
         )
         subscription.optical_packet_node.management.optical_module_node_fqdn = "packet-node-01.test.local"
         subscription.optical_packet_node.location = location_block_from_subscription(active_location)
+        # A fully provisioned packet node is in sync; the shipped coherent pluggable workflows
+        # would otherwise not be able to modify/terminate subscriptions depending on it.
+        subscription.insync = True
         subscription.save()
         subscription_id = str(subscription.subscription_id)
         core_db.db.session.commit()
@@ -763,6 +766,9 @@ def active_coherent_pluggable_host(
         management.optical_module_node_platform = "NCS"
         management.optical_module_node_software_version = FAKE_SOFTWARE_VERSION
         subscription.optical_packet_node.location = location_block_from_subscription(active_location)
+        # A fully provisioned packet node is in sync; the shipped coherent pluggable workflows
+        # would otherwise not be able to modify/terminate subscriptions depending on it.
+        subscription.insync = True
         subscription.save()
         subscription_id = str(subscription.subscription_id)
         core_db.db.session.commit()
