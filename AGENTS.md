@@ -201,9 +201,10 @@ uv build                        # package build
   importable parts. There are no workflow factories or hooks anymore; `register_workflows()`/`SHIPPED_WORKFLOW_NAMES`
   are gone. Consumers register the shipped workflows with `LazyWorkflowInstance` lines in their own workflows
   package (see README); `optical_location` workflows were ported and the family ships its workflows. The
-  `optical_location` family is the reference implementation of the FormPage consumption model (shipped page sequences
-  - one-line `yield from` composition, no `extra_form_pages`/`extra_summary_fields` hooks); the other families still
-  carry the legacy hook-style form generators, mid-port.
+  `optical_location` and `optical_pipe` families are the reference implementations of the FormPage consumption model
+  (shipped page sequences - one-line `yield from` composition, no `extra_form_pages`/`extra_summary_fields` hooks);
+  only the `optical_spectrum_service` and `optical_digital_service` families still carry the legacy hook-style form
+  generators, mid-port.
 - Test suite: composition tests + shipped-workflow contract tests (`test/test_workflow_composition.py`,
   `test/test_optical_node_composition.py`, `test/test_optical_coherent_pluggable_composition.py`,
   `test/test_optical_module_location_composition.py`, `test/test_shipped_workflows.py`), database-free.

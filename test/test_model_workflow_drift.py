@@ -45,18 +45,10 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
     NokiaGxG42BlockInactive,
     NokiaGxG42BlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_pipe.fiber_patch import (
-    OpticalFiberPatchBlockInactive,
-    OpticalFiberPatchBlockProvisioning,
-)
-from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import (
-    OpticalFiberSpanBlockInactive,
-    OpticalFiberSpanBlockProvisioning,
-)
-from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import (
-    OpticalLeasedSpectrumBlockInactive,
-    OpticalLeasedSpectrumBlockProvisioning,
-)
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import AbstractOpticalPipeBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_pipe.fiber_patch import OpticalFiberPatchBlockInactive
+from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
+from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import OpticalLeasedSpectrumBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalOlsPortBlockProvisioning,
     AbstractOpticalPortBlockInactive,
@@ -108,13 +100,10 @@ from orchestrator.optical.workflows.optical_node.nokia_gx_g42.modify import (
 )
 from orchestrator.optical.workflows.optical_node.shared.create import populate_abstract_optical_node_fields
 from orchestrator.optical.workflows.optical_node.shared.modify import update_optical_node_block_fields
-from orchestrator.optical.workflows.optical_pipe.fiber_patch.create import construct_fiber_patch_model
-from orchestrator.optical.workflows.optical_pipe.fiber_patch.modify import update_fiber_patch
-from orchestrator.optical.workflows.optical_pipe.fiber_span.create import construct_fiber_span_model
-from orchestrator.optical.workflows.optical_pipe.fiber_span.modify import update_fiber_span
-from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create import construct_leased_spectrum_model
-from orchestrator.optical.workflows.optical_pipe.leased_spectrum.modify import update_leased_spectrum
-from orchestrator.optical.workflows.optical_pipe.shared import new_pipe_port_block
+from orchestrator.optical.workflows.optical_pipe.fiber_patch.create import build_fiber_patch_block
+from orchestrator.optical.workflows.optical_pipe.fiber_span.create import build_fiber_span_block
+from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create import build_leased_spectrum_block
+from orchestrator.optical.workflows.optical_pipe.shared import new_pipe_port_block, update_optical_pipe_block
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
     create_optical_spectrum_model,
     divide_path_into_sections,
@@ -262,12 +251,10 @@ WRITERS = [
         ("optical_port_description", "optical_coherent_pluggable_firmware_version"),
     ),
     # --- Optical Pipe family ---
-    _entry(construct_fiber_span_model, OpticalFiberSpanBlockInactive, ("optical_pipe_name",)),
-    _entry(construct_fiber_patch_model, OpticalFiberPatchBlockInactive, ("optical_pipe_name",)),
-    _entry(construct_leased_spectrum_model, OpticalLeasedSpectrumBlockInactive, ("optical_pipe_name",)),
-    _entry(update_fiber_span, OpticalFiberSpanBlockProvisioning, ("optical_pipe_name",)),
-    _entry(update_fiber_patch, OpticalFiberPatchBlockProvisioning, ("optical_pipe_name",)),
-    _entry(update_leased_spectrum, OpticalLeasedSpectrumBlockProvisioning, ("optical_pipe_name",)),
+    _entry(build_fiber_span_block, OpticalFiberSpanBlockInactive, ("optical_pipe_name",)),
+    _entry(build_fiber_patch_block, OpticalFiberPatchBlockInactive, ("optical_pipe_name",)),
+    _entry(build_leased_spectrum_block, OpticalLeasedSpectrumBlockInactive, ("optical_pipe_name",)),
+    _entry(update_optical_pipe_block, AbstractOpticalPipeBlockProvisioning, ("optical_pipe_name",)),
     _entry(
         new_pipe_port_block,
         AbstractOpticalPortBlockInactive,

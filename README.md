@@ -343,12 +343,14 @@ persistence step saves it back into the owner subscription.
 | `optical_node_block`                 | any shipped Optical Node vendor block         | optical node create/modify block steps                         |
 | `optical_coherent_pluggable_block`   | the shipped `OpticalCoherentPluggableBlock`   | coherent pluggable create/modify block steps, validate step    |
 | `optical_module_location_block`      | the shipped `OpticalModuleLocationBlock`      | optical module location create/modify block steps, validate step |
+| `optical_pipe_block`                 | any shipped Optical Pipe block (Fiber Span / Fiber Patch / Leased Spectrum) | optical pipe create/modify block steps |
 
-The constants are exported as `OPTICAL_NODE_BLOCK_STATE_KEY`, `OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY` and
-`OPTICAL_LOCATION_BLOCK_STATE_KEY`. The flat form keys
+The constants are exported as `OPTICAL_NODE_BLOCK_STATE_KEY`, `OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY`,
+`OPTICAL_LOCATION_BLOCK_STATE_KEY` and `OPTICAL_PIPE_BLOCK_STATE_KEY`. The flat form keys
 (`pqdn`, `optical_management_ip`, `optical_loopback_ip`, `optical_flexils_*`, `optical_node_role`,
-`optical_node_software_version`, `location_id`, `customer_id`) are the second half of the contract: the shipped forms
-emit them and the shipped steps consume them.
+`optical_node_software_version`, `location_id`, `customer_id`, `node_a_id`, `node_b_id`, `port_a_name`,
+`port_b_name`, `optical_pipe_name`, and `provider_name` for leased spectrum) are the second half of the contract:
+the shipped forms emit them and the shipped steps consume them.
 
 ## Configuring the customer selection
 
@@ -388,9 +390,10 @@ plus the importable parts (the FormPages of the shipped forms and the step lists
 hooks; the shipped workflows are plain decorated functions bound to the shipped subscription models, so they are only
 valid when the shipped product types are used as-is. The shipped workflows are built using the same shipped forms and
 steps that can also be used on custom subscriptions as long as they have-a the shipped blocks and use the appropriate
-`state key` listed in the table above. The `optical_location` family is the reference implementation of the FormPage
-consumption model (shipped page sequences + one-line `yield from` composition, no `extra_form_pages`/
-`extra_summary_fields` hooks); the other families still carry the legacy hook-style form generators, mid-port.
+`state key` listed in the table above. The `optical_location` and `optical_pipe` families are the reference
+implementations of the FormPage consumption model (shipped page sequences + one-line `yield from` composition, no
+`extra_form_pages`/`extra_summary_fields` hooks); the `optical_spectrum_service` and `optical_digital_service`
+families still carry the legacy hook-style form generators, mid-port.
 
 Coherent pluggable specifics:
 
@@ -405,6 +408,23 @@ Coherent pluggable specifics:
   subscription-level state.
 - The shipped modify block steps do not persist a changed `customer_id` (the form still emits it); add your own step
   if your product tracks it.
+
+Optical pipes specifics:
+
+The `optical_pipe` family (fiber_span / fiber_patch / leased_spectrum) ships the ready-to-use create/modify/terminate/
+validate workflows of its shipped product types plus the importable parts: hook-free page sequences
+(`create_fiber_span_form_pages(product_name)`, `modify_fiber_span_form_pages(subscription, block_field_name="optical_pipe")`,
+`terminate_fiber_span_form_pages(subscription_id)`), page factories (e.g. `create_fiber_span_identity_form(...)`,
+`create_fiber_span_terminations_form(...)`, `modify_fiber_span_form(subscription, block_field_name="optical_pipe")`),
+thin hook-free form generators, the step lists (`CREATE_FIBER_SPAN_BLOCK_STEPS`, `MODIFY_FIBER_SPAN_BLOCK_STEPS`,
+`FIBER_SPAN_TERMINATE_STEPS`, `FIBER_SPAN_VALIDATE_STEPS` and the fiber_patch/leased_spectrum equivalents) and the
+`OPTICAL_PIPE_BLOCK_STATE_KEY` constant. The shared block steps (`load_optical_pipe_block`, `save_optical_pipe_block`,
+`update_optical_pipe_block`, `set_optical_pipe_subscription_description`) operate on the shipped pipe block under the
+`optical_pipe_block` state key. Pipes assemble the subscription manually (`from_product_id` is unusable for them — see
+`optical_pipe/shared.py::new_optical_pipe_subscription`). The shipped modify block steps do not persist a changed
+`customer_id` (the form still emits it); add your own step if your product tracks it. The block re-hydration helper
+resolves the concrete chain by block name (Fiber Span / Fiber Patch / Leased Spectrum), because the abstract pipe block
+has three concrete chains.
 
 The `optical_location` family ships the ready-to-use workflows of the shipped `OpticalModuleLocationSubscription`
 product type (create/modify/terminate/validate) plus the importable parts: the FormPages of the shipped forms (as page

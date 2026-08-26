@@ -23,6 +23,7 @@ pages::
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 """
 
+from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field, model_validator
@@ -163,7 +164,7 @@ def create_fiber_span_form_pages(product_name: str) -> FormGenerator:
     node_choice = optical_node_selector(prompt="This fiber span connects this node:")
     customer_choice = customer_choice_selector()
 
-    user_input_dict: dict[str, str | None] = {}
+    user_input_dict: dict[str, Any] = {}
     user_input_dict.update(
         (yield create_fiber_span_identity_form(product_name, customer_choice, node_choice)).model_dump()
     )
