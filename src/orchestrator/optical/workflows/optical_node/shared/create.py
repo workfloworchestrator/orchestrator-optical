@@ -9,13 +9,21 @@ from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.db import location_block_from_subscription, subscriptions_by_product_type_and_instance_value
+from orchestrator.optical.db import (
+    location_block_from_subscription,
+    subscription_instances_by_block_type_and_resource_value,
+)
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
 )
-from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
+from orchestrator.optical.products.product_blocks.optical_node_management import (
+    OpticalModuleNodeManagementBlock,
+    Platform,
+    Vendor,
+)
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 
@@ -92,76 +100,103 @@ def optical_node_subscription_description(
 
 
 def validate_optical_node_fqdn_uniqueness(fqdn: str, exclude_subscription_id: UUIDstr | None = None) -> None:
-    """Ensure the FQDN is not already used across any active/provisioning Optical Node subscriptions.
+    """Ensure the FQDN is not already in use by another node subscription.
+
+    The check is block-based: it queries the subscription instances of the
+    shipped ``OpticalModuleNodeManagementBlock`` block type whose
+    ``optical_module_node_fqdn`` resource value equals the given FQDN and whose
+    owner subscription is INITIAL, PROVISIONING or ACTIVE. Because every
+    consumer that composes the shipped block persists it under the shipped
+    block name, the check also covers composed product types without hardcoding
+    a product type.
 
     Args:
         fqdn: The FQDN to check for uniqueness.
         exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
+
+    Raises:
+        ValueError: If another subscription already uses the FQDN.
     """
-    for product_type_name in OPTICAL_NODE_PRODUCT_TYPES:
-        existing_subs = subscriptions_by_product_type_and_instance_value(
-            product_type=product_type_name,
-            resource_type="optical_module_node_fqdn",
-            value=fqdn,
-            status=[
-                SubscriptionLifecycle.INITIAL,
-                SubscriptionLifecycle.PROVISIONING,
-                SubscriptionLifecycle.ACTIVE,
-            ],
-        )
-        conflicting = [sub for sub in existing_subs if str(sub.subscription_id) != exclude_subscription_id]
-        if conflicting:
-            msg = f"FQDN '{fqdn}' is already in use by subscription {conflicting[0].subscription_id}"
-            raise ValueError(msg)
-
-
-def validate_management_ips_uniqueness(ips: list[IPAddress], exclude_subscription_id: UUIDstr | None = None) -> None:
-    """Ensure none of the DCN interface/loopback IPs is already in use by an Optical Node subscription.
-
-    Args:
-        ips: The DCN interface/loopback IPs to check for uniqueness.
-        exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
-    """
-    for ip in ips:
-        ip_value = str(ip)
-        for product_type_name in OPTICAL_NODE_PRODUCT_TYPES:
-            for resource_type in ("optical_module_node_dcn_loopback_ip", "optical_module_node_dcn_interface_ip"):
-                existing_subs = subscriptions_by_product_type_and_instance_value(
-                    product_type=product_type_name,
-                    resource_type=resource_type,
-                    value=ip_value,
-                    status=[
-                        SubscriptionLifecycle.INITIAL,
-                        SubscriptionLifecycle.PROVISIONING,
-                        SubscriptionLifecycle.ACTIVE,
-                    ],
-                )
-                conflicting = [sub for sub in existing_subs if str(sub.subscription_id) != exclude_subscription_id]
-                if conflicting:
-                    msg = (
-                        f"Management IP '{ip_value}' is already in use by subscription {conflicting[0].subscription_id}"
-                    )
-                    raise ValueError(msg)
-
-
-def validate_gmpls_id_uniqueness(gmpls_id: IPAddress, exclude_subscription_id: UUIDstr | None = None) -> None:
-    """Ensure the FlexILS GMPLS ID is not already in use by a Nokia FlexILS subscription.
-
-    Args:
-        gmpls_id: The GMPLS ID to check for uniqueness.
-        exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
-    """
-    existing_subs = subscriptions_by_product_type_and_instance_value(
-        product_type=ProductType.OPTICAL_NODE_NOKIA_FLEXILS.value,
-        resource_type="optical_flexils_gmpls_id",
-        value=gmpls_id,
-        status=[
+    instances = subscription_instances_by_block_type_and_resource_value(
+        cast(str, OpticalModuleNodeManagementBlock.name),
+        "optical_module_node_fqdn",
+        fqdn,
+        [
             SubscriptionLifecycle.INITIAL,
             SubscriptionLifecycle.PROVISIONING,
             SubscriptionLifecycle.ACTIVE,
         ],
     )
-    conflicting = [sub for sub in existing_subs if str(sub.subscription_id) != exclude_subscription_id]
+    conflicting = [inst for inst in instances if str(inst.subscription_id) != exclude_subscription_id]
+    if conflicting:
+        msg = f"FQDN '{fqdn}' is already in use by subscription {conflicting[0].subscription_id}"
+        raise ValueError(msg)
+
+
+def validate_management_ips_uniqueness(ips: list[IPAddress], exclude_subscription_id: UUIDstr | None = None) -> None:
+    """Ensure none of the DCN interface/loopback IPs is already in use by a node subscription.
+
+    The check is block-based: for each IP it queries the subscription instances
+    of the shipped ``OpticalModuleNodeManagementBlock`` block type whose DCN
+    interface or loopback resource value equals the IP and whose owner
+    subscription is INITIAL, PROVISIONING or ACTIVE. Because every consumer
+    that composes the shipped block persists it under the shipped block name,
+    the check also covers composed product types without hardcoding a product
+    type.
+
+    Args:
+        ips: The DCN interface/loopback IPs to check for uniqueness.
+        exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
+
+    Raises:
+        ValueError: If another subscription already uses one of the IPs.
+    """
+    for ip in ips:
+        for resource_type in ("optical_module_node_dcn_loopback_ip", "optical_module_node_dcn_interface_ip"):
+            instances = subscription_instances_by_block_type_and_resource_value(
+                cast(str, OpticalModuleNodeManagementBlock.name),
+                resource_type,
+                str(ip),
+                [
+                    SubscriptionLifecycle.INITIAL,
+                    SubscriptionLifecycle.PROVISIONING,
+                    SubscriptionLifecycle.ACTIVE,
+                ],
+            )
+            conflicting = [inst for inst in instances if str(inst.subscription_id) != exclude_subscription_id]
+            if conflicting:
+                msg = f"Management IP '{ip}' is already in use by subscription {conflicting[0].subscription_id}"
+                raise ValueError(msg)
+
+
+def validate_gmpls_id_uniqueness(gmpls_id: IPAddress, exclude_subscription_id: UUIDstr | None = None) -> None:
+    """Ensure the FlexILS GMPLS ID is not already in use by another Nokia FlexILS subscription.
+
+    The check is block-based: it queries the subscription instances of the
+    shipped ``NokiaFlexIlsBlock`` block type whose ``optical_flexils_gmpls_id``
+    resource value equals the given GMPLS ID and whose owner subscription is
+    INITIAL, PROVISIONING or ACTIVE. Because every consumer that composes the
+    shipped block persists it under the shipped block name, the check also
+    covers composed product types without hardcoding a product type.
+
+    Args:
+        gmpls_id: The GMPLS ID to check for uniqueness.
+        exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
+
+    Raises:
+        ValueError: If another subscription already uses the GMPLS ID.
+    """
+    instances = subscription_instances_by_block_type_and_resource_value(
+        cast(str, NokiaFlexIlsBlock.name),
+        "optical_flexils_gmpls_id",
+        str(gmpls_id),
+        [
+            SubscriptionLifecycle.INITIAL,
+            SubscriptionLifecycle.PROVISIONING,
+            SubscriptionLifecycle.ACTIVE,
+        ],
+    )
+    conflicting = [inst for inst in instances if str(inst.subscription_id) != exclude_subscription_id]
     if conflicting:
         msg = f"GMPLS ID '{gmpls_id}' is already in use by subscription {conflicting[0].subscription_id}"
         raise ValueError(msg)
@@ -171,23 +206,34 @@ def validate_optical_flexils_target_id_uniqueness(
     target_id: str,
     exclude_subscription_id: UUIDstr | None = None,
 ) -> None:
-    """Ensure the FlexILS Target Identifier (TID) is not already in use by a Nokia FlexILS subscription.
+    """Ensure the FlexILS Target Identifier (TID) is not already in use by another Nokia FlexILS subscription.
+
+    The check is block-based: it queries the subscription instances of the
+    shipped ``NokiaFlexIlsBlock`` block type whose ``optical_flexils_target_id``
+    resource value equals the given Target Identifier and whose owner
+    subscription is INITIAL, PROVISIONING or ACTIVE. Because every consumer
+    that composes the shipped block persists it under the shipped block name,
+    the check also covers composed product types without hardcoding a product
+    type.
 
     Args:
         target_id: The Target Identifier (TID) to check for uniqueness.
         exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
+
+    Raises:
+        ValueError: If another subscription already uses the Target Identifier.
     """
-    existing_subs = subscriptions_by_product_type_and_instance_value(
-        product_type=ProductType.OPTICAL_NODE_NOKIA_FLEXILS.value,
-        resource_type="optical_flexils_target_id",
-        value=target_id,
-        status=[
+    instances = subscription_instances_by_block_type_and_resource_value(
+        cast(str, NokiaFlexIlsBlock.name),
+        "optical_flexils_target_id",
+        target_id,
+        [
             SubscriptionLifecycle.INITIAL,
             SubscriptionLifecycle.PROVISIONING,
             SubscriptionLifecycle.ACTIVE,
         ],
     )
-    conflicting = [sub for sub in existing_subs if str(sub.subscription_id) != exclude_subscription_id]
+    conflicting = [inst for inst in instances if str(inst.subscription_id) != exclude_subscription_id]
     if conflicting:
         msg = f"Target Identifier '{target_id}' is already in use by subscription {conflicting[0].subscription_id}"
         raise ValueError(msg)

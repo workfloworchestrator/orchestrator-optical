@@ -13,6 +13,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
+from orchestrator.optical.db import subscription_instances_by_block_type_and_resource_value
 from orchestrator.optical.hal.optical_digital_service import get_signal_bandwidth
 from orchestrator.optical.hal.optical_spectrum import modify_optical_circuit
 from orchestrator.optical.products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
@@ -26,7 +27,6 @@ from orchestrator.optical.products.product_types.optical_digital_service import 
 from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
 from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service import (
-    OPTICAL_DIGITAL_SERVICE_PRODUCT_TYPES,
     configure_trx_client_side,
     configure_trx_crossconnects,
     configure_trx_line_side,
@@ -35,7 +35,6 @@ from orchestrator.optical.workflows.optical_digital_service.create_optical_digit
 from orchestrator.optical.workflows.optical_spectrum_service.shared import transceiver_mode_selector
 from orchestrator.optical.workflows.shared import (
     merge_summary_fields,
-    subscriptions_by_product_type_and_instance_value,
     summary_form,
 )
 
@@ -112,20 +111,21 @@ def initial_input_form_generator(
                 if bandwidth % bandwidth_grid_mhz != 0:
                     msg = "Bandwidth must be a multiple of 12_500 MHz"
                     raise ValueError(msg)
-            for product_type in OPTICAL_DIGITAL_SERVICE_PRODUCT_TYPES:
-                subs = subscriptions_by_product_type_and_instance_value(
-                    product_type=product_type,
-                    resource_type="optical_digital_service_name",
-                    value=self.optical_digital_service_name,
-                    status=[
-                        SubscriptionLifecycle.INITIAL,
-                        SubscriptionLifecycle.PROVISIONING,
-                        SubscriptionLifecycle.ACTIVE,
-                    ],
-                )
-                if any(sub.subscription_id != subscription.subscription_id for sub in subs):
-                    msg = f"Optical Digital Service name '{self.optical_digital_service_name}' is already in use"
-                    raise ValueError(msg)
+            existing_instances = subscription_instances_by_block_type_and_resource_value(
+                cast(str, OpticalDigitalServiceBlock.name),
+                "optical_digital_service_name",
+                self.optical_digital_service_name,
+                [
+                    SubscriptionLifecycle.INITIAL,
+                    SubscriptionLifecycle.PROVISIONING,
+                    SubscriptionLifecycle.ACTIVE,
+                ],
+            )
+            if any(
+                str(instance.subscription_id) != str(subscription.subscription_id) for instance in existing_instances
+            ):
+                msg = f"Optical Digital Service name '{self.optical_digital_service_name}' is already in use"
+                raise ValueError(msg)
             return self
 
     user_input = yield ModifyOpticalDigitalServiceForm

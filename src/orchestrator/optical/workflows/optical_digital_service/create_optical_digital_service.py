@@ -19,7 +19,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.db import subscriptions_by_product_type_and_instance_value
+from orchestrator.optical.db import subscription_instances_by_block_type_and_resource_value
 from orchestrator.optical.hal.optical_digital_service import (
     allign_tx_power_to_target,
     configure_line_transceivers,
@@ -32,6 +32,7 @@ from orchestrator.optical.hal.optical_node import Vendor, vendor_of
 from orchestrator.optical.hal.optical_spectrum import deploy_optical_circuit
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
+    OpticalDigitalServiceBlock,
     OpticalDigitalServiceBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
@@ -77,12 +78,6 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
 logger = get_logger(__name__)
 
 FlexBandwidth = Annotated[int, Field(ge=37_500, multiple_of=12_500)]
-
-OPTICAL_DIGITAL_SERVICE_PRODUCT_TYPES = [
-    ProductType.OPTICAL_DIGITAL_SERVICE_100G_ETHERNET.value,
-    ProductType.OPTICAL_DIGITAL_SERVICE_400G_ETHERNET.value,
-    ProductType.OPTICAL_DIGITAL_SERVICE_800G_ETHERNET.value,
-]
 
 TRANSCEIVER_ROLES = [
     OpticalNodeRole.TRANSPONDER,
@@ -163,20 +158,19 @@ def initial_input_form_generator(
                 msg = "Only different devices can be connected"
                 raise ValueError(msg)
 
-            for product_type in OPTICAL_DIGITAL_SERVICE_PRODUCT_TYPES:
-                subs = subscriptions_by_product_type_and_instance_value(
-                    product_type=product_type,
-                    resource_type="optical_digital_service_name",
-                    value=self.optical_digital_service_name,
-                    status=[
-                        SubscriptionLifecycle.INITIAL,
-                        SubscriptionLifecycle.PROVISIONING,
-                        SubscriptionLifecycle.ACTIVE,
-                    ],
-                )
-                if subs:
-                    msg = f"Optical Digital Service name '{self.optical_digital_service_name}' is already in use"
-                    raise ValueError(msg)
+            existing_instances = subscription_instances_by_block_type_and_resource_value(
+                cast(str, OpticalDigitalServiceBlock.name),
+                "optical_digital_service_name",
+                self.optical_digital_service_name,
+                [
+                    SubscriptionLifecycle.INITIAL,
+                    SubscriptionLifecycle.PROVISIONING,
+                    SubscriptionLifecycle.ACTIVE,
+                ],
+            )
+            if existing_instances:
+                msg = f"Optical Digital Service name '{self.optical_digital_service_name}' is already in use"
+                raise ValueError(msg)
 
             return self
 
