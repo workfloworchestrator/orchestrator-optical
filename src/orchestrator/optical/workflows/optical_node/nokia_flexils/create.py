@@ -335,9 +335,9 @@ def construct_optical_node_nokia_flexils_subscription(product: UUIDstr, customer
     the shipped block steps of :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`.
     Consumers that define their own product type (composing the
     ``NokiaFlexIlsBlock`` under their own attribute name) write their own
-    construct step instead and can reuse
-    :func:`populate_optical_node_nokia_flexils_block` as the anti-corruption
-    point between their model and the shipped block.
+    construct step instead: it builds their (inactive) subscription, puts their
+    composed block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``, and then
+    runs :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`.
     """
     subscription = OpticalNodeNokiaFlexIlsInactive.from_product_id(
         product_id=product,
@@ -393,13 +393,6 @@ def create_optical_node_nokia_flexils() -> StepList:
 
 __all__ = [
     "CREATE_NOKIA_FLEXILS_BLOCK_STEPS",
-    "construct_optical_node_nokia_flexils_subscription",
     "create_optical_node_nokia_flexils",
-    "create_optical_node_nokia_flexils_form_generator",
     "create_optical_node_nokia_flexils_form_pages",
-    "create_optical_node_nokia_flexils_identity_form",
-    "create_optical_node_nokia_flexils_management_form",
-    "discover_optical_node_nokia_flexils",
-    "populate_optical_node_nokia_flexils_block",
-    "populate_optical_node_nokia_flexils_block_step",
 ]

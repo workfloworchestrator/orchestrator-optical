@@ -202,57 +202,64 @@ def create_optical_node_nokia_groove_g30_form_generator(product_name: str) -> Fo
 
 @step("Discover Nokia Groove G30 node properties")
 def discover_optical_node_nokia_groove_g30(
+    optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
+    optical_node_role: OpticalNodeRole,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
 ) -> State:
-    """Connect to the node and retrieve its software version.
+    """Connect to the node and write its role and software version to the block.
 
-    The step is block-free: it only adds the discovered
-    ``optical_node_software_version`` key to the state, which the shipped
-    populate step consumes. It is the first step of
-    :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`; consumers that populate the
-    block inside their own construct step can run it separately before it.
+    The first block-level step of :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`:
+    it resolves the block from the state, writes the node role (from the
+    create form) and the software version (retrieved from the device) onto it,
+    which the shipped populate step then reads from the block.
+
+    Raises:
+        ValueError: If there is no Nokia Groove G30 node block in the state
+            under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
     """
+    node_block = optical_node_block_from_state(optical_node_block)
+    if node_block is None:
+        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
+        raise ValueError(msg)
     software_version = retrieve_g30_software_version(
         dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
         dcn_interface_ip=optical_module_node_dcn_interface_ip,
     )
-    return {"optical_node_software_version": software_version}
+    node_block.optical_node_role = optical_node_role
+    node_block.management.optical_module_node_software_version = software_version
+    return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
 
 
 def populate_optical_node_nokia_groove_g30_block(
     optical_node_block: NokiaGrooveG30BlockInactive,
     *,
     location_id: UUIDstr,
-    optical_node_role: OpticalNodeRole,
     optical_module_node_fqdn: Fqdn,
-    optical_node_software_version: str,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
 ) -> None:
     """Populate a Nokia Groove G30 node block from the create-form state keys.
 
-    This is the anti-corruption point for consumers that keep their own model:
-    call it from their own construct step on the shipped block they compose,
-    before their subscription model is transitioned to the next lifecycle.
+    The node role and software version are not set here: the block-level
+    discovery step (:func:`discover_optical_node_nokia_groove_g30`) writes them
+    onto the block before this function runs. This is the internal
+    implementation of the populate step of
+    :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`.
 
     Args:
         optical_node_block: The Nokia Groove G30 node block to populate (any lifecycle variant).
         location_id: Subscription id of the Optical Location hosting the node.
-        optical_node_role: Role of the node.
         optical_module_node_fqdn: Fully qualified domain name of the node.
-        optical_node_software_version: Software version of the node, as discovered from the device.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
         optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
     """
     populate_abstract_optical_node_fields(
         optical_node_block=optical_node_block,
         location_id=location_id,
-        optical_node_role=optical_node_role,
         optical_module_node_fqdn=optical_module_node_fqdn,
         optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
         optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
-        optical_module_node_software_version=optical_node_software_version,
         optical_module_node_vendor=Vendor.NOKIA,
         optical_module_node_platform=Platform.GROOVE_G30,
     )
@@ -262,25 +269,22 @@ def populate_optical_node_nokia_groove_g30_block(
 def populate_optical_node_nokia_groove_g30_block_step(
     optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
     location_id: UUIDstr,
-    optical_node_role: OpticalNodeRole,
     optical_module_node_fqdn: Fqdn,
-    optical_node_software_version: str,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
 ) -> State:
     """Populate the Nokia Groove G30 node block found in the state from the create-form keys.
 
-    Workflow steps execute with the state serialized between steps, so the
-    block is re-hydrated from the database by its ``subscription_instance_id``
-    before it is populated.
+    The node role and software version are read from the block, where the
+    block-level discovery step wrote them. Workflow steps execute with the
+    state serialized between steps, so the block is re-hydrated from the
+    database by its ``subscription_instance_id`` before it is populated.
 
     Args:
         optical_node_block: The Nokia Groove G30 node block
             in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
         location_id: Subscription id of the Optical Location hosting the node.
-        optical_node_role: Role of the node.
         optical_module_node_fqdn: Fully qualified domain name of the node.
-        optical_node_software_version: Software version of the node, as discovered from the device.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
         optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
     """
@@ -291,9 +295,7 @@ def populate_optical_node_nokia_groove_g30_block_step(
     populate_optical_node_nokia_groove_g30_block(
         optical_node_block=cast(NokiaGrooveG30BlockInactive, node_block),
         location_id=location_id,
-        optical_node_role=optical_node_role,
         optical_module_node_fqdn=optical_module_node_fqdn,
-        optical_node_software_version=optical_node_software_version,
         optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
         optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
     )
@@ -309,9 +311,9 @@ def construct_optical_node_nokia_groove_g30_subscription(product: UUIDstr, custo
     for the shipped block steps of :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`.
     Consumers that define their own product type (composing the
     ``NokiaGrooveG30Block`` under their own attribute name) write their own
-    construct step instead and can reuse
-    :func:`populate_optical_node_nokia_groove_g30_block` as the
-    anti-corruption point between their model and the shipped block.
+    construct step instead: it builds their (inactive) subscription, puts their
+    composed block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``, and then
+    runs :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`.
     """
     subscription = OpticalNodeNokiaGrooveG30Inactive.from_product_id(
         product_id=product,
@@ -327,12 +329,12 @@ def construct_optical_node_nokia_groove_g30_subscription(product: UUIDstr, custo
 
 
 #: Create steps operating on the Nokia Groove G30 node block in the state.
-#: The list starts with the block-free device discovery step (it adds the
-#: discovered ``optical_node_software_version`` state key that the populate
-#: step consumes), then populates the block from the create-form state keys,
-#: and persists it with the last step, because workflow steps execute with
-#: the state serialized between steps (the block is re-hydrated from the
-#: database before it is populated). Consumers with their own model run this
+#: Every step is block-level: the device discovery step writes the node role
+#: and the discovered ``optical_module_node_software_version`` onto the block,
+#: the populate step writes the remaining create-form fields, and the last
+#: step persists the block, because workflow steps execute with the state
+#: serialized between steps (the block is re-hydrated from the database
+#: before every step operates on it). Consumers with their own model run this
 #: list after constructing their (inactive) subscription and putting their
 #: block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
 CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS: StepList = (
@@ -367,13 +369,6 @@ def create_optical_node_nokia_groove_g30() -> StepList:
 
 __all__ = [
     "CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS",
-    "construct_optical_node_nokia_groove_g30_subscription",
     "create_optical_node_nokia_groove_g30",
-    "create_optical_node_nokia_groove_g30_form_generator",
     "create_optical_node_nokia_groove_g30_form_pages",
-    "create_optical_node_nokia_groove_g30_identity_form",
-    "create_optical_node_nokia_groove_g30_management_form",
-    "discover_optical_node_nokia_groove_g30",
-    "populate_optical_node_nokia_groove_g30_block",
-    "populate_optical_node_nokia_groove_g30_block_step",
 ]

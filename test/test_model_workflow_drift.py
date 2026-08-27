@@ -81,18 +81,21 @@ from orchestrator.optical.workflows.optical_digital_service.modify_optical_digit
 from orchestrator.optical.workflows.optical_location.create import populate_optical_module_location_block
 from orchestrator.optical.workflows.optical_location.modify import update_optical_module_location_block
 from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
+    discover_optical_node_nokia_flexils,
     populate_optical_node_nokia_flexils_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import (
     update_optical_node_nokia_flexils_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_groove_g30.create import (
+    discover_optical_node_nokia_groove_g30,
     populate_optical_node_nokia_groove_g30_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_groove_g30.modify import (
     update_optical_node_nokia_groove_g30_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_gx_g42.create import (
+    discover_optical_node_nokia_gx_g42,
     populate_optical_node_nokia_gx_g42_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_gx_g42.modify import (
@@ -132,13 +135,37 @@ WRITERS = [
         AbstractOpticalNodeBlockInactive,
         (
             "location",
-            "optical_node_role",
             "management.optical_module_node_fqdn",
             "management.optical_module_node_dcn_loopback_ip",
             "management.optical_module_node_dcn_interface_ip",
-            "management.optical_module_node_software_version",
             "management.optical_module_node_vendor",
             "management.optical_module_node_platform",
+        ),
+    ),
+    # Block-level discovery steps write the node role and the software version
+    # onto the block (the shared helper and the populate functions no longer do).
+    _entry(
+        discover_optical_node_nokia_flexils,
+        NokiaFlexIlsBlockInactive,
+        (
+            "optical_node_role",
+            "management.optical_module_node_software_version",
+        ),
+    ),
+    _entry(
+        discover_optical_node_nokia_groove_g30,
+        NokiaGrooveG30BlockInactive,
+        (
+            "optical_node_role",
+            "management.optical_module_node_software_version",
+        ),
+    ),
+    _entry(
+        discover_optical_node_nokia_gx_g42,
+        NokiaGxG42BlockInactive,
+        (
+            "optical_node_role",
+            "management.optical_module_node_software_version",
         ),
     ),
     _entry(
@@ -155,11 +182,9 @@ WRITERS = [
         NokiaFlexIlsBlockInactive,
         (
             "location",
-            "optical_node_role",
             "management.optical_module_node_fqdn",
             "management.optical_module_node_dcn_loopback_ip",
             "management.optical_module_node_dcn_interface_ip",
-            "management.optical_module_node_software_version",
             "management.optical_module_node_vendor",
             "management.optical_module_node_platform",
             "optical_flexils_gmpls_id",
@@ -171,11 +196,9 @@ WRITERS = [
         NokiaGrooveG30BlockInactive,
         (
             "location",
-            "optical_node_role",
             "management.optical_module_node_fqdn",
             "management.optical_module_node_dcn_loopback_ip",
             "management.optical_module_node_dcn_interface_ip",
-            "management.optical_module_node_software_version",
             "management.optical_module_node_vendor",
             "management.optical_module_node_platform",
         ),
@@ -185,11 +208,9 @@ WRITERS = [
         NokiaGxG42BlockInactive,
         (
             "location",
-            "optical_node_role",
             "management.optical_module_node_fqdn",
             "management.optical_module_node_dcn_loopback_ip",
             "management.optical_module_node_dcn_interface_ip",
-            "management.optical_module_node_software_version",
             "management.optical_module_node_vendor",
             "management.optical_module_node_platform",
         ),
@@ -378,14 +399,15 @@ NODE_FORM_OPTICAL_FIELDS: dict[str, set[str]] = {
     },
 }
 
-#: Populate function consuming the flat create-form keys, per vendor.
-NODE_POPULATE_FNS = {
-    "flexils": populate_optical_node_nokia_flexils_block,
-    "groove_g30": populate_optical_node_nokia_groove_g30_block,
-    "gx_g42": populate_optical_node_nokia_gx_g42_block,
+#: Block-level create steps consuming the flat create-form keys, per vendor: the
+#: discovery step (role / software version) and the populate step (the rest).
+NODE_BLOCK_STEP_CONSUMERS = {
+    "flexils": (discover_optical_node_nokia_flexils, populate_optical_node_nokia_flexils_block),
+    "groove_g30": (discover_optical_node_nokia_groove_g30, populate_optical_node_nokia_groove_g30_block),
+    "gx_g42": (discover_optical_node_nokia_gx_g42, populate_optical_node_nokia_gx_g42_block),
 }
 
-#: Form fields shown for display only (not stored on the node block by a populate function).
+#: Form fields shown for display only (not stored on the node block by a block step).
 NODE_FORM_DISPLAY_ONLY_FIELDS: dict[str, set[str]] = {
     "flexils": set(),
     "groove_g30": set(),
@@ -394,9 +416,15 @@ NODE_FORM_DISPLAY_ONLY_FIELDS: dict[str, set[str]] = {
 
 
 @pytest.mark.parametrize("vendor", ["flexils", "groove_g30", "gx_g42"])
-def test_node_form_optical_fields_are_consumed_by_a_populate_fn(vendor: str) -> None:
+def test_node_form_optical_fields_are_consumed_by_a_block_step(vendor: str) -> None:
     """Assert every flat ``optical_*``/``pqdn`` node create-form field is consumed or display-only."""
-    populate_fn = NODE_POPULATE_FNS[vendor]
-    consumed = set(inspect.signature(populate_fn).parameters) | NODE_FORM_DISPLAY_ONLY_FIELDS[vendor]
+    discover_fn, populate_fn = NODE_BLOCK_STEP_CONSUMERS[vendor]
+    consumed = (
+        set(inspect.signature(discover_fn).parameters)
+        | set(inspect.signature(populate_fn).parameters)
+        | NODE_FORM_DISPLAY_ONLY_FIELDS[vendor]
+    )
     unconsumed = NODE_FORM_OPTICAL_FIELDS[vendor] - consumed
-    assert not unconsumed, f"node form fields not consumed by {populate_fn.__name__}: {sorted(unconsumed)}"
+    assert not unconsumed, (
+        f"node form fields not consumed by {discover_fn.__name__}/{populate_fn.__name__}: {sorted(unconsumed)}"
+    )

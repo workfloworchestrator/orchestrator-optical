@@ -187,22 +187,22 @@ from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
-    OpticalModulePacketNode,
-    OpticalModulePacketNodeInactive,
-    OpticalModulePacketNodeProvisioning,
+    NokiaFlexIlsBlock,
+    NokiaFlexIlsBlockInactive,
+    NokiaFlexIlsBlockProvisioning,
 )
 
 class RouterBlockInactive(ProductBlockModel, product_block_name="RouterBlock"):
     my_own_field: str | None = None
-    interface_for_the_optical_module: OpticalModulePacketNodeInactive
+    for_the_optical_module: NokiaFlexIlsBlockInactive
 
 class RouterBlockProvisioning(RouterBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     my_own_field: str
-    interface_for_the_optical_module: OpticalModulePacketNodeProvisioning
+    for_the_optical_module: NokiaFlexIlsBlockProvisioning
 
 class RouterBlock(RouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     my_own_field: str
-    interface_for_the_optical_module: OpticalModulePacketNode
+    for_the_optical_module: NokiaFlexIlsBlock
 
 
 class RouterSubscriptionInactive(SubscriptionModel, is_base=True):
@@ -232,39 +232,24 @@ from orchestrator.core.workflow import begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow, modify_workflow
 from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
+    CREATE_NOKIA_FLEXILS_BLOCK_STEPS,
     create_optical_node_nokia_flexils_form_generator,
-    discover_optical_node_nokia_flexils,
-    populate_optical_node_nokia_flexils_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import (
     MODIFY_NOKIA_FLEXILS_BLOCK_STEPS,
     modify_optical_node_nokia_flexils_form_generator,
 )
-from mywfo.models import Router, RouterInactive, RouterProvisioning
+from mywfo.models import Router, RouterInactive
 
 @step("Construct my router")
-def construct_my_router(
-    product, customer_id, location_id, my_own_field, optical_node_role, pqdn,
-    optical_node_software_version, optical_flexils_gmpls_id, optical_flexils_target_id,
-):
+def construct_my_router(product, customer_id, my_own_field):
     router = RouterInactive.from_product_id(product_id=product, customer_id=customer_id)
     router.router.my_own_field = my_own_field
-    # Anti-corruption point: mirror the flat form keys into the shipped block
-    populate_optical_node_nokia_flexils_block(
-        optical_node_block=router.router.for_the_optical_module,
-        location_id=location_id,
-        optical_node_role=optical_node_role,
-        pqdn=pqdn,
-        optical_node_software_version=optical_node_software_version,
-        optical_flexils_gmpls_id=optical_flexils_gmpls_id,
-        optical_flexils_target_id=optical_flexils_target_id,
-    )
-    router = RouterProvisioning.from_other_lifecycle(router, SubscriptionLifecycle.PROVISIONING)
-    return {"subscription": router}
-
-@step("Wire my block into the state")
-def load_my_router_block(subscription):
-    return {"optical_node_block": subscription.for_the_optical_module}
+    # Put the composed block in the state for the shipped block steps
+    return {
+        "subscription": router,
+        "optical_node_block": router.router.for_the_optical_module,
+    }
 
 @create_workflow(
     initial_input_form=partial(create_optical_node_nokia_flexils_form_generator, product_name="My Router")
@@ -272,10 +257,15 @@ def load_my_router_block(subscription):
 def create_my_router():
     return (
         begin
-        >> discover_optical_node_nokia_flexils     # block-free; adds the discovered keys the construct step consumes
         >> construct_my_router
+        >> CREATE_NOKIA_FLEXILS_BLOCK_STEPS        # block-level: discover + populate + persist the shipped block
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
         >> store_process_subscription()
     )
+
+@step("Wire my block into the state")
+def load_my_router_block(subscription):
+    return {"optical_node_block": subscription.for_the_optical_module}
 
 @modify_workflow(
     initial_input_form=partial(
@@ -296,16 +286,16 @@ def modify_my_router():
 
 Notes:
 
-- The shipped `MODIFY_*_BLOCK_STEPS` lists are the same steps shipped for path 1; they read the block from the
-  state and end with a step that persists it, because workflow steps reload the subscription from the database and
-  would otherwise lose the mutations. The `CREATE_*_BLOCK_STEPS` lists exist for consumers that want to populate the
-  block as separate steps (construct the inactive subscription, put the block in the returned `state` under
-  `optical_node_block`, run the block steps, then transition); populating the block inside the construct step as
-  shown above keeps the same guarantees with fewer moving parts. The `CREATE_*_BLOCK_STEPS` lists start with the
-  block-free device discovery step, which adds the discovered `optical_node_role`/`optical_node_software_version`
-  state keys the populate step consumes, so running the list is self-contained; the discovery step is also
-  exported on its own for consumers that populate the block inside their own construct step (they run it before
-  the construct step, as in the example above).
+- The public surface of a family is its **form pages** and its **block-level `StepList`s** — there is no
+  single-function entry point to call. Every step in a `*_BLOCK_STEPS` list operates on the block found in the
+  state under `optical_node_block`: the `CREATE_*_BLOCK_STEPS` lists are fully block-level and self-contained, the
+  first step being the device discovery step, which takes the block and writes the node role and the discovered
+  software version onto it, the populate step writing the remaining create-form fields and the last step
+  persisting the block. You therefore never mirror form keys into the block yourself: your construct step builds
+  your (inactive) subscription and puts the composed block in the state, and you run the list. The
+  `MODIFY_*_BLOCK_STEPS` lists are the same steps shipped for path 1; they read the block from the state and end
+  with a step that persists it, because workflow steps reload the subscription from the database and would
+  otherwise lose the mutations.
 - The shipped create form is reusable as-is: it emits the flat `optical_*` keys the shipped steps consume. If you
   write your own form, you must either emit the same keys or write your own steps. The shipped terminate/validate
   forms and step lists compose the same way.

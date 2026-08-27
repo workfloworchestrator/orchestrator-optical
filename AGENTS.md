@@ -158,12 +158,14 @@ defined in the user code-space.
   consumer's own store/`set_status` steps; the shipped block step lists end with a save step
   (`save_optical_node_block`, `save_optical_coherent_pluggable_block`) because workflow steps reload the subscription
   from the database on every step (in-memory block mutations would be lost otherwise).
-- Shipped **create** steps: the `CREATE_<VENDOR>_BLOCK_STEPS` list, which starts with the block-free device
-  discovery step (`discover_optical_node_<vendor>`, adds the discovered `optical_node_role`/
-  `optical_node_software_version` state keys that the populate step consumes), then the populate `@step` wrapper
-  and the save step; plus the `populate_optical_node_<vendor>_block` plain function (the anti-corruption point
-  consumers call from their own construct step) and the shipped `construct_optical_node_<vendor>_subscription`
-  step that builds the shipped product type. Shipped **modify** form generators take `subscription_model` (defaulting to the
+- Shipped **create** steps: the `CREATE_<VENDOR>_BLOCK_STEPS` list, which is fully block-level (the public surface
+  is the form pages plus these block-level step lists — there is no single-function entry point): the device
+  discovery step (`discover_optical_node_<vendor>`) takes the block and writes the node role and the discovered
+  software version onto it, the populate `@step` writes the remaining create-form fields, and the save step
+  persists the block. The `populate_optical_node_<vendor>_block` plain function is only the internal implementation
+  of the populate step (not exported); consumers run the `CREATE_<VENDOR>_BLOCK_STEPS` list after their own construct
+  step puts the composed block in the state. The shipped `construct_optical_node_<vendor>_subscription` step builds
+  the shipped product type. Shipped **modify** form generators take `subscription_model` (defaulting to the
   shipped model class) and `block_field_name` (default `"optical_node"` or `"optical_coherent_pluggable"`).
 - **Registration is the consumer's job**: this module never registers workflows itself (no `register_workflows()`,
   no `SHIPPED_WORKFLOW_NAMES`, no `LazyWorkflowInstance` calls at import). Consumers register the shipped workflows
