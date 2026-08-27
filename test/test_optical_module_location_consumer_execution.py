@@ -49,7 +49,7 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
-from orchestrator.optical.workflows.customer import customer_choice_form_pages
+from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_location.create import (
     CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
     create_optical_module_location_form_generator,
@@ -159,7 +159,7 @@ def modify_consumer_router_location_form_generator(subscription_id: UUIDstr) -> 
     subscription = AbstractRouter.from_subscription(subscription_id)
     location = subscription.router.for_the_optical_module
 
-    user_input_dict = yield from customer_choice_form_pages(include=str(subscription.customer_id))
+    user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
     user_input_dict.update((yield from modify_optical_module_location_form_pages(subscription, location=location)))
     yield from modify_summary_form(
         user_input_dict,

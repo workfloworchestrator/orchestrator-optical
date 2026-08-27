@@ -29,7 +29,7 @@ from orchestrator.core.workflow import StepList, begin
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
-from orchestrator.optical.workflows.customer import customer_choice_form_pages
+from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,
     save_optical_pipe_block,
@@ -79,7 +79,7 @@ def modify_fiber_span_form_pages(
     inside their own modify form generator, optionally interleaving their own
     pages. The customer of the subscription is collected separately by the
     consumer (see
-    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
         subscription: The ACTIVE subscription model of the Optical Fiber Span
@@ -118,7 +118,7 @@ def modify_fiber_span_form_generator(
     subscription = subscription_model.from_subscription(subscription_id)
     pipe = getattr(subscription, block_field_name)
 
-    user_input_dict = yield from customer_choice_form_pages(include=str(subscription.customer_id))
+    user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
     user_input_dict.update((yield from modify_fiber_span_form_pages(subscription, block_field_name)))
 
     summary_fields = ["customer_id", "optical_pipe_name"]

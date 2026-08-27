@@ -47,7 +47,7 @@ from orchestrator.optical.products.product_types.optical_coherent_pluggable impo
     OpticalCoherentPluggableInactive,
     OpticalCoherentPluggablePartNumber,
 )
-from orchestrator.optical.workflows.customer import customer_choice_form_pages
+from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY,
     optical_coherent_pluggable_block_from_state,
@@ -177,7 +177,7 @@ def create_optical_coherent_pluggable_form_pages(product_name: str) -> FormGener
     it in one line inside their own create form generator, optionally
     interleaving their own pages. The customer of the subscription is collected
     separately by the consumer (see
-    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
         product_name: Name of the product being created.
@@ -217,7 +217,7 @@ def create_optical_coherent_pluggable_form_generator(product_name: str) -> FormG
     Args:
         product_name: Name of the product being created.
     """
-    user_input_dict = yield from customer_choice_form_pages(title=product_name)
+    user_input_dict = yield from customer_choice_form_page(title=product_name)
     user_input_dict.update((yield from create_optical_coherent_pluggable_form_pages(product_name)))
 
     summary_fields = [

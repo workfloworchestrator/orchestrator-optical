@@ -42,7 +42,7 @@ from orchestrator.optical.products.product_blocks.optical_location import (
 )
 from orchestrator.optical.products.product_types.optical_location import OpticalModuleLocationSubscription
 from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
-from orchestrator.optical.workflows.customer import customer_choice_form_pages
+from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_location.shared import (
     OPTICAL_LOCATION_BLOCK_STATE_KEY,
     check_location_code_uniqueness,
@@ -144,7 +144,7 @@ def modify_optical_module_location_form_pages(
     it in one line inside their own modify form generator, optionally
     interleaving their own pages. The customer of the subscription is
     collected separately by the consumer (see
-    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
         subscription: The ACTIVE subscription model of the Optical Module
@@ -191,7 +191,7 @@ def modify_optical_module_location_form_generator(
     subscription = subscription_model.from_subscription(subscription_id)
     location = getattr(subscription, block_field_name)
 
-    user_input_dict = yield from customer_choice_form_pages(include=str(subscription.customer_id))
+    user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
     user_input_dict.update((yield from modify_optical_module_location_form_pages(subscription, block_field_name)))
 
     summary_fields = [

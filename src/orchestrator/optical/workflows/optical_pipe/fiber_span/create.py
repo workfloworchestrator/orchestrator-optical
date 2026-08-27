@@ -48,7 +48,7 @@ from orchestrator.optical.products.product_types.optical_pipe.fiber_span import 
     OpticalFiberSpanInactive,
     OpticalFiberSpanProvisioning,
 )
-from orchestrator.optical.workflows.customer import customer_choice_form_pages
+from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_PIPE_BLOCK_STATE_KEY,
     default_pipe_identifier,
@@ -150,7 +150,7 @@ def create_fiber_span_form_pages(product_name: str) -> FormGenerator:
     inside their own create form generator, optionally interleaving their own
     pages. The customer of the subscription is collected separately by the
     consumer (see
-    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
         product_name: Name of the product being created.
@@ -197,7 +197,7 @@ def create_fiber_span_form_generator(product_name: str) -> FormGenerator:
     Args:
         product_name: Name of the product being created.
     """
-    user_input_dict = yield from customer_choice_form_pages(title=product_name)
+    user_input_dict = yield from customer_choice_form_page(title=product_name)
     user_input_dict.update((yield from create_fiber_span_form_pages(product_name)))
 
     summary_fields = [

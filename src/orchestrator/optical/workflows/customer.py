@@ -111,7 +111,7 @@ def customer_choice_selector(include: UUIDstr | None = None) -> type[Choice]:
     return choice
 
 
-def customer_choice_form_pages(include: UUIDstr | None = None, title: str = "Customer") -> FormGenerator:
+def customer_choice_form_page(include: UUIDstr | None = None, title: str = "Customer") -> FormGenerator:
     """Yield a single FormPage selecting the customer of a subscription.
 
     The page holds a single ``customer_id`` field built with

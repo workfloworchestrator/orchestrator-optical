@@ -39,7 +39,7 @@ from orchestrator.optical.products.product_blocks.optical_location import (
 )
 from orchestrator.optical.products.product_types.optical_location import OpticalModuleLocationSubscriptionInactive
 from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
-from orchestrator.optical.workflows.customer import customer_choice_form_pages
+from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_location.shared import (
     OPTICAL_LOCATION_BLOCK_STATE_KEY,
     check_location_code_uniqueness,
@@ -131,7 +131,7 @@ def create_optical_module_location_form_pages(product_name: str) -> FormGenerato
     Consumers yield from it in one line inside their own create form generator,
     optionally interleaving their own pages. The customer of the subscription
     is collected separately by the consumer (see
-    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
         product_name: Name of the product being created.
@@ -156,7 +156,7 @@ def create_optical_module_location_form_generator(product_name: str) -> FormGene
     Args:
         product_name: Name of the product being created.
     """
-    user_input_dict = yield from customer_choice_form_pages(title=product_name)
+    user_input_dict = yield from customer_choice_form_page(title=product_name)
     user_input_dict.update((yield from create_optical_module_location_form_pages(product_name)))
 
     summary_fields = [

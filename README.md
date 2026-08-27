@@ -384,23 +384,23 @@ is opened.
 The shipped **create** and **modify** page sequences (`create_<product>_form_pages` / `modify_<product>_form_pages`)
 do **not** collect the customer: they emit only the `optical_*` (and `location_id`/`node_a_id`/...) state keys. The
 customer is collected separately by the shipped form generators through the reusable page sequence
-`customer_choice_form_pages(include=None)` in `orchestrator.optical.workflows.customer` — a single page with one
+`customer_choice_form_page(include=None)` in `orchestrator.optical.workflows.customer` — a single page with one
 `customer_id` field built from your `customer_choice()` function.
 
 When you compose your own form generator (e.g. for a product type that has-a the shipped block), collect the customer
-yourself — either by yielding from `customer_choice_form_pages` in one line or by defining your own customer page on
+yourself — either by yielding from `customer_choice_form_page` in one line or by defining your own customer page on
 top of `customer_choice_selector(include=...)` (pass `include` the current `customer_id` on a modify):
 
 ```python
-from orchestrator.optical.workflows.customer import customer_choice_form_pages
+from orchestrator.optical.workflows.customer import customer_choice_form_page
 
 def my_create_form_generator(product_name):
-    user_input_dict = yield from customer_choice_form_pages(title=product_name)
+    user_input_dict = yield from customer_choice_form_page(title=product_name)
     user_input_dict.update((yield from create_optical_module_location_form_pages(product_name)))
     ...
 ```
 
-`customer_choice_form_pages` returns `{"customer_id": ...}`, which the shipped steps consume together with the
+`customer_choice_form_page` returns `{"customer_id": ...}`, which the shipped steps consume together with the
 `optical_*` keys returned by the page sequence.
 
 

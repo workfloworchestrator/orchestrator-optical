@@ -547,7 +547,7 @@ def test_create_form_pages_yield_the_shipped_pages_in_order() -> None:
 def test_customer_choice_form_pages_yield_the_customer_page(monkeypatch) -> None:
     monkeypatch.setattr(customer_parts, "customer_choice_selector", _fake_customer_choice)
 
-    generator = customer_parts.customer_choice_form_pages()
+    generator = customer_parts.customer_choice_form_page()
     page = next(generator)
     assert issubclass(page, FormPage)
     assert set(page.model_fields) == {"customer_id"}
@@ -560,7 +560,7 @@ def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) ->
     monkeypatch.setattr(customer_parts, "customer_choice_selector", _fake_customer_choice)
 
     def my_create_form_generator(product_name):
-        user_input_dict = yield from customer_parts.customer_choice_form_pages()
+        user_input_dict = yield from customer_parts.customer_choice_form_page()
         user_input_dict.update((yield from location_create.create_optical_module_location_form_pages(product_name)))
         return user_input_dict
 

@@ -177,7 +177,7 @@ def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) ->
     _monkeypatch_create_selectors(monkeypatch, fiber_span_create)
 
     def my_create_form_generator(product_name):
-        user_input_dict = yield from customer_parts.customer_choice_form_pages()
+        user_input_dict = yield from customer_parts.customer_choice_form_page()
         user_input_dict.update((yield from fiber_span_create.create_fiber_span_form_pages(product_name)))
         return user_input_dict
 

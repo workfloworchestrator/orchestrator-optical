@@ -45,7 +45,7 @@ from orchestrator.optical.products.product_types.optical_node.nokia_groove_g30 i
 )
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
-from orchestrator.optical.workflows.customer import customer_choice_form_pages
+from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_BLOCK_STATE_KEY,
     optical_node_block_from_state,
@@ -71,7 +71,7 @@ def create_optical_node_nokia_groove_g30_form_pages(product_name: str) -> FormGe
     line inside their own create form generator, optionally interleaving their
     own pages. The customer of the subscription is collected separately by the
     consumer (see
-    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
         product_name: Name of the product being created.
@@ -97,7 +97,7 @@ def create_optical_node_nokia_groove_g30_form_generator(product_name: str) -> Fo
     Args:
         product_name: Name of the product being created.
     """
-    user_input_dict = yield from customer_choice_form_pages(title=product_name)
+    user_input_dict = yield from customer_choice_form_page(title=product_name)
     user_input_dict.update((yield from create_optical_node_nokia_groove_g30_form_pages(product_name)))
 
     summary_fields = [
