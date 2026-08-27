@@ -23,7 +23,7 @@ WFO. Please follow the steps below to install the WFO Optical module, including 
 
 The module ships **coded programmatic migrations**: its catalog (products, product blocks, resource types and the
 shipped workflows) is provisioned as data migrations, exactly like orchestrator-core provisions its own domain. The
-module owns **no tables** — everything lives in the core catalog tables — so there is no DDL.
+module owns **no tables** — everything lives in the core catalog tables.
 
 ### Until the first stable release (module < 1.0)
 
@@ -42,7 +42,10 @@ The diff-based wizards scan the whole `SUBSCRIPTION_MODEL_REGISTRY` (the module'
 `SKIP_MODEL_FOR_MIGRATION_DB_DIFF` to the optical product names if you run the wizards for your own products as well,
 to avoid the module's products being picked up by your diffs.
 
-### From the first stable release (module >= 1.0)
+### From the first stable release (module >= 1.0) 
+
+> [!TODO]
+> We need to find a way to version the models and ship the migrations as code. The following is just an idea.
 
 The module ships one generated Alembic revision per release in
 `orchestrator.optical.migrations.versions.schema`, chained linearly onto a pinned orchestrator-core schema revision
@@ -85,16 +88,17 @@ database exactly the way a consumer would.
 
 ## Consumption model
 
-The module ships **concrete product blocks** (e.g. `OpticalNodeBlock`, `OpticalFiberSpanBlock`), the matching
+The module ships **concrete product blocks** (e.g. `OpticalFiberSpanBlock`), the matching
 subscription product types, hardware abstraction layer `hal/` services, the **ready-to-use workflows of the shipped product types** (one
 create/modify/terminate/validate per product) and the **parts of the workflows** (the FormPages of the shipped forms,
-as page sequences, and the step lists). The module expects you to use the shipped concrete blocks as a **shared
-interface** that you compose with your own model.
+as page sequences, and the step lists).
+
+> The module expects you to use the shipped concrete blocks as a **shared interface** that you compose with your own model.
 
 ### Architecture
 
 The module is strictly layered: `products/` (blocks and subscription models) → `hal/` (device-facing logic) →
-`workflows/` (orchestration), with `services/` (device integrations) under `hal/`. **Blocks are the shared
+`workflows/` (orchestration), with `services/` (device clients) behind `hal/`. **Blocks are the shared
 contracts**: `hal/` depends only on blocks, never on subscription models — a subscription id may be an input
 parameter, but it is resolved to a block, never to a model. Consequently nothing under `hal/` imports from
 `workflows/`; the database queries both layers need live in the neutral `orchestrator/optical/db.py`. This keeps the
@@ -173,115 +177,47 @@ The full list of shipped workflows and their import paths:
 
 ### 2. Define your own product type that has-a the shipped block (composition + optional anti-corruption layer)
 
-You are free to model your subscription as you see fit **outside** the shipped blocks, as long as your model has a
-field that is the shipped block. The shipped blocks must always be part of your model and are persisted with it.
-This is needed because the module's logic read the database by shipped block name and thus you cannot simply create the
-shipped blocks in-memory during steps execution. You are free to sync the same information outside the shipped blocks
-using thin "anti-corruption" wiring code that links your custom fields to the shipped fields (e.g. using `computed_fields`).
+You are free to model your subscription as you see fit as long as your model has a
+field that is the shipped block. The shipped blocks must always be part of your model and persisted with it.
+This is needed because the module's logic needs to read the database by shipped `product_block_name`.
+You are invited to duplicate the information saved in the shipped blocks also inside your own models in your own fashion
+and to use thin "anti-corruption" wiring code that links your custom fields to the shipped fields (e.g. using `computed_fields`).
+This way the changes to this module's domain models will always be clearly decoupled from your models and your logic.
 
-Your product block chain references the shipped block's lifecycle variants in the matching lifecycle slots:
+For example, if you already have subscriptions to manage your routers and you want to use this module (that needs
+to access the routers to configure the optical coherent pluggables), then you must add the `OpticalModulePacketNode` block
+to your existing `RouterBlock`:
 
 ```python
-# mywfo/models.py
-from orchestrator.core.domain.base import ProductBlockModel
-from orchestrator.core.domain import SubscriptionModel
-from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
-    NokiaFlexIlsBlock,
-    NokiaFlexIlsBlockInactive,
-    NokiaFlexIlsBlockProvisioning,
+# in your product_blocks/ dir 
+from orchestrator.optical.products.product_blocks.optical_packet_node import (
+    OpticalModulePacketNode,
+    OpticalModulePacketNodeInactive,
+    OpticalModulePacketNodeProvisioning,
 )
 
 class RouterBlockInactive(ProductBlockModel, product_block_name="RouterBlock"):
-    my_own_field: str | None = None
-    for_the_optical_module: NokiaFlexIlsBlockInactive
+    field1: str | None = None
+    # ...
+    # you must add this block
+    optical_module_block: OpticalModulePacketNodeInactive
 
 class RouterBlockProvisioning(RouterBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    my_own_field: str
-    for_the_optical_module: NokiaFlexIlsBlockProvisioning
+    field1: str
+    optical_module_block: OpticalModulePacketNodeProvisioning
 
 class RouterBlock(RouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    my_own_field: str
-    for_the_optical_module: NokiaFlexIlsBlock
-
-
-class RouterSubscriptionInactive(SubscriptionModel, is_base=True):
-    router: RouterBlockInactive
-
-class RouterSubscriptionProvisioning(RouterSubscriptionInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    router: RouterBlockProvisioning
-
-class RouterSubscription(RouterSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    router: RouterBlock
+    field1: str
+    optical_module_block: OpticalModulePacketNode
 ```
 
-(Remember the persistence rule of orchestrator-core: every concrete block class redeclares every field it inherits,
-including the shipped block field.)
-
-The shipped workflows of path 1 are not reusable here — they are bound to the shipped subscription models. You
+The shipped workflows of path 1 are not reusable here — they are bound to the shipped subscription models. Thus, you
 compose your own workflows from the shipped **parts**: the importable form generators and the step lists. The shipped
-block steps never know your model: they bind to the state key `optical_node_block` (see "State contract" below), so
+block steps never know your model: they bind to the state key `optical_module_block` (see "State contract" below), so
 you wire your block into the state and back out of it — that is the thin anti-corruption wiring:
 
 ```python
-# mywfo/workflows.py
-from functools import partial
-
-from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import begin, step
-from orchestrator.core.workflows.steps import set_status, store_process_subscription
-from orchestrator.core.workflows.utils import create_workflow, modify_workflow
-from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
-    CREATE_NOKIA_FLEXILS_BLOCK_STEPS,
-    create_optical_node_nokia_flexils_form_generator,
-)
-from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import (
-    MODIFY_NOKIA_FLEXILS_BLOCK_STEPS,
-    modify_optical_node_nokia_flexils_form_generator,
-)
-from mywfo.models import Router, RouterInactive
-
-@step("Construct my router")
-def construct_my_router(product, customer_id, my_own_field):
-    router = RouterInactive.from_product_id(product_id=product, customer_id=customer_id)
-    router.router.my_own_field = my_own_field
-    # Put the composed block in the state for the shipped block steps
-    return {
-        "subscription": router,
-        "optical_node_block": router.router.for_the_optical_module,
-    }
-
-@create_workflow(
-    initial_input_form=partial(create_optical_node_nokia_flexils_form_generator, product_name="My Router")
-)
-def create_my_router():
-    return (
-        begin
-        >> construct_my_router
-        >> CREATE_NOKIA_FLEXILS_BLOCK_STEPS        # block-level: discover + populate + persist the shipped block
-        >> set_status(SubscriptionLifecycle.PROVISIONING)
-        >> store_process_subscription()
-    )
-
-@step("Wire my block into the state")
-def load_my_router_block(subscription):
-    return {"optical_node_block": subscription.for_the_optical_module}
-
-@modify_workflow(
-    initial_input_form=partial(
-        modify_optical_node_nokia_flexils_form_generator,
-        subscription_model=Router,
-        block_field_name="for_the_optical_module",
-    )
-)
-def modify_my_router():
-    return (
-        begin
-        >> set_status(SubscriptionLifecycle.PROVISIONING)
-        >> load_my_router_block                       # thin wiring: block into the state
-        >> MODIFY_NOKIA_FLEXILS_BLOCK_STEPS           # updates and persists the shipped block
-        >> set_status(SubscriptionLifecycle.ACTIVE)
-    )
+# TODO: provide example of create workflow using the shipped form pages and steps.
 ```
 
 Notes:
