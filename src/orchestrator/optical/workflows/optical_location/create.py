@@ -303,12 +303,7 @@ def create_optical_module_location() -> StepList:
 
 __all__ = [
     "CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS",
-    "construct_optical_module_location_subscription",
     "create_optical_module_location",
-    "create_optical_module_location_coordinates_form",
-    "create_optical_module_location_form_generator",
     "create_optical_module_location_form_pages",
-    "create_optical_module_location_identity_form",
     "populate_optical_module_location_block",
-    "populate_optical_module_location_block_step",
 ]

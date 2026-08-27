@@ -286,8 +286,6 @@ def modify_optical_module_location() -> StepList:
 __all__ = [
     "MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS",
     "modify_optical_module_location",
-    "modify_optical_module_location_form",
-    "modify_optical_module_location_form_generator",
     "modify_optical_module_location_form_pages",
     "update_optical_module_location_block",
 ]

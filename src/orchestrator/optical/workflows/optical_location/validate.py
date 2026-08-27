@@ -97,7 +97,5 @@ def validate_optical_module_location() -> StepList:
 
 __all__ = [
     "OPTICAL_MODULE_LOCATION_VALIDATE_STEPS",
-    "load_initial_state_optical_module_location",
     "validate_optical_module_location",
-    "validate_optical_module_location_state",
 ]
