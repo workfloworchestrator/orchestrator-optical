@@ -3,8 +3,7 @@
 This module ships the ready-to-use ``validate_optical_module_location``
 workflow for the shipped Optical Module Location product type, together
 with the importable parts: the state loading step and the block validation
-step. Consumers with their own model that has-a the shipped block declare
-their own ``@validate_workflow`` with
+step. Consumers with their own model that has-a the shipped block declaretheir own ``@validate_workflow`` with
 :data:`OPTICAL_MODULE_LOCATION_VALIDATE_STEPS`; consumer models that compose
 the block under a different attribute name can put the block in the state
 under ``OPTICAL_LOCATION_BLOCK_STATE_KEY`` for the validation step.
@@ -38,17 +37,51 @@ def load_initial_state_optical_module_location(subscription: SubscriptionModel) 
     return {"subscription": subscription}
 
 
+def validate_optical_module_location_block(
+    optical_module_location_block: OpticalModuleLocationBlockInactive,
+) -> None:
+    """Verify the state and integrity of an Optical Module Location block.
+
+    This is the block-level validation of the family: it operates only on the
+    block and is the anti-corruption point for consumers that keep their own
+    model. It raises when the block is not fully provisioned (any of the
+    required fields is unset) and logs the validated block.
+
+    Args:
+        optical_module_location_block: The Optical Module Location block to validate.
+
+    Raises:
+        ValueError: If the location block is not fully provisioned.
+    """
+    if (
+        optical_module_location_block.longitude is None
+        or optical_module_location_block.latitude is None
+        or optical_module_location_block.location_code is None
+    ):
+        msg = "Optical Module Location block is not fully provisioned"
+        raise ValueError(msg)
+    logger.info(
+        "Validating Optical Module Location",
+        location_code=optical_module_location_block.location_code,
+        location_name=optical_module_location_block.location_name,
+        longitude=optical_module_location_block.longitude,
+        latitude=optical_module_location_block.latitude,
+    )
+
+
 @step("Validate Optical Module Location state")
-def validate_optical_module_location_state(
+def validate_optical_module_location_block_step(
     subscription: SubscriptionModel,
     optical_module_location_block: OpticalModuleLocationBlockInactive | None = None,
 ) -> State:
-    """Verify the state and integrity of the Optical Module Location block.
+    """Validate the Optical Module Location block loaded for the subscription.
 
     The block is read from the ``optical_module_location_block`` state key
     when present (e.g. when the shipped block steps ran against a
     consumer-owned block); otherwise it falls back to the
-    ``optical_location`` attribute of the shipped subscription models.
+    ``optical_location`` attribute of the shipped subscription models. The
+    block-level validation is delegated to
+    :func:`validate_optical_module_location_block`.
 
     Args:
         subscription: The Optical Module Location subscription being validated.
@@ -67,16 +100,7 @@ def validate_optical_module_location_state(
         else None
     )
     location = location or _optical_module_location_block_of_subscription(subscription)
-    if location.longitude is None or location.latitude is None or location.location_code is None:
-        msg = "Optical Module Location block is not fully provisioned"
-        raise ValueError(msg)
-    logger.info(
-        "Validating Optical Module Location",
-        location_code=location.location_code,
-        location_name=location.location_name,
-        longitude=location.longitude,
-        latitude=location.latitude,
-    )
+    validate_optical_module_location_block(location)
     return {}
 
 
@@ -85,7 +109,7 @@ def validate_optical_module_location_state(
 #: shipped-type-only step exported separately (see
 #: ``shared.optical_module_location_subscription_description``).
 OPTICAL_MODULE_LOCATION_VALIDATE_STEPS: StepList = (
-    begin >> load_initial_state_optical_module_location >> validate_optical_module_location_state
+    begin >> load_initial_state_optical_module_location >> validate_optical_module_location_block_step
 )
 
 
@@ -98,4 +122,5 @@ def validate_optical_module_location() -> StepList:
 __all__ = [
     "OPTICAL_MODULE_LOCATION_VALIDATE_STEPS",
     "validate_optical_module_location",
+    "validate_optical_module_location_block",
 ]

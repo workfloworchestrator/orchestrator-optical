@@ -96,7 +96,6 @@ def terminate_optical_module_location() -> StepList:
 
 __all__ = [
     "OPTICAL_MODULE_LOCATION_TERMINATE_STEPS",
-    "deprovision_optical_module_location",
     "terminate_optical_module_location",
     "terminate_optical_module_location_form_pages",
 ]

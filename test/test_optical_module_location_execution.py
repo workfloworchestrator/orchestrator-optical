@@ -36,7 +36,7 @@ from orchestrator.optical.workflows.optical_location.shared import (
     check_location_code_uniqueness,
     optical_location_block_from_state,
 )
-from orchestrator.optical.workflows.optical_location.validate import validate_optical_module_location_state
+from orchestrator.optical.workflows.optical_location.validate import validate_optical_module_location_block_step
 
 pytestmark = pytest.mark.db
 
@@ -262,7 +262,7 @@ def test_validate_fails_on_unprovisioned_block(product_id_for) -> None:
 
     loaded = OpticalModuleLocationSubscriptionInactive.from_subscription(subscription_id)
     with pytest.raises(ValueError, match="not fully provisioned"):
-        cast(Any, validate_optical_module_location_state).__wrapped__(
+        cast(Any, validate_optical_module_location_block_step).__wrapped__(
             subscription=loaded, optical_module_location_block=None
         )
 
