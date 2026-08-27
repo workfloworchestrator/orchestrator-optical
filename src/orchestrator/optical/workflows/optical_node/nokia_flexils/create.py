@@ -35,7 +35,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.hal.optical_node import discover_flexils_node
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
 )
@@ -57,6 +56,9 @@ from orchestrator.optical.workflows.optical_node.shared import (
 from orchestrator.optical.workflows.optical_node.shared.forms import (
     create_optical_node_location_form,
     create_optical_node_management_form,
+)
+from orchestrator.optical.workflows.optical_node.shared.retrieve import (
+    retrieve_optical_node_role_and_software_version,
 )
 from orchestrator.optical.workflows.shared import create_summary_form
 
@@ -155,43 +157,6 @@ def create_optical_node_nokia_flexils_form_generator(product_name: str) -> FormG
     return user_input_dict
 
 
-@step("Discover Nokia FlexILS node properties")
-def discover_optical_node_nokia_flexils(
-    optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
-    location_id: UUIDstr,
-    optical_flexils_target_id: str,
-    optical_flexils_gmpls_id: IPAddress,
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
-    optical_module_node_dcn_interface_ip: IPAddress | None = None,
-) -> State:
-    """Connect to the node and write its role and software version to the block.
-
-    The first block-level step of :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`: it
-    resolves the block from the state, contacts the node using the create-form
-    connection keys, and writes the discovered ``optical_node_role`` and
-    ``optical_module_node_software_version`` onto it, which the shipped
-    populate step then reads from the block.
-
-    Raises:
-        ValueError: If there is no Nokia FlexILS node block in the state under
-            ``OPTICAL_NODE_BLOCK_STATE_KEY``.
-    """
-    node_block = optical_node_block_from_state(optical_node_block)
-    if node_block is None:
-        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
-    role, software_version = discover_flexils_node(
-        location_id=location_id,
-        optical_flexils_target_id=optical_flexils_target_id,
-        optical_management_ip=optical_module_node_dcn_interface_ip,
-        optical_loopback_ip=optical_module_node_dcn_loopback_ip,
-        optical_flexils_gmpls_id=optical_flexils_gmpls_id,
-    )
-    node_block.optical_node_role = role
-    node_block.management.optical_module_node_software_version = software_version
-    return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
-
-
 def populate_optical_node_nokia_flexils_block(
     optical_node_block: NokiaFlexIlsBlockInactive,
     *,
@@ -204,9 +169,9 @@ def populate_optical_node_nokia_flexils_block(
 ) -> None:
     """Populate a Nokia FlexILS node block from the create-form state keys.
 
-    The node role and software version are not set here: the block-level
-    discovery step (:func:`discover_optical_node_nokia_flexils`) writes them
-    onto the block before this function runs. This is the internal
+    The node role and software version are not set here: the shared retrieval
+    step (:func:`retrieve_optical_node_role_and_software_version`) writes them
+    onto the block after this function runs. This is the internal
     implementation of the populate step of
     :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`.
 
@@ -244,8 +209,8 @@ def populate_optical_node_nokia_flexils_block_step(
 ) -> State:
     """Populate the Nokia FlexILS node block found in the state from the create-form keys.
 
-    The node role and software version are read from the block, where the
-    block-level discovery step wrote them. Workflow steps execute with the
+    The node role and software version are written to the block by the shared
+    retrieval step that runs after this one. Workflow steps execute with the
     state serialized between steps, so the block is re-hydrated from the
     database by its ``subscription_instance_id`` before it is populated.
 
@@ -264,9 +229,6 @@ def populate_optical_node_nokia_flexils_block_step(
             ``OPTICAL_NODE_BLOCK_STATE_KEY``.
     """
     node_block = optical_node_block_from_state(optical_node_block)
-    if node_block is None:
-        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
     populate_optical_node_nokia_flexils_block(
         optical_node_block=cast(NokiaFlexIlsBlockInactive, node_block),
         location_id=location_id,
@@ -306,18 +268,19 @@ def construct_optical_node_nokia_flexils_subscription(product: UUIDstr, customer
 
 
 #: Create steps operating on the Nokia FlexILS node block in the state. Every
-#: step is block-level: the device discovery step writes the discovered
-#: ``optical_node_role`` and ``optical_module_node_software_version`` onto the
-#: block, the populate step writes the remaining create-form fields, and the
-#: last step persists the block, because workflow steps execute with the
-#: state serialized between steps (the block is re-hydrated from the database
-#: before every step operates on it). Consumers with their own model run this
-#: list after constructing their (inactive) subscription and putting their
-#: block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+#: step is block-level: the populate step writes the connection data and the
+#: remaining create-form fields onto the block, the shared retrieval step
+#: writes the discovered ``optical_node_role`` and
+#: ``optical_module_node_software_version`` onto it, and the last step persists
+#: the block, because workflow steps execute with the state serialized between
+#: steps (the block is re-hydrated from the database before every step operates
+#: on it). Consumers with their own model run this list after constructing
+#: their (inactive) subscription and putting their block in the state under
+#: ``OPTICAL_NODE_BLOCK_STATE_KEY``.
 CREATE_NOKIA_FLEXILS_BLOCK_STEPS: StepList = (
     begin
-    >> discover_optical_node_nokia_flexils
     >> populate_optical_node_nokia_flexils_block_step
+    >> retrieve_optical_node_role_and_software_version
     >> save_optical_node_block
 )
 

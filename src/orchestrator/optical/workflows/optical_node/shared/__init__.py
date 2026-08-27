@@ -21,12 +21,16 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
 from orchestrator.optical.workflows.optical_node.shared.forms import (
     create_optical_node_location_form,
     create_optical_node_management_form,
+    modify_optical_node_management_form,
 )
 from orchestrator.optical.workflows.optical_node.shared.modify import (
     load_optical_node_block,
     save_optical_node_block,
     update_optical_node_block_fields,
     update_optical_node_subscription_description,
+)
+from orchestrator.optical.workflows.optical_node.shared.retrieve import (
+    retrieve_optical_node_role_and_software_version,
 )
 from orchestrator.optical.workflows.optical_node.shared.terminate import (
     OPTICAL_NODE_TERMINATE_STEPS,
@@ -51,10 +55,12 @@ __all__ = [
     "delete_optical_node_from_oss_bss",
     "load_initial_state_optical_node",
     "load_optical_node_block",
+    "modify_optical_node_management_form",
     "optical_node_block_from_state",
     "optical_node_subscription_description",
     "populate_abstract_optical_node_fields",
     "refresh_optical_node_software_version",
+    "retrieve_optical_node_role_and_software_version",
     "save_optical_node_block",
     "terminate_initial_input_form_generator",
     "terminate_optical_node_form",

@@ -432,19 +432,9 @@ def _fake_allign_tx_power_to_target(*args: Any, **kwargs: Any) -> dict[str, Any]
     return {}
 
 
-def _fake_discover_flexils_node(*args: Any, **kwargs: Any) -> tuple[str, str]:
-    """Return the faked FlexILS node role and software version."""
+def _fake_retrieve_optical_node_role_and_software_version(*args: Any, **kwargs: Any) -> tuple[str, str]:
+    """Return the faked node role and software version (shared retrieval step)."""
     return ("ROADM", FAKE_SOFTWARE_VERSION)
-
-
-def _fake_retrieve_g30_software_version(*args: Any, **kwargs: Any) -> str:
-    """Return the faked Groove G30 software version."""
-    return FAKE_SOFTWARE_VERSION
-
-
-def _fake_retrieve_g42_software_version(*args: Any, **kwargs: Any) -> str:
-    """Return the faked GX G42 software version."""
-    return FAKE_SOFTWARE_VERSION
 
 
 def _fake_retrieve_software_version(*args: Any, **kwargs: Any) -> str:
@@ -492,14 +482,10 @@ def install_device_stubs(
 
     stubs: dict[str, dict[str, dict[str, Callable[..., Any]]]] = {
         "node": {
-            "orchestrator.optical.workflows.optical_node.nokia_flexils.create": {
-                "discover_flexils_node": _fake_discover_flexils_node,
-            },
-            "orchestrator.optical.workflows.optical_node.nokia_groove_g30.create": {
-                "retrieve_g30_software_version": _fake_retrieve_g30_software_version,
-            },
-            "orchestrator.optical.workflows.optical_node.nokia_gx_g42.create": {
-                "retrieve_g42_software_version": _fake_retrieve_g42_software_version,
+            "orchestrator.optical.workflows.optical_node.shared.retrieve": {
+                "_retrieve_optical_node_role_and_software_version": (
+                    _fake_retrieve_optical_node_role_and_software_version
+                ),
             },
             # The node validate steps call the HAL dispatcher through module attribute
             # access (optical_node_hal.retrieve_software_version), so the patch target is

@@ -275,7 +275,7 @@ def populate_abstract_optical_node_fields(
 
 def optical_node_block_from_state(
     optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
-) -> AbstractOpticalNodeBlockInactive | None:
+) -> AbstractOpticalNodeBlockInactive:
     """Return the Optical Node block of the workflow state as a domain model.
 
     Workflow steps execute with the state serialized between steps, so a block
@@ -297,7 +297,8 @@ def optical_node_block_from_state(
         ValueError: If the block in the state has no ``subscription_instance_id``.
     """
     if optical_node_block is None:
-        return None
+        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
+        raise ValueError(msg)
     if isinstance(optical_node_block, AbstractOpticalNodeBlockInactive):
         return optical_node_block
     return _optical_node_block_from_state(optical_node_block)

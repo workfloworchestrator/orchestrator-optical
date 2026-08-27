@@ -18,7 +18,8 @@ from typing import Any, ClassVar, cast
 from structlog import get_logger
 
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.db import location_block_from_subscription, subscription_instances_by_block_type
+from orchestrator.optical.db import subscription_instances_by_block_type
+from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockInactive
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
@@ -243,11 +244,11 @@ def _discover_via_client(
 
 
 def discover_flexils_node(
-    location_id: str,
     optical_flexils_target_id: str,
     optical_management_ip: IPAddress | None = None,
     optical_loopback_ip: IPAddress | None = None,
     optical_flexils_gmpls_id: IPAddress | None = None,
+    location: OpticalModuleLocationBlockInactive | None = None,
 ) -> tuple[OpticalNodeRole, str]:
     """Discover the properties of a Nokia FlexILS node.
 
@@ -257,11 +258,11 @@ def discover_flexils_node(
     the node are contacted and the node is looked up by its GMPLS ID.
 
     Args:
-        location_id: Subscription id of the Optical Location hosting the node.
         optical_flexils_target_id: Target ID of the node.
         optical_management_ip: Management IP through which the node can be reached directly.
         optical_loopback_ip: Loopback IP through which the node can be reached directly.
         optical_flexils_gmpls_id: GMPLS ID of the node (mandatory for SNEs).
+        location: The Optical Location block hosting the node, used to find a GNE.
 
     Returns:
         The discovered node properties.
@@ -278,9 +279,8 @@ def discover_flexils_node(
             msg = "At least one of management IP or GMPLS ID must be provided to discover the node"
             raise ValueError(msg)
 
-        location = location_block_from_subscription(location_id)
         if location is None or location.latitude is None or location.longitude is None:
-            msg = f"Location {location_id} has no coordinates, cannot find a GNE for node {optical_flexils_target_id}"
+            msg = f"Location {location} has no coordinates, cannot find a GNE for node {optical_flexils_target_id}"
             raise ValueError(msg)
 
         candidates = FlexilsGneProvider.find_closest_gnes(float(location.latitude), float(location.longitude))
@@ -662,6 +662,100 @@ def retrieve_software_version(optical_node_block: AbstractOpticalNodeBlockInacti
                 optical_node_block.management.optical_module_node_dcn_interface_ip,
             )
 
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
+
+
+def _retrieve_flexils_role_and_version(
+    optical_node_block: NokiaFlexIlsBlockInactive,
+) -> tuple[OpticalNodeRole, str]:
+    """Retrieve the node role and software version of a Nokia FlexILS node from the device.
+
+    Args:
+        optical_node_block: The Nokia FlexILS node block.
+
+    Returns:
+        A tuple of the node role and the software version.
+
+    Raises:
+        ValueError: If the node has no Target ID or cannot be reached.
+    """
+    target_id = optical_node_block.optical_flexils_target_id
+    if target_id is None:
+        msg = "Cannot retrieve the node role and software version: the FlexILS node has no Target ID"
+        raise ValueError(msg)
+    return discover_flexils_node(
+        optical_flexils_target_id=target_id,
+        optical_management_ip=optical_node_block.management.optical_module_node_dcn_interface_ip,
+        optical_loopback_ip=optical_node_block.management.optical_module_node_dcn_loopback_ip,
+        optical_flexils_gmpls_id=optical_node_block.optical_flexils_gmpls_id,
+        location=optical_node_block.location,
+    )
+
+
+def _retrieve_g30_role_and_version(
+    optical_node_block: AbstractOpticalNodeBlockInactive,
+) -> tuple[OpticalNodeRole, str]:
+    """Retrieve the node role and software version of a Groove G30 node from the device.
+
+    Args:
+        optical_node_block: The Groove G30 node block.
+
+    Returns:
+        A tuple of the node role and the software version.
+    """
+    role = retrieve_g30_role(
+        optical_node_block.management.optical_module_node_dcn_loopback_ip,
+        optical_node_block.management.optical_module_node_dcn_interface_ip,
+    )
+    version = retrieve_g30_software_version(
+        optical_node_block.management.optical_module_node_dcn_loopback_ip,
+        optical_node_block.management.optical_module_node_dcn_interface_ip,
+    )
+    return role, version
+
+
+def _retrieve_g42_role_and_version(
+    optical_node_block: AbstractOpticalNodeBlockInactive,
+) -> tuple[OpticalNodeRole, str]:
+    """Retrieve the node role and software version of a GX G42 node from the device.
+
+    Args:
+        optical_node_block: The GX G42 node block.
+
+    Returns:
+        A tuple of the node role and the software version.
+    """
+    role = retrieve_g42_role()
+    version = retrieve_g42_software_version(
+        optical_node_block.management.optical_module_node_dcn_loopback_ip,
+        optical_node_block.management.optical_module_node_dcn_interface_ip,
+    )
+    return role, version
+
+
+def retrieve_optical_node_role_and_software_version(
+    optical_node_block: AbstractOpticalNodeBlockInactive,
+) -> tuple[OpticalNodeRole, str]:
+    """Retrieve the node role and software version of the node, dispatching on the vendor.
+
+    Args:
+        optical_node_block: The Optical Node block (any lifecycle variant).
+
+    Returns:
+        A tuple of the node role and the software version.
+    """
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
+            return _retrieve_flexils_role_and_version(_as_flexils_block(optical_node_block))
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
+            return _retrieve_g30_role_and_version(optical_node_block)
+        case (Vendor.NOKIA, Platform.GX_G42):
+            return _retrieve_g42_role_and_version(optical_node_block)
         case _:
             msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)

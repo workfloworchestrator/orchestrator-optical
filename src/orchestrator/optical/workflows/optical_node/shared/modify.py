@@ -114,8 +114,5 @@ def save_optical_node_block(
             ``OPTICAL_NODE_BLOCK_STATE_KEY``.
     """
     node_block = optical_node_block_from_state(optical_node_block)
-    if node_block is None:
-        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
     node_block.save(subscription_id=subscription.subscription_id, status=subscription.status)
     return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}

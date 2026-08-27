@@ -32,7 +32,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.hal.optical_node import retrieve_g42_role, retrieve_g42_software_version
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
 )
@@ -52,6 +51,9 @@ from orchestrator.optical.workflows.optical_node.shared import (
 from orchestrator.optical.workflows.optical_node.shared.forms import (
     create_optical_node_location_form,
     create_optical_node_management_form,
+)
+from orchestrator.optical.workflows.optical_node.shared.retrieve import (
+    retrieve_optical_node_role_and_software_version,
 )
 from orchestrator.optical.workflows.shared import create_summary_form
 
@@ -107,37 +109,6 @@ def create_optical_node_nokia_gx_g42_form_generator(product_name: str) -> FormGe
     return user_input_dict
 
 
-@step("Discover Nokia GX G42 node properties")
-def discover_optical_node_nokia_gx_g42(
-    optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
-    optical_module_node_dcn_interface_ip: IPAddress | None = None,
-) -> State:
-    """Connect to the node and write its role and software version to the block.
-
-    The first block-level step of :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`: it
-    resolves the block from the state, writes the node role and the software
-    version (both retrieved from the device) onto it, which the shipped
-    populate step then reads from the block.
-
-    Raises:
-        ValueError: If there is no Nokia GX G42 node block in the state under
-            ``OPTICAL_NODE_BLOCK_STATE_KEY``.
-    """
-    node_block = optical_node_block_from_state(optical_node_block)
-    if node_block is None:
-        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
-    role = retrieve_g42_role()
-    software_version = retrieve_g42_software_version(
-        dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
-        dcn_interface_ip=optical_module_node_dcn_interface_ip,
-    )
-    node_block.optical_node_role = role
-    node_block.management.optical_module_node_software_version = software_version
-    return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
-
-
 def populate_optical_node_nokia_gx_g42_block(
     optical_node_block: NokiaGxG42BlockInactive,
     *,
@@ -148,9 +119,9 @@ def populate_optical_node_nokia_gx_g42_block(
 ) -> None:
     """Populate a Nokia GX G42 node block from the create-form state keys.
 
-    The node role and software version are not set here: the block-level
-    discovery step (:func:`discover_optical_node_nokia_gx_g42`) writes them
-    onto the block before this function runs. This is the internal
+    The node role and software version are not set here: the shared retrieval
+    step (:func:`retrieve_optical_node_role_and_software_version`) writes them
+    onto the block after this function runs. This is the internal
     implementation of the populate step of
     :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`.
 
@@ -182,8 +153,8 @@ def populate_optical_node_nokia_gx_g42_block_step(
 ) -> State:
     """Populate the Nokia GX G42 node block found in the state from the create-form keys.
 
-    The node role and software version are read from the block, where the
-    block-level discovery step wrote them. Workflow steps execute with the
+    The node role and software version are written to the block by the shared
+    retrieval step that runs after this one. Workflow steps execute with the
     state serialized between steps, so the block is re-hydrated from its
     serialized form before it is populated.
 
@@ -199,9 +170,6 @@ def populate_optical_node_nokia_gx_g42_block_step(
         ValueError: If there is no Nokia GX G42 node block in the state.
     """
     node_block = optical_node_block_from_state(optical_node_block)
-    if node_block is None:
-        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
     populate_optical_node_nokia_gx_g42_block(
         optical_node_block=cast(NokiaGxG42BlockInactive, node_block),
         location_id=location_id,
@@ -239,18 +207,18 @@ def construct_optical_node_nokia_gx_g42_subscription(product: UUIDstr, customer_
 
 
 #: Create steps operating on the Nokia GX G42 node block in the state. Every
-#: step is block-level: the device discovery step writes the node role and
-#: the discovered ``optical_module_node_software_version`` onto the block,
-#: the populate step writes the remaining create-form fields, and the last
-#: step persists the block, because workflow steps execute with the state
-#: serialized between steps (the block is re-hydrated from the database
-#: before every step operates on it). Consumers with their own model run this
-#: list after constructing their (inactive) subscription and putting their
-#: block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+#: step is block-level: the populate step writes the connection data and the
+#: remaining create-form fields onto the block, the shared retrieval step
+#: writes the node role and the discovered ``optical_module_node_software_version``
+#: onto it, and the last step persists the block, because workflow steps execute
+#: with the state serialized between steps (the block is re-hydrated from the
+#: database before every step operates on it). Consumers with their own model
+#: run this list after constructing their (inactive) subscription and putting
+#: their block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
 CREATE_NOKIA_GX_G42_BLOCK_STEPS: StepList = (
     begin
-    >> discover_optical_node_nokia_gx_g42
     >> populate_optical_node_nokia_gx_g42_block_step
+    >> retrieve_optical_node_role_and_software_version
     >> save_optical_node_block
 )
 

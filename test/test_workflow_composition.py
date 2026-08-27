@@ -72,8 +72,8 @@ def test_shipped_type_create_workflow_composition() -> None:
     workflow: Workflow = create_optical_node_nokia_flexils
     assert workflow.name == "create_optical_node_nokia_flexils"
     names = [step.name for step in workflow.steps]
-    assert names.index("Construct Subscription model") < names.index("Discover Nokia FlexILS node properties")
-    assert names.index("Discover Nokia FlexILS node properties") < names.index("Populate Nokia FlexILS node block")
+    assert names.index("Construct Subscription model") < names.index("Populate Nokia FlexILS node block")
+    assert names.index("Populate Nokia FlexILS node block") < names.index("Retrieve node role and software version")
     assert names.index("Construct Subscription model") < names.index("Create Process Subscription relation")
 
 

@@ -81,21 +81,18 @@ from orchestrator.optical.workflows.optical_digital_service.modify_optical_digit
 from orchestrator.optical.workflows.optical_location.create import populate_optical_module_location_block
 from orchestrator.optical.workflows.optical_location.modify import update_optical_module_location_block
 from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
-    discover_optical_node_nokia_flexils,
     populate_optical_node_nokia_flexils_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import (
     update_optical_node_nokia_flexils_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_groove_g30.create import (
-    discover_optical_node_nokia_groove_g30,
     populate_optical_node_nokia_groove_g30_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_groove_g30.modify import (
     update_optical_node_nokia_groove_g30_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_gx_g42.create import (
-    discover_optical_node_nokia_gx_g42,
     populate_optical_node_nokia_gx_g42_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_gx_g42.modify import (
@@ -103,6 +100,9 @@ from orchestrator.optical.workflows.optical_node.nokia_gx_g42.modify import (
 )
 from orchestrator.optical.workflows.optical_node.shared.create import populate_abstract_optical_node_fields
 from orchestrator.optical.workflows.optical_node.shared.modify import update_optical_node_block_fields
+from orchestrator.optical.workflows.optical_node.shared.retrieve import (
+    retrieve_optical_node_role_and_software_version,
+)
 from orchestrator.optical.workflows.optical_pipe.fiber_patch.create import build_fiber_patch_block
 from orchestrator.optical.workflows.optical_pipe.fiber_span.create import build_fiber_span_block
 from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create import build_leased_spectrum_block
@@ -142,27 +142,11 @@ WRITERS = [
             "management.optical_module_node_platform",
         ),
     ),
-    # Block-level discovery steps write the node role and the software version
+    # The shared retrieval step writes the node role and the software version
     # onto the block (the shared helper and the populate functions no longer do).
     _entry(
-        discover_optical_node_nokia_flexils,
-        NokiaFlexIlsBlockInactive,
-        (
-            "optical_node_role",
-            "management.optical_module_node_software_version",
-        ),
-    ),
-    _entry(
-        discover_optical_node_nokia_groove_g30,
-        NokiaGrooveG30BlockInactive,
-        (
-            "optical_node_role",
-            "management.optical_module_node_software_version",
-        ),
-    ),
-    _entry(
-        discover_optical_node_nokia_gx_g42,
-        NokiaGxG42BlockInactive,
+        retrieve_optical_node_role_and_software_version,
+        AbstractOpticalNodeBlockInactive,
         (
             "optical_node_role",
             "management.optical_module_node_software_version",
@@ -398,11 +382,12 @@ NODE_FORM_OPTICAL_FIELDS: dict[str, set[str]] = {
 }
 
 #: Block-level create steps consuming the flat create-form keys, per vendor: the
-#: discovery step (role / software version) and the populate step (the rest).
+#: shared retrieval step (block-only, consumes no flat keys) and the populate
+#: step (the rest).
 NODE_BLOCK_STEP_CONSUMERS = {
-    "flexils": (discover_optical_node_nokia_flexils, populate_optical_node_nokia_flexils_block),
-    "groove_g30": (discover_optical_node_nokia_groove_g30, populate_optical_node_nokia_groove_g30_block),
-    "gx_g42": (discover_optical_node_nokia_gx_g42, populate_optical_node_nokia_gx_g42_block),
+    "flexils": (retrieve_optical_node_role_and_software_version, populate_optical_node_nokia_flexils_block),
+    "groove_g30": (retrieve_optical_node_role_and_software_version, populate_optical_node_nokia_groove_g30_block),
+    "gx_g42": (retrieve_optical_node_role_and_software_version, populate_optical_node_nokia_gx_g42_block),
 }
 
 #: Form fields shown for display only (not stored on the node block by a block step).

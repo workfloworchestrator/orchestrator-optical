@@ -2,7 +2,7 @@
 
 This module ships the ready-to-use ``modify_optical_node_nokia_flexils``
 workflow for the shipped Nokia FlexILS product type, together with the
-importable parts: the FormPage of the modify form (as the
+importable parts: the FormPages of the modify form (as the
 :func:`modify_optical_node_nokia_flexils_form_pages` page sequence, prefilled
 with the current subscription values) and the step list that updates and
 persists the Nokia FlexILS node block found in the state under
@@ -40,13 +40,12 @@ from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_BLOCK_STATE_KEY,
     load_optical_node_block,
+    modify_optical_node_management_form,
     optical_node_block_from_state,
     save_optical_node_block,
     update_optical_node_block_fields,
     validate_gmpls_id_uniqueness,
-    validate_management_ips_uniqueness,
     validate_optical_flexils_target_id_uniqueness,
-    validate_optical_node_fqdn_uniqueness,
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
 
@@ -60,17 +59,17 @@ Instruction = Annotated[
 ]
 
 
-def modify_optical_node_nokia_flexils_form(
+def modify_optical_node_nokia_flexils_vendor_form(
     subscription: SubscriptionModel,
     block_field_name: str = "optical_node",
 ) -> type[FormPage]:
-    """Return the modify FormPage of the Nokia FlexILS Optical Node subscription.
+    """Return the vendor FormPage of the Nokia FlexILS Optical Node modify form.
 
-    The page is prefilled with the current values of the subscription, so
-    unchanged fields remain intact. It validates that at least one of the two
-    DCN IPs is provided and that the FQDN, the DCN IPs, the GMPLS ID and the
-    Target Identifier are not already in use by another Optical Node
-    subscription, excluding the subscription being modified.
+    The page collects the FlexILS-specific fields of the node: the GMPLS ID and
+    the Target Identifier (TID). It is prefilled with the current values of the
+    subscription, so unchanged fields remain intact, and validates that neither
+    the GMPLS ID nor the Target Identifier is already in use by another Nokia
+    FlexILS subscription, excluding the subscription being modified.
 
     Args:
         subscription: The ACTIVE subscription model of the Nokia FlexILS
@@ -80,18 +79,12 @@ def modify_optical_node_nokia_flexils_form(
             holding the Nokia FlexILS node block.
 
     Returns:
-        The prefilled modify FormPage of the shipped modify form.
+        The vendor FormPage of the shipped modify form.
     """
     node = getattr(subscription, block_field_name)
 
-    class ModifyNokiaFlexIlsForm(FormPage):
+    class ModifyNokiaFlexIlsVendorForm(FormPage):
         instruction: Instruction
-        optical_module_node_fqdn: Annotated[
-            Fqdn,
-            Field(title="FQDN of the Optical Node"),
-        ] = node.management.optical_module_node_fqdn
-        optical_module_node_dcn_loopback_ip: IPAddress | None = node.management.optical_module_node_dcn_loopback_ip
-        optical_module_node_dcn_interface_ip: IPAddress | None = node.management.optical_module_node_dcn_interface_ip
         optical_flexils_gmpls_id: Annotated[
             IPAddress,
             Field(title="GMPLS ID of the FlexILS node."),
@@ -102,23 +95,8 @@ def modify_optical_node_nokia_flexils_form(
         ] = node.optical_flexils_target_id
 
         @model_validator(mode="after")
-        def validate_form(self) -> "ModifyNokiaFlexIlsForm":
-            """Raise if the management values are incomplete or not unique."""
-            if not self.optical_module_node_dcn_loopback_ip and not self.optical_module_node_dcn_interface_ip:
-                msg = "At least one of DCN loopback IP or DCN interface IP must be provided."
-                raise ValueError(msg)
-            validate_optical_node_fqdn_uniqueness(
-                self.optical_module_node_fqdn,
-                exclude_subscription_id=str(subscription.subscription_id),
-            )
-            validate_management_ips_uniqueness(
-                [
-                    ip
-                    for ip in (self.optical_module_node_dcn_loopback_ip, self.optical_module_node_dcn_interface_ip)
-                    if ip is not None
-                ],
-                exclude_subscription_id=str(subscription.subscription_id),
-            )
+        def validate_form(self) -> "ModifyNokiaFlexIlsVendorForm":
+            """Raise if the GMPLS ID or the Target Identifier is already in use by another subscription."""
             validate_gmpls_id_uniqueness(
                 self.optical_flexils_gmpls_id,
                 exclude_subscription_id=str(subscription.subscription_id),
@@ -129,7 +107,7 @@ def modify_optical_node_nokia_flexils_form(
             )
             return self
 
-    return ModifyNokiaFlexIlsForm
+    return ModifyNokiaFlexIlsVendorForm
 
 
 def modify_optical_node_nokia_flexils_form_pages(
@@ -138,13 +116,13 @@ def modify_optical_node_nokia_flexils_form_pages(
 ) -> FormGenerator:
     """Yield the FormPage of the Nokia FlexILS Optical Node modify form.
 
-    This is the shipped modify form as a page sequence: it yields the prefilled
-    modify page and returns the collected user input as a flat dict of the
-    ``optical_*`` state keys, consumed by the shipped steps of
-    :data:`MODIFY_NOKIA_FLEXILS_BLOCK_STEPS`. Consumers yield from it in one
-    line inside their own modify form generator, optionally interleaving their
-    own pages. The customer of the subscription is collected separately by the
-    consumer (see
+    This is the shipped modify form as a page sequence: it yields the shared
+    management page and the FlexILS vendor page, and returns the collected user
+    input as a flat dict of the ``optical_*`` state keys, consumed by the
+    shipped steps of :data:`MODIFY_NOKIA_FLEXILS_BLOCK_STEPS`. Consumers yield
+    from it in one line inside their own modify form generator, optionally
+    interleaving their own pages. The customer of the subscription is collected
+    separately by the consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
@@ -157,8 +135,12 @@ def modify_optical_node_nokia_flexils_form_pages(
     Returns:
         The collected user input of the shipped pages.
     """
-    user_input = yield modify_optical_node_nokia_flexils_form(subscription, block_field_name)
-    return user_input.model_dump()
+    user_input_dict: dict[str, object] = {}
+    user_input_dict.update((yield modify_optical_node_management_form(subscription, block_field_name)).model_dump())
+    user_input_dict.update(
+        (yield modify_optical_node_nokia_flexils_vendor_form(subscription, block_field_name)).model_dump()
+    )
+    return user_input_dict
 
 
 def modify_optical_node_nokia_flexils_form_generator(
@@ -242,9 +224,6 @@ def update_optical_node_nokia_flexils_block(
             ``OPTICAL_NODE_BLOCK_STATE_KEY``.
     """
     node_block = optical_node_block_from_state(optical_node_block)
-    if node_block is None:
-        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
     update_optical_node_block_fields(
         node_block,
         optical_module_node_fqdn=optical_module_node_fqdn,
@@ -285,8 +264,8 @@ def modify_optical_node_nokia_flexils() -> StepList:
 __all__ = [
     "MODIFY_NOKIA_FLEXILS_BLOCK_STEPS",
     "modify_optical_node_nokia_flexils",
-    "modify_optical_node_nokia_flexils_form",
     "modify_optical_node_nokia_flexils_form_generator",
     "modify_optical_node_nokia_flexils_form_pages",
+    "modify_optical_node_nokia_flexils_vendor_form",
     "update_optical_node_nokia_flexils_block",
 ]

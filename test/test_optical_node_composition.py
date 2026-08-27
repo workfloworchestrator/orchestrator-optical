@@ -28,10 +28,8 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
     Platform,
     Vendor,
 )
-from orchestrator.optical.workflows.optical_node.nokia_flexils import create as flexils_create
 from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
     CREATE_NOKIA_FLEXILS_BLOCK_STEPS,
-    discover_optical_node_nokia_flexils,
     populate_optical_node_nokia_flexils_block,
     populate_optical_node_nokia_flexils_block_step,
 )
@@ -40,9 +38,13 @@ from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_BLOCK_STATE_KEY,
     OPTICAL_NODE_TERMINATE_STEPS,
     OPTICAL_NODE_VALIDATE_STEPS,
+    retrieve,
 )
 from orchestrator.optical.workflows.optical_node.shared import create as shared_create
 from orchestrator.optical.workflows.optical_node.shared.modify import load_optical_node_block
+from orchestrator.optical.workflows.optical_node.shared.retrieve import (
+    retrieve_optical_node_role_and_software_version,
+)
 
 
 class RouterBlockInactive(ProductBlockModel, product_block_name="TestRouterBlock"):
@@ -229,17 +231,16 @@ def test_populate_block_step_resolves_the_state(monkeypatch) -> None:
     assert str(block.management.optical_module_node_fqdn) == "flex.ba01.example.com"
 
 
-def test_discover_optical_node_nokia_flexils_writes_to_block(monkeypatch) -> None:
-    monkeypatch.setattr(flexils_create, "discover_flexils_node", lambda **_: (OpticalNodeRole.ROADM, "9.0"))
+def test_retrieve_optical_node_role_and_software_version_writes_to_block(monkeypatch) -> None:
+    monkeypatch.setattr(
+        retrieve,
+        "_retrieve_optical_node_role_and_software_version",
+        lambda _: (OpticalNodeRole.ROADM, "9.0"),
+    )
     block = _make_flexils_block()
-    state = {
-        OPTICAL_NODE_BLOCK_STATE_KEY: block,
-        "location_id": str(uuid.uuid4()),
-        "optical_flexils_target_id": "TID-1",
-        "optical_flexils_gmpls_id": "10.0.0.3",
-    }
+    state = {OPTICAL_NODE_BLOCK_STATE_KEY: block}
 
-    wrapped = inject_args(discover_optical_node_nokia_flexils.__wrapped__)  # type: ignore[unresolved-attribute]
+    wrapped = inject_args(retrieve_optical_node_role_and_software_version.__wrapped__)  # type: ignore[unresolved-attribute]
     result = wrapped(dict(state))
 
     assert result[OPTICAL_NODE_BLOCK_STATE_KEY] is block
