@@ -22,6 +22,7 @@ from orchestrator.core.workflow import Workflow, begin
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow, modify_workflow, terminate_workflow, validate_workflow
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
+from orchestrator.optical.workflows import customer as customer_parts
 from orchestrator.optical.workflows.optical_pipe import shared as pipe_shared
 from orchestrator.optical.workflows.optical_pipe.fiber_patch.create import (
     CREATE_FIBER_PATCH_BLOCK_STEPS,
@@ -89,7 +90,6 @@ def _fake_node_block_from_subscription(node_subscription_id: str) -> SimpleNames
 
 def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch, module: Any) -> None:
     """Patch the DB/device-backed form selectors of a pipe create module with DB-free fakes."""
-    monkeypatch.setattr(module, "customer_choice_selector", _fake_customer_choice)
     monkeypatch.setattr(module, "optical_node_selector", _fake_node_choice)
     monkeypatch.setattr(module, "node_block_from_subscription", _fake_node_block_from_subscription)
     monkeypatch.setattr(module, "get_device_line_ports_names", Mock(return_value=["port-a-1", "port-b-1"]))
@@ -152,9 +152,9 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None
 
     page_1 = next(generator)
     assert issubclass(page_1, FormPage)
-    assert set(page_1.model_fields) == {"customer_id", "node_a_id", "node_b_id"}
+    assert set(page_1.model_fields) == {"node_a_id", "node_b_id"}
 
-    page_2 = generator.send(page_1(customer_id="cust-1", node_a_id="node-a", node_b_id="node-b"))
+    page_2 = generator.send(page_1(node_a_id="node-a", node_b_id="node-b"))
     assert issubclass(page_2, FormPage)
     assert set(page_2.model_fields) == {"optical_pipe_name", "port_a_name", "port_b_name"}
 
@@ -163,7 +163,6 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None
         page_2(optical_pipe_name="span-01", port_a_name="port-a-1", port_b_name="port-b-1"),
     )
     assert user_input == {
-        "customer_id": "cust-1",
         "node_a_id": "node-a",
         "node_b_id": "node-b",
         "optical_pipe_name": "span-01",
@@ -174,15 +173,18 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None
 
 def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) -> None:
     """Consumers yield from the shipped page sequence in one line and get the flat keys back."""
+    monkeypatch.setattr(customer_parts, "customer_choice_selector", _fake_customer_choice)
     _monkeypatch_create_selectors(monkeypatch, fiber_span_create)
 
     def my_create_form_generator(product_name):
-        user_input_dict = yield from fiber_span_create.create_fiber_span_form_pages(product_name)
+        user_input_dict = yield from customer_parts.customer_choice_form_pages()
+        user_input_dict.update((yield from fiber_span_create.create_fiber_span_form_pages(product_name)))
         return user_input_dict
 
     generator = my_create_form_generator("Optical Fiber Span")
-    page_1 = next(generator)
-    page_2 = generator.send(page_1(customer_id="cust-1", node_a_id="node-a", node_b_id="node-b"))
+    customer_page = next(generator)
+    page_1 = generator.send(customer_page(customer_id="cust-1"))
+    page_2 = generator.send(page_1(node_a_id="node-a", node_b_id="node-b"))
     user_input = _finish_form(
         generator,
         page_2(optical_pipe_name="span-01", port_a_name="port-a-1", port_b_name="port-b-1"),
@@ -196,10 +198,8 @@ def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) ->
     assert user_input["port_b_name"] == "port-b-1"
 
 
-def test_modify_form_pages_yield_the_prefilled_page(monkeypatch) -> None:
+def test_modify_form_pages_yield_the_prefilled_page() -> None:
     """The modify page sequence yields a page prefilled with the current pipe name."""
-    monkeypatch.setattr(fiber_span_modify, "customer_choice_selector", _fake_customer_choice)
-
     block = _make_span_block("span-01")
     subscription = cast(
         Any,
@@ -209,11 +209,10 @@ def test_modify_form_pages_yield_the_prefilled_page(monkeypatch) -> None:
     generator = fiber_span_modify.modify_fiber_span_form_pages(subscription)
     page = next(generator)
     assert issubclass(page, FormPage)
-    assert set(page.model_fields) == {"customer_id", "optical_pipe_name"}
+    assert set(page.model_fields) == {"optical_pipe_name"}
     assert page.model_fields["optical_pipe_name"].default == "span-01"
 
-    user_input = _finish_form(generator, page(customer_id="cust-1", optical_pipe_name="span-02"))
-    assert user_input["customer_id"] == "cust-1"
+    user_input = _finish_form(generator, page(optical_pipe_name="span-02"))
     assert user_input["optical_pipe_name"] == "span-02"
 
 

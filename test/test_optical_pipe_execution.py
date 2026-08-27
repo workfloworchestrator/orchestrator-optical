@@ -71,7 +71,8 @@ def _create_pipe_user_inputs(
         terminations.update(extra_terminations)
     return [
         {"product": product_id},
-        {"customer_id": CUSTOMER_ID, "node_a_id": node_a_id, "node_b_id": node_b_id},
+        {"customer_id": CUSTOMER_ID},
+        {"node_a_id": node_a_id, "node_b_id": node_b_id},
         terminations,
         {},
     ]
@@ -131,7 +132,8 @@ def test_fiber_span_full_lifecycle(
         "modify_fiber_span",
         [
             {"subscription_id": subscription_id},
-            {"customer_id": CUSTOMER_ID, "optical_pipe_name": "span-02"},
+            {"customer_id": CUSTOMER_ID},
+            {"optical_pipe_name": "span-02"},
             {},
         ],
     )
@@ -187,7 +189,8 @@ def test_fiber_span_create_rejects_same_node(
             "create_fiber_span",
             [
                 {"product": product_id_for(FIBER_SPAN_PRODUCT)},
-                {"customer_id": CUSTOMER_ID, "node_a_id": node_a, "node_b_id": node_a},
+                {"customer_id": CUSTOMER_ID},
+                {"node_a_id": node_a, "node_b_id": node_a},
             ],
         )
 

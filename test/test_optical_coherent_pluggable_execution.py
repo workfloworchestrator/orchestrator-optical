@@ -72,11 +72,11 @@ def _subscription(subscription_id: str) -> SubscriptionTable:
 
 
 def _create_user_inputs(product_id_for, host_node_id: str) -> list[dict]:
-    """Form pages of the shipped create workflow: product, pluggable data, summary."""
+    """Form pages of the shipped create workflow: product, customer, pluggable data, summary."""
     return [
         {"product": product_id_for(PRODUCT_NAME)},
+        {"customer_id": CUSTOMER_ID},
         {
-            "customer_id": CUSTOMER_ID,
             "optical_packet_node_id": host_node_id,
             "optical_coherent_pluggable_part_number": PART_NUMBER.value,
             "optical_port_name": PORT_NAME,
@@ -143,8 +143,8 @@ def test_full_lifecycle_create_modify_validate_terminate(
         "modify_optical_coherent_pluggable",
         [
             {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
             {
-                "customer_id": CUSTOMER_ID,
                 "instruction": "Update the firmware version",
                 "optical_port_description": PORT_DESCRIPTION,
                 "optical_coherent_pluggable_firmware_version": MODIFIED_FIRMWARE_VERSION,

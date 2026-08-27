@@ -29,6 +29,7 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
+from orchestrator.optical.workflows import customer as customer_parts
 from orchestrator.optical.workflows.optical_location import create as location_create
 from orchestrator.optical.workflows.optical_location import modify as location_modify
 from orchestrator.optical.workflows.optical_location import shared as location_shared
@@ -388,20 +389,13 @@ def test_create_identity_form_rejects_duplicate_location_code(monkeypatch) -> No
         raise ValueError(msg)
 
     monkeypatch.setattr(location_create, "check_location_code_uniqueness", fake_check)
-    page = cast(
-        Any,
-        location_create.create_optical_module_location_identity_form(
-            "Optical Module Location", _fake_customer_choice()
-        ),
-    )
+    page = cast(Any, location_create.create_optical_module_location_identity_form("Optical Module Location"))
 
     with pytest.raises(ValueError, match="already in use"):
-        page(customer_id="cust-1", location_code="rom-01", location_name="Rome")
+        page(location_code="rom-01", location_name="Rome")
 
 
 def test_modify_form_rejects_duplicate_location_code_excluding_self(monkeypatch) -> None:
-    monkeypatch.setattr(location_modify, "customer_choice_selector", _fake_customer_choice)
-
     block = _make_location_block()
     block.longitude = "4.9041"
     block.latitude = "52.3676"
@@ -422,7 +416,6 @@ def test_modify_form_rejects_duplicate_location_code_excluding_self(monkeypatch)
 
     with pytest.raises(ValueError, match="already in use"):
         page(
-            customer_id="cust-1",
             longitude="4.9041",
             latitude="52.3676",
             location_code="ams-01",
@@ -530,22 +523,19 @@ def _finish_form(generator, page_instance: FormPage) -> dict[str, Any]:
     return exc_info.value.value
 
 
-def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None:
-    monkeypatch.setattr(location_create, "customer_choice_selector", _fake_customer_choice)
-
+def test_create_form_pages_yield_the_shipped_pages_in_order() -> None:
     generator = location_create.create_optical_module_location_form_pages("Optical Module Location")
 
     page_1 = next(generator)
     assert issubclass(page_1, FormPage)
-    assert set(page_1.model_fields) == {"customer_id", "location_code", "location_name"}
+    assert set(page_1.model_fields) == {"location_code", "location_name"}
 
-    page_2 = generator.send(page_1(customer_id="cust-1", location_code="rom-01", location_name="Rome"))
+    page_2 = generator.send(page_1(location_code="rom-01", location_name="Rome"))
     assert issubclass(page_2, FormPage)
     assert set(page_2.model_fields) == {"longitude", "latitude"}
 
     user_input = _finish_form(generator, page_2(longitude="12.4964", latitude="41.9028"))
     assert user_input == {
-        "customer_id": "cust-1",
         "longitude": "12.4964",
         "latitude": "41.9028",
         "location_code": "rom-01",
@@ -553,16 +543,30 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None
     }
 
 
+def test_customer_choice_form_pages_yield_the_customer_page(monkeypatch) -> None:
+    monkeypatch.setattr(customer_parts, "customer_choice_selector", _fake_customer_choice)
+
+    generator = customer_parts.customer_choice_form_pages()
+    page = next(generator)
+    assert issubclass(page, FormPage)
+    assert set(page.model_fields) == {"customer_id"}
+
+    user_input = _finish_form(generator, page(customer_id="cust-1"))
+    assert user_input == {"customer_id": "cust-1"}
+
+
 def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) -> None:
-    monkeypatch.setattr(location_create, "customer_choice_selector", _fake_customer_choice)
+    monkeypatch.setattr(customer_parts, "customer_choice_selector", _fake_customer_choice)
 
     def my_create_form_generator(product_name):
-        user_input_dict = yield from location_create.create_optical_module_location_form_pages(product_name)
+        user_input_dict = yield from customer_parts.customer_choice_form_pages()
+        user_input_dict.update((yield from location_create.create_optical_module_location_form_pages(product_name)))
         return user_input_dict
 
     generator = my_create_form_generator("Optical Module Location")
-    page_1 = next(generator)
-    page_2 = generator.send(page_1(customer_id="cust-1", location_code="rom-01", location_name="Rome"))
+    customer_page = next(generator)
+    page_1 = generator.send(customer_page(customer_id="cust-1"))
+    page_2 = generator.send(page_1(location_code="rom-01", location_name="Rome"))
     user_input = _finish_form(generator, page_2(longitude="12.4964", latitude="41.9028"))
 
     assert user_input["customer_id"] == "cust-1"
@@ -570,9 +574,7 @@ def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) ->
     assert user_input["location_name"] == "Rome"
 
 
-def test_modify_form_pages_yield_the_prefilled_page(monkeypatch) -> None:
-    monkeypatch.setattr(location_modify, "customer_choice_selector", _fake_customer_choice)
-
+def test_modify_form_pages_yield_the_prefilled_page() -> None:
     block = _make_location_block()
     block.longitude = "4.9041"
     block.latitude = "52.3676"
@@ -595,7 +597,6 @@ def test_modify_form_pages_yield_the_prefilled_page(monkeypatch) -> None:
     user_input = _finish_form(
         generator,
         page(
-            customer_id="cust-1",
             longitude="4.9041",
             latitude="52.3676",
             location_code="ams-01",

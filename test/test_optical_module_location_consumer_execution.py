@@ -49,6 +49,7 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
+from orchestrator.optical.workflows.customer import customer_choice_form_pages
 from orchestrator.optical.workflows.optical_location.create import (
     CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
     create_optical_module_location_form_generator,
@@ -57,7 +58,6 @@ from orchestrator.optical.workflows.optical_location.modify import (
     MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
     modify_optical_module_location_form_pages,
 )
-from orchestrator.optical.workflows.shared import modify_summary_form
 from orchestrator.optical.workflows.optical_location.shared import (
     OPTICAL_LOCATION_BLOCK_STATE_KEY,
     set_optical_module_location_subscription_description,
@@ -67,6 +67,7 @@ from orchestrator.optical.workflows.optical_location.terminate import (
     terminate_initial_input_form_generator,
 )
 from orchestrator.optical.workflows.optical_location.validate import OPTICAL_MODULE_LOCATION_VALIDATE_STEPS
+from orchestrator.optical.workflows.shared import modify_summary_form
 from test.test_optical_module_location_composition import (
     AbstractRouter,
     AbstractRouterInactive,
@@ -158,9 +159,8 @@ def modify_consumer_router_location_form_generator(subscription_id: UUIDstr) -> 
     subscription = AbstractRouter.from_subscription(subscription_id)
     location = subscription.router.for_the_optical_module
 
-    user_input_dict = yield from modify_optical_module_location_form_pages(
-        subscription, location=location
-    )
+    user_input_dict = yield from customer_choice_form_pages(include=str(subscription.customer_id))
+    user_input_dict.update((yield from modify_optical_module_location_form_pages(subscription, location=location)))
     yield from modify_summary_form(
         user_input_dict,
         location,
@@ -255,7 +255,8 @@ def consumer_router_catalog(postgres_database: Any) -> None:
 def _consumer_create_inputs(product_id_for: Callable[[str], str], location_code: str, location_name: str) -> list[dict]:
     return [
         {"product": product_id_for(CONSUMER_PRODUCT_NAME)},
-        {"customer_id": CUSTOMER_ID, "location_code": location_code, "location_name": location_name},
+        {"customer_id": CUSTOMER_ID},
+        {"location_code": location_code, "location_name": location_name},
         {"longitude": "12.4964", "latitude": "41.9028"},
         {},
     ]
@@ -264,7 +265,8 @@ def _consumer_create_inputs(product_id_for: Callable[[str], str], location_code:
 def _shipped_create_inputs(product_id_for: Callable[[str], str], location_code: str, location_name: str) -> list[dict]:
     return [
         {"product": product_id_for(SHIPPED_PRODUCT_NAME)},
-        {"customer_id": CUSTOMER_ID, "location_code": location_code, "location_name": location_name},
+        {"customer_id": CUSTOMER_ID},
+        {"location_code": location_code, "location_name": location_name},
         {"longitude": "12.4964", "latitude": "41.9028"},
         {},
     ]
@@ -369,8 +371,8 @@ def test_consumer_full_lifecycle_create_modify_terminate_validate(
         "modify_consumer_router_location",
         [
             {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
             {
-                "customer_id": CUSTOMER_ID,
                 "longitude": "4.9041",
                 "latitude": "52.3676",
                 "location_code": "ams-01",
@@ -481,8 +483,8 @@ def test_shipped_create_rejects_code_used_by_consumer_location(
         "modify_consumer_router_location",
         [
             {"subscription_id": consumer_subscription_id},
+            {"customer_id": CUSTOMER_ID},
             {
-                "customer_id": CUSTOMER_ID,
                 "longitude": "12.4964",
                 "latitude": "41.9028",
                 "location_code": "dup-01",
@@ -515,8 +517,8 @@ def test_consumer_modify_keeps_own_location_code(
         "modify_consumer_router_location",
         [
             {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
             {
-                "customer_id": CUSTOMER_ID,
                 "longitude": "12.4964",
                 "latitude": "41.9028",
                 "location_code": "rom-01",

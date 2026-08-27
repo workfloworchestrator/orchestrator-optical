@@ -47,7 +47,8 @@ CUSTOMER_ID = "cust-1"
 def _create_user_inputs(product_id_for) -> list[dict]:
     return [
         {"product": product_id_for(PRODUCT_NAME)},
-        {"customer_id": CUSTOMER_ID, "location_code": "rom-01", "location_name": "Rome"},
+        {"customer_id": CUSTOMER_ID},
+        {"location_code": "rom-01", "location_name": "Rome"},
         {"longitude": "12.4964", "latitude": "41.9028"},
         {},
     ]
@@ -121,8 +122,8 @@ def test_full_lifecycle_create_modify_terminate_validate(
         "modify_optical_module_location",
         [
             {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
             {
-                "customer_id": CUSTOMER_ID,
                 "longitude": "4.9041",
                 "latitude": "52.3676",
                 "location_code": "ams-01",
@@ -214,8 +215,8 @@ def test_modify_keeps_own_location_code(
         "modify_optical_module_location",
         [
             {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
             {
-                "customer_id": CUSTOMER_ID,
                 "longitude": "12.4964",
                 "latitude": "41.9028",
                 "location_code": "rom-01",

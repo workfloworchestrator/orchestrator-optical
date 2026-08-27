@@ -45,11 +45,11 @@ def _subscription_table(subscription_id: str) -> SubscriptionTable:
 def _flexils_create_user_inputs(
     product_id: str, location_id: str, fqdn: str, interface_ip: str, loopback_ip: str
 ) -> list[dict[str, Any]]:
-    """Return the create form inputs of a Nokia FlexILS node (product, identity, management, summary)."""
+    """Return the create form inputs of a Nokia FlexILS node (product, customer, identity, management, summary)."""
     return [
         {"product": product_id},
+        {"customer_id": CUSTOMER_ID},
         {
-            "customer_id": CUSTOMER_ID,
             "location_id": location_id,
             "optical_module_node_fqdn": fqdn,
             "optical_flexils_target_id": fqdn,
@@ -66,11 +66,12 @@ def _flexils_create_user_inputs(
 def _transponder_create_user_inputs(
     product_id: str, location_id: str, fqdn: str, interface_ip: str, loopback_ip: str
 ) -> list[dict[str, Any]]:
-    """Return the create form inputs of a G30 / G42 transponder node (product, identity, management, summary)."""
+    """Return the create form inputs of a G30 / G42 transponder node (product, customer,
+    identity, management, summary)."""
     return [
         {"product": product_id},
+        {"customer_id": CUSTOMER_ID},
         {
-            "customer_id": CUSTOMER_ID,
             "location_id": location_id,
             "optical_node_role": "Transponder",
             "optical_module_node_fqdn": fqdn,
@@ -215,8 +216,8 @@ def test_node_full_lifecycle_g30(
         "modify_optical_node_nokia_groove_g30",
         [
             {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
             {
-                "customer_id": CUSTOMER_ID,
                 "optical_module_node_fqdn": "g30-life-02.optical.test",
                 "optical_module_node_dcn_interface_ip": "192.0.2.41",
                 "optical_module_node_dcn_loopback_ip": "192.0.2.42",

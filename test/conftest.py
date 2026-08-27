@@ -651,7 +651,8 @@ def active_location(run_process: Callable[[str, list[dict[str, Any]]], str]) -> 
         "create_optical_module_location",
         [
             {"product": _product_id_of("Optical Module Location")},
-            {"customer_id": CUSTOMER_ID, "location_code": "loc-01", "location_name": "Test Location"},
+            {"customer_id": CUSTOMER_ID},
+            {"location_code": "loc-01", "location_name": "Test Location"},
             {"longitude": "12.4964", "latitude": "41.9028"},
             {},
         ],
@@ -709,7 +710,6 @@ def seed_optical_node(
         """
         install_device_stubs(monkeypatch, families=("node",))
         identity: dict[str, Any] = {
-            "customer_id": CUSTOMER_ID,
             "location_id": active_location,
             "optical_module_node_fqdn": fqdn,
         }
@@ -734,7 +734,13 @@ def seed_optical_node(
                     "'Nokia FlexILS Optical Node', 'Nokia Groove G30 Optical Node' and 'Nokia GX G42 Optical Node'"
                 )
                 raise ValueError(msg)
-        user_inputs: list[dict[str, Any]] = [{"product": _product_id_of(product_name)}, identity, management, {}]
+        user_inputs: list[dict[str, Any]] = [
+            {"product": _product_id_of(product_name)},
+            {"customer_id": CUSTOMER_ID},
+            identity,
+            management,
+            {},
+        ]
         process_id = run_process(workflow_name, user_inputs)
         _assert_process_completed(process_id)
         return _subscription_id_of_process(process_id)
