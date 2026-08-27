@@ -159,7 +159,5 @@ def modify_fiber_span() -> StepList:
 __all__ = [
     "MODIFY_FIBER_SPAN_BLOCK_STEPS",
     "modify_fiber_span",
-    "modify_fiber_span_form",
-    "modify_fiber_span_form_generator",
     "modify_fiber_span_form_pages",
 ]

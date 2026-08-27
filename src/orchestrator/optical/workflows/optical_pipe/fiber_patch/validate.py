@@ -51,7 +51,5 @@ def validate_fiber_patch() -> StepList:
 
 __all__ = [
     "FIBER_PATCH_VALIDATE_STEPS",
-    "check_patch_terminations",
-    "load_initial_state_fiber_patch",
     "validate_fiber_patch",
 ]

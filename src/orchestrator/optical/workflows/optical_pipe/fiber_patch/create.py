@@ -81,7 +81,7 @@ def patch_ports_of_node(node_block: AbstractOpticalNodeBlockInactive) -> list[st
     return list(dict.fromkeys([*client_ports, *all_ports]))
 
 
-def create_fiber_patch_identity_form(
+def create_fiber_patch_customer_and_nodes_form(
     product_name: str,
     customer_choice: type[Choice],
     node_choice: type[Choice],
@@ -107,7 +107,7 @@ def create_fiber_patch_identity_form(
         The identity FormPage of the shipped create form.
     """
 
-    class CreateFiberPatchIdentityForm(FormPage):
+    class CreateFiberPatchCustomerAndNodesForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
         customer_id: customer_choice
@@ -115,14 +115,14 @@ def create_fiber_patch_identity_form(
         node_b_id: node_choice
 
         @model_validator(mode="after")
-        def validate_distinct_nodes(self) -> "CreateFiberPatchIdentityForm":
+        def validate_distinct_nodes(self) -> "CreateFiberPatchCustomerAndNodesForm":
             """Raise if the two ends of the patch are on the same node."""
             if self.node_a_id == self.node_b_id:
                 msg = "The two ends of a fiber patch must be on different nodes."
                 raise ValueError(msg)
             return self
 
-    return CreateFiberPatchIdentityForm
+    return CreateFiberPatchCustomerAndNodesForm
 
 
 def create_fiber_patch_terminations_form(
@@ -153,13 +153,13 @@ def create_fiber_patch_terminations_form(
     class CreateFiberPatchTerminationsForm(FormPage):
         model_config = ConfigDict(title=f"{product_name} - Terminations")
 
+        port_a_name: port_a_choice
+        port_b_name: port_b_choice
         optical_pipe_name: str | None = Field(
             None,
             title="Fiber Patch Identifier",
             description="Unique patch ID or code. Leave empty to use the default 'node A port A --- node B port B'.",
         )
-        port_a_name: port_a_choice
-        port_b_name: port_b_choice
 
     return CreateFiberPatchTerminationsForm
 
@@ -180,13 +180,15 @@ def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
     Returns:
         The collected user input of the shipped pages.
     """
-    node_choice = optical_node_selector(prompt="This fiber patch connects this node:")
     customer_choice = customer_choice_selector()
+    node_choice = optical_node_selector(prompt="This fiber patch connects this node:")
 
     user_input_dict: dict[str, Any] = {}
-    user_input_dict.update(
-        (yield create_fiber_patch_identity_form(product_name, customer_choice, node_choice)).model_dump()
+
+    customer_and_nodes_input = yield create_fiber_patch_customer_and_nodes_form(
+        product_name, customer_choice, node_choice
     )
+    user_input_dict.update(customer_and_nodes_input.model_dump())
 
     node_a_block = node_block_from_subscription(user_input_dict["node_a_id"])
     node_b_block = node_block_from_subscription(user_input_dict["node_b_id"])
@@ -201,9 +203,9 @@ def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
         patch_ports_of_node(node_b_block),
         prompt=f"Select an unused port on {node_b_block.management.optical_module_node_fqdn}",
     )
-    user_input_dict.update(
-        (yield create_fiber_patch_terminations_form(product_name, port_a_choice, port_b_choice)).model_dump()
-    )
+
+    terminations_input = yield create_fiber_patch_terminations_form(product_name, port_a_choice, port_b_choice)
+    user_input_dict.update(terminations_input.model_dump())
 
     user_input_dict["optical_pipe_name"] = user_input_dict["optical_pipe_name"] or default_pipe_identifier(
         node_a_block, user_input_dict["port_a_name"], node_b_block, user_input_dict["port_b_name"]
@@ -384,13 +386,6 @@ def create_fiber_patch() -> StepList:
 
 __all__ = [
     "CREATE_FIBER_PATCH_BLOCK_STEPS",
-    "build_fiber_patch_block",
-    "configure_patch_terminations",
-    "construct_fiber_patch_subscription",
     "create_fiber_patch",
-    "create_fiber_patch_form_generator",
     "create_fiber_patch_form_pages",
-    "create_fiber_patch_identity_form",
-    "create_fiber_patch_terminations_form",
-    "patch_ports_of_node",
 ]

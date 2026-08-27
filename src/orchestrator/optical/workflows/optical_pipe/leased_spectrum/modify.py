@@ -161,7 +161,5 @@ def modify_leased_spectrum() -> StepList:
 __all__ = [
     "MODIFY_LEASED_SPECTRUM_BLOCK_STEPS",
     "modify_leased_spectrum",
-    "modify_leased_spectrum_form",
-    "modify_leased_spectrum_form_generator",
     "modify_leased_spectrum_form_pages",
 ]

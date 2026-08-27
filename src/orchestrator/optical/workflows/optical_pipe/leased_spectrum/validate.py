@@ -79,8 +79,5 @@ def validate_leased_spectrum() -> StepList:
 
 __all__ = [
     "LEASED_SPECTRUM_VALIDATE_STEPS",
-    "check_leased_spectrum_terminations",
-    "load_initial_state_leased_spectrum",
-    "retrieve_leased_spectrum_used_passbands",
     "validate_leased_spectrum",
 ]

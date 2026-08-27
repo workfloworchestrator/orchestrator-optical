@@ -378,13 +378,6 @@ def create_fiber_span() -> StepList:
 
 __all__ = [
     "CREATE_FIBER_SPAN_BLOCK_STEPS",
-    "build_fiber_span_block",
-    "configure_span_terminations",
-    "construct_fiber_span_subscription",
     "create_fiber_span",
-    "create_fiber_span_form_generator",
     "create_fiber_span_form_pages",
-    "create_fiber_span_identity_form",
-    "create_fiber_span_terminations_form",
-    "retrieve_span_used_passbands",
 ]

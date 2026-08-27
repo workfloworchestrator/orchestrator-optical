@@ -128,9 +128,6 @@ def terminate_fiber_span() -> StepList:
 
 __all__ = [
     "FIBER_SPAN_TERMINATE_STEPS",
-    "factory_reset_span_ports",
     "terminate_fiber_span",
-    "terminate_fiber_span_form",
     "terminate_fiber_span_form_pages",
-    "terminate_initial_input_form_generator",
 ]

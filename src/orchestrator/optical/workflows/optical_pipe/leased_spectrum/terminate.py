@@ -126,9 +126,6 @@ def terminate_leased_spectrum() -> StepList:
 
 __all__ = [
     "LEASED_SPECTRUM_TERMINATE_STEPS",
-    "factory_reset_leased_spectrum_ports",
-    "terminate_initial_input_form_generator",
     "terminate_leased_spectrum",
-    "terminate_leased_spectrum_form",
     "terminate_leased_spectrum_form_pages",
 ]

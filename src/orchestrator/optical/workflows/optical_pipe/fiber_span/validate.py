@@ -75,8 +75,5 @@ def validate_fiber_span() -> StepList:
 
 __all__ = [
     "FIBER_SPAN_VALIDATE_STEPS",
-    "check_span_terminations",
-    "load_initial_state_fiber_span",
-    "retrieve_span_used_passbands",
     "validate_fiber_span",
 ]

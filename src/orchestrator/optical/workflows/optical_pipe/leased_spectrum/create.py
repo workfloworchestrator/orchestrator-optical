@@ -435,14 +435,6 @@ def create_leased_spectrum() -> StepList:
 
 __all__ = [
     "CREATE_LEASED_SPECTRUM_BLOCK_STEPS",
-    "build_leased_spectrum_block",
-    "configure_leased_spectrum_terminations",
-    "construct_leased_spectrum_subscription",
     "create_leased_spectrum",
-    "create_leased_spectrum_form_generator",
     "create_leased_spectrum_form_pages",
-    "create_leased_spectrum_identity_form",
-    "create_leased_spectrum_terminations_form",
-    "leased_spectrum_ports_of_node",
-    "retrieve_leased_spectrum_used_passbands",
 ]
