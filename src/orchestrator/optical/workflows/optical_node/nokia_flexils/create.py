@@ -45,7 +45,6 @@ from orchestrator.optical.products.product_types.optical_node.nokia_flexils impo
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_form_pages
-from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_BLOCK_STATE_KEY,
     optical_node_block_from_state,
@@ -53,37 +52,39 @@ from orchestrator.optical.workflows.optical_node.shared import (
     save_optical_node_block,
     update_optical_node_subscription_description,
     validate_gmpls_id_uniqueness,
-    validate_management_ips_uniqueness,
     validate_optical_flexils_target_id_uniqueness,
-    validate_optical_node_fqdn_uniqueness,
+)
+from orchestrator.optical.workflows.optical_node.shared.forms import (
+    create_optical_node_location_form,
+    create_optical_node_management_form,
 )
 from orchestrator.optical.workflows.shared import create_summary_form
 
 
-def create_optical_node_nokia_flexils_identity_form(product_name: str) -> type[FormPage]:
-    """Return the identity FormPage of the Nokia FlexILS Optical Node create form.
+def create_optical_node_nokia_flexils_vendor_form(product_name: str) -> type[FormPage]:
+    """Return the vendor FormPage of the Nokia FlexILS Optical Node create form.
 
-    This is the first page of the shipped create form: the location, the FQDN
+    This is the FlexILS-specific page of the shipped create form: the GMPLS ID
     and the Target Identifier (TID) of the node. It is a building block for
     consumers that compose their own create form generator: the shipped page
     sequence (:func:`create_optical_node_nokia_flexils_form_pages`) yields it
-    first. The page validates that the FQDN and the Target Identifier are not
-    already in use by another Optical Node subscription.
+    after the shared location and management pages. The page validates that
+    the GMPLS ID and the Target Identifier are not already in use by another
+    Nokia FlexILS subscription.
 
     Args:
         product_name: Name of the product being created, used as the page title.
 
     Returns:
-        The identity FormPage of the shipped create form.
+        The vendor FormPage of the shipped create form.
     """
 
-    class CreateNokiaFlexIlsIdentityForm(FormPage):
-        model_config = ConfigDict(title=f"{product_name} - Identity")
+    class CreateNokiaFlexIlsVendorForm(FormPage):
+        model_config = ConfigDict(title=f"{product_name} - FlexILS")
 
-        location_id: active_location_subscription_selector()
-        optical_module_node_fqdn: Annotated[
-            Fqdn,
-            Field(title="FQDN of the Optical Node"),
+        optical_flexils_gmpls_id: Annotated[
+            IPAddress,
+            Field(title="GMPLS ID of the FlexILS node."),
         ]
         optical_flexils_target_id: Annotated[
             str,
@@ -91,66 +92,26 @@ def create_optical_node_nokia_flexils_identity_form(product_name: str) -> type[F
         ]
 
         @model_validator(mode="after")
-        def validate_identity(self) -> "CreateNokiaFlexIlsIdentityForm":
-            """Raise if the FQDN or the Target Identifier is already in use by another subscription."""
-            validate_optical_node_fqdn_uniqueness(self.optical_module_node_fqdn)
+        def validate_form(self) -> "CreateNokiaFlexIlsVendorForm":
+            """Raise if the GMPLS ID or the Target Identifier is already in use by another subscription."""
+            validate_gmpls_id_uniqueness(self.optical_flexils_gmpls_id)
             validate_optical_flexils_target_id_uniqueness(self.optical_flexils_target_id)
             return self
 
-    return CreateNokiaFlexIlsIdentityForm
-
-
-def create_optical_node_nokia_flexils_management_form(product_name: str) -> type[FormPage]:
-    """Return the management FormPage of the Nokia FlexILS Optical Node create form.
-
-    This is the second page of the shipped create form: the mandatory GMPLS ID
-    and the optional DCN interface and loopback IPs of the node. The page
-    validates that the DCN IPs and the GMPLS ID are not already in use by
-    another Optical Node subscription.
-
-    Args:
-        product_name: Name of the product being created, used as the page title.
-
-    Returns:
-        The management FormPage of the shipped create form.
-    """
-
-    class CreateNokiaFlexIlsManagementForm(FormPage):
-        model_config = ConfigDict(title=f"{product_name} - Management")
-
-        optical_module_node_dcn_loopback_ip: IPAddress | None = None
-        optical_module_node_dcn_interface_ip: IPAddress | None = None
-        optical_flexils_gmpls_id: Annotated[
-            IPAddress,
-            Field(title="GMPLS ID of the FlexILS node."),
-        ]
-
-        @model_validator(mode="after")
-        def validate_form(self) -> "CreateNokiaFlexIlsManagementForm":
-            """Raise if the management values are not unique."""
-            validate_management_ips_uniqueness(
-                [
-                    ip
-                    for ip in (self.optical_module_node_dcn_loopback_ip, self.optical_module_node_dcn_interface_ip)
-                    if ip is not None
-                ]
-            )
-            validate_gmpls_id_uniqueness(self.optical_flexils_gmpls_id)
-            return self
-
-    return CreateNokiaFlexIlsManagementForm
+    return CreateNokiaFlexIlsVendorForm
 
 
 def create_optical_node_nokia_flexils_form_pages(product_name: str) -> FormGenerator:
     """Yield the FormPages of the Nokia FlexILS Optical Node create form, in order.
 
-    This is the shipped create form as a page sequence: it yields the identity
-    page and the management page, and returns the collected user input as a
-    flat dict of the ``optical_*`` state keys plus ``location_id``, consumed by
-    the shipped steps of :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`. Consumers
-    yield from it in one line inside their own create form generator,
-    optionally interleaving their own pages. The customer of the subscription
-    is collected separately by the consumer (see
+    This is the shipped create form as a page sequence: it yields the shared
+    location page and management page, then the FlexILS vendor page, and
+    returns the collected user input as a flat dict of the ``optical_*`` state
+    keys plus ``location_id``, consumed by the shipped steps of
+    :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`. Consumers yield from it in one
+    line inside their own create form generator, optionally interleaving their
+    own pages. The customer of the subscription is collected separately by the
+    consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
 
     Args:
@@ -160,10 +121,9 @@ def create_optical_node_nokia_flexils_form_pages(product_name: str) -> FormGener
         The collected user input of the shipped pages.
     """
     user_input_dict: dict[str, str | None] = {}
-    identity_input = yield create_optical_node_nokia_flexils_identity_form(product_name)
-    user_input_dict.update(identity_input.model_dump())
-    management_input = yield create_optical_node_nokia_flexils_management_form(product_name)
-    user_input_dict.update(management_input.model_dump())
+    user_input_dict.update((yield create_optical_node_location_form(product_name)).model_dump())
+    user_input_dict.update((yield create_optical_node_management_form(product_name, require_dcn_ip=False)).model_dump())
+    user_input_dict.update((yield create_optical_node_nokia_flexils_vendor_form(product_name)).model_dump())
     return user_input_dict
 
 

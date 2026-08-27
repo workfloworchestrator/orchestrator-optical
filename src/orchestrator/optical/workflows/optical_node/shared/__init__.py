@@ -18,6 +18,10 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
     validate_optical_flexils_target_id_uniqueness,
     validate_optical_node_fqdn_uniqueness,
 )
+from orchestrator.optical.workflows.optical_node.shared.forms import (
+    create_optical_node_location_form,
+    create_optical_node_management_form,
+)
 from orchestrator.optical.workflows.optical_node.shared.modify import (
     load_optical_node_block,
     save_optical_node_block,
@@ -42,6 +46,8 @@ __all__ = [
     "OPTICAL_NODE_PRODUCT_TYPES",
     "OPTICAL_NODE_TERMINATE_STEPS",
     "OPTICAL_NODE_VALIDATE_STEPS",
+    "create_optical_node_location_form",
+    "create_optical_node_management_form",
     "delete_optical_node_from_oss_bss",
     "load_initial_state_optical_node",
     "load_optical_node_block",

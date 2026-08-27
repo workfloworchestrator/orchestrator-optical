@@ -386,13 +386,11 @@ NODE_FORM_OPTICAL_FIELDS: dict[str, set[str]] = {
         "optical_flexils_gmpls_id",
     },
     "groove_g30": {
-        "optical_node_role",
         "optical_module_node_fqdn",
         "optical_module_node_dcn_loopback_ip",
         "optical_module_node_dcn_interface_ip",
     },
     "gx_g42": {
-        "optical_node_role",
         "optical_module_node_fqdn",
         "optical_module_node_dcn_loopback_ip",
         "optical_module_node_dcn_interface_ip",

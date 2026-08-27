@@ -588,6 +588,68 @@ def retrieve_g42_software_version(
     return version
 
 
+def retrieve_g42_role() -> OpticalNodeRole:
+    """Return the node role of a GX G42 node, which is always a transponder.
+
+    Returns:
+        The OpticalNodeRole of the node.
+    """
+    return OpticalNodeRole.TRANSPONDER
+
+
+def retrieve_g30_role(
+    dcn_loopback_ip: IPAddress | None = None,
+    dcn_interface_ip: IPAddress | None = None,
+) -> OpticalNodeRole:
+    """Determine the node role of a Groove G30 node from its inventory.
+
+    The node is a transponder unless it carries an OCC2 (Optical carrier card
+    of type II) in its inventory, in which case it also acts as an xOADM.
+
+    Args:
+        dcn_loopback_ip: The DCN loopback IP of the node.
+        dcn_interface_ip: The DCN interface IP of the node.
+
+    Returns:
+        The OpticalNodeRole of the node.
+    """
+    g30 = G30Client(
+        loopback_ip=str(dcn_loopback_ip or "") or None,
+        management_ip=str(dcn_interface_ip or "") or None,
+    )
+    inventory = g30.data.ne_ne.inventory_data.inventory.retrieve(depth=2)
+    has_occ2 = any(item.module_type == "OCC2" for item in inventory)
+    return OpticalNodeRole.TRANSPONDER_XOADM if has_occ2 else OpticalNodeRole.TRANSPONDER
+
+
+def retrieve_optical_node_role(optical_node_block: AbstractOpticalNodeBlockInactive) -> OpticalNodeRole:
+    """Retrieve the node role of the node from the device, dispatching on the vendor.
+
+    Args:
+        optical_node_block: The Optical Node block (any lifecycle variant).
+
+    Returns:
+        The OpticalNodeRole of the node.
+    """
+    match vendor_of(optical_node_block):
+        case Vendor.FLEXILS:
+            flexils_block = _as_flexils_block(optical_node_block)
+            flex = cast(Any, get_flex_client(flexils_block))
+            target_id = flexils_block.optical_flexils_target_id
+            if target_id is None:
+                msg = "Cannot retrieve the node role: the FlexILS node has no Target ID"
+                raise ValueError(msg)
+            role, _ = _retrieve_node_properties(flex, target_id)
+            return role
+        case Vendor.GROOVE_G30:
+            return retrieve_g30_role(
+                optical_node_block.management.optical_module_node_dcn_loopback_ip,
+                optical_node_block.management.optical_module_node_dcn_interface_ip,
+            )
+        case Vendor.GX_G42:
+            return retrieve_g42_role()
+
+
 def retrieve_software_version(optical_node_block: AbstractOpticalNodeBlockInactive) -> str:
     """Retrieve the software version of the node from the device, dispatching on the vendor.
 

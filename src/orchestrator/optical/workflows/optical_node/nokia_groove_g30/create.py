@@ -24,20 +24,17 @@ shipped page sequence in one line and adding their own pages::
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 """
 
-from typing import Annotated, Any, cast
+from typing import Any, cast
 
-from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
-from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.hal.optical_node import retrieve_g30_software_version
+from orchestrator.optical.hal.optical_node import retrieve_g30_role, retrieve_g30_software_version
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
-    OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import (
     NokiaGrooveG30BlockInactive,
@@ -49,107 +46,31 @@ from orchestrator.optical.products.product_types.optical_node.nokia_groove_g30 i
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_form_pages
-from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_BLOCK_STATE_KEY,
     optical_node_block_from_state,
     populate_abstract_optical_node_fields,
     save_optical_node_block,
     update_optical_node_subscription_description,
-    validate_management_ips_uniqueness,
-    validate_optical_node_fqdn_uniqueness,
+)
+from orchestrator.optical.workflows.optical_node.shared.forms import (
+    create_optical_node_location_form,
+    create_optical_node_management_form,
 )
 from orchestrator.optical.workflows.shared import create_summary_form
-
-
-def create_optical_node_nokia_groove_g30_identity_form(product_name: str) -> type[FormPage]:
-    """Return the identity FormPage of the Nokia Groove G30 create form.
-
-    This is the first page of the shipped create form: the Optical Location
-    hosting the node, the role of the node and its FQDN. It is a building block
-    for consumers that compose their own create form generator: the shipped
-    page sequence
-    (:func:`create_optical_node_nokia_groove_g30_form_pages`) yields it first.
-    The page validates that the FQDN is not already in use by another Optical
-    Node subscription.
-
-    Args:
-        product_name: Name of the product being created, used as the page title.
-
-    Returns:
-        The identity FormPage of the shipped create form.
-    """
-
-    class CreateOpticalNodeNokiaGrooveG30IdentityForm(FormPage):
-        model_config = ConfigDict(title=f"{product_name} - Identity")
-
-        location_id: active_location_subscription_selector()
-        optical_node_role: OpticalNodeRole = OpticalNodeRole.TRANSPONDER
-        optical_module_node_fqdn: Annotated[
-            Fqdn,
-            Field(title="FQDN of the Optical Node"),
-        ]
-
-        @model_validator(mode="after")
-        def validate_fqdn(self) -> "CreateOpticalNodeNokiaGrooveG30IdentityForm":
-            """Raise if the FQDN is already in use by another subscription."""
-            validate_optical_node_fqdn_uniqueness(self.optical_module_node_fqdn)
-            return self
-
-    return CreateOpticalNodeNokiaGrooveG30IdentityForm
-
-
-def create_optical_node_nokia_groove_g30_management_form(product_name: str) -> type[FormPage]:
-    """Return the management FormPage of the Nokia Groove G30 create form.
-
-    This is the second page of the shipped create form: the DCN loopback and
-    interface IPs through which the node can be reached. It is a building block
-    for consumers that compose their own create form generator: the shipped
-    page sequence (:func:`create_optical_node_nokia_groove_g30_form_pages`)
-    yields it second. The page requires at least one DCN IP and validates that
-    the DCN IPs are not already in use by another Optical Node subscription.
-
-    Args:
-        product_name: Name of the product being created, used as the page title.
-
-    Returns:
-        The management FormPage of the shipped create form.
-    """
-
-    class CreateOpticalNodeNokiaGrooveG30ManagementForm(FormPage):
-        model_config = ConfigDict(title=f"{product_name} - Management")
-
-        optical_module_node_dcn_loopback_ip: IPAddress | None = None
-        optical_module_node_dcn_interface_ip: IPAddress | None = None
-
-        @model_validator(mode="after")
-        def validate_form(self) -> "CreateOpticalNodeNokiaGrooveG30ManagementForm":
-            """Raise if neither DCN IP is given or the IPs are already in use."""
-            if not self.optical_module_node_dcn_loopback_ip and not self.optical_module_node_dcn_interface_ip:
-                msg = "At least one of DCN loopback IP or DCN interface IP must be provided."
-                raise ValueError(msg)
-            validate_management_ips_uniqueness(
-                [
-                    ip
-                    for ip in (self.optical_module_node_dcn_loopback_ip, self.optical_module_node_dcn_interface_ip)
-                    if ip is not None
-                ]
-            )
-            return self
-
-    return CreateOpticalNodeNokiaGrooveG30ManagementForm
 
 
 def create_optical_node_nokia_groove_g30_form_pages(product_name: str) -> FormGenerator:
     """Yield the FormPages of the Nokia Groove G30 create form, in order.
 
-    This is the shipped create form as a page sequence: it yields the identity
-    page and the management page, and returns the collected user input as a
-    flat dict of the ``optical_*`` state keys plus ``location_id``, consumed by
-    the shipped steps of :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`. Consumers
-    yield from it in one line inside their own create form generator,
-    optionally interleaving their own pages. The customer of the subscription
-    is collected separately by the consumer (see
+    This is the shipped create form as a page sequence: it yields the location
+    page and the management page (shared with the other Optical Node vendors),
+    and returns the collected user input as a flat dict of the ``optical_*``
+    state keys plus ``location_id``, consumed by the shipped steps of
+    :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`. Consumers yield from it in one
+    line inside their own create form generator, optionally interleaving their
+    own pages. The customer of the subscription is collected separately by the
+    consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
 
     Args:
@@ -159,8 +80,8 @@ def create_optical_node_nokia_groove_g30_form_pages(product_name: str) -> FormGe
         The collected user input of the shipped pages.
     """
     user_input_dict: dict[str, str | None] = {}
-    user_input_dict.update((yield create_optical_node_nokia_groove_g30_identity_form(product_name)).model_dump())
-    user_input_dict.update((yield create_optical_node_nokia_groove_g30_management_form(product_name)).model_dump())
+    user_input_dict.update((yield create_optical_node_location_form(product_name)).model_dump())
+    user_input_dict.update((yield create_optical_node_management_form(product_name)).model_dump())
     return user_input_dict
 
 
@@ -182,7 +103,6 @@ def create_optical_node_nokia_groove_g30_form_generator(product_name: str) -> Fo
     summary_fields = [
         "customer_id",
         "location_id",
-        "optical_node_role",
         "optical_module_node_fqdn",
         "optical_module_node_dcn_loopback_ip",
         "optical_module_node_dcn_interface_ip",
@@ -195,15 +115,14 @@ def create_optical_node_nokia_groove_g30_form_generator(product_name: str) -> Fo
 @step("Discover Nokia Groove G30 node properties")
 def discover_optical_node_nokia_groove_g30(
     optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
-    optical_node_role: OpticalNodeRole,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
 ) -> State:
     """Connect to the node and write its role and software version to the block.
 
     The first block-level step of :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`:
-    it resolves the block from the state, writes the node role (from the
-    create form) and the software version (retrieved from the device) onto it,
+    it resolves the block from the state, writes the node role (retrieved from
+    the device) and the software version (retrieved from the device) onto it,
     which the shipped populate step then reads from the block.
 
     Raises:
@@ -214,11 +133,15 @@ def discover_optical_node_nokia_groove_g30(
     if node_block is None:
         msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
         raise ValueError(msg)
+    role = retrieve_g30_role(
+        dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        dcn_interface_ip=optical_module_node_dcn_interface_ip,
+    )
     software_version = retrieve_g30_software_version(
         dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
         dcn_interface_ip=optical_module_node_dcn_interface_ip,
     )
-    node_block.optical_node_role = optical_node_role
+    node_block.optical_node_role = role
     node_block.management.optical_module_node_software_version = software_version
     return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
 
