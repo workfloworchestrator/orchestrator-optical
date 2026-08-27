@@ -47,7 +47,7 @@ from orchestrator.optical.products.product_types.optical_coherent_pluggable impo
     OpticalCoherentPluggableInactive,
     OpticalCoherentPluggablePartNumber,
 )
-from orchestrator.optical.workflows.customer import customer_choice_selector
+from orchestrator.optical.workflows.customer import customer_choice_form_pages
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY,
     optical_coherent_pluggable_block_from_state,
@@ -119,25 +119,21 @@ def check_optical_coherent_pluggable_port_uniqueness(
 
 def create_optical_coherent_pluggable_form(
     product_name: str,
-    customer_choice: type[Choice],
     packet_node_choice: type[Choice],
     part_number_choice: type[Choice],
 ) -> type[FormPage]:
     """Return the FormPage of the Optical Coherent Pluggable create form.
 
-    This is the single page of the shipped create form: the customer, the
-    Optical Module Packet Node hosting the pluggable, the part number and the
-    port data of the pluggable. It is a building block for consumers that
-    compose their own create form generator: the shipped page sequence
+    This is the single page of the shipped create form: the Optical Module
+    Packet Node hosting the pluggable, the part number and the port data of the
+    pluggable. It is a building block for consumers that compose their own
+    create form generator: the shipped page sequence
     (:func:`create_optical_coherent_pluggable_form_pages`) yields it. The page
     validates that the entered port name is not already occupied on the host
     node by another subscription.
 
     Args:
         product_name: Name of the product being created, used as the page title.
-        customer_choice: The ``Choice`` selector of the subscription customer,
-            as built by
-            :func:`orchestrator.optical.workflows.customer.customer_choice_selector`.
         packet_node_choice: The ``Choice`` selector of the Optical Module
             Packet Node subscriptions, as built by
             :func:`orchestrator.optical.workflows.shared.active_subscription_selector_by_block_type`.
@@ -150,7 +146,6 @@ def create_optical_coherent_pluggable_form(
     class CreateOpticalCoherentPluggableForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        customer_id: customer_choice
         optical_packet_node_id: packet_node_choice
         optical_coherent_pluggable_part_number: part_number_choice
         optical_port_name: Annotated[
@@ -177,10 +172,12 @@ def create_optical_coherent_pluggable_form_pages(product_name: str) -> FormGener
 
     This is the shipped create form as a page sequence: it yields the create
     page and returns the collected user input as a flat dict of the flat
-    ``optical_*`` state keys plus ``customer_id``, consumed by the shipped
-    steps of :data:`CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`. Consumers
-    yield from it in one line inside their own create form generator,
-    optionally interleaving their own pages.
+    ``optical_*`` state keys, consumed by the shipped steps of
+    :data:`CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`. Consumers yield from
+    it in one line inside their own create form generator, optionally
+    interleaving their own pages. The customer of the subscription is collected
+    separately by the consumer (see
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
 
     Args:
         product_name: Name of the product being created.
@@ -198,14 +195,11 @@ def create_optical_coherent_pluggable_form_pages(product_name: str) -> FormGener
             [(item.value, item.value) for item in OpticalCoherentPluggablePartNumber],
         ),
     )
-    customer_choice = customer_choice_selector()
 
     user_input_dict: dict[str, Any] = {}
     user_input_dict.update(
         (
-            yield create_optical_coherent_pluggable_form(
-                product_name, customer_choice, packet_node_choice, part_number_choice
-            )
+            yield create_optical_coherent_pluggable_form(product_name, packet_node_choice, part_number_choice)
         ).model_dump()
     )
     return user_input_dict
@@ -223,7 +217,8 @@ def create_optical_coherent_pluggable_form_generator(product_name: str) -> FormG
     Args:
         product_name: Name of the product being created.
     """
-    user_input_dict = yield from create_optical_coherent_pluggable_form_pages(product_name)
+    user_input_dict = yield from customer_choice_form_pages(title=product_name)
+    user_input_dict.update((yield from create_optical_coherent_pluggable_form_pages(product_name)))
 
     summary_fields = [
         "customer_id",

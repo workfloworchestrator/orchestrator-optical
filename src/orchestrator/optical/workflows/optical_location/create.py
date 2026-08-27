@@ -27,7 +27,6 @@ from typing import Annotated
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from pydantic_forms.validators import Choice
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
@@ -40,7 +39,7 @@ from orchestrator.optical.products.product_blocks.optical_location import (
 )
 from orchestrator.optical.products.product_types.optical_location import OpticalModuleLocationSubscriptionInactive
 from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
-from orchestrator.optical.workflows.customer import customer_choice_selector
+from orchestrator.optical.workflows.customer import customer_choice_form_pages
 from orchestrator.optical.workflows.optical_location.shared import (
     OPTICAL_LOCATION_BLOCK_STATE_KEY,
     check_location_code_uniqueness,
@@ -51,23 +50,18 @@ from orchestrator.optical.workflows.optical_location.shared import (
 from orchestrator.optical.workflows.shared import create_summary_form
 
 
-def create_optical_module_location_identity_form(
-    product_name: str,
-    customer_choice: type[Choice],
-) -> type[FormPage]:
+def create_optical_module_location_identity_form(product_name: str) -> type[FormPage]:
     """Return the identity FormPage of the Optical Module Location create form.
 
-    This is the first page of the shipped create form: the customer, the code
-    and the human-readable name of the location. It is a building block for
-    consumers that compose their own create form generator: the shipped page
-    sequence (:func:`create_optical_module_location_form_pages`) yields it first.
-    The page validates that the entered ``location_code`` is not already in use
-    by another location subscription.
+    This is the first page of the shipped create form: the code and the
+    human-readable name of the location. It is a building block for consumers
+    that compose their own create form generator: the shipped page sequence
+    (:func:`create_optical_module_location_form_pages`) yields it first. The
+    page validates that the entered ``location_code`` is not already in use by
+    another location subscription.
 
     Args:
         product_name: Name of the product being created, used as the page title.
-        customer_choice: The ``Choice`` selector of the subscription customer,
-            as built by :func:`orchestrator.optical.workflows.customer.customer_choice_selector`.
 
     Returns:
         The identity FormPage of the shipped create form.
@@ -76,7 +70,6 @@ def create_optical_module_location_identity_form(
     class CreateOpticalModuleLocationIdentityForm(FormPage):
         model_config = ConfigDict(title=f"{product_name} - Identity")
 
-        customer_id: customer_choice
         location_code: Annotated[
             LocationCode,
             Field(
@@ -133,10 +126,12 @@ def create_optical_module_location_form_pages(product_name: str) -> FormGenerato
 
     This is the shipped create form as a page sequence: it yields the
     identity page and the coordinates page, and returns the collected user
-    input as a flat dict of the ``optical_*`` state keys plus ``customer_id``,
-    consumed by the shipped steps of :data:`CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS`.
+    input as a flat dict of the ``optical_*`` state keys, consumed by the
+    shipped steps of :data:`CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS`.
     Consumers yield from it in one line inside their own create form generator,
-    optionally interleaving their own pages.
+    optionally interleaving their own pages. The customer of the subscription
+    is collected separately by the consumer (see
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
 
     Args:
         product_name: Name of the product being created.
@@ -144,12 +139,8 @@ def create_optical_module_location_form_pages(product_name: str) -> FormGenerato
     Returns:
         The collected user input of the shipped pages.
     """
-    customer_choice = customer_choice_selector()
-
     user_input_dict: dict[str, str | None] = {}
-    user_input_dict.update(
-        (yield create_optical_module_location_identity_form(product_name, customer_choice)).model_dump()
-    )
+    user_input_dict.update((yield create_optical_module_location_identity_form(product_name)).model_dump())
     user_input_dict.update((yield create_optical_module_location_coordinates_form(product_name)).model_dump())
     return user_input_dict
 
@@ -165,7 +156,8 @@ def create_optical_module_location_form_generator(product_name: str) -> FormGene
     Args:
         product_name: Name of the product being created.
     """
-    user_input_dict = yield from create_optical_module_location_form_pages(product_name)
+    user_input_dict = yield from customer_choice_form_pages(title=product_name)
+    user_input_dict.update((yield from create_optical_module_location_form_pages(product_name)))
 
     summary_fields = [
         "customer_id",

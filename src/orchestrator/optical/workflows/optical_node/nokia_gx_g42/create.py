@@ -28,7 +28,6 @@ from typing import Annotated, Any, cast
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from pydantic_forms.validators import Choice
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
@@ -45,7 +44,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42Inactive
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
-from orchestrator.optical.workflows.customer import customer_choice_selector
+from orchestrator.optical.workflows.customer import customer_choice_form_pages
 from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_BLOCK_STATE_KEY,
@@ -59,23 +58,18 @@ from orchestrator.optical.workflows.optical_node.shared import (
 from orchestrator.optical.workflows.shared import create_summary_form
 
 
-def create_optical_node_nokia_gx_g42_identity_form(
-    product_name: str,
-    customer_choice: type[Choice],
-) -> type[FormPage]:
+def create_optical_node_nokia_gx_g42_identity_form(product_name: str) -> type[FormPage]:
     """Return the identity FormPage of the Nokia GX G42 create form.
 
-    This is the first page of the shipped create form: the customer, the
-    hosting location, the node role and the FQDN of the node. It is a building
-    block for consumers that compose their own create form generator: the
-    shipped page sequence (:func:`create_optical_node_nokia_gx_g42_form_pages`)
-    yields it first. The page validates that the FQDN is not already in use by
-    another Optical Node subscription.
+    This is the first page of the shipped create form: the hosting location,
+    the node role and the FQDN of the node. It is a building block for
+    consumers that compose their own create form generator: the shipped page
+    sequence (:func:`create_optical_node_nokia_gx_g42_form_pages`) yields it
+    first. The page validates that the FQDN is not already in use by another
+    Optical Node subscription.
 
     Args:
         product_name: Name of the product being created, used as the page title.
-        customer_choice: The ``Choice`` selector of the subscription customer,
-            as built by :func:`orchestrator.optical.workflows.customer.customer_choice_selector`.
 
     Returns:
         The identity FormPage of the shipped create form.
@@ -84,7 +78,6 @@ def create_optical_node_nokia_gx_g42_identity_form(
     class CreateOpticalNodeNokiaGxG42IdentityForm(FormPage):
         model_config = ConfigDict(title=f"{product_name} - Identity")
 
-        customer_id: customer_choice
         location_id: active_location_subscription_selector()
         optical_node_role: OpticalNodeRole = OpticalNodeRole.TRANSPONDER
         optical_module_node_fqdn: Annotated[
@@ -147,11 +140,12 @@ def create_optical_node_nokia_gx_g42_form_pages(product_name: str) -> FormGenera
 
     This is the shipped create form as a page sequence: it yields the identity
     page and the management page, and returns the collected user input as a
-    flat dict of the ``optical_*`` state keys plus ``customer_id`` and
-    ``location_id``, consumed by the shipped steps of
-    :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`. Consumers yield from it in one
-    line inside their own create form generator, optionally interleaving their
-    own pages.
+    flat dict of the ``optical_*`` state keys plus ``location_id``, consumed by
+    the shipped steps of :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`. Consumers
+    yield from it in one line inside their own create form generator,
+    optionally interleaving their own pages. The customer of the subscription
+    is collected separately by the consumer (see
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
 
     Args:
         product_name: Name of the product being created.
@@ -159,12 +153,8 @@ def create_optical_node_nokia_gx_g42_form_pages(product_name: str) -> FormGenera
     Returns:
         The collected user input of the shipped pages.
     """
-    customer_choice = customer_choice_selector()
-
     user_input_dict: dict[str, str | None] = {}
-    user_input_dict.update(
-        (yield create_optical_node_nokia_gx_g42_identity_form(product_name, customer_choice)).model_dump()
-    )
+    user_input_dict.update((yield create_optical_node_nokia_gx_g42_identity_form(product_name)).model_dump())
     user_input_dict.update((yield create_optical_node_nokia_gx_g42_management_form(product_name)).model_dump())
     return user_input_dict
 
@@ -180,7 +170,8 @@ def create_optical_node_nokia_gx_g42_form_generator(product_name: str) -> FormGe
     Args:
         product_name: Name of the product being created.
     """
-    user_input_dict = yield from create_optical_node_nokia_gx_g42_form_pages(product_name)
+    user_input_dict = yield from customer_choice_form_pages(title=product_name)
+    user_input_dict.update((yield from create_optical_node_nokia_gx_g42_form_pages(product_name)))
 
     summary_fields = [
         "customer_id",

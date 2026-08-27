@@ -51,7 +51,7 @@ from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import
     OpticalFiberPatchInactive,
     OpticalFiberPatchProvisioning,
 )
-from orchestrator.optical.workflows.customer import customer_choice_selector
+from orchestrator.optical.workflows.customer import customer_choice_form_pages
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_PIPE_BLOCK_STATE_KEY,
     default_pipe_identifier,
@@ -81,24 +81,20 @@ def patch_ports_of_node(node_block: AbstractOpticalNodeBlockInactive) -> list[st
     return list(dict.fromkeys([*client_ports, *all_ports]))
 
 
-def create_fiber_patch_customer_and_nodes_form(
+def create_fiber_patch_nodes_form(
     product_name: str,
-    customer_choice: type[Choice],
     node_choice: type[Choice],
 ) -> type[FormPage]:
     """Return the identity FormPage of the Optical Fiber Patch create form.
 
-    This is the first page of the shipped create form: the customer and the
-    two nodes connected by the patch. It is a building block for consumers
-    that compose their own create form generator: the shipped page sequence
-    (:func:`create_fiber_patch_form_pages`) yields it first. The page
-    validates that the two ends of the patch are on different nodes.
+    This is the first page of the shipped create form: the two nodes connected
+    by the patch. It is a building block for consumers that compose their own
+    create form generator: the shipped page sequence
+    (:func:`create_fiber_patch_form_pages`) yields it first. The page validates
+    that the two ends of the patch are on different nodes.
 
     Args:
         product_name: Name of the product being created, used as the page title.
-        customer_choice: The ``Choice`` selector of the subscription customer,
-            as built by
-            :func:`orchestrator.optical.workflows.customer.customer_choice_selector`.
         node_choice: The ``Choice`` selector of the Optical Node subscriptions,
             as built by
             :func:`orchestrator.optical.workflows.optical_pipe.shared.optical_node_selector`.
@@ -107,22 +103,21 @@ def create_fiber_patch_customer_and_nodes_form(
         The identity FormPage of the shipped create form.
     """
 
-    class CreateFiberPatchCustomerAndNodesForm(FormPage):
+    class CreateFiberPatchNodesForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        customer_id: customer_choice
         node_a_id: node_choice
         node_b_id: node_choice
 
         @model_validator(mode="after")
-        def validate_distinct_nodes(self) -> "CreateFiberPatchCustomerAndNodesForm":
+        def validate_distinct_nodes(self) -> "CreateFiberPatchNodesForm":
             """Raise if the two ends of the patch are on the same node."""
             if self.node_a_id == self.node_b_id:
                 msg = "The two ends of a fiber patch must be on different nodes."
                 raise ValueError(msg)
             return self
 
-    return CreateFiberPatchCustomerAndNodesForm
+    return CreateFiberPatchNodesForm
 
 
 def create_fiber_patch_terminations_form(
@@ -169,10 +164,12 @@ def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
 
     This is the shipped create form as a page sequence: it yields the identity
     page and the terminations page, and returns the collected user input as a
-    flat dict of the ``optical_*`` state keys plus ``customer_id``, consumed
-    by the shipped steps of :data:`CREATE_FIBER_PATCH_BLOCK_STEPS`. Consumers
-    yield from it in one line inside their own create form generator,
-    optionally interleaving their own pages.
+    flat dict of the ``optical_*`` state keys, consumed by the shipped steps of
+    :data:`CREATE_FIBER_PATCH_BLOCK_STEPS`. Consumers yield from it in one line
+    inside their own create form generator, optionally interleaving their own
+    pages. The customer of the subscription is collected separately by the
+    consumer (see
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
 
     Args:
         product_name: Name of the product being created.
@@ -180,15 +177,12 @@ def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
     Returns:
         The collected user input of the shipped pages.
     """
-    customer_choice = customer_choice_selector()
     node_choice = optical_node_selector(prompt="This fiber patch connects this node:")
 
     user_input_dict: dict[str, Any] = {}
 
-    customer_and_nodes_input = yield create_fiber_patch_customer_and_nodes_form(
-        product_name, customer_choice, node_choice
-    )
-    user_input_dict.update(customer_and_nodes_input.model_dump())
+    nodes_input = yield create_fiber_patch_nodes_form(product_name, node_choice)
+    user_input_dict.update(nodes_input.model_dump())
 
     node_a_block = node_block_from_subscription(user_input_dict["node_a_id"])
     node_b_block = node_block_from_subscription(user_input_dict["node_b_id"])
@@ -224,7 +218,8 @@ def create_fiber_patch_form_generator(product_name: str) -> FormGenerator:
     Args:
         product_name: Name of the product being created.
     """
-    user_input_dict = yield from create_fiber_patch_form_pages(product_name)
+    user_input_dict = yield from customer_choice_form_pages(title=product_name)
+    user_input_dict.update((yield from create_fiber_patch_form_pages(product_name)))
 
     summary_fields = [
         "customer_id",
@@ -386,6 +381,7 @@ def create_fiber_patch() -> StepList:
 
 __all__ = [
     "CREATE_FIBER_PATCH_BLOCK_STEPS",
+    "build_fiber_patch_block",
     "create_fiber_patch",
     "create_fiber_patch_form_pages",
 ]

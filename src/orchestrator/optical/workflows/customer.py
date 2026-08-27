@@ -13,9 +13,11 @@ from functools import lru_cache
 from importlib import import_module
 from typing import cast
 
-from pydantic_forms.types import UUIDstr
+from pydantic import ConfigDict
+from pydantic_forms.types import FormGenerator, UUIDstr
 from pydantic_forms.validators import Choice
 
+from orchestrator.core.forms import FormPage
 from orchestrator.optical.settings import get_settings
 
 CustomerChoiceFunction = Callable[[], type[Choice]]
@@ -107,3 +109,33 @@ def customer_choice_selector(include: UUIDstr | None = None) -> type[Choice]:
             choice = cast(type[Choice], Choice(choice.__name__, options))
 
     return choice
+
+
+def customer_choice_form_pages(include: UUIDstr | None = None, title: str = "Customer") -> FormGenerator:
+    """Yield a single FormPage selecting the customer of a subscription.
+
+    The page holds a single ``customer_id`` field built with
+    :func:`customer_choice_selector`. It is the reusable building block used by
+    the shipped form generators to collect the customer of a subscription;
+    consumers composing their own form generator either yield from it in one
+    line or collect the customer with their own page built on
+    :func:`customer_choice_selector`.
+
+    Args:
+        include: Optional customer id that must be present among the options
+            even if it is not returned by the user function, e.g. the current
+            customer of a subscription being modified.
+        title: Title of the page.
+
+    Returns:
+        The collected ``customer_id`` as a flat dict.
+    """
+    customer_choice = customer_choice_selector(include=include)
+
+    class CustomerChoiceForm(FormPage):
+        model_config = ConfigDict(title=title)
+
+        customer_id: customer_choice
+
+    user_input = yield CustomerChoiceForm
+    return {"customer_id": user_input.customer_id}

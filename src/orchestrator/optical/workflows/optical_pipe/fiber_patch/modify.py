@@ -29,7 +29,7 @@ from orchestrator.core.workflow import StepList, begin
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatch
-from orchestrator.optical.workflows.customer import customer_choice_selector
+from orchestrator.optical.workflows.customer import customer_choice_form_pages
 from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,
     save_optical_pipe_block,
@@ -59,10 +59,8 @@ def modify_fiber_patch_form(
         The prefilled modify FormPage of the shipped modify form.
     """
     pipe = getattr(subscription, block_field_name)
-    customer_choice = customer_choice_selector(include=str(subscription.customer_id))
 
     class ModifyFiberPatchForm(FormPage):
-        customer_id: customer_choice
         optical_pipe_name: str = pipe.optical_pipe_name
 
     return ModifyFiberPatchForm
@@ -76,10 +74,12 @@ def modify_fiber_patch_form_pages(
 
     This is the shipped modify form as a page sequence: it yields the
     prefilled modify page and returns the collected user input as a flat dict
-    of the ``optical_*`` state keys plus ``customer_id``, consumed by the
-    shipped steps of :data:`MODIFY_FIBER_PATCH_BLOCK_STEPS`. Consumers yield
-    from it in one line inside their own modify form generator, optionally
-    interleaving their own pages.
+    of the ``optical_*`` state keys, consumed by the shipped steps of
+    :data:`MODIFY_FIBER_PATCH_BLOCK_STEPS`. Consumers yield from it in one line
+    inside their own modify form generator, optionally interleaving their own
+    pages. The customer of the subscription is collected separately by the
+    consumer (see
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
 
     Args:
         subscription: The ACTIVE subscription model of the Optical Fiber Patch
@@ -118,7 +118,8 @@ def modify_fiber_patch_form_generator(
     subscription = subscription_model.from_subscription(subscription_id)
     pipe = getattr(subscription, block_field_name)
 
-    user_input_dict = yield from modify_fiber_patch_form_pages(subscription, block_field_name)
+    user_input_dict = yield from customer_choice_form_pages(include=str(subscription.customer_id))
+    user_input_dict.update((yield from modify_fiber_patch_form_pages(subscription, block_field_name)))
 
     summary_fields = ["customer_id", "optical_pipe_name"]
     yield from modify_summary_form(

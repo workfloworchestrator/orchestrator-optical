@@ -38,7 +38,7 @@ from orchestrator.optical.products.product_blocks.optical_coherent_pluggable imp
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
     OpticalCoherentPluggable,
 )
-from orchestrator.optical.workflows.customer import customer_choice_selector
+from orchestrator.optical.workflows.customer import customer_choice_form_pages
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY,
     load_optical_coherent_pluggable_block,
@@ -78,10 +78,8 @@ def modify_optical_coherent_pluggable_form(
         The prefilled modify FormPage of the shipped modify form.
     """
     pluggable = getattr(subscription, block_field_name)
-    customer_choice = customer_choice_selector(include=str(subscription.customer_id))
 
     class ModifyOpticalCoherentPluggableForm(FormPage):
-        customer_id: customer_choice
         instruction: Instruction
         optical_port_description: str | None = pluggable.optical_port_description
         optical_coherent_pluggable_firmware_version: str = pluggable.optical_coherent_pluggable_firmware_version
@@ -97,10 +95,12 @@ def modify_optical_coherent_pluggable_form_pages(
 
     This is the shipped modify form as a page sequence: it yields the prefilled
     modify page and returns the collected user input as a flat dict of the
-    ``optical_*`` state keys plus ``customer_id``, consumed by the shipped
-    steps of :data:`MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`. Consumers
-    yield from it in one line inside their own modify form generator, optionally
-    interleaving their own pages.
+    ``optical_*`` state keys, consumed by the shipped steps of
+    :data:`MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`. Consumers yield from
+    it in one line inside their own modify form generator, optionally
+    interleaving their own pages. The customer of the subscription is collected
+    separately by the consumer (see
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_pages`).
 
     Args:
         subscription: The ACTIVE subscription model of the Optical Coherent
@@ -139,7 +139,8 @@ def modify_optical_coherent_pluggable_form_generator(
     subscription = subscription_model.from_subscription(subscription_id)
     pluggable = getattr(subscription, block_field_name)
 
-    user_input_dict = yield from modify_optical_coherent_pluggable_form_pages(subscription, block_field_name)
+    user_input_dict = yield from customer_choice_form_pages(include=str(subscription.customer_id))
+    user_input_dict.update((yield from modify_optical_coherent_pluggable_form_pages(subscription, block_field_name)))
 
     summary_fields = [
         "customer_id",
