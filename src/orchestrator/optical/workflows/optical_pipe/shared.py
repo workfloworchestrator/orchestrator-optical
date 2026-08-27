@@ -26,10 +26,10 @@ from orchestrator.optical.db import (
     subscription_instance_values_by_block_type_depending_on_instance_id,
     subscriptions_by_product_type,
 )
-from orchestrator.optical.hal.optical_node import Vendor, vendor_of
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
 )
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
     AbstractOpticalPipeBlockInactive,
     AbstractOpticalPipeBlockProvisioning,
@@ -409,7 +409,10 @@ def patch_port_block_class(
         The inactive port block class to use for the port.
     """
     if port_name in client_ports:
-        if vendor_of(host_node_block) == Vendor.FLEXILS:
+        if (
+            host_node_block.management.optical_module_node_vendor,
+            host_node_block.management.optical_module_node_platform,
+        ) == (Vendor.NOKIA, Platform.FLEXILS):
             return OlsAddDropPortBlockInactive
         return OpticalTransponderClientPortBlockInactive
     return OpticalTransponderLinePortBlockInactive
@@ -434,7 +437,10 @@ def leased_spectrum_port_block_class(
     Returns:
         The inactive port block class to use for the port.
     """
-    if vendor_of(host_node_block) != Vendor.FLEXILS:
+    if (
+        host_node_block.management.optical_module_node_vendor,
+        host_node_block.management.optical_module_node_platform,
+    ) != (Vendor.NOKIA, Platform.FLEXILS):
         return OpticalTransponderLinePortBlockInactive
     if port_name in client_ports:
         return OlsAddDropPortBlockInactive

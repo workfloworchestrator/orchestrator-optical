@@ -6,9 +6,8 @@ management IPs or, for subtended network elements (SNE), through the closest
 Gateway Network Element (GNE)) and retrieves the node properties that cannot
 be known upfront: the target id, the node role and the software version.
 
-It also provides the vendor dispatch helper (``vendor_of``) and the client
-retrieval, retrieval and validation services for the Optical Node product
-blocks of all the supported vendors.
+It also provides the client retrieval, retrieval and validation services for the
+Optical Node product blocks of all the supported vendors.
 """
 
 import ipaddress
@@ -16,7 +15,6 @@ import json
 from math import cos, radians, sin
 from typing import Any, ClassVar, cast
 
-from pydantic_forms.types import strEnum
 from structlog import get_logger
 
 from orchestrator.core.types import SubscriptionLifecycle
@@ -28,18 +26,14 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
     NokiaFlexIlsBlock,
     NokiaFlexIlsBlockInactive,
-    NokiaFlexIlsBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import (
-    NokiaGrooveG30Block,
     NokiaGrooveG30BlockInactive,
-    NokiaGrooveG30BlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import (
-    NokiaGxG42Block,
     NokiaGxG42BlockInactive,
-    NokiaGxG42BlockProvisioning,
 )
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.services.nokia import G30Client, G42Client
 from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
 from orchestrator.optical.services.nokia.g30.data_models.ne import FwStateEnum
@@ -307,38 +301,6 @@ def discover_flexils_node(
     raise ValueError(msg)
 
 
-class Vendor(strEnum):
-    """Vendor of an Optical Node product block."""
-
-    FLEXILS = "FlexILS"
-    GROOVE_G30 = "Groove G30"
-    GX_G42 = "GX G42"
-
-
-def vendor_of(optical_node_block: AbstractOpticalNodeBlockInactive) -> Vendor:
-    """Return the vendor of the given Optical Node product block.
-
-    Args:
-        optical_node_block: The Optical Node product block (any lifecycle variant).
-
-    Returns:
-        The vendor of the block.
-
-    Raises:
-        TypeError: If the block type is not a supported Optical Node vendor.
-    """
-    match optical_node_block:
-        case NokiaFlexIlsBlock() | NokiaFlexIlsBlockProvisioning() | NokiaFlexIlsBlockInactive():
-            return Vendor.FLEXILS
-        case NokiaGrooveG30Block() | NokiaGrooveG30BlockProvisioning() | NokiaGrooveG30BlockInactive():
-            return Vendor.GROOVE_G30
-        case NokiaGxG42Block() | NokiaGxG42BlockProvisioning() | NokiaGxG42BlockInactive():
-            return Vendor.GX_G42
-        case _:
-            msg = f"No vendor found for optical node block type {type(optical_node_block).__name__}"
-            raise TypeError(msg)
-
-
 def _as_flexils_block(optical_node_block: AbstractOpticalNodeBlockInactive) -> NokiaFlexIlsBlockInactive:
     """Narrow an Optical Node block to the Nokia FlexILS block type."""
     if not isinstance(optical_node_block, NokiaFlexIlsBlockInactive):
@@ -496,13 +458,20 @@ def get_optical_node_client(
     Returns:
         The client to reach the node.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return get_flex_client(_as_flexils_block(optical_node_block))
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return get_g30_client(optical_node_block)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return get_g42_client(optical_node_block)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
 
 
 def retrieve_g30_software_version(
@@ -631,8 +600,11 @@ def retrieve_optical_node_role(optical_node_block: AbstractOpticalNodeBlockInact
     Returns:
         The OpticalNodeRole of the node.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             flexils_block = _as_flexils_block(optical_node_block)
             flex = cast(Any, get_flex_client(flexils_block))
             target_id = flexils_block.optical_flexils_target_id
@@ -641,13 +613,17 @@ def retrieve_optical_node_role(optical_node_block: AbstractOpticalNodeBlockInact
                 raise ValueError(msg)
             role, _ = _retrieve_node_properties(flex, target_id)
             return role
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return retrieve_g30_role(
                 optical_node_block.management.optical_module_node_dcn_loopback_ip,
                 optical_node_block.management.optical_module_node_dcn_interface_ip,
             )
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return retrieve_g42_role()
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
 
 
 def retrieve_software_version(optical_node_block: AbstractOpticalNodeBlockInactive) -> str:
@@ -662,8 +638,11 @@ def retrieve_software_version(optical_node_block: AbstractOpticalNodeBlockInacti
     Raises:
         ValueError: If the software version cannot be retrieved from the node.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             flexils_block = _as_flexils_block(optical_node_block)
             flex = cast(Any, get_flex_client(flexils_block))
             target_id = flexils_block.optical_flexils_target_id
@@ -672,16 +651,20 @@ def retrieve_software_version(optical_node_block: AbstractOpticalNodeBlockInacti
                 raise ValueError(msg)
             _, version = _retrieve_node_properties(flex, target_id)
             return version
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return retrieve_g30_software_version(
                 optical_node_block.management.optical_module_node_dcn_loopback_ip,
                 optical_node_block.management.optical_module_node_dcn_interface_ip,
             )
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return retrieve_g42_software_version(
                 optical_node_block.management.optical_module_node_dcn_loopback_ip,
                 optical_node_block.management.optical_module_node_dcn_interface_ip,
             )
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
 
 
 def _retrieve_omses_flexils(optical_node_block: NokiaFlexIlsBlockInactive) -> list[dict[str, Any]]:
@@ -741,13 +724,20 @@ def retrieve_omses_terminating_on_device(optical_node_block: AbstractOpticalNode
             },
         ]
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _retrieve_omses_flexils(_as_flexils_block(optical_node_block))
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return []
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return []
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
 
 
 def _retrieve_ports_spectral_occupations_flexils(
@@ -789,13 +779,20 @@ def retrieve_ports_spectral_occupations(
             ],
         }
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _retrieve_ports_spectral_occupations_flexils(_as_flexils_block(optical_node_block))
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return {}
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return {}
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
 
 
 def _validate_management_network_config_g30(optical_node_block: NokiaGrooveG30BlockInactive) -> None:
@@ -891,11 +888,17 @@ def validate_management_network_config(optical_node_block: AbstractOpticalNodeBl
     Raises:
         ValueError: If the network configuration does not meet the expected criteria.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "Not yet implemented for FlexILS"
             logger.warning(msg)
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             _validate_management_network_config_g30(_as_g30_block(optical_node_block))
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             pass
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)

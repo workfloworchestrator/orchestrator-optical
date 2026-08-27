@@ -23,7 +23,6 @@ from orchestrator.optical.hal.optical_digital_service import (
 )
 from orchestrator.optical.hal.optical_node import (
     FlexilsGneProvider,
-    Vendor,
     discover_flexils_node,
     get_flex_client,
     get_g30_client,
@@ -35,7 +34,6 @@ from orchestrator.optical.hal.optical_node import (
     retrieve_ports_spectral_occupations,
     retrieve_software_version,
     validate_management_network_config,
-    vendor_of,
 )
 from orchestrator.optical.hal.optical_port import (
     check_fiber_terminating_port,
@@ -65,7 +63,6 @@ from orchestrator.optical.hal.optical_spectrum import (
 __all__ = [
     "FlexilsGneProvider",
     "FlexilsNodeDiscovery",
-    "Vendor",
     "allign_tx_power_to_target",
     "append_optical_circuit_label",
     "check_fiber_terminating_port",
@@ -109,5 +106,4 @@ __all__ = [
     "validate_trx_client",
     "validate_trx_crossconnect",
     "validate_trx_line",
-    "vendor_of",
 ]

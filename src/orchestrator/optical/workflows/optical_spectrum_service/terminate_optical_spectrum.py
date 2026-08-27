@@ -8,7 +8,6 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
-from orchestrator.optical.hal.optical_node import vendor_of
 from orchestrator.optical.hal.optical_spectrum import delete_optical_circuit
 from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
@@ -51,12 +50,14 @@ def delete_optical_sections(subscription: OpticalSpectrum) -> State:
     results = {}
     for section in spectrum.optical_spectrum_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[vendor_of(src_node)] = delete_optical_circuit(
-            src_node,
-            section,
-            spectrum_name,
-            passband,
-            circuit_identifier=circuit_identifier,
+        results[(src_node.management.optical_module_node_vendor, src_node.management.optical_module_node_platform)] = (
+            delete_optical_circuit(
+                src_node,
+                section,
+                spectrum_name,
+                passband,
+                circuit_identifier=circuit_identifier,
+            )
         )
 
     return {

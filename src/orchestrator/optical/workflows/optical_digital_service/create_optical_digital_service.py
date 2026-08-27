@@ -28,7 +28,6 @@ from orchestrator.optical.hal.optical_digital_service import (
     diff_btw_current_rx_power_and_target,
     get_signal_bandwidth,
 )
-from orchestrator.optical.hal.optical_node import Vendor, vendor_of
 from orchestrator.optical.hal.optical_spectrum import deploy_optical_circuit
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
@@ -39,6 +38,7 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
 )
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_port.transponder_client import (
     OpticalTransponderClientPortBlockInactive,
@@ -685,7 +685,10 @@ def set_trx_transmitted_power(
         add_drop_ports: list[OlsAddDropPortBlockProvisioning] = []
         for section in optical_spectrum.optical_spectrum_sections:
             section_src = section.optical_spectrum_section_add_drop_ports[0]
-            if vendor_of(section_src.optical_port_host_node) == Vendor.FLEXILS:
+            if (
+                section_src.optical_port_host_node.management.optical_module_node_vendor,
+                section_src.optical_port_host_node.management.optical_module_node_platform,
+            ) == (Vendor.NOKIA, Platform.FLEXILS):
                 add_drop_ports = section.optical_spectrum_section_add_drop_ports
                 break
 

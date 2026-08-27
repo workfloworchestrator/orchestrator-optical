@@ -11,8 +11,8 @@ device selectors to the generalized Optical Node/Port model:
   block), and device types are replaced by the ``OpticalNodeRole`` of the
   hosting node (``OpticalNodeRole.ROADM``, ``OpticalNodeRole.AMPLIFIER``,
   ``OpticalNodeRole.TRANSPONDER``, ``OpticalNodeRole.TRANSPONDER_XOADM``);
-- platform checks are replaced by the ``Vendor`` enum dispatched with
-  ``vendor_of``;
+- platform checks are dispatched on the ``Vendor`` and ``Platform`` enums of the
+  ``OpticalModuleNodeManagementBlock``;
 - the old ``used_passbands`` of the optical ports is the
   ``optical_passbands`` of the ``AbstractOpticalOlsPortBlock`` instances;
 - the old device-specific port selectors are ported to selectors that work on
@@ -40,7 +40,7 @@ from orchestrator.optical.db import (
     subscriptions_by_product_type,
     subscriptions_by_product_type_and_instance_value,
 )
-from orchestrator.optical.hal.optical_node import Vendor, retrieve_ports_spectral_occupations, vendor_of
+from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.optical_port import (
     get_device_client_ports_names,
     get_device_line_ports_names,
@@ -52,6 +52,7 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
 )
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalOlsPortBlockInactive,
     AbstractOpticalPortBlockInactive,
@@ -163,10 +164,16 @@ def find_constrained_shortest_path(
             node = port.optical_port_host_node
             if str(node.owner_subscription_id) in exclude_node_sub_id_set:
                 return False
-            if vendor_of(node) == Vendor.GX_G42:
+            if (
+                node.management.optical_module_node_vendor,
+                node.management.optical_module_node_platform,
+            ) == (Vendor.NOKIA, Platform.GX_G42):
                 # GX G42 ports are not supported in this path computation
                 return False
-            if vendor_of(node) == Vendor.GROOVE_G30 and "." not in (port.optical_port_name or ""):
+            if (
+                node.management.optical_module_node_vendor,
+                node.management.optical_module_node_platform,
+            ) == (Vendor.NOKIA, Platform.GROOVE_G30) and "." not in (port.optical_port_name or ""):
                 # all ports with a dot are on OLS cards
                 # all ports without a dot are on transponder cards and must be excluded
                 return False
@@ -281,11 +288,17 @@ def build_constrained_graph_from_active_fibers(
                 return False
             if disjoint_intervals_overlap_search(port.optical_passbands, passband):
                 return False
-            if vendor_of(node) == Vendor.GROOVE_G30 and "." not in (port.optical_port_name or ""):
+            if (
+                node.management.optical_module_node_vendor,
+                node.management.optical_module_node_platform,
+            ) == (Vendor.NOKIA, Platform.GROOVE_G30) and "." not in (port.optical_port_name or ""):
                 # all ports with a dot are on OLS cards
                 # all ports without a dot are on transponder cards and must be excluded
                 return False
-            if vendor_of(node) == Vendor.GX_G42:
+            if (
+                node.management.optical_module_node_vendor,
+                node.management.optical_module_node_platform,
+            ) == (Vendor.NOKIA, Platform.GX_G42):
                 return False
         return True
 
@@ -395,7 +408,10 @@ def are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path: Path) -> bool:
             continue
 
         port_i = _load_ols_port(path[i])
-        if vendor_of(port_i.optical_port_host_node) != Vendor.GROOVE_G30:
+        if (
+            port_i.optical_port_host_node.management.optical_module_node_vendor,
+            port_i.optical_port_host_node.management.optical_module_node_platform,
+        ) != (Vendor.NOKIA, Platform.GROOVE_G30):
             continue
 
         ii = i + 1
@@ -691,7 +707,13 @@ def store_list_of_ports_into_spectrum_sections(
     current_section = [ports[0]]
     previous_port = ports[0]
     for current_port in ports[1:]:
-        if vendor_of(current_port.optical_port_host_node) != vendor_of(previous_port.optical_port_host_node):
+        if (
+            current_port.optical_port_host_node.management.optical_module_node_vendor,
+            current_port.optical_port_host_node.management.optical_module_node_platform,
+        ) != (
+            previous_port.optical_port_host_node.management.optical_module_node_vendor,
+            previous_port.optical_port_host_node.management.optical_module_node_platform,
+        ):
             sections.append(current_section)
             current_section = []
         current_section.append(current_port)

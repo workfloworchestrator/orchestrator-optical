@@ -21,7 +21,7 @@ from typing import Any, Literal, Protocol, cast
 
 from requests.exceptions import HTTPError
 
-from orchestrator.optical.hal.optical_node import Vendor, get_flex_client, get_g30_client, get_g42_client, vendor_of
+from orchestrator.optical.hal.optical_node import get_flex_client, get_g30_client, get_g42_client
 from orchestrator.optical.hal.optical_port import (
     g30_ids_from_port_name,
     g30_port_navigator_node_from_port_name,
@@ -32,6 +32,7 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     AbstractOpticalNodeBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.services.nokia import G42Client
 from orchestrator.optical.services.nokia.flexils.commands.base import TL1BaseResponse
@@ -283,8 +284,11 @@ def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the channel of the given port cannot be found.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             g30 = get_g30_client(optical_node_block)
             shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
             och_os = (
@@ -301,7 +305,7 @@ def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -
                 bw = 37_500
             return bw
 
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             g42 = get_g42_client(optical_node_block)
             channel = None
             channels = g42.data.ne.facilities.super_channel.retrieve(depth=2)
@@ -324,8 +328,12 @@ def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -
                 bw = bw // 2
             return round(bw)
 
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "get_signal_bandwidth is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -352,8 +360,11 @@ def configure_line_transceivers(
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the configuration is invalid.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _configure_line_transceivers_g30(
                 optical_node_block,
                 port_names,
@@ -361,7 +372,7 @@ def configure_line_transceivers(
                 modes,
                 descriptions,
             )
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _configure_line_transceivers_g42(
                 optical_node_block,
                 port_names,
@@ -369,8 +380,12 @@ def configure_line_transceivers(
                 modes,
                 descriptions,
             )
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "configure_line_transceivers is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -509,13 +524,20 @@ def configure_transceiver_client(
         NotImplementedError: If the node vendor or the requested speed is not supported.
         ValueError: If the configuration is invalid.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _configure_transceiver_client_g30(optical_node_block, port_name, description, speed)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _configure_transceiver_client_g42(optical_node_block, port_name, description, speed)
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "configure_transceiver_client is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -648,23 +670,30 @@ def configure_transponder_crossconnect(
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the cross-connect cannot be created.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _configure_transponder_crossconnect_g30(
                 optical_node_block,
                 client_port_name,
                 line_port_names,
                 xconn_description,
             )
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _configure_transponder_crossconnect_g42(
                 optical_node_block,
                 client_port_name,
                 line_port_names,
                 xconn_description,
             )
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "configure_transponder_crossconnect is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -1026,13 +1055,20 @@ def delete_transponder_crossconnect(
     Raises:
         NotImplementedError: If the node vendor does not support this operation.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _delete_transponder_crossconnect_g30(optical_node_block, client_port_name)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _delete_transponder_crossconnect_g42(optical_node_block, client_port_name)
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "delete_transponder_crossconnect is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -1150,13 +1186,20 @@ def factory_reset_transponder_client(
     Raises:
         NotImplementedError: If the node vendor does not support this operation.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _factory_reset_transponder_client_g30(optical_node_block, port_name)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _factory_reset_transponder_client_g42(optical_node_block, port_name)
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "factory_reset_transponder_client is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -1238,13 +1281,20 @@ def factory_reset_transponder_lines(
     Raises:
         NotImplementedError: If the node vendor does not support this operation.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _factory_reset_transponder_lines_g30(optical_node_block, line_port_names)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _factory_reset_transponder_lines_g42(optical_node_block, line_port_names)
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "factory_reset_transponder_lines is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -1326,13 +1376,20 @@ def validate_trx_line(
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the configuration is invalid.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             _validate_trx_line_g30(optical_node_block, port_names, central_frequencies, modes, descriptions)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             _validate_trx_line_g42(optical_node_block, port_names, central_frequencies, modes, descriptions)
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "validate_trx_line is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -1505,13 +1562,20 @@ def validate_trx_client(
         NotImplementedError: If the node vendor or the requested speed is not supported.
         ValueError: If the configuration is invalid.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             _validate_trx_client_g30(optical_node_block, port_name, description, speed)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             _validate_trx_client_g42(optical_node_block, port_name, description, speed)
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "validate_trx_client is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -1647,13 +1711,20 @@ def validate_trx_crossconnect(
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the configuration is invalid.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             _validate_trx_crossconnect_g30(optical_node_block, client_port_name, line_port_names, xconn_description)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             _validate_trx_crossconnect_g42(optical_node_block, client_port_name, line_port_names, xconn_description)
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "validate_trx_crossconnect is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -1756,8 +1827,11 @@ def diff_btw_current_rx_power_and_target(
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the optical channel cannot be found on the device.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             flex = _get_flex_client(optical_node_block)
             # procedure:
             # >> RTRV-OCRS SIGTYPE=SIGNALED
@@ -1802,8 +1876,12 @@ def diff_btw_current_rx_power_and_target(
 
             return round(current_rx_power - target_opr, 1)
 
-        case Vendor.GROOVE_G30 | Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
             msg = "diff_btw_current_rx_power_and_target is not implemented for Groove G30 and GX G42 nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -1829,13 +1907,20 @@ def allign_tx_power_to_target(
     Raises:
         NotImplementedError: If the node vendor does not support this operation.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _allign_tx_power_to_target_g30(optical_node_block, line_port_name, db_from_target)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _allign_tx_power_to_target_g42(optical_node_block, line_port_name, db_from_target)
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "allign_tx_power_to_target is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 

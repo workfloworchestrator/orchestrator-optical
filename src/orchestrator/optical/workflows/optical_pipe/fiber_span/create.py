@@ -36,12 +36,13 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
-from orchestrator.optical.hal.optical_node import Vendor, retrieve_ports_spectral_occupations, vendor_of
+from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.optical_port import (
     configure_termination_when_attaching_new_fiber,
     get_device_line_ports_names,
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlockInactive
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import (
@@ -314,9 +315,12 @@ def configure_span_terminations(subscription: OpticalFiberSpanProvisioning) -> S
     """Configure the terminating line ports of the fiber span on the devices."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
     if (
-        vendor_of(port_b.optical_port_host_node) == Vendor.FLEXILS
-        and vendor_of(port_a.optical_port_host_node) != Vendor.FLEXILS
-    ):
+        port_b.optical_port_host_node.management.optical_module_node_vendor,
+        port_b.optical_port_host_node.management.optical_module_node_platform,
+    ) == (Vendor.NOKIA, Platform.FLEXILS) and (
+        port_a.optical_port_host_node.management.optical_module_node_vendor,
+        port_a.optical_port_host_node.management.optical_module_node_platform,
+    ) != (Vendor.NOKIA, Platform.FLEXILS):
         # Configure the FlexILS side first: its configuration references the remote node.
         port_a, port_b = port_b, port_a
 

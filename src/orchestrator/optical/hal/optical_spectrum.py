@@ -17,7 +17,7 @@ from time import sleep
 from typing import Any, cast
 
 from orchestrator.optical.hal.optical_digital_service import FlexilsClientProtocol
-from orchestrator.optical.hal.optical_node import Vendor, get_flex_client, vendor_of
+from orchestrator.optical.hal.optical_node import get_flex_client
 from orchestrator.optical.hal.optical_port import flexils_check_port_is_in_manualmode2_else_set_it
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlock,
@@ -26,6 +26,7 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalOlsPortBlock,
     AbstractOpticalOlsPortBlockInactive,
@@ -496,8 +497,11 @@ def deploy_optical_circuit(
     Raises:
         ValueError: If the circuit cannot be deployed.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _deploy_optical_circuit_flexils(
                 optical_node_block,
                 optical_spectrum_section_block,
@@ -507,12 +511,16 @@ def deploy_optical_circuit(
                 label,
                 circuit_identifier,
             )
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return {
                 "not-applicable": "Groove G30s (H4 links) do not need internal optical crossconnections configurations"
             }
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return {"not-applicable": "GX G42s do not need internal optical crossconnections configurations"}
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
 
 
 def _deploy_optical_circuit_flexils(
@@ -607,8 +615,11 @@ def modify_optical_circuit(
     Raises:
         ValueError: If the circuit cannot be modified.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _modify_optical_circuit_flexils(
                 optical_node_block,
                 optical_spectrum_section_block,
@@ -619,12 +630,16 @@ def modify_optical_circuit(
                 old_passband,
                 circuit_identifier,
             )
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return {
                 "not-applicable": "Groove G30s (H4 links) do not have any internal optical crossconnections to modify"
             }
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return {"not-applicable": "GX G42s do not have any internal optical crossconnections to modify"}
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
 
 
 def _modify_optical_circuit_flexils(
@@ -731,8 +746,11 @@ def delete_optical_circuit(
     Raises:
         ValueError: If the circuit cannot be found.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             flex, osnc = _find_flexils_osnc(
                 optical_spectrum_name,
                 optical_spectrum_section_block,
@@ -747,12 +765,16 @@ def delete_optical_circuit(
             flex.dlt_osnc(aid=osnc["LOCENDPOINT"])
 
             return {"deleted_OSNC": osnc["LOCENDPOINT"]}
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return {
                 "not-applicable": "Groove G30s (H4 links) do not have any internal optical crossconnections to delete"
             }
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return {"not-applicable": "GX G42s do not have any internal optical crossconnections to delete"}
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
 
 
 def validate_optical_circuit(
@@ -778,8 +800,11 @@ def validate_optical_circuit(
     Raises:
         ValueError: If the configuration is invalid.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             flex, osnc = _find_flexils_osnc(
                 optical_spectrum_name,
                 optical_spectrum_section_block,
@@ -812,12 +837,16 @@ def validate_optical_circuit(
                 msg = f"OSNC validation failed for {optical_spectrum_name}: " + "; ".join(errors)
                 raise ValueError(msg)
 
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             # Groove G30s (H4 links) do not have internal optical crossconnections to validate
             return
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             # GX G42s do not have internal optical crossconnections to validate
             return
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
 
 
 def append_optical_circuit_label(
@@ -844,8 +873,11 @@ def append_optical_circuit_label(
     Raises:
         ValueError: If the OSNC cannot be found.
     """
-    match vendor_of(source_optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        source_optical_node_block.management.optical_module_node_vendor,
+        source_optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             flex, osnc = _find_flexils_osnc(
                 optical_spectrum_name,
                 optical_spectrum_section_block,
@@ -862,12 +894,16 @@ def append_optical_circuit_label(
             osnc = response.parsed_data[0]
 
             return {"updated_OSNC": osnc}
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return {
                 "not-applicable": "Groove G30s (H4 links) do not have any internal optical crossconnections to label"
             }
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return {"not-applicable": "GX G42s do not have any internal optical crossconnections to label"}
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
+            raise NotImplementedError(msg)
 
 
 def create_optical_cross_connection(
@@ -900,8 +936,11 @@ def create_optical_cross_connection(
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the cross connection cannot be created.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             from_port_name = _port_name(from_port)
             to_port_name = _port_name(to_port)
 
@@ -942,11 +981,15 @@ def create_optical_cross_connection(
 
             response = flex.rtrv_ocrs(fromaid=fromaid, toaid=toaid)
             return response.parsed_data[0]
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             msg = "create_optical_cross_connection is not implemented for Groove G30 nodes"
             raise NotImplementedError(msg)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             msg = "create_optical_cross_connection is not implemented for GX G42 nodes"
+            raise NotImplementedError(msg)
+
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)
 
 
@@ -980,8 +1023,11 @@ def delete_optical_cross_connection(
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the cross connection cannot be found.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             from_port_name = _port_name(from_port)
             to_port_name = _port_name(to_port)
 
@@ -1018,9 +1064,12 @@ def delete_optical_cross_connection(
                 f"and circuit identifier '{circuit_identifier}'"
             )
             raise ValueError(msg)
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             msg = "delete_optical_cross_connection is not implemented for Groove G30 nodes"
             raise NotImplementedError(msg)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             msg = "delete_optical_cross_connection is not implemented for GX G42 nodes"
+            raise NotImplementedError(msg)
+        case _:
+            msg = "Unsupported Optical Node vendor/platform combination"
             raise NotImplementedError(msg)

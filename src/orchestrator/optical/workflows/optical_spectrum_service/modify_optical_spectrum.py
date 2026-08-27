@@ -14,7 +14,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from orchestrator.optical.hal.optical_node import vendor_of
 from orchestrator.optical.hal.optical_spectrum import modify_optical_circuit
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
@@ -258,15 +257,17 @@ def modify_optical_sections(
     results = {}
     for section in optical_spectrum.optical_spectrum_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[vendor_of(src_node)] = modify_optical_circuit(
-            src_node,
-            section,
-            optical_spectrum_name=spectrum_name,
-            passband=passband,
-            carrier=carrier,
-            label=spectrum_name,
-            old_passband=old_passband,
-            circuit_identifier=circuit_identifier,
+        results[(src_node.management.optical_module_node_vendor, src_node.management.optical_module_node_platform)] = (
+            modify_optical_circuit(
+                src_node,
+                section,
+                optical_spectrum_name=spectrum_name,
+                passband=passband,
+                carrier=carrier,
+                label=spectrum_name,
+                old_passband=old_passband,
+                circuit_identifier=circuit_identifier,
+            )
         )
 
     return {

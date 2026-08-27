@@ -15,7 +15,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.hal.optical_node import vendor_of
 from orchestrator.optical.hal.optical_port import set_port_description
 from orchestrator.optical.hal.optical_spectrum import deploy_optical_circuit
 from orchestrator.optical.products import ProductType
@@ -362,14 +361,16 @@ def provision_optical_sections(subscription: OpticalSpectrumProvisioning) -> Sta
     results = {}
     for section in spectrum.optical_spectrum_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[vendor_of(src_node)] = deploy_optical_circuit(
-            src_node,
-            section,
-            spectrum_name,
-            passband,
-            carrier,
-            label=spectrum_name,
-            circuit_identifier=circuit_identifier,
+        results[(src_node.management.optical_module_node_vendor, src_node.management.optical_module_node_platform)] = (
+            deploy_optical_circuit(
+                src_node,
+                section,
+                spectrum_name,
+                passband,
+                carrier,
+                label=spectrum_name,
+                circuit_identifier=circuit_identifier,
+            )
         )
 
     return {

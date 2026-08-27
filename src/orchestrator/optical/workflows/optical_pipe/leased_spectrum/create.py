@@ -41,7 +41,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
-from orchestrator.optical.hal.optical_node import Vendor, retrieve_ports_spectral_occupations, vendor_of
+from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.optical_port import (
     configure_termination_when_attaching_new_fiber,
     get_device_client_ports_names,
@@ -51,6 +51,7 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
 )
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import (
     OpticalLeasedSpectrumBlockInactive,
 )
@@ -85,7 +86,10 @@ def leased_spectrum_ports_of_node(node_block: AbstractOpticalNodeBlockInactive) 
     are selectable; the client ports are not part of the leased spectrum port block
     union.
     """
-    if vendor_of(node_block) == Vendor.FLEXILS:
+    if (
+        node_block.management.optical_module_node_vendor,
+        node_block.management.optical_module_node_platform,
+    ) == (Vendor.NOKIA, Platform.FLEXILS):
         return get_device_client_ports_names(node_block)
     return list(dict.fromkeys(get_device_line_ports_names(node_block)))
 
@@ -362,7 +366,13 @@ def configure_leased_spectrum_terminations(subscription: OpticalLeasedSpectrumPr
     ):
         msg = "Leased spectrum terminations must be hosted on Optical Nodes"
         raise TypeError(msg)
-    if vendor_of(host_node_b) == Vendor.FLEXILS and vendor_of(host_node_a) != Vendor.FLEXILS:
+    if (
+        host_node_b.management.optical_module_node_vendor,
+        host_node_b.management.optical_module_node_platform,
+    ) == (Vendor.NOKIA, Platform.FLEXILS) and (
+        host_node_a.management.optical_module_node_vendor,
+        host_node_a.management.optical_module_node_platform,
+    ) != (Vendor.NOKIA, Platform.FLEXILS):
         # Configure the FlexILS side first: its configuration references the remote node.
         port_a, port_b = port_b, port_a
 

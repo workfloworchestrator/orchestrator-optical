@@ -19,11 +19,9 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from orchestrator.optical.hal.optical_node import (
-    Vendor,
     get_flex_client,
     get_g30_client,
     get_g42_client,
-    vendor_of,
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlock,
@@ -31,6 +29,7 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     AbstractOpticalNodeBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalPortBlockInactive
 from orchestrator.optical.services.nokia import TL1CommandDeniedError
 from orchestrator.optical.services.nokia.g30.data_models.ne import (
@@ -298,12 +297,15 @@ def retrieve_transceiver_modes(optical_node_block: OpticalNodeBlock, port_name: 
     Raises:
         ValueError: If the card of the port is not supported.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _retrieve_transceiver_modes_g30(optical_node_block, port_name)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _retrieve_transceiver_modes_g42(optical_node_block, port_name)
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return []
         case _:
             msg = f"No implementation of retrieve_transceiver_modes found for {type(optical_node_block).__name__}"
@@ -384,12 +386,15 @@ def get_device_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
     Raises:
         TypeError: In case the Optical Node is not supported by this operation.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _flex_get_device_ports_names(_as_flexils_block(optical_node_block))
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _g30_get_device_ports_names(optical_node_block)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _g42_get_device_ports_names(optical_node_block)
         case _:
             msg = f"No implementation of get_device_ports_names found for {type(optical_node_block).__name__}"
@@ -460,12 +465,15 @@ def get_device_client_ports_names(optical_node_block: OpticalNodeBlock) -> list[
     Raises:
         TypeError: In case the Optical Node is not supported by this operation.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _flex_get_device_client_ports_names(_as_flexils_block(optical_node_block))
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _g30_get_device_client_ports_names(optical_node_block)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _g42_get_device_client_ports_names(optical_node_block)
         case _:
             msg = f"No implementation of get_device_client_ports_names found for {type(optical_node_block).__name__}"
@@ -526,12 +534,15 @@ def get_device_line_ports_names(optical_node_block: OpticalNodeBlock) -> list[st
     Raises:
         TypeError: In case the Optical Node is not supported by this operation.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.FLEXILS:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _flex_get_device_line_ports_names(_as_flexils_block(optical_node_block))
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _g30_get_device_line_ports_names(optical_node_block)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _g42_get_device_line_ports_names(optical_node_block)
         case _:
             msg = f"No implementation of get_device_line_ports_names found for {type(optical_node_block).__name__}"
@@ -556,19 +567,19 @@ def set_port_description(
     """
     host_node = optical_port_block.optical_port_host_node
     port_name = _port_name(optical_port_block)
-    match vendor_of(host_node):
-        case Vendor.FLEXILS:
+    match (host_node.management.optical_module_node_vendor, host_node.management.optical_module_node_platform):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             flex = cast(Any, get_flex_client(_as_flexils_block(host_node)))  # TL1 methods are bound dynamically
             if "L" in port_name:
                 flex.ed_ots(aid=port_name, label=rf'"{port_description}"')
                 return flex.rtrv_ots(aid=port_name).model_dump()
             flex.ed_scg(aid=port_name, label=rf'"{port_description}"')
             return flex.rtrv_scg(aid=port_name).model_dump()
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             endpoint, _, _, _, _, _ = g30_port_navigator_node_from_port_name(host_node, port_name)
             endpoint.update(service_label=port_description)
             return endpoint.retrieve(content="config", depth=2).model_dump()
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
             g42 = get_g42_client(host_node)
             port_uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
@@ -602,8 +613,11 @@ def set_channel_description(
     Raises:
         ValueError: In case the configuration failed.
     """
-    match vendor_of(optical_node_block):
-        case Vendor.GROOVE_G30:
+    match (
+        optical_node_block.management.optical_module_node_vendor,
+        optical_node_block.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             g30 = get_g30_client(optical_node_block)
             shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(facility_id)
             uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os
@@ -613,7 +627,7 @@ def set_channel_description(
             uri.update(och_os)
 
             return uri.retrieve(content="config", depth=2).model_dump()
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             g42 = get_g42_client(optical_node_block)
             port_name = facility_id  # e.g. "1-4-L2"
 
@@ -633,7 +647,7 @@ def set_channel_description(
             conf.label = description
             uri.update(conf)
             return uri.retrieve(depth=2, content="config").model_dump()
-        case Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return {"not-applicable": "Nokia FlexILS devices do not support channel descriptions"}
         case _:
             msg = f"No implementation of set_channel_description found for {type(optical_node_block).__name__}"
@@ -703,10 +717,10 @@ def set_port_admin_state(
     """
     host_node = optical_port_block.optical_port_host_node
     port_name = _port_name(optical_port_block)
-    match vendor_of(host_node):
-        case Vendor.FLEXILS:
+    match (host_node.management.optical_module_node_vendor, host_node.management.optical_module_node_platform):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _set_port_admin_state_flexils(optical_port_block, admin_state)
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             mapping = {
                 "up": AdminStatusEnum.UP,
                 "down": AdminStatusEnum.DOWN,
@@ -718,7 +732,7 @@ def set_port_admin_state(
 
             port_uri.update(admin_status=status)
             return port_uri.retrieve(depth=2, content="config").model_dump()
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             mapping = {
                 "up": AdminStateEnum.UNLOCK,
                 "down": AdminStateEnum.LOCK,
@@ -783,8 +797,8 @@ def _get_remote_node_id(remote_port_block: AbstractOpticalPortBlockInactive) -> 
         ValueError: If the node id cannot be determined.
     """
     host_node = remote_port_block.optical_port_host_node
-    match vendor_of(host_node):
-        case Vendor.GROOVE_G30:
+    match (host_node.management.optical_module_node_vendor, host_node.management.optical_module_node_platform):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             g30 = get_g30_client(host_node)
             inventory = g30.data.ne_ne.inventory_data.inventory.retrieve(depth=2)
 
@@ -801,7 +815,7 @@ def _get_remote_node_id(remote_port_block: AbstractOpticalPortBlockInactive) -> 
 
             msg = f"Could not find shelf serial number for G30 device {host_node.management.optical_module_node_fqdn}"
             raise ValueError(msg)
-        case Vendor.GX_G42 | Vendor.FLEXILS:
+        case (Vendor.NOKIA, Platform.GX_G42) | (Vendor.NOKIA, Platform.FLEXILS):
             return _node_id(host_node)
         case _:
             msg = f"Unsupported remote platform for FlexILS connection: {type(host_node).__name__}"
@@ -839,7 +853,10 @@ def _configure_termination_flexils(
     description = optical_port_block.optical_port_description or ""
 
     # Handle FlexILS-to-FlexILS connection separately (simpler case)
-    if vendor_of(remote_port_block.optical_port_host_node) == Vendor.FLEXILS:
+    if (
+        remote_port_block.optical_port_host_node.management.optical_module_node_vendor,
+        remote_port_block.optical_port_host_node.management.optical_module_node_platform,
+    ) == (Vendor.NOKIA, Platform.FLEXILS):
         flex.ed_ots(aid=port_name, label=rf'"{description}"')
         flex.rst_maintenance(aidtype="OTS", aid=port_name)
         return flex.rtrv_ots(aid=port_name).model_dump()
@@ -871,15 +888,18 @@ def _configure_termination_g30(
 
     endpoint, shelf_id, slot_id, subslot_id, port_id, _ = g30_port_navigator_node_from_port_name(host_node, port_name)
 
-    match vendor_of(remote_host_node):
-        case Vendor.FLEXILS:
+    match (
+        remote_host_node.management.optical_module_node_vendor,
+        remote_host_node.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             endpoint.update(
                 external_connectivity=YesNoEnum.YES,
                 connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
                 admin_status=AdminStatusEnum.UP,
             )
             return endpoint.retrieve(depth=2, content="config").model_dump()
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             is_same_device = _same_node(host_node, remote_host_node)
             is_amplifier_port = slot_id == 3 and subslot_id == 3 and port_id == 1  # noqa: PLR2004
 
@@ -985,12 +1005,12 @@ def configure_termination_when_attaching_new_fiber(
         ValueError: In case the configuration failed.
     """
     host_node = optical_port_block.optical_port_host_node
-    match vendor_of(host_node):
-        case Vendor.FLEXILS:
+    match (host_node.management.optical_module_node_vendor, host_node.management.optical_module_node_platform):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _configure_termination_flexils(optical_port_block, remote_port_block)
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _configure_termination_g30(optical_port_block, remote_port_block)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _configure_termination_g42(optical_port_block, remote_port_block)
         case _:
             msg = (
@@ -1008,7 +1028,10 @@ def _factory_reset_flexils(
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
     port_name = _port_name(optical_port_block)
 
-    if vendor_of(remote_port_block.optical_port_host_node) == Vendor.FLEXILS:
+    if (
+        remote_port_block.optical_port_host_node.management.optical_module_node_vendor,
+        remote_port_block.optical_port_host_node.management.optical_module_node_platform,
+    ) == (Vendor.NOKIA, Platform.FLEXILS):
         flex.ed_ots(aid=port_name, label=r'""')
         return flex.rtrv_ots(aid=port_name).model_dump()
 
@@ -1075,12 +1098,12 @@ def factory_reset_port_configuration(
         ValueError: In case the configuration failed.
     """
     host_node = optical_port_block.optical_port_host_node
-    match vendor_of(host_node):
-        case Vendor.FLEXILS:
+    match (host_node.management.optical_module_node_vendor, host_node.management.optical_module_node_platform):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _factory_reset_flexils(optical_port_block, remote_port_block)
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _factory_reset_g30(optical_port_block)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _factory_reset_g42(optical_port_block)
         case _:
             msg = f"No implementation of factory_reset_port_configuration found for {type(host_node).__name__}"
@@ -1098,7 +1121,10 @@ def _check_fiber_flexils(
     description = optical_port_block.optical_port_description or ""
 
     # Handle FlexILS-to-FlexILS connection separately (simpler case)
-    if vendor_of(remote_port_block.optical_port_host_node) == Vendor.FLEXILS:
+    if (
+        remote_port_block.optical_port_host_node.management.optical_module_node_vendor,
+        remote_port_block.optical_port_host_node.management.optical_module_node_platform,
+    ) == (Vendor.NOKIA, Platform.FLEXILS):
         ots = flex.rtrv_ots(aid=port_name).parsed_data[0]
         checks = (
             description in ots["LABEL"]
@@ -1184,7 +1210,10 @@ def _check_fiber_g30(
     endpoint = g30_port_navigator_node_from_port_name(host_node, port_name)[0]
     port_data = endpoint.retrieve(depth=2)
 
-    if vendor_of(remote_host_node) == Vendor.GROOVE_G30 and _same_node(host_node, remote_host_node):
+    if (
+        remote_host_node.management.optical_module_node_vendor,
+        remote_host_node.management.optical_module_node_platform,
+    ) == (Vendor.NOKIA, Platform.GROOVE_G30) and _same_node(host_node, remote_host_node):
         con_to_string = f"patched to {_port_name(remote_port_block)}"
         ext_connectivity = YesNoEnum.NO
     else:
@@ -1275,12 +1304,12 @@ def check_fiber_terminating_port(
         ValueError: If the port configuration does not match the expected one.
     """
     host_node = optical_port_block.optical_port_host_node
-    match vendor_of(host_node):
-        case Vendor.FLEXILS:
+    match (host_node.management.optical_module_node_vendor, host_node.management.optical_module_node_platform):
+        case (Vendor.NOKIA, Platform.FLEXILS):
             return _check_fiber_flexils(optical_port_block, remote_port_block)
-        case Vendor.GROOVE_G30:
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
             return _check_fiber_g30(optical_port_block, remote_port_block)
-        case Vendor.GX_G42:
+        case (Vendor.NOKIA, Platform.GX_G42):
             return _check_fiber_g42(optical_port_block, remote_port_block)
         case _:
             msg = f"No implementation of check_fiber_terminating_port found for {type(host_node).__name__}"
