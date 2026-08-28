@@ -27,6 +27,7 @@ from orchestrator.optical.db import (
     subscriptions_by_product_type,
 )
 from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
+from orchestrator.optical.hal.optical_port import configure_termination_when_attaching_new_fiber
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
@@ -242,6 +243,58 @@ def save_optical_pipe_block(
     pipe_block = optical_pipe_block_from_state(optical_module_block)
     pipe_block.save(subscription_id=subscription.subscription_id, status=subscription.status)
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
+
+
+@step("Configure Optical Pipe Terminations")
+def configure_pipe_terminations(
+    optical_module_block: AbstractOpticalPipeBlockProvisioning,
+) -> State:
+    """Configure the terminating ports of an optical pipe on the devices.
+
+    Operates only on the Optical Pipe block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``, the same block the rest of the shipped
+    block steps act on. The block is re-hydrated from its serialized form (see
+    :func:`optical_pipe_block_from_state`); it is read-only here, so only the
+    device configuration results are returned. When one of the two host nodes
+    is a Nokia FlexILS and the other is not, the FlexILS side is configured
+    first: its configuration references the remote node.
+
+    Args:
+        optical_module_block: The Optical Pipe block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+
+    Raises:
+        TypeError: If a termination is not hosted on an Optical Node.
+    """
+    pipe_block = optical_pipe_block_from_state(optical_module_block)
+    terminations = pipe_block.optical_pipe_terminations
+    port_a, port_b = terminations
+    host_node_a = port_a.optical_port_host_node
+    host_node_b = port_b.optical_port_host_node
+    if not isinstance(host_node_a, AbstractOpticalNodeBlockInactive) or not isinstance(
+        host_node_b, AbstractOpticalNodeBlockInactive
+    ):
+        msg = "Optical pipe terminations must be hosted on Optical Nodes"
+        raise TypeError(msg)
+    if (
+        host_node_b.management.optical_module_node_vendor,
+        host_node_b.management.optical_module_node_platform,
+    ) == (Vendor.NOKIA, Platform.FLEXILS) and (
+        host_node_a.management.optical_module_node_vendor,
+        host_node_a.management.optical_module_node_platform,
+    ) != (Vendor.NOKIA, Platform.FLEXILS):
+        # Configure the FlexILS side first: its configuration references the remote node.
+        port_a, port_b = port_b, port_a
+
+    configuration_results = {
+        f"{port_a.optical_port_host_node.management.optical_module_node_fqdn} {port_a.optical_port_name}": (
+            configure_termination_when_attaching_new_fiber(port_a, port_b)
+        ),
+        f"{port_b.optical_port_host_node.management.optical_module_node_fqdn} {port_b.optical_port_name}": (
+            configure_termination_when_attaching_new_fiber(port_b, port_a)
+        ),
+    }
+    return {"configuration_results": configuration_results, OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
 
 
 @step("Updating Optical Pipe block")
@@ -593,6 +646,7 @@ def default_pipe_identifier(
 
 __all__ = [
     "OPTICAL_MODULE_BLOCK_STATE_KEY",
+    "configure_pipe_terminations",
     "default_pipe_identifier",
     "leased_spectrum_port_block_class",
     "load_optical_pipe_block",

@@ -243,7 +243,7 @@ def test_shipped_type_create_workflow_composition() -> None:
     names = [step.name for step in workflow.steps]
     construct = names.index("Construct Fiber Span Subscription")
     persist_first = names.index("Persist optical pipe block")
-    configure = names.index("Configure Fiber Span Terminations")
+    configure = names.index("Configure Optical Pipe Terminations")
     retrieve = names.index("Retrieve Used Passbands")
     persist_last = names.index("Persist optical pipe block", persist_first + 1)
     set_description = names.index("Set Optical Pipe subscription description")

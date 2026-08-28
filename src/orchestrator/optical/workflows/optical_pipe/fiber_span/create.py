@@ -38,14 +38,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
-from orchestrator.optical.hal.optical_port import (
-    configure_termination_when_attaching_new_fiber,
-    get_device_line_ports_names,
-)
-from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
-    AbstractOpticalPipeBlockProvisioning,
-)
+from orchestrator.optical.hal.optical_port import get_device_line_ports_names
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlockInactive
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import (
@@ -55,11 +48,11 @@ from orchestrator.optical.products.product_types.optical_pipe.fiber_span import 
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
+    configure_pipe_terminations,
     default_pipe_identifier,
     new_optical_pipe_subscription,
     new_pipe_port_block,
     optical_node_selector,
-    optical_pipe_block_from_state,
     retrieve_optical_pipe_used_passbands,
     save_optical_pipe_block,
     set_optical_pipe_subscription_description,
@@ -306,40 +299,6 @@ def construct_fiber_span_subscription(
     }
 
 
-@step("Configure Fiber Span Terminations")
-def configure_span_terminations(optical_module_block: AbstractOpticalPipeBlockProvisioning) -> State:
-    """Configure the terminating line ports of the fiber span on the devices.
-
-    Operates only on the Optical Pipe block found in the state under
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY``, the same block the rest of the shipped
-    block steps act on. The block is re-hydrated from its serialized form (see
-    :func:`optical_pipe_block_from_state`); it is read-only here, so only the
-    device configuration results are returned.
-    """
-    pipe_block = optical_pipe_block_from_state(optical_module_block)
-    terminations = pipe_block.optical_pipe_terminations
-    port_a, port_b = terminations
-    if (
-        port_b.optical_port_host_node.management.optical_module_node_vendor,
-        port_b.optical_port_host_node.management.optical_module_node_platform,
-    ) == (Vendor.NOKIA, Platform.FLEXILS) and (
-        port_a.optical_port_host_node.management.optical_module_node_vendor,
-        port_a.optical_port_host_node.management.optical_module_node_platform,
-    ) != (Vendor.NOKIA, Platform.FLEXILS):
-        # Configure the FlexILS side first: its configuration references the remote node.
-        port_a, port_b = port_b, port_a
-
-    configuration_results = {
-        f"{port_a.optical_port_host_node.management.optical_module_node_fqdn} {port_a.optical_port_name}": (
-            configure_termination_when_attaching_new_fiber(port_a, port_b)
-        ),
-        f"{port_b.optical_port_host_node.management.optical_module_node_fqdn} {port_b.optical_port_name}": (
-            configure_termination_when_attaching_new_fiber(port_b, port_a)
-        ),
-    }
-    return {"configuration_results": configuration_results, OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
-
-
 #: Create steps operating on the Optical Pipe block in the state. The block is
 #: re-hydrated from its serialized form, because workflow steps execute with the
 #: state serialized between steps; the terminations are configured on the
@@ -348,10 +307,7 @@ def configure_span_terminations(optical_module_block: AbstractOpticalPipeBlockPr
 #: this list after constructing their (inactive) subscription and putting their
 #: block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 CREATE_FIBER_SPAN_BLOCK_STEPS: StepList = (
-    begin
-    >> configure_span_terminations
-    >> retrieve_optical_pipe_used_passbands
-    >> save_optical_pipe_block
+    begin >> configure_pipe_terminations >> retrieve_optical_pipe_used_passbands >> save_optical_pipe_block
 )
 
 

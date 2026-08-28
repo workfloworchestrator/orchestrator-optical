@@ -30,7 +30,6 @@ collected by the form is always persisted by prefixing it to the
 input is silently dropped.
 """
 
-from orchestrator.core.workflows.steps import set_status
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -41,11 +40,10 @@ from pydantic_forms.validators import Choice
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.steps import store_process_subscription
+from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
 from orchestrator.optical.hal.optical_port import (
-    configure_termination_when_attaching_new_fiber,
     get_device_client_ports_names,
     get_device_line_ports_names,
 )
@@ -53,9 +51,6 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     AbstractOpticalNodeBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
-    AbstractOpticalPipeBlockProvisioning,
-)
 from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import (
     OpticalLeasedSpectrumBlockInactive,
 )
@@ -67,12 +62,12 @@ from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum im
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
+    configure_pipe_terminations,
     default_pipe_identifier,
     leased_spectrum_port_block_class,
     new_optical_pipe_subscription,
     new_pipe_port_block,
     optical_node_selector,
-    optical_pipe_block_from_state,
     retrieve_optical_pipe_used_passbands,
     save_optical_pipe_block,
     set_optical_pipe_subscription_description,
@@ -359,49 +354,6 @@ def construct_leased_spectrum_subscription(
     }
 
 
-@step("Configure Leased Spectrum Terminations")
-def configure_leased_spectrum_terminations(
-    optical_module_block: AbstractOpticalPipeBlockProvisioning,
-) -> State:
-    """Configure the terminating ports of the leased spectrum pipe on the devices.
-
-    Operates only on the Optical Pipe block found in the state under
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY``, the same block the rest of the shipped
-    block steps act on. The block is re-hydrated from its serialized form (see
-    :func:`optical_pipe_block_from_state`); it is read-only here, so only the
-    device configuration results are returned.
-    """
-    pipe_block = optical_pipe_block_from_state(optical_module_block)
-    terminations = pipe_block.optical_pipe_terminations
-    port_a, port_b = terminations
-    host_node_a = port_a.optical_port_host_node
-    host_node_b = port_b.optical_port_host_node
-    if not isinstance(host_node_a, AbstractOpticalNodeBlockInactive) or not isinstance(
-        host_node_b, AbstractOpticalNodeBlockInactive
-    ):
-        msg = "Leased spectrum terminations must be hosted on Optical Nodes"
-        raise TypeError(msg)
-    if (
-        host_node_b.management.optical_module_node_vendor,
-        host_node_b.management.optical_module_node_platform,
-    ) == (Vendor.NOKIA, Platform.FLEXILS) and (
-        host_node_a.management.optical_module_node_vendor,
-        host_node_a.management.optical_module_node_platform,
-    ) != (Vendor.NOKIA, Platform.FLEXILS):
-        # Configure the FlexILS side first: its configuration references the remote node.
-        port_a, port_b = port_b, port_a
-
-    configuration_results = {
-        f"{port_a.optical_port_host_node.management.optical_module_node_fqdn} {port_a.optical_port_name}": (
-            configure_termination_when_attaching_new_fiber(port_a, port_b)
-        ),
-        f"{port_b.optical_port_host_node.management.optical_module_node_fqdn} {port_b.optical_port_name}": (
-            configure_termination_when_attaching_new_fiber(port_b, port_a)
-        ),
-    }
-    return {"configuration_results": configuration_results, OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
-
-
 #: Create steps operating on the Optical Leased Spectrum block in the state.
 #: The block is re-hydrated from its serialized form, because workflow steps
 #: execute with the state serialized between steps; the terminations are
@@ -411,10 +363,7 @@ def configure_leased_spectrum_terminations(
 #: subscription and putting their block in the state under
 #: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 CREATE_LEASED_SPECTRUM_BLOCK_STEPS: StepList = (
-    begin
-    >> configure_leased_spectrum_terminations
-    >> retrieve_optical_pipe_used_passbands
-    >> save_optical_pipe_block
+    begin >> configure_pipe_terminations >> retrieve_optical_pipe_used_passbands >> save_optical_pipe_block
 )
 
 

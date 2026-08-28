@@ -174,7 +174,9 @@ uv build                        # package build
 ### Development mindset
 
 > [!IMPORTANT]
-> Always leave the code of this module more usable, maintainabile, and evolvable than you found it.
+> Always leave the code of this module more usable, maintainabile, and evolvable than you found it (KISS, YANGI, SOLID).
+> If you find minor things that takes less than 5 seconds to fix, just fix them.
+> Otherwise, always report for future sessions.
 
 ### Known pre-existing noise (do NOT "fix" these as a side quest)
 

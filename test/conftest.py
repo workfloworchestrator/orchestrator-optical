@@ -503,11 +503,11 @@ def install_device_stubs(
         },
         "pipe": {
             "orchestrator.optical.workflows.optical_pipe.shared": {
+                "configure_termination_when_attaching_new_fiber": _fake_configure_termination_when_attaching_new_fiber,
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
             },
             "orchestrator.optical.workflows.optical_pipe.fiber_span.create": {
                 "get_device_line_ports_names": _get_device_line_ports_names,
-                "configure_termination_when_attaching_new_fiber": _fake_configure_termination_when_attaching_new_fiber,
             },
             "orchestrator.optical.workflows.optical_pipe.fiber_span.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
@@ -518,7 +518,6 @@ def install_device_stubs(
             "orchestrator.optical.workflows.optical_pipe.fiber_patch.create": {
                 "get_device_client_ports_names": _get_device_client_ports_names,
                 "get_device_ports_names": _get_device_ports_names,
-                "configure_termination_when_attaching_new_fiber": _fake_configure_termination_when_attaching_new_fiber,
             },
             "orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
@@ -529,7 +528,6 @@ def install_device_stubs(
             "orchestrator.optical.workflows.optical_pipe.leased_spectrum.create": {
                 "get_device_line_ports_names": _get_device_line_ports_names,
                 "get_device_client_ports_names": _get_device_client_ports_names,
-                "configure_termination_when_attaching_new_fiber": _fake_configure_termination_when_attaching_new_fiber,
             },
             "orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
