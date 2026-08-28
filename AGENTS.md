@@ -127,7 +127,7 @@ must follow the rule.
   models (the `construct_*_subscription` steps build them), so they are only valid for consumers keeping the shipped
   product types.
 - The module ships the **parts** alongside the workflows: per product, the **FormPages** of the shipped forms plus
-  block-level steps exported as `StepList` constants (e.g. `CREATE_NOKIA_FLEXILS_BLOCK_STEPS`,
+  (PROVISIONING) block-level steps exported as `StepList` constants (e.g. `CREATE_NOKIA_FLEXILS_BLOCK_STEPS`,
   `MODIFY_NOKIA_FLEXILS_BLOCK_STEPS`) and shared step lists (`OPTICAL_NODE_TERMINATE_STEPS`,
   `OPTICAL_NODE_VALIDATE_STEPS`). **No hooks**: shipped form generators do not take `extra_form_pages`/
   `extra_summary_fields` (or similar) parameters — they are thin compositions of the shipped pages and the summary
@@ -143,11 +143,11 @@ must follow the rule.
   workflows with these parts and their own construct/store steps. Shipped create workflows pass the raw form
   generator (no `partial`): core injects `product_name`/`subscription_id` from the database at runtime.
 - **Composition, not inheritance**: consumers never subclass the shipped blocks; their model has-a the shipped block
-  under an attribute of their choosing. The shipped block steps bind to a per-product state key
-  (`OPTICAL_NODE_BLOCK_STATE_KEY`/`optical_node_block`, `OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY`/
-  `optical_coherent_pluggable_block`) and never to a consumer model. Shipped blocks are always persisted by the
+  under an attribute of their choosing. The shipped block steps bind to the common state key
+  (`optical_module_block`) and never to a consumer model. Shipped blocks always expect the block to be in the
+  PROVISIONING lifecycle status. Shipped blocks are always persisted by the
   consumer's own store/`set_status` steps; the shipped block step lists end with a save step
-  (`save_optical_node_block`, `save_optical_coherent_pluggable_block`) because workflow steps reload the subscription
+  (`save_optical_module_block`) because workflow steps reload the subscription
   from the database on every step (in-memory block mutations would be lost otherwise).
 - **(TO BE RECONSIDERED) Registration is the consumer's job**: this module never registers workflows itself (no `register_workflows()`,
   no `SHIPPED_WORKFLOW_NAMES`, no `LazyWorkflowInstance` calls at import). Consumers register the shipped workflows

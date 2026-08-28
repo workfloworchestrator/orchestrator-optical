@@ -222,11 +222,11 @@ you wire your block into the state and back out of it — that is the thin anti-
 
 Notes:
 
-- The public surface of a family is its **form pages** and its **block-level `StepList`s** — there is no
-  single-function entry point to call. Every step in a `*_BLOCK_STEPS` list operates on the block found in the
+- The public surface of a family is its **form pages** and its **block-level `StepList`s**.
+  Every step in a `*_BLOCK_STEPS` list operates on the block found in the
   state under `optical_module_block`: the `*_BLOCK_STEPS` lists are fully block-level and self-contained with the last step
-  persisting the block. Therefore your construct step builds
-  your (inactive) subscription and puts the composed block in the state, and you run the list. The
+  persisting the block. The block is assumed to always be in the `PROVISIONING` status. Therefore your construct step builds
+  your subscription and puts the composed block in the state, and you run the list. The
   `*_BLOCK_STEPS` lists are the same steps used for path 1; they read the block from the state and end
   with a step that persists it, because workflow steps reload the subscription from the database and would
   otherwise lose the mutations.
