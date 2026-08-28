@@ -20,7 +20,6 @@ from orchestrator.core.domain.base import ProductBlockModel, SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.utils.json import json_dumps, json_loads
-from orchestrator.core.utils.state import inject_args
 from orchestrator.core.workflow import Workflow, begin
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow, modify_workflow, terminate_workflow, validate_workflow
@@ -34,12 +33,12 @@ from orchestrator.optical.workflows.optical_location import create as location_c
 from orchestrator.optical.workflows.optical_location import modify as location_modify
 from orchestrator.optical.workflows.optical_location import shared as location_shared
 from orchestrator.optical.workflows.optical_location import terminate as location_terminate
+from orchestrator.optical.workflows.optical_location import validate as location_validate
 from orchestrator.optical.workflows.optical_location.create import (
     CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
     construct_optical_module_location_subscription,
     create_optical_module_location_form_generator,
     populate_optical_module_location_block,
-    populate_optical_module_location_block_step,
 )
 from orchestrator.optical.workflows.optical_location.modify import (
     MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
@@ -51,6 +50,7 @@ from orchestrator.optical.workflows.optical_location.shared import (
     load_optical_module_location_block,
     optical_location_block_from_state,
     optical_module_location_subscription_description,
+    save_optical_module_location_block,
     set_optical_module_location_subscription_description,
 )
 from orchestrator.optical.workflows.optical_location.terminate import (
@@ -110,6 +110,17 @@ def _make_location_block() -> OpticalModuleLocationBlockInactive:
         name="OpticalModuleLocationBlock",
         subscription_instance_id=uuid.uuid4(),
         owner_subscription_id=uuid.uuid4(),
+    )
+
+
+def _make_location_block_provisioning() -> OpticalModuleLocationBlockProvisioning:
+    return OpticalModuleLocationBlockProvisioning.model_construct(
+        name="OpticalModuleLocationBlock",
+        subscription_instance_id=uuid.uuid4(),
+        owner_subscription_id=uuid.uuid4(),
+        longitude="12.4964",
+        latitude="41.9028",
+        location_code="rom-01",
     )
 
 
@@ -175,26 +186,9 @@ def test_populate_optical_module_location_block() -> None:
     assert block.location_name == "Rome"
 
 
-def test_populate_block_step_returns_block_in_state() -> None:
+def test_update_optical_module_location_block(monkeypatch) -> None:
     block = _make_location_block()
-    state = {
-        OPTICAL_MODULE_BLOCK_STATE_KEY: block,
-        "longitude": "12.4964",
-        "latitude": "41.9028",
-        "location_code": "rom-01",
-        "location_name": "Rome",
-    }
-
-    wrapped = inject_args(cast(Any, populate_optical_module_location_block_step).__wrapped__)
-    result = wrapped(dict(state))
-
-    assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
-    assert block.location_code == "rom-01"
-    assert block.location_name == "Rome"
-
-
-def test_update_optical_module_location_block() -> None:
-    block = _make_location_block()
+    monkeypatch.setattr(location_modify, "optical_location_block_from_state", Mock(return_value=block))
 
     cast(Any, update_optical_module_location_block).__wrapped__(
         optical_module_block=block,
@@ -211,9 +205,10 @@ def test_update_optical_module_location_block() -> None:
     assert block.location_name == "Amsterdam"
 
 
-def test_update_optical_module_location_block_can_clear_optional_fields() -> None:
+def test_update_optical_module_location_block_can_clear_optional_fields(monkeypatch) -> None:
     block = _make_location_block()
     block.location_name = "Amsterdam"
+    monkeypatch.setattr(location_modify, "optical_location_block_from_state", Mock(return_value=block))
 
     cast(Any, update_optical_module_location_block).__wrapped__(
         optical_module_block=block,
@@ -239,11 +234,12 @@ def test_location_block_state_key_matches_the_documented_contract() -> None:
 
 
 def test_block_steps_take_the_lifecycle_matching_block_variant() -> None:
-    populate = cast(Any, next(step for step in CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS)).__wrapped__
+    """Every shipped block step operates on the PROVISIONING variant of the block."""
+    save = cast(Any, next(step for step in CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS)).__wrapped__
     update = cast(Any, next(step for step in MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS)).__wrapped__
 
-    assert inspect.signature(populate).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation is (
-        OpticalModuleLocationBlockInactive
+    assert inspect.signature(save).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation is (
+        OpticalModuleLocationBlockProvisioning
     )
     assert inspect.signature(update).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation is (
         OpticalModuleLocationBlockProvisioning
@@ -252,7 +248,7 @@ def test_block_steps_take_the_lifecycle_matching_block_variant() -> None:
 
 def test_optical_location_block_from_state_rehydrates_a_round_tripped_block(monkeypatch) -> None:
     """Workflow steps execute with the state serialized between steps: the block arrives as a dict."""
-    block = _make_location_block()
+    block = _make_location_block_provisioning()
 
     def fake_from_state(block_dict):
         assert block_dict["subscription_instance_id"] == str(block.subscription_instance_id)
@@ -260,38 +256,13 @@ def test_optical_location_block_from_state_rehydrates_a_round_tripped_block(monk
 
     monkeypatch.setattr(location_shared, "_optical_module_location_block_from_state", fake_from_state)
 
-    assert optical_location_block_from_state(None) is None
+    with pytest.raises(ValueError, match="No Optical Module Location block in the state"):
+        optical_location_block_from_state(None)
     assert optical_location_block_from_state(block) is block
 
     round_tripped = cast(Any, json_loads(json_dumps({OPTICAL_MODULE_BLOCK_STATE_KEY: block})))
     assert isinstance(round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY], dict)
     assert optical_location_block_from_state(round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY]) is block
-
-
-def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch) -> None:
-    """The populate step re-hydrates the block from the database by its subscription_instance_id."""
-    block = _make_location_block()
-
-    def fake_from_state(block_dict):
-        assert block_dict["subscription_instance_id"] == str(block.subscription_instance_id)
-        return block
-
-    monkeypatch.setattr(location_shared, "_optical_module_location_block_from_state", fake_from_state)
-
-    round_tripped = cast(Any, json_loads(json_dumps({OPTICAL_MODULE_BLOCK_STATE_KEY: block})))
-    state = round_tripped | {
-        "longitude": "12.4964",
-        "latitude": "41.9028",
-        "location_code": "rom-01",
-        "location_name": "Rome",
-    }
-
-    wrapped = inject_args(cast(Any, populate_optical_module_location_block_step).__wrapped__)
-    result = wrapped(dict(state))
-
-    assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
-    assert block.location_code == "rom-01"
-    assert block.location_name == "Rome"
 
 
 def test_optical_location_block_from_state_rejects_dict_without_subscription_instance_id() -> None:
@@ -310,15 +281,13 @@ def test_optical_location_block_from_state_rejects_unknown_subscription_instance
         optical_location_block_from_state({"subscription_instance_id": str(uuid.uuid4())})
 
 
-def test_populate_block_step_fails_fast_when_state_has_no_block() -> None:
-    """The populate step fails fast when the state holds no Optical Module Location block."""
+def test_save_block_step_fails_fast_when_state_has_no_block() -> None:
+    """The save step fails fast when the state holds no Optical Module Location block."""
+    subscription = cast(Any, SimpleNamespace(subscription_id=uuid.uuid4(), status=SubscriptionLifecycle.PROVISIONING))
     with pytest.raises(ValueError, match="No Optical Module Location block in the state"):
-        cast(Any, populate_optical_module_location_block_step).__wrapped__(
+        cast(Any, save_optical_module_location_block).__wrapped__(
+            subscription=subscription,
             optical_module_block=None,
-            longitude="12.4964",
-            latitude="41.9028",
-            location_code="rom-01",
-            location_name="Rome",
         )
 
 
@@ -455,6 +424,7 @@ def test_update_block_rejects_duplicate_location_code_excluding_self(monkeypatch
         raise ValueError(msg)
 
     monkeypatch.setattr(location_modify, "check_location_code_uniqueness", fake_check)
+    monkeypatch.setattr(location_modify, "optical_location_block_from_state", Mock(return_value=block))
 
     with pytest.raises(ValueError, match="already in use"):
         cast(Any, update_optical_module_location_block).__wrapped__(
@@ -469,14 +439,15 @@ def test_update_block_rejects_duplicate_location_code_excluding_self(monkeypatch
     assert block.location_code is None
 
 
-def test_set_optical_module_location_subscription_description() -> None:
+def test_set_optical_module_location_subscription_description(monkeypatch) -> None:
     block = _make_location_block()
     block.location_code = "rom-01"
     block.location_name = "Rome"
-    subscription = cast(Any, SimpleNamespace(description="", optical_location=block))
+    subscription = cast(Any, SimpleNamespace(description=""))
+    monkeypatch.setattr(location_shared, "optical_location_block_from_state", Mock(return_value=block))
 
     state = cast(Any, set_optical_module_location_subscription_description).__wrapped__(
-        subscription=subscription, optical_module_block=None
+        subscription=subscription, optical_module_block=block
     )
 
     assert subscription.description == "Rome (rom-01)"
@@ -493,8 +464,8 @@ def test_shipped_type_create_workflow_composition() -> None:
         return (
             begin
             >> construct_optical_module_location_subscription
-            >> CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS
             >> set_status(SubscriptionLifecycle.PROVISIONING)
+            >> CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS
             >> set_optical_module_location_subscription_description
             >> store_process_subscription()
         )
@@ -502,10 +473,9 @@ def test_shipped_type_create_workflow_composition() -> None:
     workflow: Workflow = create_optical_module_location
     assert workflow.name == "create_optical_module_location"
     names = [step.name for step in workflow.steps]
-    assert names.index("Construct Subscription model") < names.index("Populate Optical Module Location block")
-    assert names.index("Populate Optical Module Location block") < names.index("Persist optical module location block")
-    assert names.index("Persist optical module location block") < names.index("Set subscription to 'provisioning'")
-    assert names.index("Set subscription to 'provisioning'") < names.index(
+    assert names.index("Construct Subscription model") < names.index("Set subscription to 'provisioning'")
+    assert names.index("Set subscription to 'provisioning'") < names.index("Persist optical module location block")
+    assert names.index("Persist optical module location block") < names.index(
         "Set Optical Module Location subscription description"
     )
     assert names.index("Set Optical Module Location subscription description") < names.index(
@@ -706,8 +676,7 @@ def test_optical_module_location_subscription_description_fails_fast_without_blo
 
 
 def test_optical_module_location_subscription_description_takes_the_explicit_block() -> None:
-    block = _make_location_block()
-    block.location_code = "rom-01"
+    block = _make_location_block_provisioning()
     block.location_name = "Rome"
     subscription = cast(Any, SimpleNamespace())
 
@@ -742,12 +711,13 @@ def test_validate_optical_module_location_block_passes_on_provisioned_block() ->
     assert validate_optical_module_location_block(block) is None
 
 
-def test_validate_optical_module_location_state_validates_the_block_from_the_state() -> None:
+def test_validate_optical_module_location_state_validates_the_block_from_the_state(monkeypatch) -> None:
     block = _make_location_block()
     block.longitude = "12.4964"
     block.latitude = "41.9028"
     block.location_code = "rom-01"
     subscription = cast(Any, SimpleNamespace())
+    monkeypatch.setattr(location_validate, "optical_location_block_from_state", Mock(return_value=block))
 
     state = cast(Any, validate_optical_module_location_block_step).__wrapped__(
         subscription=subscription, optical_module_block=block

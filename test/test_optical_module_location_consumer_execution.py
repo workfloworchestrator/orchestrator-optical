@@ -45,14 +45,17 @@ from orchestrator.core.workflows.steps import set_status, store_process_subscrip
 from orchestrator.core.workflows.utils import create_workflow, modify_workflow, terminate_workflow, validate_workflow
 from orchestrator.optical.db import location_block_from_subscription
 from orchestrator.optical.products.product_blocks.optical_location import (
+    LocationCode,
     OpticalModuleLocationBlock,
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
+from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_location.create import (
     CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
     create_optical_module_location_form_generator,
+    populate_optical_module_location_block,
 )
 from orchestrator.optical.workflows.optical_location.modify import (
     MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
@@ -95,19 +98,37 @@ CONSUMER_WORKFLOWS: dict[str, Target] = {
 
 
 @step("Construct Consumer Router subscription model")
-def construct_consumer_router_subscription(product: UUIDstr, customer_id: UUIDstr) -> State:
-    """Construct the consumer subscription model and put its location block in the state.
+def construct_consumer_router_subscription(
+    product: UUIDstr,
+    customer_id: UUIDstr,
+    longitude: LongitudeCoordinate,
+    latitude: LatitudeCoordinate,
+    location_code: LocationCode,
+    location_name: str | None = None,
+) -> State:
+    """Construct the PROVISIONING consumer subscription model and put its location block in the state.
 
     The consumer counterpart of the shipped construct step: the model is built via
-    ``from_product_id`` on the consumer's abstract model and the block it composes
-    (``router.for_the_optical_module``) is put in the state under the shipped
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the shipped block steps.
+    ``from_product_id`` on the consumer's abstract model, the block it composes
+    (``router.for_the_optical_module``) is populated with the create-form values
+    (the mandatory fields of the PROVISIONING lifecycle) and the subscription is
+    transitioned to PROVISIONING in memory, so the block found in the state under
+    the shipped ``OPTICAL_MODULE_BLOCK_STATE_KEY`` is the PROVISIONING variant with
+    its mandatory fields already set.
     """
     subscription = AbstractRouterInactive.from_product_id(
         product_id=product,
         customer_id=customer_id,
         status=SubscriptionLifecycle.INITIAL,
     )
+    populate_optical_module_location_block(
+        optical_module_block=subscription.router.for_the_optical_module,
+        longitude=longitude,
+        latitude=latitude,
+        location_code=location_code,
+        location_name=location_name,
+    )
+    subscription = AbstractRouterProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
 
     return {
         "subscription": subscription,
@@ -122,8 +143,8 @@ def create_consumer_router_location() -> StepList:
     return (
         begin
         >> construct_consumer_router_subscription
-        >> CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS
         >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS
         >> set_optical_module_location_subscription_description
         >> store_process_subscription()
     )

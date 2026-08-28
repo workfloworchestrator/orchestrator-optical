@@ -15,7 +15,10 @@ from structlog import get_logger
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockInactive
+from orchestrator.optical.products.product_blocks.optical_location import (
+    OpticalModuleLocationBlockInactive,
+    OpticalModuleLocationBlockProvisioning,
+)
 from orchestrator.optical.workflows.optical_location.shared import (
     _optical_module_location_block_of_subscription,
     optical_location_block_from_state,
@@ -72,7 +75,7 @@ def validate_optical_module_location_block(
 @step("Validate Optical Module Location state")
 def validate_optical_module_location_block_step(
     subscription: SubscriptionModel,
-    optical_module_block: OpticalModuleLocationBlockInactive | None = None,
+    optical_module_block: OpticalModuleLocationBlockProvisioning | None = None,
 ) -> State:
     """Validate the Optical Module Location block loaded for the subscription.
 

@@ -235,16 +235,19 @@ def set_optical_module_location_subscription_description(
 ) -> State:
     """Set the description of the Optical Module Location subscription.
 
-    The block is read from the ``optical_module_block`` state key when
-    present (e.g. when the shipped block steps ran against a consumer-owned
-    block under a different attribute name); otherwise it falls back to the
-    ``optical_location`` attribute of the shipped subscription models.
+    The block is re-hydrated from the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``:
+    the shipped create block steps (and a consumer's construct step) always put
+    the block in the state before this step runs, so it does not fall back to
+    the ``optical_location`` attribute of the subscription.
 
     Args:
         subscription: The Optical Module Location subscription.
         optical_module_block: The Optical Module Location block of the
-            subscription, when it is available in the state under
-            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+            subscription, in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+
+    Raises:
+        ValueError: If there is no Optical Module Location block in the state
+            under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     location = optical_location_block_from_state(optical_module_block)
     subscription.description = optical_module_location_subscription_description(subscription, location)
