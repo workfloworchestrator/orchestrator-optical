@@ -30,6 +30,7 @@ collected by the form is always persisted by prefixing it to the
 input is silently dropped.
 """
 
+from orchestrator.core.workflows.steps import set_status
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -432,6 +433,7 @@ def create_leased_spectrum() -> StepList:
     return (
         begin
         >> construct_leased_spectrum_subscription
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
         >> CREATE_LEASED_SPECTRUM_BLOCK_STEPS
         >> set_optical_pipe_subscription_description
         >> store_process_subscription()

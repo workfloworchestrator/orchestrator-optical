@@ -35,7 +35,7 @@ from pydantic_forms.validators import Choice
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.steps import store_process_subscription
+from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
 from orchestrator.optical.hal.optical_port import (
@@ -370,6 +370,7 @@ def create_fiber_span() -> StepList:
     return (
         begin
         >> construct_fiber_span_subscription
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
         >> CREATE_FIBER_SPAN_BLOCK_STEPS
         >> set_optical_pipe_subscription_description
         >> store_process_subscription()
