@@ -9,19 +9,17 @@ shipped block declare their own ``@validate_workflow`` with
 """
 
 from pydantic_forms.types import State
-from structlog import get_logger
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.optical_port import check_fiber_terminating_port
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
-from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlock
-from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlock
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrum
-from orchestrator.optical.workflows.optical_pipe.shared import set_optical_pipe_subscription_description
-
-logger = get_logger(__name__)
+from orchestrator.optical.workflows.optical_pipe.shared import (
+    load_optical_pipe_block,
+    retrieve_optical_pipe_used_passbands,
+    save_optical_pipe_block,
+    set_optical_pipe_subscription_description,
+)
 
 
 @step("Load Initial State")
@@ -39,35 +37,18 @@ def check_leased_spectrum_terminations(subscription: OpticalLeasedSpectrum) -> S
     return {}
 
 
-@step("Retrieve Used Passbands")
-def retrieve_leased_spectrum_used_passbands(subscription: OpticalLeasedSpectrum) -> State:
-    """Refresh the passbands in use on the terminating ports from the devices."""
-    for port in subscription.optical_pipe.optical_pipe_terminations:
-        if not isinstance(port, OlsAddDropPortBlock | OlsLinePortBlock):
-            continue
-        host_node = port.optical_port_host_node
-        if host_node.optical_node_role not in (
-            OpticalNodeRole.ROADM,
-            OpticalNodeRole.TRANSPONDER_XOADM,
-            OpticalNodeRole.AMPLIFIER,
-        ):
-            continue
-        if port.optical_port_name is None:
-            msg = f"Optical port block of {host_node.management.optical_module_node_fqdn} has no port name"
-            raise ValueError(msg)
-        port.optical_passbands = retrieve_ports_spectral_occupations(host_node).get(port.optical_port_name, [])
-    return {"subscription": subscription}
-
-
-#: Validation steps of the Optical Leased Spectrum family. The subscription
-#: description refresh is a shipped-type-only step exported separately (see
-#: ``shared.set_optical_pipe_subscription_description``).
+#: Validation steps of the Optical Leased Spectrum family. The block is put in
+#: the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` and the refreshed
+#: passbands are persisted by the last step; the subscription description
+#: refresh is a shared step that reads the block from the state.
 LEASED_SPECTRUM_VALIDATE_STEPS: StepList = (
     begin
     >> load_initial_state_leased_spectrum
+    >> load_optical_pipe_block
     >> set_optical_pipe_subscription_description
     >> check_leased_spectrum_terminations
-    >> retrieve_leased_spectrum_used_passbands
+    >> retrieve_optical_pipe_used_passbands
+    >> save_optical_pipe_block
 )
 
 

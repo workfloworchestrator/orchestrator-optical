@@ -12,7 +12,9 @@ consumers with their own model that has-a the shipped block compose their own
 ``@create_workflow`` with the parts. The shipped workflow itself is composed
 from the shipped parts: the construct step builds the shipped subscription
 model and puts its block in the state, the shipped block steps persist the
-block, and the shipped description step finalizes the subscription. The
+block, configure the span terminations on the devices and refresh the
+passbands in use, and the shipped description step finalizes the subscription.
+The
 shipped form generator is a thin composition of the shipped pages and the
 summary form, without hooks: consumers build their own form generator by
 yielding from the shipped page sequence in one line and adding their own
@@ -36,13 +38,14 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
-from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.optical_port import (
     configure_termination_when_attaching_new_fiber,
     get_device_line_ports_names,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
+    AbstractOpticalPipeBlockProvisioning,
+)
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlockInactive
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import (
@@ -56,6 +59,8 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     new_optical_pipe_subscription,
     new_pipe_port_block,
     optical_node_selector,
+    optical_pipe_block_from_state,
+    retrieve_optical_pipe_used_passbands,
     save_optical_pipe_block,
     set_optical_pipe_subscription_description,
     unused_node_port_selector,
@@ -301,19 +306,19 @@ def construct_fiber_span_subscription(
     }
 
 
-#: Create steps operating on the Optical Pipe block in the state. The block
-#: is re-hydrated from the database and persisted by the last step, because
-#: workflow steps execute with the state serialized between steps. Consumers
-#: with their own model run this list after constructing their (inactive)
-#: subscription and putting their block in the state under
-#: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-CREATE_FIBER_SPAN_BLOCK_STEPS: StepList = begin >> save_optical_pipe_block
-
-
 @step("Configure Fiber Span Terminations")
-def configure_span_terminations(subscription: OpticalFiberSpanProvisioning) -> State:
-    """Configure the terminating line ports of the fiber span on the devices."""
-    port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
+def configure_span_terminations(optical_module_block: AbstractOpticalPipeBlockProvisioning) -> State:
+    """Configure the terminating line ports of the fiber span on the devices.
+
+    Operates only on the Optical Pipe block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``, the same block the rest of the shipped
+    block steps act on. The block is re-hydrated from its serialized form (see
+    :func:`optical_pipe_block_from_state`); it is read-only here, so only the
+    device configuration results are returned.
+    """
+    pipe_block = optical_pipe_block_from_state(optical_module_block)
+    terminations = pipe_block.optical_pipe_terminations
+    port_a, port_b = terminations
     if (
         port_b.optical_port_host_node.management.optical_module_node_vendor,
         port_b.optical_port_host_node.management.optical_module_node_platform,
@@ -332,25 +337,22 @@ def configure_span_terminations(subscription: OpticalFiberSpanProvisioning) -> S
             configure_termination_when_attaching_new_fiber(port_b, port_a)
         ),
     }
-    return {"configuration_results": configuration_results, "subscription": subscription}
+    return {"configuration_results": configuration_results, OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
 
 
-@step("Retrieve Used Passbands")
-def retrieve_span_used_passbands(subscription: OpticalFiberSpanProvisioning) -> State:
-    """Refresh the passbands in use on the terminating ports from the devices."""
-    for port in subscription.optical_pipe.optical_pipe_terminations:
-        host_node = port.optical_port_host_node
-        if host_node.optical_node_role not in (
-            OpticalNodeRole.ROADM,
-            OpticalNodeRole.TRANSPONDER_XOADM,
-            OpticalNodeRole.AMPLIFIER,
-        ):
-            continue
-        if port.optical_port_name is None:
-            msg = f"Optical port block of {host_node.management.optical_module_node_fqdn} has no port name"
-            raise ValueError(msg)
-        port.optical_passbands = retrieve_ports_spectral_occupations(host_node).get(port.optical_port_name, [])
-    return {"subscription": subscription}
+#: Create steps operating on the Optical Pipe block in the state. The block is
+#: re-hydrated from its serialized form, because workflow steps execute with the
+#: state serialized between steps; the terminations are configured on the
+#: devices, the passbands in use are refreshed and the block (with the refreshed
+#: passbands) is persisted by the last step. Consumers with their own model run
+#: this list after constructing their (inactive) subscription and putting their
+#: block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+CREATE_FIBER_SPAN_BLOCK_STEPS: StepList = (
+    begin
+    >> configure_span_terminations
+    >> retrieve_optical_pipe_used_passbands
+    >> save_optical_pipe_block
+)
 
 
 @create_workflow(initial_input_form=create_fiber_span_form_generator)
@@ -359,10 +361,11 @@ def create_fiber_span() -> StepList:
 
     The workflow is composed from the shipped parts: the construct step builds
     the shipped :class:`OpticalFiberSpan` model and puts its block in the
-    state, the shipped block steps persist the block, and the shipped
-    description step finalizes the subscription. It is therefore only valid
-    for the shipped product type; consumers with their own product type
-    compose their own create workflow with the same parts.
+    state, the shipped block steps persist the block, configure the span
+    terminations on the devices and refresh/persist the passbands in use, and
+    the shipped description step finalizes the subscription. It is therefore
+    only valid for the shipped product type; consumers with their own product
+    type compose their own create workflow with the same parts.
     """
     return (
         begin
@@ -370,8 +373,6 @@ def create_fiber_span() -> StepList:
         >> CREATE_FIBER_SPAN_BLOCK_STEPS
         >> set_optical_pipe_subscription_description
         >> store_process_subscription()
-        >> configure_span_terminations
-        >> retrieve_span_used_passbands
     )
 
 

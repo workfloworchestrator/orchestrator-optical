@@ -26,15 +26,20 @@ from orchestrator.optical.db import (
     subscription_instance_values_by_block_type_depending_on_instance_id,
     subscriptions_by_product_type,
 )
+from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
+    OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
     AbstractOpticalPipeBlockInactive,
     AbstractOpticalPipeBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalPortBlockInactive
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
+    AbstractOpticalOlsPortBlockInactive,
+    AbstractOpticalPortBlockInactive,
+)
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.transponder_client import (
@@ -115,8 +120,8 @@ def optical_pipe_subscription_description(
 
 
 def optical_pipe_block_from_state(
-    optical_module_block: AbstractOpticalPipeBlockInactive | dict[str, Any] | None,
-) -> AbstractOpticalPipeBlockInactive | None:
+    optical_module_block: AbstractOpticalPipeBlockProvisioning | dict[str, Any] | None,
+) -> AbstractOpticalPipeBlockProvisioning:
     """Return the Optical Pipe block of the workflow state as a domain model.
 
     Workflow steps execute with the state serialized between steps, so a block
@@ -139,13 +144,14 @@ def optical_pipe_block_from_state(
         ValueError: If the block in the state has no ``subscription_instance_id``.
     """
     if optical_module_block is None:
-        return None
-    if isinstance(optical_module_block, AbstractOpticalPipeBlockInactive):
+        msg = "No Optical Pipe block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
+        raise ValueError(msg)
+    if isinstance(optical_module_block, AbstractOpticalPipeBlockProvisioning):
         return optical_module_block
     return _optical_pipe_block_from_state(optical_module_block)
 
 
-def _optical_pipe_block_from_state(optical_module_block: dict[str, Any]) -> AbstractOpticalPipeBlockInactive:
+def _optical_pipe_block_from_state(optical_module_block: dict[str, Any]) -> AbstractOpticalPipeBlockProvisioning:
     """Reconstruct an Optical Pipe block from its serialized form.
 
     The state dict carries the full block data (the block is serialized with
@@ -177,7 +183,7 @@ def _optical_pipe_block_from_state(optical_module_block: dict[str, Any]) -> Abst
         msg = f"No subscription instance with id {subscription_instance_id}"
         raise ValueError(msg)
     block_class = cast(
-        type[AbstractOpticalPipeBlockInactive],
+        type[AbstractOpticalPipeBlockProvisioning],
         lookup_specialized_type(
             ProductBlockModel.registry[instance.product_block.name],
             SubscriptionLifecycle(instance.subscription.status),
@@ -212,7 +218,7 @@ def load_optical_pipe_block(subscription: SubscriptionModel) -> State:
 @step("Persist optical pipe block")
 def save_optical_pipe_block(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalPipeBlockInactive,
+    optical_module_block: AbstractOpticalPipeBlockProvisioning,
 ) -> State:
     """Persist the Optical Pipe block found in the state to the database.
 
@@ -234,9 +240,6 @@ def save_optical_pipe_block(
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     pipe_block = optical_pipe_block_from_state(optical_module_block)
-    if pipe_block is None:
-        msg = "No Optical Pipe block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
     pipe_block.save(subscription_id=subscription.subscription_id, status=subscription.status)
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
 
@@ -265,9 +268,6 @@ def update_optical_pipe_block(
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     pipe_block = optical_pipe_block_from_state(optical_module_block)
-    if pipe_block is None:
-        msg = "No Optical Pipe block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
     pipe_block.optical_pipe_name = optical_pipe_name
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
 
@@ -275,7 +275,7 @@ def update_optical_pipe_block(
 @step("Set Optical Pipe subscription description")
 def set_optical_pipe_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalPipeBlockInactive | None = None,
+    optical_module_block: AbstractOpticalPipeBlockProvisioning | None = None,
 ) -> State:
     """Set the description of the Optical Pipe subscription.
 
@@ -292,6 +292,40 @@ def set_optical_pipe_subscription_description(
     pipe = optical_pipe_block_from_state(optical_module_block)
     subscription.description = optical_pipe_subscription_description(subscription, pipe)
     return {"subscription": subscription, "subscription_description": subscription.description}
+
+
+@step("Retrieve Used Passbands")
+def retrieve_optical_pipe_used_passbands(
+    optical_module_block: AbstractOpticalPipeBlockProvisioning,
+) -> State:
+    """Refresh the passbands in use on the Open Line System terminating ports.
+
+    Operates only on the Optical Pipe block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``, the same block the rest of the shipped
+    block steps act on. Only the OLS terminating ports (the ones that carry
+    ``optical_passbands``) hosted on ROADM, Transponder-xOADM or Amplifier
+    nodes are refreshed from the devices; every other termination (e.g.
+    transponder ports) is left untouched, so the step is a no-op for pipes
+    whose terminations are all transponder ports. Callers persist the refreshed
+    passbands with :func:`save_optical_pipe_block`.
+    """
+    pipe_block = optical_pipe_block_from_state(optical_module_block)
+    terminations = pipe_block.optical_pipe_terminations
+    for port in terminations:
+        if not isinstance(port, AbstractOpticalOlsPortBlockInactive):
+            continue
+        host_node = port.optical_port_host_node
+        if host_node.optical_node_role not in (
+            OpticalNodeRole.ROADM,
+            OpticalNodeRole.TRANSPONDER_XOADM,
+            OpticalNodeRole.AMPLIFIER,
+        ):
+            continue
+        if port.optical_port_name is None:
+            msg = f"Optical port block of {host_node.management.optical_module_node_fqdn} has no port name"
+            raise ValueError(msg)
+        port.optical_passbands = retrieve_ports_spectral_occupations(host_node).get(port.optical_port_name, [])
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
 
 
 def optical_pipe_selector(product_type: str, prompt: str | None = None) -> type[Choice]:

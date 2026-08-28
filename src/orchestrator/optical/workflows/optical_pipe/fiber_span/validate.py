@@ -14,11 +14,14 @@ from pydantic_forms.types import State
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.optical_port import check_fiber_terminating_port
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
-from orchestrator.optical.workflows.optical_pipe.shared import set_optical_pipe_subscription_description
+from orchestrator.optical.workflows.optical_pipe.shared import (
+    load_optical_pipe_block,
+    retrieve_optical_pipe_used_passbands,
+    save_optical_pipe_block,
+    set_optical_pipe_subscription_description,
+)
 
 
 @step("Load Initial State")
@@ -36,34 +39,18 @@ def check_span_terminations(subscription: OpticalFiberSpan) -> State:
     return {}
 
 
-@step("Retrieve Used Passbands")
-def retrieve_span_used_passbands(subscription: OpticalFiberSpan) -> State:
-    """Refresh the passbands in use on the terminating ports from the devices."""
-    for port in subscription.optical_pipe.optical_pipe_terminations:
-        host_node = port.optical_port_host_node
-        if host_node.optical_node_role not in (
-            OpticalNodeRole.ROADM,
-            OpticalNodeRole.TRANSPONDER_XOADM,
-            OpticalNodeRole.AMPLIFIER,
-        ):
-            continue
-        if port.optical_port_name is None:
-            msg = f"Optical port block of {host_node.management.optical_module_node_fqdn} has no port name"
-            raise ValueError(msg)
-        port.optical_passbands = retrieve_ports_spectral_occupations(host_node).get(port.optical_port_name, [])
-    return {"subscription": subscription}
-
-
-#: Validation steps of the Optical Fiber Span family. The subscription
-#: description refresh is a shared step that reads the block from the state
-#: under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` when present, and otherwise falls
-#: back to the ``optical_pipe`` attribute of the shipped subscription models.
+#: Validation steps of the Optical Fiber Span family. The block is put in the
+#: state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` and the refreshed passbands
+#: are persisted by the last step; the subscription description refresh is a
+#: shared step that reads the block from the state.
 FIBER_SPAN_VALIDATE_STEPS: StepList = (
     begin
     >> load_initial_state_fiber_span
+    >> load_optical_pipe_block
     >> set_optical_pipe_subscription_description
     >> check_span_terminations
-    >> retrieve_span_used_passbands
+    >> retrieve_optical_pipe_used_passbands
+    >> save_optical_pipe_block
 )
 
 

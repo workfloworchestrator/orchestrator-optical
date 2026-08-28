@@ -38,10 +38,8 @@ from orchestrator.optical.workflows.optical_pipe.fiber_span import modify as fib
 from orchestrator.optical.workflows.optical_pipe.fiber_span import terminate as fiber_span_terminate
 from orchestrator.optical.workflows.optical_pipe.fiber_span.create import (
     CREATE_FIBER_SPAN_BLOCK_STEPS,
-    configure_span_terminations,
     construct_fiber_span_subscription,
     create_fiber_span_form_generator,
-    retrieve_span_used_passbands,
 )
 from orchestrator.optical.workflows.optical_pipe.fiber_span.modify import (
     MODIFY_FIBER_SPAN_BLOCK_STEPS,
@@ -238,18 +236,19 @@ def test_shipped_type_create_workflow_composition() -> None:
             >> CREATE_FIBER_SPAN_BLOCK_STEPS
             >> set_optical_pipe_subscription_description
             >> store_process_subscription()
-            >> configure_span_terminations
-            >> retrieve_span_used_passbands
         )
 
     workflow: Workflow = create_fiber_span
     assert workflow.name == "create_fiber_span"
     names = [step.name for step in workflow.steps]
-    assert names.index("Construct Fiber Span Subscription") < names.index("Persist optical pipe block")
-    assert names.index("Persist optical pipe block") < names.index("Set Optical Pipe subscription description")
-    assert names.index("Set Optical Pipe subscription description") < names.index(
-        "Create Process Subscription relation"
-    )
+    construct = names.index("Construct Fiber Span Subscription")
+    persist_first = names.index("Persist optical pipe block")
+    configure = names.index("Configure Fiber Span Terminations")
+    retrieve = names.index("Retrieve Used Passbands")
+    persist_last = names.index("Persist optical pipe block", persist_first + 1)
+    set_description = names.index("Set Optical Pipe subscription description")
+    create_relation = names.index("Create Process Subscription relation")
+    assert construct < persist_first < configure < retrieve < persist_last < set_description < create_relation
 
 
 def test_shipped_type_modify_workflow_composition() -> None:
@@ -304,6 +303,7 @@ def test_fiber_patch_and_leased_spectrum_step_lists_compose() -> None:
     patch_workflow: Workflow = create_fiber_patch
     names = [step.name for step in patch_workflow.steps]
     assert names.index("Construct Fiber Patch Subscription") < names.index("Persist optical pipe block")
+    assert names.index("Persist optical pipe block") < names.index("Retrieve Used Passbands")
 
     leased_workflow: Workflow = modify_leased_spectrum
     names = [step.name for step in leased_workflow.steps]
