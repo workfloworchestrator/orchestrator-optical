@@ -6,6 +6,8 @@ from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.optical.db import node_block_from_subscription
 from orchestrator.optical.hal import optical_node as optical_node_hal
+from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
+from orchestrator.optical.workflows.optical_node.shared.create import _optical_node_block_of_subscription
 from orchestrator.optical.workflows.optical_node.shared.modify import (
     update_optical_node_subscription_description,
 )
@@ -13,9 +15,26 @@ from orchestrator.optical.workflows.optical_node.shared.modify import (
 
 @step("Load initial state")
 def load_initial_state_optical_node(subscription: SubscriptionModel) -> State:
-    """Load initial subscription state into the workflow process."""
+    """Load initial subscription state into the workflow process.
+
+    The subscription and its Optical Node block are put in the state, so the
+    shared steps (which act on the block under ``OPTICAL_MODULE_BLOCK_STATE_KEY``)
+    can operate on them.
+
+    Args:
+        subscription: The Optical Node subscription.
+
+    Returns:
+        The state with the subscription and its block under the
+        ``optical_module_block`` key.
+
+    Raises:
+        ValueError: If the subscription has no Optical Node block under the
+            ``optical_node`` attribute.
+    """
     return {
         "subscription": subscription,
+        OPTICAL_MODULE_BLOCK_STATE_KEY: _optical_node_block_of_subscription(subscription),
     }
 
 

@@ -57,6 +57,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import ProcessStatus
 from orchestrator.core.workflows import LazyWorkflowInstance
 from orchestrator.optical.db import location_block_from_subscription
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform
 from orchestrator.optical.products.product_types.optical_packet_node import (
     OpticalModulePacketNodeSubscriptionInactive,
 )
@@ -432,9 +433,15 @@ def _fake_allign_tx_power_to_target(*args: Any, **kwargs: Any) -> dict[str, Any]
     return {}
 
 
-def _fake_retrieve_optical_node_role_and_software_version(*args: Any, **kwargs: Any) -> tuple[str, str]:
-    """Return the faked node role and software version (shared retrieval step)."""
-    return ("ROADM", FAKE_SOFTWARE_VERSION)
+def _fake_retrieve_optical_node_role_and_software_version(block: Any, *args: Any, **kwargs: Any) -> tuple[str, str]:
+    """Return the faked node role and software version (shared retrieval step).
+
+    The role is discovered from the device: FlexILS nodes are line systems
+    (``ROADM``), while Groove G30 and GX G42 nodes are ``TRANSPONDER``.
+    """
+    if block.management.optical_module_node_platform == Platform.FLEXILS:
+        return ("ROADM", FAKE_SOFTWARE_VERSION)
+    return ("Transponder", FAKE_SOFTWARE_VERSION)
 
 
 def _fake_retrieve_software_version(*args: Any, **kwargs: Any) -> str:
@@ -495,17 +502,18 @@ def install_device_stubs(
             },
         },
         "pipe": {
+            "orchestrator.optical.workflows.optical_pipe.shared": {
+                "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
+            },
             "orchestrator.optical.workflows.optical_pipe.fiber_span.create": {
                 "get_device_line_ports_names": _get_device_line_ports_names,
                 "configure_termination_when_attaching_new_fiber": _fake_configure_termination_when_attaching_new_fiber,
-                "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
             },
             "orchestrator.optical.workflows.optical_pipe.fiber_span.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
             },
             "orchestrator.optical.workflows.optical_pipe.fiber_span.validate": {
                 "check_fiber_terminating_port": _fake_check_fiber_terminating_port,
-                "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
             },
             "orchestrator.optical.workflows.optical_pipe.fiber_patch.create": {
                 "get_device_client_ports_names": _get_device_client_ports_names,
@@ -522,14 +530,12 @@ def install_device_stubs(
                 "get_device_line_ports_names": _get_device_line_ports_names,
                 "get_device_client_ports_names": _get_device_client_ports_names,
                 "configure_termination_when_attaching_new_fiber": _fake_configure_termination_when_attaching_new_fiber,
-                "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
             },
             "orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
             },
             "orchestrator.optical.workflows.optical_pipe.leased_spectrum.validate": {
                 "check_fiber_terminating_port": _fake_check_fiber_terminating_port,
-                "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
             },
         },
         "spectrum": {
@@ -685,48 +691,60 @@ def seed_optical_node(
         fqdn: str,
         dcn_interface_ip: str,
         *,
-        optical_node_role: str | None = None,
         dcn_loopback_ip: str | None = None,
     ) -> str:
         """Create an ACTIVE optical node of the given product via the shipped create workflow (device calls stubbed).
 
-        The node role is a block constraint: FlexILS nodes are line systems (the role is discovered from
-        the device, always ``ROADM`` via the stub, and is not a form field); Groove G30 nodes default to
-        ``Transponder`` (``Transponder and xOADM`` is also allowed); GX G42 nodes are ``Transponder`` only.
+        The node role is discovered from the device (never a form field): FlexILS nodes are
+        line systems (always ``ROADM`` via the stub); Groove G30 and GX G42 nodes are
+        ``TRANSPONDER`` via the stub.
         """
         install_device_stubs(monkeypatch, families=("node",))
-        identity: dict[str, Any] = {
-            "location_id": active_location,
-            "optical_module_node_fqdn": fqdn,
-        }
+        location: dict[str, Any] = {"location_id": active_location}
         management: dict[str, Any] = {
+            "optical_module_node_fqdn": fqdn,
             "optical_module_node_dcn_interface_ip": dcn_interface_ip,
             "optical_module_node_dcn_loopback_ip": dcn_loopback_ip,
         }
         match product_name:
             case "Nokia FlexILS Optical Node":
                 workflow_name = "create_optical_node_nokia_flexils"
-                identity["optical_flexils_target_id"] = fqdn
-                management["optical_flexils_gmpls_id"] = _flexils_gmpls_id(fqdn)
+                vendor: dict[str, Any] = {
+                    "optical_flexils_target_id": fqdn,
+                    "optical_flexils_gmpls_id": _flexils_gmpls_id(fqdn),
+                }
+                user_inputs: list[dict[str, Any]] = [
+                    {"product": _product_id_of(product_name)},
+                    {"customer_id": CUSTOMER_ID},
+                    location,
+                    management,
+                    vendor,
+                    {},
+                ]
             case "Nokia Groove G30 Optical Node":
                 workflow_name = "create_optical_node_nokia_groove_g30"
-                identity["optical_node_role"] = optical_node_role or "Transponder"
+                user_inputs = [
+                    {"product": _product_id_of(product_name)},
+                    {"customer_id": CUSTOMER_ID},
+                    location,
+                    management,
+                    {},
+                ]
             case "Nokia GX G42 Optical Node":
                 workflow_name = "create_optical_node_nokia_gx_g42"
-                identity["optical_node_role"] = optical_node_role or "Transponder"
+                user_inputs = [
+                    {"product": _product_id_of(product_name)},
+                    {"customer_id": CUSTOMER_ID},
+                    location,
+                    management,
+                    {},
+                ]
             case _:
                 msg = (
                     f"Unknown optical node product {product_name!r}; supported products are "
                     "'Nokia FlexILS Optical Node', 'Nokia Groove G30 Optical Node' and 'Nokia GX G42 Optical Node'"
                 )
                 raise ValueError(msg)
-        user_inputs: list[dict[str, Any]] = [
-            {"product": _product_id_of(product_name)},
-            {"customer_id": CUSTOMER_ID},
-            identity,
-            management,
-            {},
-        ]
         process_id = run_process(workflow_name, user_inputs)
         _assert_process_completed(process_id)
         return _subscription_id_of_process(process_id)
