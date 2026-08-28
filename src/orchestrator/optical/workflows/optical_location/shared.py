@@ -21,6 +21,7 @@ from orchestrator.optical.db import subscription_instances_by_block_type_and_res
 from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlock,
     OpticalModuleLocationBlockInactive,
+    OpticalModuleLocationBlockProvisioning,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.shared import active_subscription_selector_by_block_type
@@ -92,8 +93,8 @@ def active_location_subscription_selector(prompt: str | None = None) -> type[Cho
 
 
 def optical_location_block_from_state(
-    optical_module_block: OpticalModuleLocationBlockInactive | dict[str, Any] | None,
-) -> OpticalModuleLocationBlockInactive | None:
+    optical_module_block: OpticalModuleLocationBlockProvisioning | dict[str, Any] | None,
+) -> OpticalModuleLocationBlockProvisioning:
     """Return the Optical Module Location block of the workflow state as a domain model.
 
     Workflow steps execute with the state serialized between steps, so a block
@@ -103,7 +104,11 @@ def optical_location_block_from_state(
     model (in-process usage, e.g. in tests) and reconstructs the block from the
     serialized data otherwise. The lifecycle variant of the block is resolved
     from the status of its owner subscription, so blocks of any lifecycle are
-    loaded as their matching variant (INITIAL, PROVISIONING or ACTIVE).
+    loaded as their matching variant (INITIAL, PROVISIONING or ACTIVE). The
+    shipped block steps always operate on the PROVISIONING variant: their
+    callers construct the block with the mandatory fields set and transition
+    the subscription to PROVISIONING before running them (the ACTIVE variant is
+    a subtype of the PROVISIONING one, so validation blocks load fine too).
 
     Args:
         optical_module_block: The block value from the workflow state, or None.
@@ -116,15 +121,16 @@ def optical_location_block_from_state(
         ValueError: If the block in the state has no ``subscription_instance_id``.
     """
     if optical_module_block is None:
-        return None
-    if isinstance(optical_module_block, OpticalModuleLocationBlockInactive):
+        msg = "No Optical Module Location block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
+        raise ValueError(msg)
+    if isinstance(optical_module_block, OpticalModuleLocationBlockProvisioning):
         return optical_module_block
     return _optical_module_location_block_from_state(optical_module_block)
 
 
 def _optical_module_location_block_from_state(
     optical_module_block: dict[str, Any],
-) -> OpticalModuleLocationBlockInactive:
+) -> OpticalModuleLocationBlockProvisioning:
     """Reconstruct an Optical Module Location block from its serialized form.
 
     The state dict carries the full block data (the block is serialized with
@@ -157,7 +163,7 @@ def _optical_module_location_block_from_state(
         raise ValueError(msg)
     status = SubscriptionLifecycle(instance.subscription.status)
     block_class = cast(
-        type[OpticalModuleLocationBlockInactive],
+        type[OpticalModuleLocationBlockProvisioning],
         lookup_specialized_type(OpticalModuleLocationBlockInactive, status),
     )
     return block_class.model_validate(optical_module_block)
@@ -194,7 +200,7 @@ def _optical_module_location_block_of_subscription(
 
 def optical_module_location_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: OpticalModuleLocationBlockInactive | None = None,
+    optical_module_block: OpticalModuleLocationBlockProvisioning | None = None,
 ) -> str:
     """Generate the human-readable description of an Optical Module Location subscription.
 
@@ -225,7 +231,7 @@ def optical_module_location_subscription_description(
 @step("Set Optical Module Location subscription description")
 def set_optical_module_location_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: OpticalModuleLocationBlockInactive | None = None,
+    optical_module_block: OpticalModuleLocationBlockProvisioning | None = None,
 ) -> State:
     """Set the description of the Optical Module Location subscription.
 
@@ -272,7 +278,7 @@ def load_optical_module_location_block(subscription: SubscriptionModel) -> State
 @step("Persist optical module location block")
 def save_optical_module_location_block(
     subscription: SubscriptionModel,
-    optical_module_block: OpticalModuleLocationBlockInactive,
+    optical_module_block: OpticalModuleLocationBlockProvisioning,
 ) -> State:
     """Persist the Optical Module Location block found in the state to the database.
 
@@ -281,6 +287,9 @@ def save_optical_module_location_block(
     before it is saved. This step saves the block tree of the loaded
     subscription (any consumer subscription model that has-a the block)
     and returns the block, so it can be composed by any consumer workflow.
+    The shipped block steps always operate on the PROVISIONING variant: their
+    callers provide the block with the mandatory fields set and the owner
+    subscription in the PROVISIONING status.
 
     Args:
         subscription: The subscription owning the block.
@@ -290,9 +299,6 @@ def save_optical_module_location_block(
         The state with the block under the ``optical_module_block`` key.
     """
     location_block = optical_location_block_from_state(optical_module_block)
-    if location_block is None:
-        msg = "No Optical Module Location block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
     location_block.save(subscription_id=subscription.subscription_id, status=subscription.status)
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: location_block}
 

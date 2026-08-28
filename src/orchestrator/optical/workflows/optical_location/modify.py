@@ -245,9 +245,6 @@ def update_optical_module_location_block(
         ValueError: If the location code is already in use by another subscription.
     """
     location_block = optical_location_block_from_state(optical_module_block)
-    if location_block is None:
-        msg = "No Optical Module Location block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
     check_location_code_uniqueness(location_code, exclude_subscription_id=str(location_block.owner_subscription_id))
     location_block.longitude = longitude
     location_block.latitude = latitude
