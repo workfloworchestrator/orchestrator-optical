@@ -6,7 +6,7 @@ importable parts: the FormPages of the modify form (as the
 :func:`modify_optical_node_nokia_flexils_form_pages` page sequence, prefilled
 with the current subscription values) and the step list that updates and
 persists the Nokia FlexILS node block found in the state under
-``OPTICAL_NODE_BLOCK_STATE_KEY``.
+``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
@@ -38,7 +38,7 @@ from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
-    OPTICAL_NODE_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_node_block,
     modify_optical_node_management_form,
     optical_node_block_from_state,
@@ -194,7 +194,7 @@ def modify_optical_node_nokia_flexils_form_generator(
 
 @step("Updating Nokia FlexILS node block")
 def update_optical_node_nokia_flexils_block(
-    optical_node_block: NokiaFlexIlsBlockProvisioning | dict[str, Any] | None,
+    optical_module_block: NokiaFlexIlsBlockProvisioning | dict[str, Any] | None,
     optical_module_node_fqdn: Fqdn,
     optical_flexils_target_id: str,
     optical_flexils_gmpls_id: IPAddress,
@@ -210,8 +210,8 @@ def update_optical_node_nokia_flexils_block(
     and the FlexILS-specific fields are set directly.
 
     Args:
-        optical_node_block: The Nokia FlexILS node block in the state under
-            ``OPTICAL_NODE_BLOCK_STATE_KEY`` (the provisioning variant, while
+        optical_module_block: The Nokia FlexILS node block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY`` (the provisioning variant, while
             the subscription is being modified).
         optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_flexils_target_id: Target Identifier (TID) of the node.
@@ -221,9 +221,9 @@ def update_optical_node_nokia_flexils_block(
 
     Raises:
         ValueError: If there is no Nokia FlexILS node block in the state under
-            ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
-    node_block = optical_node_block_from_state(optical_node_block)
+    node_block = optical_node_block_from_state(optical_module_block)
     update_optical_node_block_fields(
         node_block,
         optical_module_node_fqdn=optical_module_node_fqdn,
@@ -234,7 +234,7 @@ def update_optical_node_nokia_flexils_block(
     flexils_block.optical_flexils_gmpls_id = optical_flexils_gmpls_id
     flexils_block.optical_flexils_target_id = optical_flexils_target_id
 
-    return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: node_block}
 
 
 #: Modify steps operating on the Nokia FlexILS node block in the state. The

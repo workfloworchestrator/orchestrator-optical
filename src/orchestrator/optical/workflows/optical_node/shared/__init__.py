@@ -2,13 +2,13 @@
 
 The shared parts are the block-level steps and the state key under which the
 Optical Node block travels in the workflow state
-(``OPTICAL_NODE_BLOCK_STATE_KEY``). The shipped block steps bind to that state
+(``OPTICAL_MODULE_BLOCK_STATE_KEY``). The shipped block steps bind to that state
 key and never to a specific subscription model: consumers compose the shipped
 block with a has-a relation on their own model and inject it into the state.
 """
 
+from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.optical_node.shared.create import (
-    OPTICAL_NODE_BLOCK_STATE_KEY,
     OPTICAL_NODE_PRODUCT_TYPES,
     optical_node_block_from_state,
     optical_node_subscription_description,
@@ -46,7 +46,7 @@ from orchestrator.optical.workflows.optical_node.shared.validate import (
 )
 
 __all__ = [
-    "OPTICAL_NODE_BLOCK_STATE_KEY",
+    "OPTICAL_MODULE_BLOCK_STATE_KEY",
     "OPTICAL_NODE_PRODUCT_TYPES",
     "OPTICAL_NODE_TERMINATE_STEPS",
     "OPTICAL_NODE_VALIDATE_STEPS",

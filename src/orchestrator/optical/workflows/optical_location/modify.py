@@ -6,7 +6,7 @@ with the importable parts: the FormPages of the modify form (as the
 :func:`modify_optical_module_location_form_pages` page sequence, prefilled
 with the current subscription values) and the step list that updates and
 persists the Optical Module Location block found in the state under
-``OPTICAL_LOCATION_BLOCK_STATE_KEY``.
+``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
@@ -44,7 +44,7 @@ from orchestrator.optical.products.product_types.optical_location import Optical
 from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_location.shared import (
-    OPTICAL_LOCATION_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     check_location_code_uniqueness,
     load_optical_module_location_block,
     optical_location_block_from_state,
@@ -213,7 +213,7 @@ def modify_optical_module_location_form_generator(
 
 @step("Updating Optical Module Location block")
 def update_optical_module_location_block(
-    optical_module_location_block: OpticalModuleLocationBlockProvisioning,
+    optical_module_block: OpticalModuleLocationBlockProvisioning,
     longitude: LongitudeCoordinate,
     latitude: LatitudeCoordinate,
     location_code: LocationCode,
@@ -232,8 +232,8 @@ def update_optical_module_location_block(
     before it is updated.
 
     Args:
-        optical_module_location_block: The Optical Module Location block
-            in the state under ``OPTICAL_LOCATION_BLOCK_STATE_KEY``
+        optical_module_block: The Optical Module Location block
+            in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``
             (the provisioning variant, while the subscription is being modified).
         longitude: Longitude of the location.
         latitude: Latitude of the location.
@@ -244,9 +244,9 @@ def update_optical_module_location_block(
     Raises:
         ValueError: If the location code is already in use by another subscription.
     """
-    location_block = optical_location_block_from_state(optical_module_location_block)
+    location_block = optical_location_block_from_state(optical_module_block)
     if location_block is None:
-        msg = "No Optical Module Location block in the state under OPTICAL_LOCATION_BLOCK_STATE_KEY"
+        msg = "No Optical Module Location block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
         raise ValueError(msg)
     check_location_code_uniqueness(location_code, exclude_subscription_id=str(location_block.owner_subscription_id))
     location_block.longitude = longitude
@@ -254,7 +254,7 @@ def update_optical_module_location_block(
     location_block.location_code = location_code
     location_block.location_name = None if clear_location_name else location_name
 
-    return {OPTICAL_LOCATION_BLOCK_STATE_KEY: location_block}
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: location_block}
 
 
 #: Modify steps operating on the Optical Module Location block in the state.

@@ -11,15 +11,15 @@ from orchestrator.optical.hal.optical_node import (
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
 )
+from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.optical_node.shared.create import (
-    OPTICAL_NODE_BLOCK_STATE_KEY,
     optical_node_block_from_state,
 )
 
 
 @step("Retrieve node role and software version")
 def retrieve_optical_node_role_and_software_version(
-    optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
+    optical_module_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
 ) -> State:
     """Connect to the node and write its role and software version to the block.
 
@@ -33,10 +33,10 @@ def retrieve_optical_node_role_and_software_version(
 
     Raises:
         ValueError: If there is no Optical Node block in the state under
-            ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
-    node_block = optical_node_block_from_state(optical_node_block)
+    node_block = optical_node_block_from_state(optical_module_block)
     role, software_version = _retrieve_optical_node_role_and_software_version(node_block)
     node_block.optical_node_role = role
     node_block.management.optical_module_node_software_version = software_version
-    return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: node_block}

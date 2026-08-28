@@ -6,7 +6,7 @@ with the importable parts: the FormPage of the modify form (as the
 :func:`modify_optical_coherent_pluggable_form_pages` page sequence, prefilled
 with the current subscription values) and the step list that updates and
 persists the Optical Coherent Pluggable block found in the state under
-``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY``.
+``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
@@ -40,7 +40,7 @@ from orchestrator.optical.products.product_types.optical_coherent_pluggable impo
 )
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
-    OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_coherent_pluggable_block,
     optical_coherent_pluggable_block_from_state,
     save_optical_coherent_pluggable_block,
@@ -159,7 +159,7 @@ def modify_optical_coherent_pluggable_form_generator(
 
 @step("Updating Optical Coherent Pluggable block")
 def update_optical_coherent_pluggable_block(
-    optical_coherent_pluggable_block: OpticalCoherentPluggableBlockProvisioning,
+    optical_module_block: OpticalCoherentPluggableBlockProvisioning,
     optical_port_description: str | None,
     optical_coherent_pluggable_firmware_version: str,
 ) -> State:
@@ -171,19 +171,19 @@ def update_optical_coherent_pluggable_block(
     before it is updated.
 
     Args:
-        optical_coherent_pluggable_block: The Optical Coherent Pluggable block
-            in the state under ``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY``
+        optical_module_block: The Optical Coherent Pluggable block
+            in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``
             (the provisioning variant, while the subscription is being modified).
         optical_port_description: Description of the port.
         optical_coherent_pluggable_firmware_version: Firmware version of the pluggable.
 
     Raises:
         ValueError: If there is no Optical Coherent Pluggable block in the state
-            under ``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY``.
+            under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
-    pluggable = optical_coherent_pluggable_block_from_state(optical_coherent_pluggable_block)
+    pluggable = optical_coherent_pluggable_block_from_state(optical_module_block)
     if pluggable is None:
-        msg = "No Optical Coherent Pluggable block in the state under OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY"
+        msg = "No Optical Coherent Pluggable block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
         raise ValueError(msg)
 
     if optical_port_description is not None:
@@ -192,7 +192,7 @@ def update_optical_coherent_pluggable_block(
     if optical_coherent_pluggable_firmware_version:
         pluggable.optical_coherent_pluggable_firmware_version = optical_coherent_pluggable_firmware_version
 
-    return {OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: pluggable}
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: pluggable}
 
 
 #: Modify steps operating on the Optical Coherent Pluggable block in the state.

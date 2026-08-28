@@ -47,7 +47,7 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.modify import (
     update_optical_coherent_pluggable_block,
 )
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
-    OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_coherent_pluggable_block,
     optical_coherent_pluggable_block_from_state,
 )
@@ -192,33 +192,33 @@ def test_shipped_block_step_lists_are_non_empty(steps) -> None:
 def test_block_steps_consume_the_block_state_key(steps) -> None:
     for step_func in _step_functions(steps):
         signature = inspect.signature(step_func)
-        assert OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY in signature.parameters
+        assert OPTICAL_MODULE_BLOCK_STATE_KEY in signature.parameters
 
 
 def test_shared_step_lists_are_block_agnostic() -> None:
     for step_func in _step_functions(OPTICAL_COHERENT_PLUGGABLE_TERMINATE_STEPS):
         signature = inspect.signature(step_func)
-        assert OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY not in signature.parameters
+        assert OPTICAL_MODULE_BLOCK_STATE_KEY not in signature.parameters
     for step_func in _step_functions(OPTICAL_COHERENT_PLUGGABLE_VALIDATE_STEPS):
         signature = inspect.signature(step_func)
-        assert OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY not in signature.parameters or (
-            signature.parameters[OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY].default is None
+        assert OPTICAL_MODULE_BLOCK_STATE_KEY not in signature.parameters or (
+            signature.parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].default is None
         )
 
 
 def test_optical_coherent_pluggable_block_state_key_matches_the_documented_contract() -> None:
     """The state key literal matches the value documented in the README state-contract table."""
-    assert OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY == "optical_coherent_pluggable_block"
+    assert OPTICAL_MODULE_BLOCK_STATE_KEY == "optical_module_block"
 
 
 def test_block_steps_take_the_lifecycle_matching_block_variant() -> None:
     populate = cast(Any, next(step for step in CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS)).__wrapped__
     update = cast(Any, next(step for step in MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS)).__wrapped__
 
-    assert inspect.signature(populate).parameters[OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY].annotation is (
+    assert inspect.signature(populate).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation is (
         OpticalCoherentPluggableBlockInactive
     )
-    assert inspect.signature(update).parameters[OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY].annotation is (
+    assert inspect.signature(update).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation is (
         OpticalCoherentPluggableBlockProvisioning
     )
 
@@ -228,7 +228,7 @@ def test_populate_optical_coherent_pluggable_block() -> None:
     host_node = _make_packet_node_block()
 
     populate_optical_coherent_pluggable_block(
-        optical_coherent_pluggable_block=block,
+        optical_module_block=block,
         optical_port_host_node=host_node,
         optical_port_name="port-1",
         optical_port_description="desc",
@@ -253,7 +253,7 @@ def test_populate_block_rejects_duplicate_port(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="already occupied"):
         populate_optical_coherent_pluggable_block(
-            optical_coherent_pluggable_block=block,
+            optical_module_block=block,
             optical_port_host_node=_make_packet_node_block(),
             optical_port_name="port-1",
             optical_port_description="desc",
@@ -268,7 +268,7 @@ def test_populate_block_step_resolves_the_state(monkeypatch) -> None:
     monkeypatch.setattr(create_parts, "packet_node_block_from_subscription", lambda _id: host_node)
     block = _make_pluggable_block()
     state = {
-        OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: block,
+        OPTICAL_MODULE_BLOCK_STATE_KEY: block,
         "optical_packet_node_id": str(uuid.uuid4()),
         "optical_port_name": "port-1",
         "optical_port_description": "desc",
@@ -278,7 +278,7 @@ def test_populate_block_step_resolves_the_state(monkeypatch) -> None:
     wrapped = inject_args(cast(Any, populate_optical_coherent_pluggable_block_step).__wrapped__)
     result = wrapped(dict(state))
 
-    assert result[OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY] is block
+    assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
     assert block.optical_port_host_node is host_node
     assert block.optical_port_name == "port-1"
     assert block.optical_port_description == "desc"
@@ -289,7 +289,7 @@ def test_update_optical_coherent_pluggable_block() -> None:
     block = _make_pluggable_block()
 
     cast(Any, update_optical_coherent_pluggable_block).__wrapped__(
-        optical_coherent_pluggable_block=block,
+        optical_module_block=block,
         optical_port_description="new desc",
         optical_coherent_pluggable_firmware_version="2.0",
     )
@@ -312,9 +312,9 @@ def test_optical_coherent_pluggable_block_from_state_rehydrates_a_round_tripped_
     assert optical_coherent_pluggable_block_from_state(block) is block
 
     round_tripped = _round_tripped_block_state(block, monkeypatch)
-    assert isinstance(round_tripped[OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY], dict)
+    assert isinstance(round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY], dict)
     assert (
-        optical_coherent_pluggable_block_from_state(round_tripped[OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY]) is block
+        optical_coherent_pluggable_block_from_state(round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY]) is block
     )
 
 
@@ -340,7 +340,7 @@ def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch)
     wrapped = inject_args(cast(Any, populate_optical_coherent_pluggable_block_step).__wrapped__)
     result = wrapped(dict(state))
 
-    assert result[OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY] is block
+    assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
     assert block.optical_port_name == "port-1"
     assert block.optical_port_description == "desc"
     assert block.optical_coherent_pluggable_firmware_version == "1.0"
@@ -366,7 +366,7 @@ def test_populate_block_step_fails_fast_when_state_has_no_block() -> None:
     """The populate step fails fast when the state holds no Optical Coherent Pluggable block."""
     with pytest.raises(ValueError, match="No Optical Coherent Pluggable block in the state"):
         cast(Any, populate_optical_coherent_pluggable_block_step).__wrapped__(
-            optical_coherent_pluggable_block=None,
+            optical_module_block=None,
             optical_packet_node_id=str(uuid.uuid4()),
             optical_port_name="port-1",
             optical_port_description="desc",
@@ -378,7 +378,7 @@ def test_update_block_step_fails_fast_when_state_has_no_block() -> None:
     """The update step fails fast when the state holds no Optical Coherent Pluggable block."""
     with pytest.raises(ValueError, match="No Optical Coherent Pluggable block in the state"):
         cast(Any, update_optical_coherent_pluggable_block).__wrapped__(
-            optical_coherent_pluggable_block=None,
+            optical_module_block=None,
             optical_port_description="desc",
             optical_coherent_pluggable_firmware_version="1.0",
         )
@@ -404,7 +404,7 @@ def test_load_optical_coherent_pluggable_block_returns_block_in_state() -> None:
 
     state = cast(Any, load_optical_coherent_pluggable_block).__wrapped__(subscription)
 
-    assert state == {OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: block}
+    assert state == {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
 
 def test_validate_optical_coherent_pluggable_state_fails_fast_when_subscription_has_no_block() -> None:
@@ -412,7 +412,7 @@ def test_validate_optical_coherent_pluggable_state_fails_fast_when_subscription_
 
     with pytest.raises(ValueError, match="under attribute 'optical_coherent_pluggable'") as exc_info:
         cast(Any, validate_optical_coherent_pluggable_state).__wrapped__(
-            subscription=subscription, optical_coherent_pluggable_block=None
+            subscription=subscription, optical_module_block=None
         )
 
     assert "must have-a" in str(exc_info.value)
@@ -425,7 +425,7 @@ def test_validate_optical_coherent_pluggable_state_validates_the_block_from_the_
     subscription = cast(Any, SimpleNamespace())
 
     state = cast(Any, validate_optical_coherent_pluggable_state).__wrapped__(
-        subscription=subscription, optical_coherent_pluggable_block=block
+        subscription=subscription, optical_module_block=block
     )
 
     assert state == {}
@@ -444,7 +444,7 @@ def _round_tripped_block_state(
         "from_subscription",
         staticmethod(lambda _sid: SimpleNamespace(optical_coherent_pluggable_part_number="CISCO QDD-400G-ZRP-S")),
     )
-    return cast(Any, json_loads(json_dumps({OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY: block})))
+    return cast(Any, json_loads(json_dumps({OPTICAL_MODULE_BLOCK_STATE_KEY: block})))
 
 
 @pytest.mark.parametrize(

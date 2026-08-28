@@ -5,7 +5,7 @@ workflow for the shipped Optical Module Location product type, together
 with the importable parts: the FormPages of the create form (as the
 :func:`create_optical_module_location_form_pages` page sequence), the block
 population logic and the step list that operates on the Optical Module
-Location block found in the state under ``OPTICAL_LOCATION_BLOCK_STATE_KEY``.
+Location block found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
@@ -41,7 +41,7 @@ from orchestrator.optical.products.product_types.optical_location import Optical
 from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_location.shared import (
-    OPTICAL_LOCATION_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     check_location_code_uniqueness,
     optical_location_block_from_state,
     save_optical_module_location_block,
@@ -172,7 +172,7 @@ def create_optical_module_location_form_generator(product_name: str) -> FormGene
 
 
 def populate_optical_module_location_block(
-    optical_module_location_block: OpticalModuleLocationBlockInactive,
+    optical_module_block: OpticalModuleLocationBlockInactive,
     longitude: LongitudeCoordinate,
     latitude: LatitudeCoordinate,
     location_code: LocationCode,
@@ -188,7 +188,7 @@ def populate_optical_module_location_block(
     duplicates.
 
     Args:
-        optical_module_location_block: The Optical Module Location block to populate (any lifecycle variant).
+        optical_module_block: The Optical Module Location block to populate (any lifecycle variant).
         longitude: Longitude of the location.
         latitude: Latitude of the location.
         location_code: Code of the location.
@@ -199,17 +199,17 @@ def populate_optical_module_location_block(
     """
     check_location_code_uniqueness(
         location_code,
-        exclude_subscription_id=str(optical_module_location_block.owner_subscription_id),
+        exclude_subscription_id=str(optical_module_block.owner_subscription_id),
     )
-    optical_module_location_block.longitude = longitude
-    optical_module_location_block.latitude = latitude
-    optical_module_location_block.location_code = location_code
-    optical_module_location_block.location_name = location_name
+    optical_module_block.longitude = longitude
+    optical_module_block.latitude = latitude
+    optical_module_block.location_code = location_code
+    optical_module_block.location_name = location_name
 
 
 @step("Populate Optical Module Location block")
 def populate_optical_module_location_block_step(
-    optical_module_location_block: OpticalModuleLocationBlockInactive,
+    optical_module_block: OpticalModuleLocationBlockInactive,
     longitude: LongitudeCoordinate,
     latitude: LatitudeCoordinate,
     location_code: LocationCode,
@@ -222,25 +222,25 @@ def populate_optical_module_location_block_step(
     before it is populated.
 
     Args:
-        optical_module_location_block: The Optical Module Location block
-            in the state under ``OPTICAL_LOCATION_BLOCK_STATE_KEY``.
+        optical_module_block: The Optical Module Location block
+            in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
         longitude: Longitude of the location.
         latitude: Latitude of the location.
         location_code: Code of the location.
         location_name: Human-readable name of the location.
     """
-    location_block = optical_location_block_from_state(optical_module_location_block)
+    location_block = optical_location_block_from_state(optical_module_block)
     if location_block is None:
-        msg = "No Optical Module Location block in the state under OPTICAL_LOCATION_BLOCK_STATE_KEY"
+        msg = "No Optical Module Location block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
         raise ValueError(msg)
     populate_optical_module_location_block(
-        optical_module_location_block=location_block,
+        optical_module_block=location_block,
         longitude=longitude,
         latitude=latitude,
         location_code=location_code,
         location_name=location_name,
     )
-    return {OPTICAL_LOCATION_BLOCK_STATE_KEY: location_block}
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: location_block}
 
 
 @step("Construct Subscription model")
@@ -248,7 +248,7 @@ def construct_optical_module_location_subscription(product: UUIDstr, customer_id
     """Construct the initial domain subscription model for an Optical Module Location.
 
     This step builds the shipped ``OpticalModuleLocationSubscription`` model
-    and puts its block in the state under ``OPTICAL_LOCATION_BLOCK_STATE_KEY``
+    and puts its block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``
     for the shipped block steps of
     :data:`CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS`. Consumers that define
     their own product type (composing the ``OpticalModuleLocationBlock`` under
@@ -265,7 +265,7 @@ def construct_optical_module_location_subscription(product: UUIDstr, customer_id
     return {
         "subscription": subscription,
         "subscription_id": subscription.subscription_id,
-        OPTICAL_LOCATION_BLOCK_STATE_KEY: subscription.optical_location,
+        OPTICAL_MODULE_BLOCK_STATE_KEY: subscription.optical_location,
     }
 
 
@@ -274,7 +274,7 @@ def construct_optical_module_location_subscription(product: UUIDstr, customer_id
 #: because workflow steps execute with the state serialized between steps.
 #: Consumers with their own model run this list after constructing their
 #: (inactive) subscription and putting their block in the state under
-#: ``OPTICAL_LOCATION_BLOCK_STATE_KEY``.
+#: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS: StepList = (
     begin >> populate_optical_module_location_block_step >> save_optical_module_location_block
 )

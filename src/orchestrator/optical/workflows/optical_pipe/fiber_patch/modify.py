@@ -5,7 +5,7 @@ shipped Optical Fiber Patch product type, together with the importable parts:
 the FormPage of the modify form (as the
 :func:`modify_fiber_patch_form_pages` page sequence, prefilled with the
 current subscription values) and the step list that updates and persists the
-Optical Pipe block found in the state under ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+Optical Pipe block found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own

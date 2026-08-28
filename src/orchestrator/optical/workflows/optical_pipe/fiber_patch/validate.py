@@ -7,7 +7,7 @@ termination check step. Consumers with their own model that has-a the shipped
 block declare their own ``@validate_workflow`` with
 :data:`FIBER_PATCH_VALIDATE_STEPS`; consumer models that compose the block
 under a different attribute name can put the block in the state under
-``OPTICAL_PIPE_BLOCK_STATE_KEY`` for the description step.
+``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the description step.
 """
 
 from pydantic_forms.types import State
@@ -36,7 +36,7 @@ def check_patch_terminations(subscription: OpticalFiberPatch) -> State:
 
 #: Validation steps of the Optical Fiber Patch family. The subscription
 #: description refresh is a shared step that reads the block from the state
-#: under ``OPTICAL_PIPE_BLOCK_STATE_KEY`` when present, and otherwise falls
+#: under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` when present, and otherwise falls
 #: back to the ``optical_pipe`` attribute of the shipped subscription models.
 FIBER_PATCH_VALIDATE_STEPS: StepList = (
     begin >> load_initial_state_fiber_patch >> set_optical_pipe_subscription_description >> check_patch_terminations

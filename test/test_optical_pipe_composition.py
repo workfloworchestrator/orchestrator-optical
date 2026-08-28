@@ -61,7 +61,7 @@ from orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate impor
     terminate_initial_input_form_generator as leased_spectrum_terminate_initial_input_form_generator,
 )
 from orchestrator.optical.workflows.optical_pipe.shared import (
-    OPTICAL_PIPE_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_pipe_block,
     set_optical_pipe_subscription_description,
 )
@@ -113,7 +113,7 @@ def _finish_form(generator, page_instance: FormPage) -> dict[str, Any]:
 
 def test_pipe_block_state_key_matches_the_documented_contract() -> None:
     """The state key literal matches the value documented in the README state-contract table."""
-    assert OPTICAL_PIPE_BLOCK_STATE_KEY == "optical_pipe_block"
+    assert OPTICAL_MODULE_BLOCK_STATE_KEY == "optical_module_block"
 
 
 @pytest.mark.parametrize(
@@ -141,7 +141,7 @@ def test_block_steps_consume_the_block_state_key() -> None:
     """The shared save/update block steps take the pipe block under the state key."""
     for step_func in _step_functions(CREATE_FIBER_SPAN_BLOCK_STEPS + MODIFY_FIBER_SPAN_BLOCK_STEPS):
         signature = inspect.signature(step_func)
-        assert OPTICAL_PIPE_BLOCK_STATE_KEY in signature.parameters
+        assert OPTICAL_MODULE_BLOCK_STATE_KEY in signature.parameters
 
 
 def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None:
@@ -316,11 +316,11 @@ def test_update_optical_pipe_block_writes_only_optical_pipe_name(monkeypatch) ->
     monkeypatch.setattr(pipe_shared, "optical_pipe_block_from_state", Mock(return_value=block))
 
     state = cast(Any, pipe_shared.update_optical_pipe_block).__wrapped__(
-        optical_pipe_block=block, optical_pipe_name="new-name"
+        optical_module_block=block, optical_pipe_name="new-name"
     )
 
     assert block.optical_pipe_name == "new-name"
-    assert state == {OPTICAL_PIPE_BLOCK_STATE_KEY: block}
+    assert state == {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
 
 def test_build_fiber_span_block(monkeypatch) -> None:

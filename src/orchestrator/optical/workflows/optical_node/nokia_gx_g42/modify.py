@@ -6,7 +6,7 @@ importable parts: the FormPages of the modify form (as the
 :func:`modify_optical_node_nokia_gx_g42_form_pages` page sequence, prefilled
 with the current subscription values) and the step list that updates and
 persists the Nokia GX G42 node block found in the state under
-``OPTICAL_NODE_BLOCK_STATE_KEY``.
+``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
@@ -36,7 +36,7 @@ from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
-    OPTICAL_NODE_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_node_block,
     modify_optical_node_management_form,
     optical_node_block_from_state,
@@ -120,7 +120,7 @@ def modify_optical_node_nokia_gx_g42_form_generator(
 
 @step("Updating Nokia GX G42 node block")
 def update_optical_node_nokia_gx_g42_block(
-    optical_node_block: NokiaGxG42BlockProvisioning | dict[str, Any] | None,
+    optical_module_block: NokiaGxG42BlockProvisioning | dict[str, Any] | None,
     optical_module_node_fqdn: Fqdn,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
@@ -131,8 +131,8 @@ def update_optical_node_nokia_gx_g42_block(
     block is re-hydrated from its serialized form before it is updated.
 
     Args:
-        optical_node_block: The Nokia GX G42 node block in the state under
-            ``OPTICAL_NODE_BLOCK_STATE_KEY`` (the provisioning variant, while
+        optical_module_block: The Nokia GX G42 node block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY`` (the provisioning variant, while
             the subscription is being modified).
         optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
@@ -141,15 +141,15 @@ def update_optical_node_nokia_gx_g42_block(
     Raises:
         ValueError: If there is no Nokia GX G42 node block in the state.
     """
-    node_block = optical_node_block_from_state(optical_node_block)
+    node_block = optical_node_block_from_state(optical_module_block)
     update_optical_node_block_fields(
-        optical_node_block=node_block,
+        optical_module_block=node_block,
         optical_module_node_fqdn=optical_module_node_fqdn,
         optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
         optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
     )
 
-    return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: node_block}
 
 
 #: Modify steps operating on the Nokia GX G42 node block in the state.

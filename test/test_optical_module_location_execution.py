@@ -32,7 +32,7 @@ from orchestrator.optical.products.product_types.optical_location import (
     OpticalModuleLocationSubscriptionProvisioning,
 )
 from orchestrator.optical.workflows.optical_location.shared import (
-    OPTICAL_LOCATION_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     check_location_code_uniqueness,
     optical_location_block_from_state,
 )
@@ -78,11 +78,11 @@ def _assert_block_state_round_tripped(process_id: str) -> None:
     }
     with core_db.db.database_scope():
         block_states = [
-            step.state[OPTICAL_LOCATION_BLOCK_STATE_KEY]
+            step.state[OPTICAL_MODULE_BLOCK_STATE_KEY]
             for step in core_db.db.session.scalars(
                 select(ProcessStepTable).where(ProcessStepTable.process_id == UUID(process_id))
             )
-            if isinstance(step.state, dict) and isinstance(step.state.get(OPTICAL_LOCATION_BLOCK_STATE_KEY), dict)
+            if isinstance(step.state, dict) and isinstance(step.state.get(OPTICAL_MODULE_BLOCK_STATE_KEY), dict)
         ]
     assert any(all(block_state.get(key) == value for key, value in expected.items()) for block_state in block_states), (
         "no step state held the round-tripped block with the create form values"
@@ -263,7 +263,7 @@ def test_validate_fails_on_unprovisioned_block(product_id_for) -> None:
     loaded = OpticalModuleLocationSubscriptionInactive.from_subscription(subscription_id)
     with pytest.raises(ValueError, match="not fully provisioned"):
         cast(Any, validate_optical_module_location_block_step).__wrapped__(
-            subscription=loaded, optical_module_location_block=None
+            subscription=loaded, optical_module_block=None
         )
 
 

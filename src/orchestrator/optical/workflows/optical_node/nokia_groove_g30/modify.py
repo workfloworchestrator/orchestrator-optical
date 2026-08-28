@@ -6,7 +6,7 @@ importable parts: the FormPages of the modify form (as the
 :func:`modify_optical_node_nokia_groove_g30_form_pages` page sequence,
 prefilled with the current subscription values) and the step list that updates
 and persists the Nokia Groove G30 node block found in the state under
-``OPTICAL_NODE_BLOCK_STATE_KEY``.
+``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
@@ -38,7 +38,7 @@ from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
-    OPTICAL_NODE_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_node_block,
     modify_optical_node_management_form,
     optical_node_block_from_state,
@@ -122,7 +122,7 @@ def modify_optical_node_nokia_groove_g30_form_generator(
 
 @step("Updating Nokia Groove G30 node block")
 def update_optical_node_nokia_groove_g30_block(
-    optical_node_block: NokiaGrooveG30BlockProvisioning | dict[str, Any] | None,
+    optical_module_block: NokiaGrooveG30BlockProvisioning | dict[str, Any] | None,
     optical_module_node_fqdn: Fqdn,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
@@ -134,21 +134,21 @@ def update_optical_node_nokia_groove_g30_block(
     before it is updated.
 
     Args:
-        optical_node_block: The Nokia Groove G30 node block
-            in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY`` (the
+        optical_module_block: The Nokia Groove G30 node block
+            in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` (the
             provisioning variant, while the subscription is being modified).
         optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
         optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
     """
-    node_block = optical_node_block_from_state(optical_node_block)
+    node_block = optical_node_block_from_state(optical_module_block)
     update_optical_node_block_fields(
-        optical_node_block=node_block,
+        optical_module_block=node_block,
         optical_module_node_fqdn=optical_module_node_fqdn,
         optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
         optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
     )
-    return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: node_block}
 
 
 #: Modify steps operating on the Nokia Groove G30 node block in the state. The

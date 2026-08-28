@@ -47,7 +47,7 @@ from orchestrator.optical.workflows.optical_location.modify import (
     update_optical_module_location_block,
 )
 from orchestrator.optical.workflows.optical_location.shared import (
-    OPTICAL_LOCATION_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_module_location_block,
     optical_location_block_from_state,
     optical_module_location_subscription_description,
@@ -162,7 +162,7 @@ def test_populate_optical_module_location_block() -> None:
     block = _make_location_block()
 
     populate_optical_module_location_block(
-        optical_module_location_block=block,
+        optical_module_block=block,
         longitude="12.4964",
         latitude="41.9028",
         location_code="rom-01",
@@ -178,7 +178,7 @@ def test_populate_optical_module_location_block() -> None:
 def test_populate_block_step_returns_block_in_state() -> None:
     block = _make_location_block()
     state = {
-        OPTICAL_LOCATION_BLOCK_STATE_KEY: block,
+        OPTICAL_MODULE_BLOCK_STATE_KEY: block,
         "longitude": "12.4964",
         "latitude": "41.9028",
         "location_code": "rom-01",
@@ -188,7 +188,7 @@ def test_populate_block_step_returns_block_in_state() -> None:
     wrapped = inject_args(cast(Any, populate_optical_module_location_block_step).__wrapped__)
     result = wrapped(dict(state))
 
-    assert result[OPTICAL_LOCATION_BLOCK_STATE_KEY] is block
+    assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
     assert block.location_code == "rom-01"
     assert block.location_name == "Rome"
 
@@ -197,7 +197,7 @@ def test_update_optical_module_location_block() -> None:
     block = _make_location_block()
 
     cast(Any, update_optical_module_location_block).__wrapped__(
-        optical_module_location_block=block,
+        optical_module_block=block,
         longitude="4.9041",
         latitude="52.3676",
         location_code="ams-01",
@@ -216,7 +216,7 @@ def test_update_optical_module_location_block_can_clear_optional_fields() -> Non
     block.location_name = "Amsterdam"
 
     cast(Any, update_optical_module_location_block).__wrapped__(
-        optical_module_location_block=block,
+        optical_module_block=block,
         longitude="4.9041",
         latitude="52.3676",
         location_code="ams-01",
@@ -230,22 +230,22 @@ def test_update_optical_module_location_block_can_clear_optional_fields() -> Non
 def test_block_steps_consume_the_block_state_key() -> None:
     for step_func in _step_functions(CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS):
         signature = inspect.signature(step_func)
-        assert OPTICAL_LOCATION_BLOCK_STATE_KEY in signature.parameters
+        assert OPTICAL_MODULE_BLOCK_STATE_KEY in signature.parameters
 
 
 def test_location_block_state_key_matches_the_documented_contract() -> None:
     """The state key literal matches the value documented in the README state-contract table."""
-    assert OPTICAL_LOCATION_BLOCK_STATE_KEY == "optical_module_location_block"
+    assert OPTICAL_MODULE_BLOCK_STATE_KEY == "optical_module_block"
 
 
 def test_block_steps_take_the_lifecycle_matching_block_variant() -> None:
     populate = cast(Any, next(step for step in CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS)).__wrapped__
     update = cast(Any, next(step for step in MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS)).__wrapped__
 
-    assert inspect.signature(populate).parameters[OPTICAL_LOCATION_BLOCK_STATE_KEY].annotation is (
+    assert inspect.signature(populate).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation is (
         OpticalModuleLocationBlockInactive
     )
-    assert inspect.signature(update).parameters[OPTICAL_LOCATION_BLOCK_STATE_KEY].annotation is (
+    assert inspect.signature(update).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation is (
         OpticalModuleLocationBlockProvisioning
     )
 
@@ -263,9 +263,9 @@ def test_optical_location_block_from_state_rehydrates_a_round_tripped_block(monk
     assert optical_location_block_from_state(None) is None
     assert optical_location_block_from_state(block) is block
 
-    round_tripped = cast(Any, json_loads(json_dumps({OPTICAL_LOCATION_BLOCK_STATE_KEY: block})))
-    assert isinstance(round_tripped[OPTICAL_LOCATION_BLOCK_STATE_KEY], dict)
-    assert optical_location_block_from_state(round_tripped[OPTICAL_LOCATION_BLOCK_STATE_KEY]) is block
+    round_tripped = cast(Any, json_loads(json_dumps({OPTICAL_MODULE_BLOCK_STATE_KEY: block})))
+    assert isinstance(round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY], dict)
+    assert optical_location_block_from_state(round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY]) is block
 
 
 def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch) -> None:
@@ -278,7 +278,7 @@ def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch)
 
     monkeypatch.setattr(location_shared, "_optical_module_location_block_from_state", fake_from_state)
 
-    round_tripped = cast(Any, json_loads(json_dumps({OPTICAL_LOCATION_BLOCK_STATE_KEY: block})))
+    round_tripped = cast(Any, json_loads(json_dumps({OPTICAL_MODULE_BLOCK_STATE_KEY: block})))
     state = round_tripped | {
         "longitude": "12.4964",
         "latitude": "41.9028",
@@ -289,7 +289,7 @@ def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch)
     wrapped = inject_args(cast(Any, populate_optical_module_location_block_step).__wrapped__)
     result = wrapped(dict(state))
 
-    assert result[OPTICAL_LOCATION_BLOCK_STATE_KEY] is block
+    assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
     assert block.location_code == "rom-01"
     assert block.location_name == "Rome"
 
@@ -314,7 +314,7 @@ def test_populate_block_step_fails_fast_when_state_has_no_block() -> None:
     """The populate step fails fast when the state holds no Optical Module Location block."""
     with pytest.raises(ValueError, match="No Optical Module Location block in the state"):
         cast(Any, populate_optical_module_location_block_step).__wrapped__(
-            optical_module_location_block=None,
+            optical_module_block=None,
             longitude="12.4964",
             latitude="41.9028",
             location_code="rom-01",
@@ -326,7 +326,7 @@ def test_update_block_step_fails_fast_when_state_has_no_block() -> None:
     """The update step fails fast when the state holds no Optical Module Location block."""
     with pytest.raises(ValueError, match="No Optical Module Location block in the state"):
         cast(Any, update_optical_module_location_block).__wrapped__(
-            optical_module_location_block=None,
+            optical_module_block=None,
             longitude="4.9041",
             latitude="52.3676",
             location_code="ams-01",
@@ -436,7 +436,7 @@ def test_populate_block_rejects_duplicate_location_code(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="already in use"):
         populate_optical_module_location_block(
-            optical_module_location_block=block,
+            optical_module_block=block,
             longitude="12.4964",
             latitude="41.9028",
             location_code="rom-01",
@@ -458,7 +458,7 @@ def test_update_block_rejects_duplicate_location_code_excluding_self(monkeypatch
 
     with pytest.raises(ValueError, match="already in use"):
         cast(Any, update_optical_module_location_block).__wrapped__(
-            optical_module_location_block=block,
+            optical_module_block=block,
             longitude="4.9041",
             latitude="52.3676",
             location_code="ams-01",
@@ -476,7 +476,7 @@ def test_set_optical_module_location_subscription_description() -> None:
     subscription = cast(Any, SimpleNamespace(description="", optical_location=block))
 
     state = cast(Any, set_optical_module_location_subscription_description).__wrapped__(
-        subscription=subscription, optical_module_location_block=None
+        subscription=subscription, optical_module_block=None
     )
 
     assert subscription.description == "Rome (rom-01)"
@@ -695,7 +695,7 @@ def test_load_optical_module_location_block_returns_block_in_state() -> None:
 
     state = cast(Any, load_optical_module_location_block).__wrapped__(subscription)
 
-    assert state == {OPTICAL_LOCATION_BLOCK_STATE_KEY: block}
+    assert state == {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
 
 def test_optical_module_location_subscription_description_fails_fast_without_block() -> None:
@@ -719,7 +719,7 @@ def test_validate_optical_module_location_state_fails_fast_when_subscription_has
 
     with pytest.raises(ValueError, match="under attribute 'optical_location'") as exc_info:
         cast(Any, validate_optical_module_location_block_step).__wrapped__(
-            subscription=subscription, optical_module_location_block=None
+            subscription=subscription, optical_module_block=None
         )
 
     assert "must have-a" in str(exc_info.value)
@@ -750,7 +750,7 @@ def test_validate_optical_module_location_state_validates_the_block_from_the_sta
     subscription = cast(Any, SimpleNamespace())
 
     state = cast(Any, validate_optical_module_location_block_step).__wrapped__(
-        subscription=subscription, optical_module_location_block=block
+        subscription=subscription, optical_module_block=block
     )
 
     assert state == {}

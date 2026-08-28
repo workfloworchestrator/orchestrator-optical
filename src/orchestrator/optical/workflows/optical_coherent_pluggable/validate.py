@@ -7,7 +7,7 @@ step. Consumers with their own model that has-a the shipped block declare
 their own ``@validate_workflow`` with
 :data:`OPTICAL_COHERENT_PLUGGABLE_VALIDATE_STEPS`; consumer models that compose
 the block under a different attribute name can put the block in the state
-under ``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY`` for the validation step.
+under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the validation step.
 """
 
 from pydantic_forms.types import State
@@ -36,11 +36,11 @@ def load_initial_state_optical_coherent_pluggable(subscription: SubscriptionMode
 @step("Validate Optical Coherent Pluggable state")
 def validate_optical_coherent_pluggable_state(
     subscription: SubscriptionModel,
-    optical_coherent_pluggable_block: OpticalCoherentPluggableBlockInactive | None = None,
+    optical_module_block: OpticalCoherentPluggableBlockInactive | None = None,
 ) -> State:
     """Verify the state and integrity of the Optical Coherent Pluggable block.
 
-    The block is read from the ``optical_coherent_pluggable_block`` state key
+    The block is read from the ``optical_module_block`` state key
     when present (e.g. when the shipped block steps ran against a
     consumer-owned block); otherwise it falls back to the
     ``optical_coherent_pluggable`` attribute of the shipped subscription
@@ -49,9 +49,9 @@ def validate_optical_coherent_pluggable_state(
 
     Args:
         subscription: The Optical Coherent Pluggable subscription being validated.
-        optical_coherent_pluggable_block: The Optical Coherent Pluggable block
+        optical_module_block: The Optical Coherent Pluggable block
             of the subscription, when it is available in the state under
-            ``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY``.
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
     Raises:
         ValueError: If the subscription has no Optical Coherent Pluggable block
@@ -59,9 +59,7 @@ def validate_optical_coherent_pluggable_state(
             passed, or if the pluggable block is not fully provisioned.
     """
     pluggable = (
-        optical_coherent_pluggable_block_from_state(optical_coherent_pluggable_block)
-        if optical_coherent_pluggable_block is not None
-        else None
+        optical_coherent_pluggable_block_from_state(optical_module_block) if optical_module_block is not None else None
     )
     pluggable = pluggable or _optical_coherent_pluggable_block_of_subscription(subscription)
     if pluggable.optical_port_name is None or pluggable.optical_port_host_node is None:

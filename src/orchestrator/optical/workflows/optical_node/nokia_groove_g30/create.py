@@ -6,7 +6,7 @@ importable parts: the FormPages of the create form (as the
 :func:`create_optical_node_nokia_groove_g30_form_pages` page sequence), the
 node discovery step, the block population logic and the step list that
 operates on the Nokia Groove G30 node block found in the state under
-``OPTICAL_NODE_BLOCK_STATE_KEY``.
+``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
@@ -46,7 +46,7 @@ from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
-    OPTICAL_NODE_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     optical_node_block_from_state,
     populate_abstract_optical_node_fields,
     save_optical_node_block,
@@ -115,7 +115,7 @@ def create_optical_node_nokia_groove_g30_form_generator(product_name: str) -> Fo
 
 
 def populate_optical_node_nokia_groove_g30_block(
-    optical_node_block: NokiaGrooveG30BlockInactive,
+    optical_module_block: NokiaGrooveG30BlockInactive,
     *,
     location_id: UUIDstr,
     optical_module_node_fqdn: Fqdn,
@@ -131,14 +131,14 @@ def populate_optical_node_nokia_groove_g30_block(
     :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`.
 
     Args:
-        optical_node_block: The Nokia Groove G30 node block to populate (any lifecycle variant).
+        optical_module_block: The Nokia Groove G30 node block to populate (any lifecycle variant).
         location_id: Subscription id of the Optical Location hosting the node.
         optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
         optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
     """
     populate_abstract_optical_node_fields(
-        optical_node_block=optical_node_block,
+        optical_module_block=optical_module_block,
         location_id=location_id,
         optical_module_node_fqdn=optical_module_node_fqdn,
         optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
@@ -150,7 +150,7 @@ def populate_optical_node_nokia_groove_g30_block(
 
 @step("Populate Nokia Groove G30 node block")
 def populate_optical_node_nokia_groove_g30_block_step(
-    optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
+    optical_module_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
     location_id: UUIDstr,
     optical_module_node_fqdn: Fqdn,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
@@ -164,22 +164,22 @@ def populate_optical_node_nokia_groove_g30_block_step(
     database by its ``subscription_instance_id`` before it is populated.
 
     Args:
-        optical_node_block: The Nokia Groove G30 node block
-            in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+        optical_module_block: The Nokia Groove G30 node block
+            in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
         location_id: Subscription id of the Optical Location hosting the node.
         optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
         optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
     """
-    node_block = optical_node_block_from_state(optical_node_block)
+    node_block = optical_node_block_from_state(optical_module_block)
     populate_optical_node_nokia_groove_g30_block(
-        optical_node_block=cast(NokiaGrooveG30BlockInactive, node_block),
+        optical_module_block=cast(NokiaGrooveG30BlockInactive, node_block),
         location_id=location_id,
         optical_module_node_fqdn=optical_module_node_fqdn,
         optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
         optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
     )
-    return {OPTICAL_NODE_BLOCK_STATE_KEY: node_block}
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: node_block}
 
 
 @step("Construct Subscription model")
@@ -187,12 +187,12 @@ def construct_optical_node_nokia_groove_g30_subscription(product: UUIDstr, custo
     """Construct the initial domain subscription model for a Nokia Groove G30 Optical Node.
 
     This step builds the shipped ``OpticalNodeNokiaGrooveG30`` subscription
-    model and puts its node block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``
+    model and puts its node block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``
     for the shipped block steps of :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`.
     Consumers that define their own product type (composing the
     ``NokiaGrooveG30Block`` under their own attribute name) write their own
     construct step instead: it builds their (inactive) subscription, puts their
-    composed block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``, and then
+    composed block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``, and then
     runs :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`.
     """
     subscription = OpticalNodeNokiaGrooveG30Inactive.from_product_id(
@@ -204,7 +204,7 @@ def construct_optical_node_nokia_groove_g30_subscription(product: UUIDstr, custo
     return {
         "subscription": subscription,
         "subscription_id": subscription.subscription_id,
-        OPTICAL_NODE_BLOCK_STATE_KEY: subscription.optical_node,
+        OPTICAL_MODULE_BLOCK_STATE_KEY: subscription.optical_node,
     }
 
 
@@ -216,7 +216,7 @@ def construct_optical_node_nokia_groove_g30_subscription(product: UUIDstr, custo
 #: with the state serialized between steps (the block is re-hydrated from the
 #: database before every step operates on it). Consumers with their own model
 #: run this list after constructing their (inactive) subscription and putting
-#: their block in the state under ``OPTICAL_NODE_BLOCK_STATE_KEY``.
+#: their block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS: StepList = (
     begin
     >> populate_optical_node_nokia_groove_g30_block_step

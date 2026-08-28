@@ -7,7 +7,7 @@ has-a the shipped ``OpticalModuleLocationBlock`` under its own attributes
 ``test_optical_module_location_composition``), with:
 
 - its own construct step (``from_product_id`` on the consumer model, the block put in
-  the state under the shipped ``OPTICAL_LOCATION_BLOCK_STATE_KEY``);
+  the state under the shipped ``OPTICAL_MODULE_BLOCK_STATE_KEY``);
 - the shipped form generators, used as-is for create/terminate and, for modify, a thin
   consumer wrapper that delegates to the shipped generator with the consumer model and
   attribute (``functools.partial`` pre-binding does not work: the core form-argument
@@ -59,7 +59,7 @@ from orchestrator.optical.workflows.optical_location.modify import (
     modify_optical_module_location_form_pages,
 )
 from orchestrator.optical.workflows.optical_location.shared import (
-    OPTICAL_LOCATION_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     set_optical_module_location_subscription_description,
 )
 from orchestrator.optical.workflows.optical_location.terminate import (
@@ -101,7 +101,7 @@ def construct_consumer_router_subscription(product: UUIDstr, customer_id: UUIDst
     The consumer counterpart of the shipped construct step: the model is built via
     ``from_product_id`` on the consumer's abstract model and the block it composes
     (``router.for_the_optical_module``) is put in the state under the shipped
-    ``OPTICAL_LOCATION_BLOCK_STATE_KEY`` for the shipped block steps.
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the shipped block steps.
     """
     subscription = AbstractRouterInactive.from_product_id(
         product_id=product,
@@ -112,7 +112,7 @@ def construct_consumer_router_subscription(product: UUIDstr, customer_id: UUIDst
     return {
         "subscription": subscription,
         "subscription_id": subscription.subscription_id,
-        OPTICAL_LOCATION_BLOCK_STATE_KEY: subscription.router.for_the_optical_module,
+        OPTICAL_MODULE_BLOCK_STATE_KEY: subscription.router.for_the_optical_module,
     }
 
 
@@ -141,7 +141,7 @@ def load_consumer_router_location_block(subscription: SubscriptionModel) -> Stat
     if location is None:
         msg = "Consumer Router subscription has no Optical Module Location block under attribute 'router'"
         raise ValueError(msg)
-    return {OPTICAL_LOCATION_BLOCK_STATE_KEY: location.for_the_optical_module}
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: location.for_the_optical_module}
 
 
 def modify_consumer_router_location_form_generator(subscription_id: UUIDstr) -> FormGenerator:
@@ -307,11 +307,11 @@ def _assert_block_state_round_tripped(process_id: str) -> None:
     }
     with core_db.db.database_scope():
         block_states = [
-            step.state[OPTICAL_LOCATION_BLOCK_STATE_KEY]
+            step.state[OPTICAL_MODULE_BLOCK_STATE_KEY]
             for step in core_db.db.session.scalars(
                 select(ProcessStepTable).where(ProcessStepTable.process_id == process_id)
             )
-            if isinstance(step.state, dict) and isinstance(step.state.get(OPTICAL_LOCATION_BLOCK_STATE_KEY), dict)
+            if isinstance(step.state, dict) and isinstance(step.state.get(OPTICAL_MODULE_BLOCK_STATE_KEY), dict)
         ]
     assert any(all(block_state.get(key) == value for key, value in expected.items()) for block_state in block_states), (
         "no step state held the round-tripped block with the create form values"

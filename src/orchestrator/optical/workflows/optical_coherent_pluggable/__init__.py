@@ -8,6 +8,6 @@ steps exported as ``StepList`` constants). Consumers with their own product
 type compose their own ``@create_workflow`` / ``@modify_workflow`` /
 ``@terminate_workflow`` / ``@validate_workflow`` with these parts and their own
 construct/store steps; the shipped block steps bind to
-``OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY`` (see
+``OPTICAL_MODULE_BLOCK_STATE_KEY`` (see
 :mod:`orchestrator.optical.workflows.optical_coherent_pluggable.shared`).
 """

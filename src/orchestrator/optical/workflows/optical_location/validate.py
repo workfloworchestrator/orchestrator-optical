@@ -6,7 +6,7 @@ with the importable parts: the state loading step and the block validation
 step. Consumers with their own model that has-a the shipped block declaretheir own ``@validate_workflow`` with
 :data:`OPTICAL_MODULE_LOCATION_VALIDATE_STEPS`; consumer models that compose
 the block under a different attribute name can put the block in the state
-under ``OPTICAL_LOCATION_BLOCK_STATE_KEY`` for the validation step.
+under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the validation step.
 """
 
 from pydantic_forms.types import State
@@ -38,7 +38,7 @@ def load_initial_state_optical_module_location(subscription: SubscriptionModel) 
 
 
 def validate_optical_module_location_block(
-    optical_module_location_block: OpticalModuleLocationBlockInactive,
+    optical_module_block: OpticalModuleLocationBlockInactive,
 ) -> None:
     """Verify the state and integrity of an Optical Module Location block.
 
@@ -48,35 +48,35 @@ def validate_optical_module_location_block(
     required fields is unset) and logs the validated block.
 
     Args:
-        optical_module_location_block: The Optical Module Location block to validate.
+        optical_module_block: The Optical Module Location block to validate.
 
     Raises:
         ValueError: If the location block is not fully provisioned.
     """
     if (
-        optical_module_location_block.longitude is None
-        or optical_module_location_block.latitude is None
-        or optical_module_location_block.location_code is None
+        optical_module_block.longitude is None
+        or optical_module_block.latitude is None
+        or optical_module_block.location_code is None
     ):
         msg = "Optical Module Location block is not fully provisioned"
         raise ValueError(msg)
     logger.info(
         "Validating Optical Module Location",
-        location_code=optical_module_location_block.location_code,
-        location_name=optical_module_location_block.location_name,
-        longitude=optical_module_location_block.longitude,
-        latitude=optical_module_location_block.latitude,
+        location_code=optical_module_block.location_code,
+        location_name=optical_module_block.location_name,
+        longitude=optical_module_block.longitude,
+        latitude=optical_module_block.latitude,
     )
 
 
 @step("Validate Optical Module Location state")
 def validate_optical_module_location_block_step(
     subscription: SubscriptionModel,
-    optical_module_location_block: OpticalModuleLocationBlockInactive | None = None,
+    optical_module_block: OpticalModuleLocationBlockInactive | None = None,
 ) -> State:
     """Validate the Optical Module Location block loaded for the subscription.
 
-    The block is read from the ``optical_module_location_block`` state key
+    The block is read from the ``optical_module_block`` state key
     when present (e.g. when the shipped block steps ran against a
     consumer-owned block); otherwise it falls back to the
     ``optical_location`` attribute of the shipped subscription models. The
@@ -85,20 +85,16 @@ def validate_optical_module_location_block_step(
 
     Args:
         subscription: The Optical Module Location subscription being validated.
-        optical_module_location_block: The Optical Module Location block
+        optical_module_block: The Optical Module Location block
             of the subscription, when it is available in the state under
-            ``OPTICAL_LOCATION_BLOCK_STATE_KEY``.
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
     Raises:
         ValueError: If the subscription has no Optical Module Location block
             under the ``optical_location`` attribute and no block was passed,
             or if the location block is not fully provisioned.
     """
-    location = (
-        optical_location_block_from_state(optical_module_location_block)
-        if optical_module_location_block is not None
-        else None
-    )
+    location = optical_location_block_from_state(optical_module_block) if optical_module_block is not None else None
     location = location or _optical_module_location_block_of_subscription(subscription)
     validate_optical_module_location_block(location)
     return {}

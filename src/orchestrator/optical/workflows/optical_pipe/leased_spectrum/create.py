@@ -5,7 +5,7 @@ the shipped Optical Leased Spectrum product type, together with the
 importable parts: the FormPages of the create form (as the
 :func:`create_leased_spectrum_form_pages` page sequence), the block
 population logic and the step list that operates on the Optical Leased
-Spectrum block found in the state under ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+Spectrum block found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
@@ -64,7 +64,7 @@ from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum im
 )
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import (
-    OPTICAL_PIPE_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     default_pipe_identifier,
     leased_spectrum_port_block_class,
     new_optical_pipe_subscription,
@@ -324,7 +324,7 @@ def construct_leased_spectrum_subscription(
 
     This step builds the shipped ``OpticalLeasedSpectrum`` model around a block
     assembled by :func:`build_leased_spectrum_block` and puts the block in the
-    state under ``OPTICAL_PIPE_BLOCK_STATE_KEY`` for the shipped block steps of
+    state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the shipped block steps of
     :data:`CREATE_LEASED_SPECTRUM_BLOCK_STEPS`. Consumers that define their own
     product type (composing the ``OpticalLeasedSpectrumBlock`` under their own
     attribute name) write their own construct step instead and can reuse
@@ -351,7 +351,7 @@ def construct_leased_spectrum_subscription(
     return {
         "subscription": subscription,
         "subscription_id": subscription.subscription_id,
-        OPTICAL_PIPE_BLOCK_STATE_KEY: subscription.optical_pipe,
+        OPTICAL_MODULE_BLOCK_STATE_KEY: subscription.optical_pipe,
     }
 
 
@@ -412,7 +412,7 @@ def retrieve_leased_spectrum_used_passbands(subscription: OpticalLeasedSpectrumP
 #: because workflow steps execute with the state serialized between steps.
 #: Consumers with their own model run this list after constructing their
 #: (inactive) subscription and putting their block in the state under
-#: ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+#: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 CREATE_LEASED_SPECTRUM_BLOCK_STEPS: StepList = begin >> save_optical_pipe_block
 
 

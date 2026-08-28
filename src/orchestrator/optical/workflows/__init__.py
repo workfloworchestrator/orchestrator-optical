@@ -46,3 +46,11 @@ shipped workflows and their import paths is in the README. Consumers with
 their own product type compose their own workflows with the shipped parts; see
 the README for the complete consumption model.
 """
+
+#: The single state key under which a shipped block travels in the workflow
+#: state. All shipped block steps of every family bind to this one key: a
+#: consumer injects the block they compose (has-a the shipped block under any
+#: attribute name of their own model) in the state under this key.
+OPTICAL_MODULE_BLOCK_STATE_KEY = "optical_module_block"
+
+__all__ = ["OPTICAL_MODULE_BLOCK_STATE_KEY"]

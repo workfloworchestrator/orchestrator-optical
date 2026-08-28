@@ -46,7 +46,7 @@ def refresh_optical_node_software_version(subscription: SubscriptionModel) -> St
 #: is recomputed from the refreshed block. Consumers declare their own
 #: ``@validate_workflow`` with this step list; consumer models that compose the
 #: block under a different attribute name can put the block in the state under
-#: ``OPTICAL_NODE_BLOCK_STATE_KEY`` for the description update.
+#: ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the description update.
 OPTICAL_NODE_VALIDATE_STEPS: StepList = (
     begin
     >> load_initial_state_optical_node

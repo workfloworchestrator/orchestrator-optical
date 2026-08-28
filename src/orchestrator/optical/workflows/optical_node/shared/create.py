@@ -32,11 +32,6 @@ OPTICAL_NODE_PRODUCT_TYPES = [
     ProductType.OPTICAL_NODE_NOKIA_GX_G42.value,
 ]
 
-#: State key under which the Optical Node block of the subscription is passed
-#: between the shipped block steps. Consumers put the block they compose (under
-#: any attribute name of their own model) in the state under this key.
-OPTICAL_NODE_BLOCK_STATE_KEY = "optical_node_block"
-
 
 def _optical_node_block_of_subscription(subscription: SubscriptionModel) -> AbstractOpticalNodeBlockInactive:
     """Return the Optical Node block under the ``optical_node`` attribute.
@@ -66,7 +61,7 @@ def _optical_node_block_of_subscription(subscription: SubscriptionModel) -> Abst
 
 def optical_node_subscription_description(
     subscription: SubscriptionModel,
-    optical_node_block: AbstractOpticalNodeBlockInactive | None = None,
+    optical_module_block: AbstractOpticalNodeBlockInactive | None = None,
 ) -> str:
     """Generate human-readable subscription description for an Optical Node.
 
@@ -78,7 +73,7 @@ def optical_node_subscription_description(
 
     Args:
         subscription: The Optical Node subscription.
-        optical_node_block: The Optical Node block of the subscription. When
+        optical_module_block: The Optical Node block of the subscription. When
             given, it is used instead of the ``optical_node`` attribute of the
             shipped subscription models, so the helper also works for consumer
             models that compose the block under a different attribute name.
@@ -91,7 +86,7 @@ def optical_node_subscription_description(
         ValueError: If the subscription has no Optical Node block under the
             ``optical_node`` attribute and no block was passed.
     """
-    node = optical_node_block or _optical_node_block_of_subscription(subscription)
+    node = optical_module_block or _optical_node_block_of_subscription(subscription)
     fqdn = node.management.optical_module_node_fqdn
     if fqdn:
         return f"{fqdn} ({subscription.product.name})"
@@ -239,7 +234,7 @@ def validate_optical_flexils_target_id_uniqueness(
 
 
 def populate_abstract_optical_node_fields(
-    optical_node_block: Any,
+    optical_module_block: Any,
     *,
     location_id: UUIDstr,
     optical_module_node_fqdn: Fqdn,
@@ -257,7 +252,7 @@ def populate_abstract_optical_node_fields(
     them onto the block before this helper runs.
 
     Args:
-        optical_node_block: The Optical Node block to populate (any lifecycle variant).
+        optical_module_block: The Optical Node block to populate (any lifecycle variant).
         location_id: Subscription id of the Optical Location hosting the node.
         optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
@@ -265,21 +260,21 @@ def populate_abstract_optical_node_fields(
         optical_module_node_vendor: Vendor of the node.
         optical_module_node_platform: Platform of the node.
     """
-    optical_node_block.location = location_block_from_subscription(location_id)
-    optical_node_block.management.optical_module_node_fqdn = optical_module_node_fqdn
-    optical_node_block.management.optical_module_node_dcn_loopback_ip = optical_module_node_dcn_loopback_ip
-    optical_node_block.management.optical_module_node_dcn_interface_ip = optical_module_node_dcn_interface_ip
-    optical_node_block.management.optical_module_node_vendor = optical_module_node_vendor
-    optical_node_block.management.optical_module_node_platform = optical_module_node_platform
+    optical_module_block.location = location_block_from_subscription(location_id)
+    optical_module_block.management.optical_module_node_fqdn = optical_module_node_fqdn
+    optical_module_block.management.optical_module_node_dcn_loopback_ip = optical_module_node_dcn_loopback_ip
+    optical_module_block.management.optical_module_node_dcn_interface_ip = optical_module_node_dcn_interface_ip
+    optical_module_block.management.optical_module_node_vendor = optical_module_node_vendor
+    optical_module_block.management.optical_module_node_platform = optical_module_node_platform
 
 
 def optical_node_block_from_state(
-    optical_node_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
+    optical_module_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
 ) -> AbstractOpticalNodeBlockInactive:
     """Return the Optical Node block of the workflow state as a domain model.
 
     Workflow steps execute with the state serialized between steps, so a block
-    passed under ``OPTICAL_NODE_BLOCK_STATE_KEY`` arrives as a plain dict
+    passed under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` arrives as a plain dict
     (its serialized form, carrying the full block data) rather than as a domain
     model. This helper returns the value unchanged when it is already a domain
     model (in-process usage, e.g. in tests) and reconstructs the block from the
@@ -288,7 +283,7 @@ def optical_node_block_from_state(
     loaded as their matching variant (INITIAL, PROVISIONING or ACTIVE).
 
     Args:
-        optical_node_block: The block value from the workflow state, or None.
+        optical_module_block: The block value from the workflow state, or None.
 
     Returns:
         The Optical Node block as a domain model, or None when the value is None.
@@ -296,16 +291,16 @@ def optical_node_block_from_state(
     Raises:
         ValueError: If the block in the state has no ``subscription_instance_id``.
     """
-    if optical_node_block is None:
-        msg = "No Optical Node block in the state under OPTICAL_NODE_BLOCK_STATE_KEY"
+    if optical_module_block is None:
+        msg = "No Optical Node block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
         raise ValueError(msg)
-    if isinstance(optical_node_block, AbstractOpticalNodeBlockInactive):
-        return optical_node_block
-    return _optical_node_block_from_state(optical_node_block)
+    if isinstance(optical_module_block, AbstractOpticalNodeBlockInactive):
+        return optical_module_block
+    return _optical_node_block_from_state(optical_module_block)
 
 
 def _optical_node_block_from_state(
-    optical_node_block: dict[str, Any],
+    optical_module_block: dict[str, Any],
 ) -> AbstractOpticalNodeBlockInactive:
     """Reconstruct an Optical Node block from its serialized form.
 
@@ -321,7 +316,7 @@ def _optical_node_block_from_state(
     ``orchestrator.optical.db``.
 
     Args:
-        optical_node_block: The serialized block from the workflow state.
+        optical_module_block: The serialized block from the workflow state.
 
     Returns:
         The Optical Node block as a domain model.
@@ -330,7 +325,7 @@ def _optical_node_block_from_state(
         ValueError: If the block in the state has no ``subscription_instance_id``,
             or if no subscription instance exists with the given id.
     """
-    subscription_instance_id = optical_node_block.get("subscription_instance_id")
+    subscription_instance_id = optical_module_block.get("subscription_instance_id")
     if subscription_instance_id is None:
         msg = "Optical Node block in the state has no subscription_instance_id"
         raise ValueError(msg)
@@ -345,4 +340,4 @@ def _optical_node_block_from_state(
             SubscriptionLifecycle(instance.subscription.status),
         ),
     )
-    return block_class.model_validate(optical_node_block)
+    return block_class.model_validate(optical_module_block)

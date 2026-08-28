@@ -35,7 +35,7 @@ from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
 )
 from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import MODIFY_NOKIA_FLEXILS_BLOCK_STEPS
 from orchestrator.optical.workflows.optical_node.shared import (
-    OPTICAL_NODE_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     OPTICAL_NODE_TERMINATE_STEPS,
     OPTICAL_NODE_VALIDATE_STEPS,
     retrieve,
@@ -138,14 +138,14 @@ def test_shipped_block_step_lists_are_non_empty(steps) -> None:
 def test_block_steps_consume_the_block_state_key(steps) -> None:
     for step_func in _step_functions(steps):
         signature = inspect.signature(step_func)
-        assert OPTICAL_NODE_BLOCK_STATE_KEY in signature.parameters
+        assert OPTICAL_MODULE_BLOCK_STATE_KEY in signature.parameters
 
 
 def test_shared_step_lists_are_block_agnostic() -> None:
     for step_func in _step_functions(OPTICAL_NODE_TERMINATE_STEPS + OPTICAL_NODE_VALIDATE_STEPS):
         signature = inspect.signature(step_func)
-        assert OPTICAL_NODE_BLOCK_STATE_KEY not in signature.parameters or (
-            signature.parameters[OPTICAL_NODE_BLOCK_STATE_KEY].default is None
+        assert OPTICAL_MODULE_BLOCK_STATE_KEY not in signature.parameters or (
+            signature.parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].default is None
         )
 
 
@@ -187,7 +187,7 @@ def test_populate_optical_node_nokia_flexils_block(monkeypatch) -> None:
     block.management.optical_module_node_software_version = "9.0"
 
     populate_optical_node_nokia_flexils_block(
-        optical_node_block=block,
+        optical_module_block=block,
         location_id=str(uuid.uuid4()),
         optical_module_node_fqdn="flex.ba01.example.com",
         optical_module_node_dcn_interface_ip="10.0.0.1",
@@ -213,7 +213,7 @@ def test_populate_block_step_resolves_the_state(monkeypatch) -> None:
     block.optical_node_role = OpticalNodeRole.ROADM
     block.management.optical_module_node_software_version = "9.0"
     state = {
-        OPTICAL_NODE_BLOCK_STATE_KEY: block,
+        OPTICAL_MODULE_BLOCK_STATE_KEY: block,
         "location_id": str(uuid.uuid4()),
         "optical_module_node_fqdn": "flex.ba01.example.com",
         "optical_module_node_dcn_interface_ip": "10.0.0.1",
@@ -225,7 +225,7 @@ def test_populate_block_step_resolves_the_state(monkeypatch) -> None:
     wrapped = inject_args(populate_optical_node_nokia_flexils_block_step.__wrapped__)  # type: ignore[unresolved-attribute]
     result = wrapped(dict(state))
 
-    assert result[OPTICAL_NODE_BLOCK_STATE_KEY] is block
+    assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
     assert block.optical_node_role == OpticalNodeRole.ROADM
     assert str(block.optical_flexils_target_id) == "TID-1"
     assert str(block.management.optical_module_node_fqdn) == "flex.ba01.example.com"
@@ -238,12 +238,12 @@ def test_retrieve_optical_node_role_and_software_version_writes_to_block(monkeyp
         lambda _: (OpticalNodeRole.ROADM, "9.0"),
     )
     block = _make_flexils_block()
-    state = {OPTICAL_NODE_BLOCK_STATE_KEY: block}
+    state = {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
     wrapped = inject_args(retrieve_optical_node_role_and_software_version.__wrapped__)  # type: ignore[unresolved-attribute]
     result = wrapped(dict(state))
 
-    assert result[OPTICAL_NODE_BLOCK_STATE_KEY] is block
+    assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
     assert block.optical_node_role == OpticalNodeRole.ROADM
     assert block.management.optical_module_node_software_version == "9.0"
 
@@ -268,7 +268,7 @@ def test_load_optical_node_block_returns_block_in_state() -> None:
 
     state = cast(Any, load_optical_node_block).__wrapped__(subscription)
 
-    assert state == {OPTICAL_NODE_BLOCK_STATE_KEY: block}
+    assert state == {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
 
 def test_optical_node_subscription_description_fails_fast_without_block() -> None:

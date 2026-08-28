@@ -6,5 +6,5 @@ workflows of the shipped ``OpticalFiberPatch`` product type, together with the
 importable parts: the FormPages of the shipped forms (as page sequences that
 consumers yield from in one line, e.g. ``create_fiber_patch_form_pages``) and
 the step lists that operate on the shipped ``OpticalFiberPatchBlock`` found in
-the state under ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 """

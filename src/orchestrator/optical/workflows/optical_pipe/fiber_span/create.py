@@ -5,7 +5,7 @@ shipped Optical Fiber Span product type, together with the importable parts:
 the FormPages of the create form (as the :func:`create_fiber_span_form_pages`
 page sequence), the block population logic and the step list that operates on
 the Optical Pipe block found in the state under
-``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
@@ -51,7 +51,7 @@ from orchestrator.optical.products.product_types.optical_pipe.fiber_span import 
 )
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import (
-    OPTICAL_PIPE_BLOCK_STATE_KEY,
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
     default_pipe_identifier,
     new_optical_pipe_subscription,
     new_pipe_port_block,
@@ -279,7 +279,7 @@ def construct_fiber_span_subscription(
     """Construct the initial domain subscription model for an Optical Fiber Span.
 
     This step builds the shipped ``OpticalFiberSpan`` model and puts its
-    block in the state under ``OPTICAL_PIPE_BLOCK_STATE_KEY`` for the shipped
+    block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the shipped
     block steps of :data:`CREATE_FIBER_SPAN_BLOCK_STEPS`. Consumers that
     define their own product type (composing the ``OpticalFiberSpanBlock``
     under their own attribute name) write their own construct step instead and
@@ -297,7 +297,7 @@ def construct_fiber_span_subscription(
     return {
         "subscription": subscription,
         "subscription_id": subscription.subscription_id,
-        OPTICAL_PIPE_BLOCK_STATE_KEY: subscription.optical_pipe,
+        OPTICAL_MODULE_BLOCK_STATE_KEY: subscription.optical_pipe,
     }
 
 
@@ -306,7 +306,7 @@ def construct_fiber_span_subscription(
 #: workflow steps execute with the state serialized between steps. Consumers
 #: with their own model run this list after constructing their (inactive)
 #: subscription and putting their block in the state under
-#: ``OPTICAL_PIPE_BLOCK_STATE_KEY``.
+#: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 CREATE_FIBER_SPAN_BLOCK_STEPS: StepList = begin >> save_optical_pipe_block
 
 
