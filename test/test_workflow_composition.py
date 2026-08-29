@@ -19,6 +19,7 @@ from orchestrator.core.workflows.utils import create_workflow, modify_workflow, 
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import OpticalCoherentPluggable
 from orchestrator.optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIls
 from orchestrator.optical.workflows.optical_coherent_pluggable.create import (
+    CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS,
     construct_optical_coherent_pluggable_subscription,
     create_optical_coherent_pluggable_form_generator,
 )
@@ -28,6 +29,7 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.modify import (
 )
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     load_optical_coherent_pluggable_block,
+    update_optical_coherent_pluggable_subscription_description,
 )
 from orchestrator.optical.workflows.optical_coherent_pluggable.terminate import (
     OPTICAL_COHERENT_PLUGGABLE_TERMINATE_STEPS,
@@ -154,11 +156,21 @@ def test_shipped_type_coherent_pluggable_create_workflow_composition() -> None:
         )
     )
     def create_optical_coherent_pluggable():
-        return begin >> construct_optical_coherent_pluggable_subscription >> store_process_subscription()
+        return (
+            begin
+            >> construct_optical_coherent_pluggable_subscription
+            >> set_status(SubscriptionLifecycle.PROVISIONING)
+            >> CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS
+            >> update_optical_coherent_pluggable_subscription_description
+            >> store_process_subscription()
+        )
 
     workflow: Workflow = create_optical_coherent_pluggable
     assert workflow.name == "create_optical_coherent_pluggable"
     names = [step.name for step in workflow.steps]
+    assert names.index("Construct Subscription model") < names.index("Set subscription to 'provisioning'")
+    assert names.index("Set subscription to 'provisioning'") < names.index("Persist optical coherent pluggable block")
+    assert names.index("Persist optical coherent pluggable block") < names.index("Updating subscription description")
     assert names.index("Construct Subscription model") < names.index("Create Process Subscription relation")
 
 

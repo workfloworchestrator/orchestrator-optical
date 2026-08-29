@@ -182,9 +182,6 @@ def update_optical_coherent_pluggable_block(
             under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     pluggable = optical_coherent_pluggable_block_from_state(optical_module_block)
-    if pluggable is None:
-        msg = "No Optical Coherent Pluggable block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
 
     if optical_port_description is not None:
         pluggable.optical_port_description = optical_port_description

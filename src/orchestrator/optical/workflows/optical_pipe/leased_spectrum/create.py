@@ -11,10 +11,12 @@ Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
 ``@create_workflow`` with the parts. The shipped workflow itself is composed
 from the shipped parts: the construct step builds the shipped subscription
-model and puts its block in the state, the shipped block steps persist the
-block, configure the leased spectrum terminations on the devices and refresh
-the passbands in use, and the shipped description step finalizes the
-subscription. The
+model, populates its block with the create-form values (the mandatory fields
+of the PROVISIONING lifecycle) and transitions it to PROVISIONING, the shipped
+block steps configure the leased spectrum terminations on the devices, refresh
+the passbands in use and persist the PROVISIONING block found in the state
+under ``OPTICAL_MODULE_BLOCK_STATE_KEY``, and the shipped description step
+finalizes the subscription. The
 shipped form generator is a thin composition of the shipped pages and the
 summary form, without hooks: consumers build their own form generator by
 yielding from the shipped page sequence in one line and adding their own
@@ -174,11 +176,11 @@ def create_leased_spectrum_form_pages(product_name: str) -> FormGenerator:
 
     This is the shipped create form as a page sequence: it yields the identity
     page and the terminations page, and returns the collected user input as a
-    flat dict of the ``optical_*`` state keys, consumed by the shipped steps of
-    :data:`CREATE_LEASED_SPECTRUM_BLOCK_STEPS`. Consumers yield from it in one
-    line inside their own create form generator, optionally interleaving their
-    own pages. The customer of the subscription is collected separately by the
-    consumer (see
+    flat dict of the ``optical_*`` state keys, consumed by the shipped
+    construct step (:func:`construct_leased_spectrum_subscription`). Consumers
+    yield from it in one line inside their own create form generator,
+    optionally interleaving their own pages. The customer of the subscription
+    is collected separately by the consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
@@ -221,8 +223,8 @@ def create_leased_spectrum_form_generator(product_name: str) -> FormGenerator:
     """Generate the initial input form for creating an Optical Leased Spectrum pipe.
 
     The form emits the flat ``optical_*`` state keys consumed by the shipped
-    steps of :data:`CREATE_LEASED_SPECTRUM_BLOCK_STEPS`. It is a thin
-    composition of the shipped page sequence
+    construct step (:func:`construct_leased_spectrum_subscription`). It is a
+    thin composition of the shipped page sequence
     (:func:`create_leased_spectrum_form_pages`) and the summary form.
 
     Args:
@@ -257,11 +259,12 @@ def build_leased_spectrum_block(
     """Build the Optical Leased Spectrum block of a subscription from the create-form keys.
 
     This is the anti-corruption point for consumers that keep their own model:
-    call it from their own construct step on the shipped block they compose,
-    before their subscription model is transitioned to the next lifecycle. The
-    two terminating port blocks are created on their host nodes, and the
-    third-party provider name is prefixed to the pipe name (the leased-spectrum
-    provider prefixing business logic lives here, in the anti-corruption point).
+    call it from their own construct step to build the shipped block with its
+    two terminating port blocks (created on their host nodes), before their
+    subscription model is transitioned to the PROVISIONING lifecycle. The
+    third-party provider name is prefixed to the pipe name (the
+    leased-spectrum provider prefixing business logic lives here, in the
+    anti-corruption point).
 
     Args:
         subscription_id: Subscription id of the pipe subscription owning the block.
@@ -274,7 +277,7 @@ def build_leased_spectrum_block(
         optical_pipe_name: Name (circuit id or provider reference) of the pipe.
 
     Returns:
-        The built Optical Leased Spectrum block in the INITIAL state.
+        The inactive Optical Leased Spectrum block with its two terminations.
     """
     node_a_block = node_block_from_subscription(node_a_id)
     node_b_block = node_block_from_subscription(node_b_id)
@@ -308,7 +311,7 @@ def build_leased_spectrum_block(
     return pipe_block
 
 
-@step("Construct Leased Spectrum Model")
+@step("Construct Leased Spectrum Subscription")
 def construct_leased_spectrum_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
@@ -319,17 +322,24 @@ def construct_leased_spectrum_subscription(
     port_b_name: str,
     optical_pipe_name: str,
 ) -> State:
-    """Construct the initial domain subscription model for an Optical Leased Spectrum pipe.
+    """Construct the PROVISIONING domain subscription model for an Optical Leased Spectrum pipe.
 
-    This step builds the shipped ``OpticalLeasedSpectrum`` model around a block
-    assembled by :func:`build_leased_spectrum_block` and puts the block in the
-    state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the shipped block steps of
-    :data:`CREATE_LEASED_SPECTRUM_BLOCK_STEPS`. Consumers that define their own
-    product type (composing the ``OpticalLeasedSpectrumBlock`` under their own
-    attribute name) write their own construct step instead and can reuse
-    :func:`build_leased_spectrum_block` as the anti-corruption point between
-    their model and the shipped block. The subscription description is not set
-    here: it is finalized by the shipped description step.
+    This step builds the shipped ``OpticalLeasedSpectrum`` model, populates
+    its block with the create-form values through
+    :func:`build_leased_spectrum_block` (the anti-corruption point) and
+    transitions the subscription to PROVISIONING in memory, so the block
+    found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` is the
+    PROVISIONING variant with its terminations already set — the contract of
+    the shipped block steps of
+    :data:`CREATE_LEASED_SPECTRUM_BLOCK_STEPS`. The subscription description
+    is not set here: it is finalized by the shipped description step.
+
+    Consumers that define their own product type (composing the
+    ``OpticalLeasedSpectrumBlock`` under their own attribute name) write their
+    own construct step instead: it builds their subscription, populates the
+    composed block with the mandatory fields set (e.g. via
+    :func:`build_leased_spectrum_block`), transitions it to PROVISIONING and
+    puts the block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     subscription_id = uuid4()
     pipe_block = build_leased_spectrum_block(
@@ -355,12 +365,16 @@ def construct_leased_spectrum_subscription(
 
 
 #: Create steps operating on the Optical Leased Spectrum block in the state.
-#: The block is re-hydrated from its serialized form, because workflow steps
-#: execute with the state serialized between steps; the terminations are
-#: configured on the devices, the passbands in use are refreshed and the block
-#: (with the refreshed passbands) is persisted by the last step. Consumers
-#: with their own model run this list after constructing their (inactive)
-#: subscription and putting their block in the state under
+#: Every step is block-level: the terminations are configured on the
+#: devices, the passbands in use are refreshed and the block (with the
+#: refreshed passbands) is persisted by the last step, because workflow steps
+#: execute with the state serialized between steps (the block is re-hydrated
+#: from its serialized form before every step operates on it). The block is
+#: assumed to be in the PROVISIONING lifecycle status with its terminations
+#: already set: the caller's construct step provides it (see
+#: :func:`construct_leased_spectrum_subscription`). Consumers with their own
+#: model run this list after constructing their subscription the same way and
+#: putting their block in the state under
 #: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 CREATE_LEASED_SPECTRUM_BLOCK_STEPS: StepList = (
     begin >> configure_pipe_terminations >> retrieve_optical_pipe_used_passbands >> save_optical_pipe_block
@@ -372,12 +386,13 @@ def create_leased_spectrum() -> StepList:
     """Workflow to create a new Optical Leased Spectrum pipe.
 
     The workflow is composed from the shipped parts: the construct step builds
-    the shipped :class:`OpticalLeasedSpectrum` model and puts its block in the
-    state, the shipped block steps persist the block, configure the leased
-    spectrum terminations on the devices and refresh/persist the passbands in
-    use, and the shipped description step finalizes the subscription. It is
-    therefore only valid for the shipped product type; consumers with their
-    own product type compose their own create workflow with the same parts.
+    the shipped :class:`OpticalLeasedSpectrum` model, populates its block with
+    the create-form values and transitions it to PROVISIONING, the shipped
+    block steps configure the leased spectrum terminations on the devices,
+    refresh the passbands in use and persist the block, and the shipped
+    description step finalizes the subscription. It is therefore only valid
+    for the shipped product type; consumers with their own product type
+    compose their own create workflow with the same parts.
     """
     return (
         begin
@@ -391,6 +406,7 @@ def create_leased_spectrum() -> StepList:
 
 __all__ = [
     "CREATE_LEASED_SPECTRUM_BLOCK_STEPS",
+    "build_leased_spectrum_block",
     "create_leased_spectrum",
     "create_leased_spectrum_form_pages",
 ]

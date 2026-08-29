@@ -35,11 +35,12 @@ import inspect
 import json
 import pkgutil
 import re
+import types
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from importlib import import_module
 from pathlib import Path
-from typing import Any
+from typing import Any, Union, get_args, get_origin
 from uuid import NAMESPACE_OID, uuid5
 
 from alembic import command
@@ -256,12 +257,25 @@ def _block_names(block_type: type[ProductBlockModel]) -> list[str]:
     return [name for name in (block_type.name,) if name]
 
 
+def _expand_block_type(block_type: Any) -> tuple[type[ProductBlockModel], ...]:
+    """Normalize one value of ``_get_depends_on_product_block_types()`` to concrete classes.
+
+    The core helper returns a single class (plain field), a tuple of classes (non-Optional
+    union field) or a raw ``typing`` union (list field of a union, e.g. optical pipe
+    terminations); all are normalized to a tuple of concrete block classes.
+    """
+    if isinstance(block_type, tuple):
+        return block_type
+    if get_origin(block_type) in (Union, types.UnionType):
+        return tuple(arg for arg in get_args(block_type) if arg is not type(None))
+    return (block_type,)
+
+
 def _block_depends_on(block_cls: type[ProductBlockModel]) -> tuple[str, ...]:
     """Return the names of the blocks this block depends on, in stable order."""
     depends: set[str] = set()
     for block_type in block_cls._get_depends_on_product_block_types().values():  # noqa: SLF001
-        candidates = block_type if isinstance(block_type, tuple) else (block_type,)
-        for candidate in candidates:
+        for candidate in _expand_block_type(block_type):
             if getattr(candidate, "name", None):
                 depends.update(_block_names(candidate))
     return tuple(sorted(depends))
@@ -318,8 +332,7 @@ def _product_blocks(model: type[SubscriptionModel]) -> list[str]:
     """
     names: list[str] = []
     for block_type in model._get_depends_on_product_block_types().values():  # noqa: SLF001
-        candidates = block_type if isinstance(block_type, tuple) else (block_type,)
-        for candidate in candidates:
+        for candidate in _expand_block_type(block_type):
             if getattr(candidate, "name", None):
                 names.extend(_block_names(candidate))
     return names

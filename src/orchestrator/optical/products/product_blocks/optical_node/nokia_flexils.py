@@ -36,6 +36,17 @@ class NokiaFlexIlsBlockInactive(AbstractOpticalNodeBlockInactive, product_block_
     management: OpticalModuleNodeManagementBlockInactive
     location: OpticalModuleLocationBlockInactive
 
+    @model_validator(mode="after")
+    def enforce_flexils(self):
+        """Ensure that the Optical Node is a Nokia FlexILS."""
+        if (vendor := self.management.optical_module_node_vendor) is not None and vendor != Vendor.NOKIA:
+            msg = f"Nokia FlexILS can only have vendor 'Nokia', got {vendor}."
+            raise ValueError(msg)
+        if (platform := self.management.optical_module_node_platform) is not None and platform != Platform.FLEXILS:
+            msg = f"Nokia FlexILS can only have platform 'FLEXILS', got {platform}."
+            raise ValueError(msg)
+        return self
+
 
 class NokiaFlexIlsBlockProvisioning(
     NokiaFlexIlsBlockInactive, AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
@@ -48,17 +59,6 @@ class NokiaFlexIlsBlockProvisioning(
 
     management: OpticalModuleNodeManagementBlockProvisioning
     location: OpticalModuleLocationBlockProvisioning
-
-    @model_validator(mode="after")
-    def enforce_flexils(self):
-        """Ensure that the Optical Node is a Nokia FlexILS."""
-        if self.management.optical_module_node_vendor != Vendor.NOKIA:
-            msg = f"Nokia FlexILS can only have vendor 'Nokia', got {self.management.optical_module_node_vendor}."
-            raise ValueError(msg)
-        if self.management.optical_module_node_platform != Platform.FLEXILS:
-            msg = f"Nokia FlexILS can only have platform 'FLEXILS', got {self.management.optical_module_node_platform}."
-            raise ValueError(msg)
-        return self
 
 
 class NokiaFlexIlsBlock(

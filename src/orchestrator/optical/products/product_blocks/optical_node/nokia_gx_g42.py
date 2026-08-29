@@ -33,6 +33,17 @@ class NokiaGxG42BlockInactive(AbstractOpticalNodeBlockInactive, product_block_na
     management: OpticalModuleNodeManagementBlockInactive
     location: OpticalModuleLocationBlockInactive
 
+    @model_validator(mode="after")
+    def enforce_g42(self):
+        """Ensure that the Optical Node is a Nokia GX G42."""
+        if (vendor := self.management.optical_module_node_vendor) is not None and vendor != Vendor.NOKIA:
+            msg = f"Nokia GX G42 can only have vendor 'Nokia', got {vendor}."
+            raise ValueError(msg)
+        if (platform := self.management.optical_module_node_platform) is not None and platform != Platform.GX_G42:
+            msg = f"Nokia GX G42 can only have platform 'GX_G42', got {platform}."
+            raise ValueError(msg)
+        return self
+
 
 class NokiaGxG42BlockProvisioning(
     NokiaGxG42BlockInactive, AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
@@ -43,17 +54,6 @@ class NokiaGxG42BlockProvisioning(
 
     management: OpticalModuleNodeManagementBlockProvisioning
     location: OpticalModuleLocationBlockProvisioning
-
-    @model_validator(mode="after")
-    def enforce_g42(self):
-        """Ensure that the Optical Node is a Nokia GX G42."""
-        if self.management.optical_module_node_vendor != Vendor.NOKIA:
-            msg = f"Nokia GX G42 can only have vendor 'Nokia', got {self.management.optical_module_node_vendor}."
-            raise ValueError(msg)
-        if self.management.optical_module_node_platform != Platform.GX_G42:
-            msg = f"Nokia GX G42 can only have platform 'GX G42', got {self.management.optical_module_node_platform}."
-            raise ValueError(msg)
-        return self
 
 
 class NokiaGxG42Block(NokiaGxG42BlockProvisioning, AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]):

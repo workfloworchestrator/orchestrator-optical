@@ -332,15 +332,16 @@ def set_optical_pipe_subscription_description(
 ) -> State:
     """Set the description of the Optical Pipe subscription.
 
-    The block is read from the ``optical_module_block`` state key when present
-    (e.g. when the shipped block steps ran against a consumer-owned block under
-    a different attribute name); otherwise it falls back to the ``optical_pipe``
-    attribute of the shipped subscription models.
+    The block is read from the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``
+    (put there by the construct step of the shipped create workflows or by
+    :func:`load_optical_pipe_block` in the shipped modify/validate/terminate
+    workflows); a step chain must always load the block into the state before
+    this step runs.
 
     Args:
         subscription: The Optical Pipe subscription.
-        optical_module_block: The Optical Pipe block of the subscription, when it
-            is available in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+        optical_module_block: The Optical Pipe block of the subscription, as
+            available in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     pipe = optical_pipe_block_from_state(optical_module_block)
     subscription.description = optical_pipe_subscription_description(subscription, pipe)

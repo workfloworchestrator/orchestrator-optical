@@ -1,10 +1,18 @@
-"""Unions for Optical Node Product Blocks."""
+"""Unions for Optical Node Product Blocks.
 
-from typing import Annotated, Any
+These are plain (non-discriminated) unions. A field-based discriminator is impossible here
+because the vendor role literals overlap (Groove G30 and GX G42 both allow ``TRANSPONDER``),
+and pydantic's function discriminators require ``Tag``-wrapped members.
 
-from pydantic import Discriminator, Tag
+They must stay plain unions: orchestrator-core's field classifier (``is_union_type`` in
+``orchestrator.core.types``) cannot see through ``Annotated``-wrapped members, and would
+persist single-reference fields of such unions (e.g. ``optical_port_host_node``) as plain
+strings instead of product block references.
 
-from orchestrator.core.domain.base import ProductBlockModel
+Pydantic resolves these unions unambiguously via each member's ``optical_node_role`` literal
+plus the ``enforce_*`` vendor/platform model validators defined on every lifecycle class.
+"""
+
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
     NokiaFlexIlsBlock,
     NokiaFlexIlsBlockInactive,
@@ -21,75 +29,16 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
     NokiaGxG42BlockProvisioning,
 )
 
+AnyOpticalNodeBlockInactiveUnion = NokiaFlexIlsBlockInactive | NokiaGrooveG30BlockInactive | NokiaGxG42BlockInactive
+AnyOpticalNodeBlockProvisioningUnion = (
+    NokiaFlexIlsBlockProvisioning | NokiaGrooveG30BlockProvisioning | NokiaGxG42BlockProvisioning
+)
+AnyOpticalNodeBlockUnion = NokiaFlexIlsBlock | NokiaGrooveG30Block | NokiaGxG42Block
 
-def _node_block_tag(block_type: type[ProductBlockModel]) -> str:
-    """Return the ``product_block_name`` of a concrete node block class, to be used as a union tag."""
-    assert block_type.name is not None  # noqa: S101
-    return block_type.name
+OlsBlockInactiveUnion = NokiaFlexIlsBlockInactive | NokiaGrooveG30BlockInactive
+OlsBlockProvisioningUnion = NokiaFlexIlsBlockProvisioning | NokiaGrooveG30BlockProvisioning
+OlsBlockUnion = NokiaFlexIlsBlock | NokiaGrooveG30Block
 
-
-def _node_block_discriminator(value: Any) -> str | None:
-    """Return the product block name of an optical node block.
-
-    The discriminated input is either a serialized product block (dict, as produced by
-    orchestrator-core on reload) or a product block model instance. In both cases the
-    ``name`` field carries the ``product_block_name`` of the concrete block chain.
-
-    Note that blocks must be constructed with ``new()``/``from_db()``: a plain pydantic
-    constructor leaves ``name`` at the abstract base default, which matches no tag.
-    """
-    if isinstance(value, dict):
-        return value.get("name")
-    return getattr(value, "name", None)
-
-
-AnyOpticalNodeBlockInactiveUnion = Annotated[
-    Annotated[NokiaFlexIlsBlockInactive, Tag(_node_block_tag(NokiaFlexIlsBlockInactive))]
-    | Annotated[NokiaGrooveG30BlockInactive, Tag(_node_block_tag(NokiaGrooveG30BlockInactive))]
-    | Annotated[NokiaGxG42BlockInactive, Tag(_node_block_tag(NokiaGxG42BlockInactive))],
-    Discriminator(_node_block_discriminator),
-]
-AnyOpticalNodeBlockProvisioningUnion = Annotated[
-    Annotated[NokiaFlexIlsBlockProvisioning, Tag(_node_block_tag(NokiaFlexIlsBlockProvisioning))]
-    | Annotated[NokiaGrooveG30BlockProvisioning, Tag(_node_block_tag(NokiaGrooveG30BlockProvisioning))]
-    | Annotated[NokiaGxG42BlockProvisioning, Tag(_node_block_tag(NokiaGxG42BlockProvisioning))],
-    Discriminator(_node_block_discriminator),
-]
-AnyOpticalNodeBlockUnion = Annotated[
-    Annotated[NokiaFlexIlsBlock, Tag(_node_block_tag(NokiaFlexIlsBlock))]
-    | Annotated[NokiaGrooveG30Block, Tag(_node_block_tag(NokiaGrooveG30Block))]
-    | Annotated[NokiaGxG42Block, Tag(_node_block_tag(NokiaGxG42Block))],
-    Discriminator(_node_block_discriminator),
-]
-
-OlsBlockInactiveUnion = Annotated[
-    Annotated[NokiaFlexIlsBlockInactive, Tag(_node_block_tag(NokiaFlexIlsBlockInactive))]
-    | Annotated[NokiaGrooveG30BlockInactive, Tag(_node_block_tag(NokiaGrooveG30BlockInactive))],
-    Discriminator(_node_block_discriminator),
-]
-OlsBlockProvisioningUnion = Annotated[
-    Annotated[NokiaFlexIlsBlockProvisioning, Tag(_node_block_tag(NokiaFlexIlsBlockProvisioning))]
-    | Annotated[NokiaGrooveG30BlockProvisioning, Tag(_node_block_tag(NokiaGrooveG30BlockProvisioning))],
-    Discriminator(_node_block_discriminator),
-]
-OlsBlockUnion = Annotated[
-    Annotated[NokiaFlexIlsBlock, Tag(_node_block_tag(NokiaFlexIlsBlock))]
-    | Annotated[NokiaGrooveG30Block, Tag(_node_block_tag(NokiaGrooveG30Block))],
-    Discriminator(_node_block_discriminator),
-]
-
-TransponderBlockInactiveUnion = Annotated[
-    Annotated[NokiaGrooveG30BlockInactive, Tag(_node_block_tag(NokiaGrooveG30BlockInactive))]
-    | Annotated[NokiaGxG42BlockInactive, Tag(_node_block_tag(NokiaGxG42BlockInactive))],
-    Discriminator(_node_block_discriminator),
-]
-TransponderBlockProvisioningUnion = Annotated[
-    Annotated[NokiaGrooveG30BlockProvisioning, Tag(_node_block_tag(NokiaGrooveG30BlockProvisioning))]
-    | Annotated[NokiaGxG42BlockProvisioning, Tag(_node_block_tag(NokiaGxG42BlockProvisioning))],
-    Discriminator(_node_block_discriminator),
-]
-TransponderBlockUnion = Annotated[
-    Annotated[NokiaGrooveG30Block, Tag(_node_block_tag(NokiaGrooveG30Block))]
-    | Annotated[NokiaGxG42Block, Tag(_node_block_tag(NokiaGxG42Block))],
-    Discriminator(_node_block_discriminator),
-]
+TransponderBlockInactiveUnion = NokiaGrooveG30BlockInactive | NokiaGxG42BlockInactive
+TransponderBlockProvisioningUnion = NokiaGrooveG30BlockProvisioning | NokiaGxG42BlockProvisioning
+TransponderBlockUnion = NokiaGrooveG30Block | NokiaGxG42Block

@@ -70,6 +70,7 @@ from orchestrator.optical.products.product_blocks.optical_transport_channel impo
     OpticalTransportChannelBlockProvisioning,
 )
 from orchestrator.optical.workflows.optical_coherent_pluggable.create import (
+    construct_optical_coherent_pluggable_subscription,
     populate_optical_coherent_pluggable_block,
 )
 from orchestrator.optical.workflows.optical_coherent_pluggable.modify import (
@@ -412,3 +413,20 @@ def test_node_form_optical_fields_are_consumed_by_a_block_step(vendor: str) -> N
     consumed = set(inspect.signature(construct_fn).parameters) | NODE_FORM_DISPLAY_ONLY_FIELDS[vendor]
     unconsumed = NODE_FORM_OPTICAL_FIELDS[vendor] - consumed
     assert not unconsumed, f"node form fields not consumed by {construct_fn.__name__}: {sorted(unconsumed)}"
+
+
+#: Flat ``optical_*`` fields the shipped coherent pluggable create form declares.
+COHERENT_PLUGGABLE_FORM_OPTICAL_FIELDS: set[str] = {
+    "optical_packet_node_id",
+    "optical_coherent_pluggable_part_number",
+    "optical_port_name",
+    "optical_port_description",
+    "optical_coherent_pluggable_firmware_version",
+}
+
+
+def test_coherent_pluggable_form_optical_fields_are_consumed_by_the_construct_step() -> None:
+    """Assert every flat create-form field is consumed by the shipped construct step."""
+    consumed = set(inspect.signature(construct_optical_coherent_pluggable_subscription).parameters)
+    unconsumed = COHERENT_PLUGGABLE_FORM_OPTICAL_FIELDS - consumed
+    assert not unconsumed, f"form fields not consumed by the construct step: {sorted(unconsumed)}"

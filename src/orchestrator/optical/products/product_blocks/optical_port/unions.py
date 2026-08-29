@@ -1,8 +1,13 @@
-"""Union types for Optical Port Product Blocks."""
+"""Union types for Optical Port Product Blocks.
 
-from typing import Annotated
+These are plain (non-discriminated) unions. Pydantic resolves them unambiguously because every
+member pins a distinct ``optical_port_role: Literal[...]`` value.
 
-from pydantic import Field
+They must stay plain unions: orchestrator-core's field classifier (``is_list_type``/
+``is_union_type`` in ``orchestrator.core.types``) cannot see through ``Annotated``-wrapped
+discriminated unions, and would persist list fields of such unions (e.g. optical pipe
+terminations) as plain strings instead of nested product block references.
+"""
 
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
     OpticalCoherentPluggableBlock,
@@ -30,116 +35,91 @@ from orchestrator.optical.products.product_blocks.optical_port.transponder_line 
     OpticalTransponderLinePortBlockProvisioning,
 )
 
-AnyOpticalPortBlockInactive = Annotated[
+AnyOpticalPortBlockInactive = (
     OpticalTransponderClientPortBlockInactive
     | OpticalTransponderLinePortBlockInactive
     | OlsAddDropPortBlockInactive
     | OlsLinePortBlockInactive
-    | OpticalCoherentPluggableBlockInactive,
-    Field(discriminator="optical_port_role"),
-]
-AnyOpticalPortBlockProvisioning = Annotated[
+    | OpticalCoherentPluggableBlockInactive
+)
+AnyOpticalPortBlockProvisioning = (
     OpticalTransponderClientPortBlockProvisioning
     | OpticalTransponderLinePortBlockProvisioning
     | OlsAddDropPortBlockProvisioning
     | OlsLinePortBlockProvisioning
-    | OpticalCoherentPluggableBlockProvisioning,
-    Field(discriminator="optical_port_role"),
-]
-AnyOpticalPortBlock = Annotated[
+    | OpticalCoherentPluggableBlockProvisioning
+)
+AnyOpticalPortBlock = (
     OpticalTransponderClientPortBlock
     | OpticalTransponderLinePortBlock
     | OlsAddDropPortBlock
     | OlsLinePortBlock
-    | OpticalCoherentPluggableBlock,
-    Field(discriminator="optical_port_role"),
-]
+    | OpticalCoherentPluggableBlock
+)
 
-PatchPortBlockInactive = Annotated[
+PatchPortBlockInactive = (
     OpticalTransponderClientPortBlockInactive
     | OpticalTransponderLinePortBlockInactive
     | OlsAddDropPortBlockInactive
-    | OpticalCoherentPluggableBlockInactive,
-    Field(discriminator="optical_port_role"),
-]
-PatchPortBlockProvisioning = Annotated[
+    | OpticalCoherentPluggableBlockInactive
+)
+PatchPortBlockProvisioning = (
     OpticalTransponderClientPortBlockProvisioning
     | OpticalTransponderLinePortBlockProvisioning
     | OlsAddDropPortBlockProvisioning
-    | OpticalCoherentPluggableBlockProvisioning,
-    Field(discriminator="optical_port_role"),
-]
-PatchPortBlock = Annotated[
+    | OpticalCoherentPluggableBlockProvisioning
+)
+PatchPortBlock = (
     OpticalTransponderClientPortBlock
     | OpticalTransponderLinePortBlock
     | OlsAddDropPortBlock
-    | OpticalCoherentPluggableBlock,
-    Field(discriminator="optical_port_role"),
-]
+    | OpticalCoherentPluggableBlock
+)
 
-SpanPortBlockInactive = Annotated[
-    OlsLinePortBlockInactive
-    | OpticalTransponderLinePortBlockInactive
-    | OpticalCoherentPluggableBlockInactive,
-    Field(discriminator="optical_port_role"),
-]
-SpanPortBlockProvisioning = Annotated[
+SpanPortBlockInactive = (
+    OlsLinePortBlockInactive | OpticalTransponderLinePortBlockInactive | OpticalCoherentPluggableBlockInactive
+)
+SpanPortBlockProvisioning = (
     OlsLinePortBlockProvisioning
     | OpticalTransponderLinePortBlockProvisioning
-    | OpticalCoherentPluggableBlockProvisioning,
-    Field(discriminator="optical_port_role"),
-]
-SpanPortBlock = Annotated[
-    OlsLinePortBlock | OpticalTransponderLinePortBlock | OpticalCoherentPluggableBlock,
-    Field(discriminator="optical_port_role"),
-]
+    | OpticalCoherentPluggableBlockProvisioning
+)
+SpanPortBlock = OlsLinePortBlock | OpticalTransponderLinePortBlock | OpticalCoherentPluggableBlock
 
-LeasedSpectrumPortBlockInactive = Annotated[
+LeasedSpectrumPortBlockInactive = (
     OpticalTransponderLinePortBlockInactive
     | OlsAddDropPortBlockInactive
     | OlsLinePortBlockInactive
-    | OpticalCoherentPluggableBlockInactive,
-    Field(discriminator="optical_port_role"),
-]
+    | OpticalCoherentPluggableBlockInactive
+)
 
-LeasedSpectrumPortBlockProvisioning = Annotated[
+LeasedSpectrumPortBlockProvisioning = (
     OpticalTransponderLinePortBlockProvisioning
     | OlsAddDropPortBlockProvisioning
     | OlsLinePortBlockProvisioning
-    | OpticalCoherentPluggableBlockProvisioning,
-    Field(discriminator="optical_port_role"),
-]
+    | OpticalCoherentPluggableBlockProvisioning
+)
 
-LeasedSpectrumPortBlock = Annotated[
-    OpticalTransponderLinePortBlock | OlsAddDropPortBlock | OlsLinePortBlock | OpticalCoherentPluggableBlock,
-    Field(discriminator="optical_port_role"),
-]
+LeasedSpectrumPortBlock = (
+    OpticalTransponderLinePortBlock | OlsAddDropPortBlock | OlsLinePortBlock | OpticalCoherentPluggableBlock
+)
 
-OpticalTransportLineChannelBlockInactive = Annotated[
-    OpticalTransponderLinePortBlockInactive | OpticalCoherentPluggableBlockInactive,
-    Field(discriminator="optical_port_role"),
-]
+OpticalTransportLineChannelBlockInactive = (
+    OpticalTransponderLinePortBlockInactive | OpticalCoherentPluggableBlockInactive
+)
 
-OpticalTransportLineChannelBlockProvisioning = Annotated[
-    OpticalTransponderLinePortBlockProvisioning | OpticalCoherentPluggableBlockProvisioning,
-    Field(discriminator="optical_port_role"),
-]
+OpticalTransportLineChannelBlockProvisioning = (
+    OpticalTransponderLinePortBlockProvisioning | OpticalCoherentPluggableBlockProvisioning
+)
 
-OpticalTransportLineChannelBlock = Annotated[
-    OpticalTransponderLinePortBlock | OpticalCoherentPluggableBlock,
-    Field(discriminator="optical_port_role"),
-]
+OpticalTransportLineChannelBlock = OpticalTransponderLinePortBlock | OpticalCoherentPluggableBlock
 
-OpticalDigitalServiceClientPortBlockInactive = Annotated[
-    OpticalTransponderClientPortBlockInactive | OpticalCoherentPluggableBlockInactive,
-    Field(discriminator="optical_port_role"),
-]
+OpticalDigitalServiceClientPortBlockInactive = (
+    OpticalTransponderClientPortBlockInactive | OpticalCoherentPluggableBlockInactive
+)
 
-OpticalDigitalServiceClientPortBlockProvisioning = Annotated[
-    OpticalTransponderClientPortBlockProvisioning | OpticalCoherentPluggableBlockProvisioning,
-    Field(discriminator="optical_port_role"),
-]
+OpticalDigitalServiceClientPortBlockProvisioning = (
+    OpticalTransponderClientPortBlockProvisioning | OpticalCoherentPluggableBlockProvisioning
+)
 
-OpticalDigitalServiceClientPortBlock = Annotated[
-    OpticalTransponderClientPortBlock | OpticalCoherentPluggableBlock, Field(discriminator="optical_port_role")
-]
+OpticalDigitalServiceClientPortBlock = OpticalTransponderClientPortBlock | OpticalCoherentPluggableBlock

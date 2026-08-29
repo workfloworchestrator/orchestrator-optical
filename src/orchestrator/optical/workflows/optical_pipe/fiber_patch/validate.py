@@ -16,7 +16,10 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.hal.optical_port import check_fiber_terminating_port
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatch
-from orchestrator.optical.workflows.optical_pipe.shared import set_optical_pipe_subscription_description
+from orchestrator.optical.workflows.optical_pipe.shared import (
+    load_optical_pipe_block,
+    set_optical_pipe_subscription_description,
+)
 
 
 @step("Load Initial State")
@@ -34,12 +37,15 @@ def check_patch_terminations(subscription: OpticalFiberPatch) -> State:
     return {}
 
 
-#: Validation steps of the Optical Fiber Patch family. The subscription
-#: description refresh is a shared step that reads the block from the state
-#: under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` when present, and otherwise falls
-#: back to the ``optical_pipe`` attribute of the shipped subscription models.
+#: Validation steps of the Optical Fiber Patch family. The block is loaded
+#: into the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` so the shared
+#: subscription description refresh can read it.
 FIBER_PATCH_VALIDATE_STEPS: StepList = (
-    begin >> load_initial_state_fiber_patch >> set_optical_pipe_subscription_description >> check_patch_terminations
+    begin
+    >> load_initial_state_fiber_patch
+    >> load_optical_pipe_block
+    >> set_optical_pipe_subscription_description
+    >> check_patch_terminations
 )
 
 

@@ -233,6 +233,7 @@ def test_shipped_type_create_workflow_composition() -> None:
         return (
             begin
             >> construct_fiber_span_subscription
+            >> set_status(SubscriptionLifecycle.PROVISIONING)
             >> CREATE_FIBER_SPAN_BLOCK_STEPS
             >> set_optical_pipe_subscription_description
             >> store_process_subscription()
@@ -242,13 +243,13 @@ def test_shipped_type_create_workflow_composition() -> None:
     assert workflow.name == "create_fiber_span"
     names = [step.name for step in workflow.steps]
     construct = names.index("Construct Fiber Span Subscription")
-    persist_first = names.index("Persist optical pipe block")
+    set_provisioning = names.index("Set subscription to 'provisioning'")
     configure = names.index("Configure Optical Pipe Terminations")
     retrieve = names.index("Retrieve Used Passbands")
-    persist_last = names.index("Persist optical pipe block", persist_first + 1)
+    persist = names.index("Persist optical pipe block")
     set_description = names.index("Set Optical Pipe subscription description")
     create_relation = names.index("Create Process Subscription relation")
-    assert construct < persist_first < configure < retrieve < persist_last < set_description < create_relation
+    assert construct < set_provisioning < configure < retrieve < persist < set_description < create_relation
 
 
 def test_shipped_type_modify_workflow_composition() -> None:
@@ -302,8 +303,9 @@ def test_fiber_patch_and_leased_spectrum_step_lists_compose() -> None:
 
     patch_workflow: Workflow = create_fiber_patch
     names = [step.name for step in patch_workflow.steps]
-    assert names.index("Construct Fiber Patch Subscription") < names.index("Persist optical pipe block")
-    assert names.index("Persist optical pipe block") < names.index("Retrieve Used Passbands")
+    assert names.index("Construct Fiber Patch Subscription") < names.index("Configure Optical Pipe Terminations")
+    assert names.index("Configure Optical Pipe Terminations") < names.index("Retrieve Used Passbands")
+    assert names.index("Retrieve Used Passbands") < names.index("Persist optical pipe block")
 
     leased_workflow: Workflow = modify_leased_spectrum
     names = [step.name for step in leased_workflow.steps]

@@ -17,7 +17,7 @@ from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
-    OpticalCoherentPluggableBlockInactive,
+    OpticalCoherentPluggableBlockProvisioning,
 )
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     _optical_coherent_pluggable_block_of_subscription,
@@ -36,7 +36,7 @@ def load_initial_state_optical_coherent_pluggable(subscription: SubscriptionMode
 @step("Validate Optical Coherent Pluggable state")
 def validate_optical_coherent_pluggable_state(
     subscription: SubscriptionModel,
-    optical_module_block: OpticalCoherentPluggableBlockInactive | None = None,
+    optical_module_block: OpticalCoherentPluggableBlockProvisioning | None = None,
 ) -> State:
     """Verify the state and integrity of the Optical Coherent Pluggable block.
 
@@ -45,7 +45,9 @@ def validate_optical_coherent_pluggable_state(
     consumer-owned block); otherwise it falls back to the
     ``optical_coherent_pluggable`` attribute of the shipped subscription
     models. Workflow steps execute with the state serialized between steps, so
-    a block found in the state is re-hydrated before it is validated.
+    a block found in the state is re-hydrated before it is validated. The
+    block is always the PROVISIONING variant (the ACTIVE variant is a subtype
+    of it).
 
     Args:
         subscription: The Optical Coherent Pluggable subscription being validated.

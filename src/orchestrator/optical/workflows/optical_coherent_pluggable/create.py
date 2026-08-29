@@ -12,12 +12,13 @@ Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
 ``@create_workflow`` with the parts. The shipped workflow itself is composed
 from the shipped parts: the construct step builds the shipped subscription
-model and puts its block in the state, the shipped block steps populate and
-persist the block, and the shipped description step finalizes the
-subscription. The shipped form generator is a thin composition of the shipped
-pages and the summary form, without hooks: consumers build their own form
-generator by yielding from the shipped page sequence in one line and adding
-their own pages::
+model, populates its block with the create-form values, transitions it to
+PROVISIONING and puts the block in the state, the shipped block steps persist
+the block, and the shipped description step finalizes the subscription. The
+shipped form generator is a thin composition of the shipped pages and the
+summary form, without hooks: consumers build their own form generator by
+yielding from the shipped page sequence in one line and adding their own
+pages::
 
     user_input_dict = yield from create_optical_coherent_pluggable_form_pages(product_name)
     user_input_dict.update((yield my_own_page).model_dump())
@@ -46,11 +47,11 @@ from orchestrator.optical.products.product_blocks.optical_packet_node import (
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
     OpticalCoherentPluggableInactive,
     OpticalCoherentPluggablePartNumber,
+    OpticalCoherentPluggableProvisioning,
 )
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
-    optical_coherent_pluggable_block_from_state,
     packet_node_block_from_subscription,
     save_optical_coherent_pluggable_block,
     update_optical_coherent_pluggable_subscription_description,
@@ -172,11 +173,11 @@ def create_optical_coherent_pluggable_form_pages(product_name: str) -> FormGener
 
     This is the shipped create form as a page sequence: it yields the create
     page and returns the collected user input as a flat dict of the flat
-    ``optical_*`` state keys, consumed by the shipped steps of
-    :data:`CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`. Consumers yield from
-    it in one line inside their own create form generator, optionally
-    interleaving their own pages. The customer of the subscription is collected
-    separately by the consumer (see
+    ``optical_*`` state keys, consumed by the shipped construct step
+    (see :func:`construct_optical_coherent_pluggable_subscription`).
+    Consumers yield from it in one line inside their own create form
+    generator, optionally interleaving their own pages. The customer of the
+    subscription is collected separately by the consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
@@ -209,8 +210,8 @@ def create_optical_coherent_pluggable_form_generator(product_name: str) -> FormG
     """Generate the initial input form for creating an Optical Coherent Pluggable.
 
     The form emits the flat ``optical_*`` state keys consumed by the shipped
-    steps of :data:`CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`. It is a thin
-    composition of the shipped page sequence
+    construct step (see :func:`construct_optical_coherent_pluggable_subscription`).
+    It is a thin composition of the shipped page sequence
     (:func:`create_optical_coherent_pluggable_form_pages`) and the summary
     form.
 
@@ -243,17 +244,18 @@ def populate_optical_coherent_pluggable_block(
     """Populate an Optical Coherent Pluggable block from the create-form state keys.
 
     This is the anti-corruption point for consumers that keep their own model:
-    call it from their own construct step on the shipped block they compose,
-    before their subscription model is transitioned to the next lifecycle. The
-    host node block comes from the Optical Packet Node subscription hosting
-    the pluggable: consumers pass the shipped packet node block of their own
-    model, the shipped steps resolve it from the form's
-    ``optical_packet_node_id``. It re-checks the uniqueness of the port on the
-    host node at execution time, so consumers bypassing the form validation are
-    still guarded against duplicates.
+    the shipped construct step calls it on the INACTIVE block before the
+    subscription is transitioned to PROVISIONING, and consumers call it from
+    their own construct step on the shipped block they compose. The host node
+    block comes from the Optical Packet Node subscription hosting the
+    pluggable: the shipped construct step resolves it from the form's
+    ``optical_packet_node_id``, consumers pass the shipped packet node block of
+    their own model. It re-checks the uniqueness of the port on the host node
+    at execution time, so consumers bypassing the form validation are still
+    guarded against duplicates.
 
     Args:
-        optical_module_block: The Optical Coherent Pluggable block to populate (any lifecycle variant).
+        optical_module_block: The Optical Coherent Pluggable block to populate (the INACTIVE variant).
         optical_port_host_node: Optical Module Packet Node block hosting the pluggable.
         optical_port_name: Name of the port of the host node.
         optical_port_description: Description of the port.
@@ -273,64 +275,34 @@ def populate_optical_coherent_pluggable_block(
     optical_module_block.optical_coherent_pluggable_firmware_version = optical_coherent_pluggable_firmware_version
 
 
-@step("Populate Optical Coherent Pluggable block")
-def populate_optical_coherent_pluggable_block_step(
-    optical_module_block: OpticalCoherentPluggableBlockInactive,
-    optical_packet_node_id: UUIDstr,
-    optical_port_name: str,
-    optical_port_description: str | None = None,
-    optical_coherent_pluggable_firmware_version: str | None = None,
-) -> State:
-    """Populate the Optical Coherent Pluggable block found in the state from the create-form keys.
-
-    Workflow steps execute with the state serialized between steps, so the
-    block is re-hydrated from the database by its ``subscription_instance_id``
-    before it is populated.
-
-    Args:
-        optical_module_block: The Optical Coherent Pluggable block
-            in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-        optical_packet_node_id: Subscription id of the Optical Packet Node hosting the pluggable.
-        optical_port_name: Name of the port of the host node.
-        optical_port_description: Description of the port.
-        optical_coherent_pluggable_firmware_version: Firmware version of the pluggable.
-
-    Raises:
-        ValueError: If there is no Optical Coherent Pluggable block in the state
-            under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-    """
-    pluggable = optical_coherent_pluggable_block_from_state(optical_module_block)
-    if pluggable is None:
-        msg = "No Optical Coherent Pluggable block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
-        raise ValueError(msg)
-    host_node = packet_node_block_from_subscription(optical_packet_node_id)
-    populate_optical_coherent_pluggable_block(
-        optical_module_block=pluggable,
-        optical_port_host_node=host_node,
-        optical_port_name=optical_port_name,
-        optical_port_description=optical_port_description,
-        optical_coherent_pluggable_firmware_version=optical_coherent_pluggable_firmware_version,
-    )
-    return {OPTICAL_MODULE_BLOCK_STATE_KEY: pluggable}
-
-
 @step("Construct Subscription model")
 def construct_optical_coherent_pluggable_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
+    optical_packet_node_id: UUIDstr,
+    optical_port_name: str,
     optical_coherent_pluggable_part_number: OpticalCoherentPluggablePartNumber,
+    optical_coherent_pluggable_firmware_version: str,
+    optical_port_description: str | None = None,
 ) -> State:
-    """Construct the initial domain subscription model for an Optical Coherent Pluggable.
+    """Construct the PROVISIONING domain subscription model for an Optical Coherent Pluggable.
 
-    This step builds the shipped ``OpticalCoherentPluggable`` subscription
-    model and puts its block in the state under
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the shipped block steps
-    of :data:`CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`. Consumers that
-    define their own product type (composing the
+    This step builds the shipped ``OpticalCoherentPluggable`` model, populates
+    its block with the create-form values through
+    :func:`populate_optical_coherent_pluggable_block` (the anti-corruption
+    point) and transitions the subscription to PROVISIONING in memory, so the
+    block found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` is the
+    PROVISIONING variant with its mandatory fields already set — the contract
+    of the shipped block steps of
+    :data:`CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS`.
+
+    Consumers that define their own product type (composing the
     ``OpticalCoherentPluggableBlock`` under their own attribute name) write
-    their own construct step instead and can reuse
-    :func:`populate_optical_coherent_pluggable_block` as the anti-corruption
-    point between their model and the shipped block.
+    their own construct step instead: it builds their subscription, populates
+    the composed block with the mandatory fields set (e.g. via
+    :func:`populate_optical_coherent_pluggable_block`), transitions it to
+    PROVISIONING and puts the block in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     subscription = OpticalCoherentPluggableInactive.from_product_id(
         product_id=product,
@@ -340,6 +312,21 @@ def construct_optical_coherent_pluggable_subscription(
 
     subscription.optical_coherent_pluggable_part_number = optical_coherent_pluggable_part_number
 
+    populate_optical_coherent_pluggable_block(
+        optical_module_block=subscription.optical_coherent_pluggable,
+        optical_port_host_node=packet_node_block_from_subscription(optical_packet_node_id),
+        optical_port_name=optical_port_name,
+        optical_port_description=optical_port_description,
+        optical_coherent_pluggable_firmware_version=optical_coherent_pluggable_firmware_version,
+    )
+    # The block's computed part number field loads the owner subscription from
+    # the database, and the lifecycle transition below serializes the block:
+    # the subscription and its instances must be persisted first.
+    subscription.save()
+    subscription = OpticalCoherentPluggableProvisioning.from_other_lifecycle(
+        subscription, SubscriptionLifecycle.PROVISIONING
+    )
+
     return {
         "subscription": subscription,
         "subscription_id": subscription.subscription_id,
@@ -348,14 +335,12 @@ def construct_optical_coherent_pluggable_subscription(
 
 
 #: Create steps operating on the Optical Coherent Pluggable block in the state.
-#: The block is re-hydrated from the database and persisted by the last step,
-#: because workflow steps execute with the state serialized between steps.
-#: Consumers with their own model run this list after constructing their
-#: (inactive) subscription and putting their block in the state under
-#: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS: StepList = (
-    begin >> populate_optical_coherent_pluggable_block_step >> save_optical_coherent_pluggable_block
-)
+#: Every step consumes the PROVISIONING variant of the block: the block is
+#: assumed to be in the PROVISIONING lifecycle status, the caller's construct
+#: step provides it under ``OPTICAL_MODULE_BLOCK_STATE_KEY``, and the last
+#: step re-hydrates the block from the database and persists it, because
+#: workflow steps execute with the state serialized between steps.
+CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS: StepList = begin >> save_optical_coherent_pluggable_block
 
 
 @create_workflow(initial_input_form=create_optical_coherent_pluggable_form_generator)
@@ -363,17 +348,18 @@ def create_optical_coherent_pluggable() -> StepList:
     """Workflow to create a new Optical Coherent Pluggable subscription.
 
     The workflow is composed from the shipped parts: the construct step builds
-    the shipped :class:`OpticalCoherentPluggable` model and puts its block in
-    the state, the shipped block steps populate and persist the block, and the
-    shipped description step finalizes the subscription. It is therefore only
-    valid for the shipped product type; consumers with their own product type
-    compose their own create workflow with the same parts.
+    the shipped :class:`OpticalCoherentPluggable` model, populates its block
+    and puts the PROVISIONING block in the state, the shipped block steps
+    persist the block, and the shipped description step finalizes the
+    subscription. It is therefore only valid for the shipped product type;
+    consumers with their own product type compose their own create workflow
+    with the same parts.
     """
     return (
         begin
         >> construct_optical_coherent_pluggable_subscription
-        >> CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS
         >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS
         >> update_optical_coherent_pluggable_subscription_description
         >> store_process_subscription()
     )
@@ -382,11 +368,7 @@ def create_optical_coherent_pluggable() -> StepList:
 __all__ = [
     "CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS",
     "check_optical_coherent_pluggable_port_uniqueness",
-    "construct_optical_coherent_pluggable_subscription",
     "create_optical_coherent_pluggable",
-    "create_optical_coherent_pluggable_form",
-    "create_optical_coherent_pluggable_form_generator",
     "create_optical_coherent_pluggable_form_pages",
     "populate_optical_coherent_pluggable_block",
-    "populate_optical_coherent_pluggable_block_step",
 ]
