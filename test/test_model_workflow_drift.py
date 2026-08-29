@@ -32,7 +32,10 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlockInactive,
+    AbstractOpticalNodeBlockProvisioning,
+)
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
     NokiaFlexIlsBlockInactive,
     NokiaFlexIlsBlockProvisioning,
@@ -81,18 +84,21 @@ from orchestrator.optical.workflows.optical_digital_service.modify_optical_digit
 from orchestrator.optical.workflows.optical_location.create import populate_optical_module_location_block
 from orchestrator.optical.workflows.optical_location.modify import update_optical_module_location_block
 from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
+    construct_optical_node_nokia_flexils_subscription,
     populate_optical_node_nokia_flexils_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import (
     update_optical_node_nokia_flexils_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_groove_g30.create import (
+    construct_optical_node_nokia_groove_g30_subscription,
     populate_optical_node_nokia_groove_g30_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_groove_g30.modify import (
     update_optical_node_nokia_groove_g30_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_gx_g42.create import (
+    construct_optical_node_nokia_gx_g42_subscription,
     populate_optical_node_nokia_gx_g42_block,
 )
 from orchestrator.optical.workflows.optical_node.nokia_gx_g42.modify import (
@@ -146,7 +152,7 @@ WRITERS = [
     # onto the block (the shared helper and the populate functions no longer do).
     _entry(
         retrieve_optical_node_role_and_software_version,
-        AbstractOpticalNodeBlockInactive,
+        AbstractOpticalNodeBlockProvisioning,
         (
             "optical_node_role",
             "management.optical_module_node_software_version",
@@ -381,13 +387,14 @@ NODE_FORM_OPTICAL_FIELDS: dict[str, set[str]] = {
     },
 }
 
-#: Block-level create steps consuming the flat create-form keys, per vendor: the
-#: shared retrieval step (block-only, consumes no flat keys) and the populate
-#: step (the rest).
-NODE_BLOCK_STEP_CONSUMERS = {
-    "flexils": (retrieve_optical_node_role_and_software_version, populate_optical_node_nokia_flexils_block),
-    "groove_g30": (retrieve_optical_node_role_and_software_version, populate_optical_node_nokia_groove_g30_block),
-    "gx_g42": (retrieve_optical_node_role_and_software_version, populate_optical_node_nokia_gx_g42_block),
+#: Construct step consuming the flat create-form keys, per vendor: the form
+#: keys are its parameters (the plain populate function it calls carries the
+#: same keys, for consumers with their own model). The shared retrieval step
+#: consumes no flat keys: it only reads the block from the state.
+NODE_CONSTRUCT_STEPS = {
+    "flexils": construct_optical_node_nokia_flexils_subscription,
+    "groove_g30": construct_optical_node_nokia_groove_g30_subscription,
+    "gx_g42": construct_optical_node_nokia_gx_g42_subscription,
 }
 
 #: Form fields shown for display only (not stored on the node block by a block step).
@@ -401,13 +408,7 @@ NODE_FORM_DISPLAY_ONLY_FIELDS: dict[str, set[str]] = {
 @pytest.mark.parametrize("vendor", ["flexils", "groove_g30", "gx_g42"])
 def test_node_form_optical_fields_are_consumed_by_a_block_step(vendor: str) -> None:
     """Assert every flat ``optical_*``/``pqdn`` node create-form field is consumed or display-only."""
-    discover_fn, populate_fn = NODE_BLOCK_STEP_CONSUMERS[vendor]
-    consumed = (
-        set(inspect.signature(discover_fn).parameters)
-        | set(inspect.signature(populate_fn).parameters)
-        | NODE_FORM_DISPLAY_ONLY_FIELDS[vendor]
-    )
+    construct_fn = NODE_CONSTRUCT_STEPS[vendor]
+    consumed = set(inspect.signature(construct_fn).parameters) | NODE_FORM_DISPLAY_ONLY_FIELDS[vendor]
     unconsumed = NODE_FORM_OPTICAL_FIELDS[vendor] - consumed
-    assert not unconsumed, (
-        f"node form fields not consumed by {discover_fn.__name__}/{populate_fn.__name__}: {sorted(unconsumed)}"
-    )
+    assert not unconsumed, f"node form fields not consumed by {construct_fn.__name__}: {sorted(unconsumed)}"

@@ -42,7 +42,7 @@ class NokiaFlexIlsBlockProvisioning(
 ):
     """Product Block of a Nokia FlexILS Optical Node that is provisioning."""
 
-    optical_node_role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER]
+    optical_node_role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER] | None = None
     optical_flexils_gmpls_id: IPAddress
     optical_flexils_target_id: str
 
@@ -56,10 +56,7 @@ class NokiaFlexIlsBlockProvisioning(
             msg = f"Nokia FlexILS can only have vendor 'Nokia', got {self.management.optical_module_node_vendor}."
             raise ValueError(msg)
         if self.management.optical_module_node_platform != Platform.FLEXILS:
-            msg = (
-                f"Nokia FlexILS can only have platform 'FLEXILS', "
-                f"got {self.management.optical_module_node_platform}."
-            )
+            msg = f"Nokia FlexILS can only have platform 'FLEXILS', got {self.management.optical_module_node_platform}."
             raise ValueError(msg)
         return self
 

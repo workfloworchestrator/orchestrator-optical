@@ -65,6 +65,7 @@ def test_shipped_type_create_workflow_composition() -> None:
         return (
             begin
             >> construct_optical_node_nokia_flexils_subscription
+            >> set_status(SubscriptionLifecycle.PROVISIONING)
             >> CREATE_NOKIA_FLEXILS_BLOCK_STEPS
             >> store_process_subscription()
         )
@@ -72,8 +73,9 @@ def test_shipped_type_create_workflow_composition() -> None:
     workflow: Workflow = create_optical_node_nokia_flexils
     assert workflow.name == "create_optical_node_nokia_flexils"
     names = [step.name for step in workflow.steps]
-    assert names.index("Construct Subscription model") < names.index("Populate Nokia FlexILS node block")
-    assert names.index("Populate Nokia FlexILS node block") < names.index("Retrieve node role and software version")
+    assert names.index("Construct Subscription model") < names.index("Set subscription to 'provisioning'")
+    assert names.index("Set subscription to 'provisioning'") < names.index("Retrieve node role and software version")
+    assert names.index("Retrieve node role and software version") < names.index("Persist optical node block")
     assert names.index("Construct Subscription model") < names.index("Create Process Subscription relation")
 
 

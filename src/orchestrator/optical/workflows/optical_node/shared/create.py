@@ -16,6 +16,7 @@ from orchestrator.optical.db import (
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
+    AbstractOpticalNodeBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
 from orchestrator.optical.products.product_blocks.optical_node_management import (
@@ -61,7 +62,7 @@ def _optical_node_block_of_subscription(subscription: SubscriptionModel) -> Abst
 
 def optical_node_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalNodeBlockInactive | None = None,
+    optical_module_block: AbstractOpticalNodeBlockProvisioning | None = None,
 ) -> str:
     """Generate human-readable subscription description for an Optical Node.
 
@@ -269,8 +270,8 @@ def populate_abstract_optical_node_fields(
 
 
 def optical_node_block_from_state(
-    optical_module_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
-) -> AbstractOpticalNodeBlockInactive:
+    optical_module_block: AbstractOpticalNodeBlockProvisioning | dict[str, Any] | None,
+) -> AbstractOpticalNodeBlockProvisioning:
     """Return the Optical Node block of the workflow state as a domain model.
 
     Workflow steps execute with the state serialized between steps, so a block
@@ -280,28 +281,34 @@ def optical_node_block_from_state(
     model (in-process usage, e.g. in tests) and reconstructs the block from the
     serialized data otherwise. The lifecycle variant of the block is resolved
     from the status of its owner subscription, so blocks of any lifecycle are
-    loaded as their matching variant (INITIAL, PROVISIONING or ACTIVE).
+    loaded as their matching variant (INITIAL, PROVISIONING or ACTIVE). The
+    shipped block steps always operate on the PROVISIONING variant: their
+    callers construct the block with the mandatory fields set and transition
+    the subscription to PROVISIONING before running them (the ACTIVE variant is
+    a subtype of the PROVISIONING one, so validation blocks load fine too).
 
     Args:
         optical_module_block: The block value from the workflow state, or None.
 
     Returns:
-        The Optical Node block as a domain model, or None when the value is None.
+        The Optical Node block as a domain model.
 
     Raises:
-        ValueError: If the block in the state has no ``subscription_instance_id``.
+        ValueError: If there is no block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``, or if the block in the state
+            has no ``subscription_instance_id``.
     """
     if optical_module_block is None:
         msg = "No Optical Node block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
         raise ValueError(msg)
-    if isinstance(optical_module_block, AbstractOpticalNodeBlockInactive):
+    if isinstance(optical_module_block, AbstractOpticalNodeBlockProvisioning):
         return optical_module_block
     return _optical_node_block_from_state(optical_module_block)
 
 
 def _optical_node_block_from_state(
     optical_module_block: dict[str, Any],
-) -> AbstractOpticalNodeBlockInactive:
+) -> AbstractOpticalNodeBlockProvisioning:
     """Reconstruct an Optical Node block from its serialized form.
 
     The state dict carries the full block data (the block is serialized with
@@ -334,7 +341,7 @@ def _optical_node_block_from_state(
         msg = f"No subscription instance with id {subscription_instance_id}"
         raise ValueError(msg)
     block_class = cast(
-        type[AbstractOpticalNodeBlockInactive],
+        type[AbstractOpticalNodeBlockProvisioning],
         lookup_specialized_type(
             ProductBlockModel.registry[instance.product_block.name],
             SubscriptionLifecycle(instance.subscription.status),

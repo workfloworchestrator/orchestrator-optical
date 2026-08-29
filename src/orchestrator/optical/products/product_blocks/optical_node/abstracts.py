@@ -39,7 +39,7 @@ class AbstractOpticalNodeBlockProvisioning(
 ):
     """Abstract implementaiton of an Optical Node that is provisioning."""
 
-    optical_node_role: OpticalNodeRole
+    optical_node_role: OpticalNodeRole | None = None
 
     management: OpticalModuleNodeManagementBlockProvisioning
     location: OpticalModuleLocationBlockProvisioning

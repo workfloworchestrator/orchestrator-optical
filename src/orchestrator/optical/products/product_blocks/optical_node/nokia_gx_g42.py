@@ -39,7 +39,7 @@ class NokiaGxG42BlockProvisioning(
 ):
     """Product Block of a Nokia GX G42 Optical Node that is provisioning."""
 
-    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER]
+    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER] | None = None
 
     management: OpticalModuleNodeManagementBlockProvisioning
     location: OpticalModuleLocationBlockProvisioning

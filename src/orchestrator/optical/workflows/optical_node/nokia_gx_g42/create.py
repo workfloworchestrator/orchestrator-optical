@@ -12,9 +12,11 @@ Consumers that keep the shipped product type register the shipped workflow;
 consumers with their own model that has-a the shipped block compose their own
 ``@create_workflow`` with the parts. The shipped workflow itself is composed
 from the shipped parts: the construct step builds the shipped subscription
-model and puts its block in the state, the shipped block steps read the
-software version from the device, populate and persist the block, and the
-shipped description step finalizes the subscription. The shipped form
+model, populates its block with the create-form values (the mandatory fields
+of the PROVISIONING lifecycle) and transitions it to PROVISIONING, the shipped
+block steps retrieve the node role and software version from the device and
+persist the block found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``,
+and the shipped description step finalizes the subscription. The shipped form
 generator is a thin composition of the shipped pages and the summary form,
 without hooks: consumers build their own form generator by yielding from the
 shipped page sequence in one line and adding their own pages::
@@ -24,26 +26,23 @@ shipped page sequence in one line and adding their own pages::
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 """
 
-from typing import Any, cast
-
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
-)
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockInactive
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42Inactive
+from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import (
+    OpticalNodeNokiaGxG42Inactive,
+    OpticalNodeNokiaGxG42Provisioning,
+)
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
-    optical_node_block_from_state,
     populate_abstract_optical_node_fields,
     save_optical_node_block,
     update_optical_node_subscription_description,
@@ -64,11 +63,11 @@ def create_optical_node_nokia_gx_g42_form_pages(product_name: str) -> FormGenera
     This is the shipped create form as a page sequence: it yields the location
     page and the management page (shared with the other Optical Node vendors),
     and returns the collected user input as a flat dict of the ``optical_*``
-    state keys plus ``location_id``, consumed by the shipped steps of
-    :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`. Consumers yield from it in one
-    line inside their own create form generator, optionally interleaving their
-    own pages. The customer of the subscription is collected separately by the
-    consumer (see
+    state keys plus ``location_id``, consumed by the shipped construct step
+    (:func:`construct_optical_node_nokia_gx_g42_subscription`). Consumers yield
+    from it in one line inside their own create form generator, optionally
+    interleaving their own pages. The customer of the subscription is
+    collected separately by the consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
@@ -87,8 +86,8 @@ def create_optical_node_nokia_gx_g42_form_generator(product_name: str) -> FormGe
     """Generate the initial input form for creating a Nokia GX G42 Optical Node.
 
     The form emits the flat ``optical_*`` state keys consumed by the shipped
-    steps of :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`. It is a thin composition
-    of the shipped page sequence
+    construct step (:func:`construct_optical_node_nokia_gx_g42_subscription`).
+    It is a thin composition of the shipped page sequence
     (:func:`create_optical_node_nokia_gx_g42_form_pages`) and the summary form.
 
     Args:
@@ -121,9 +120,11 @@ def populate_optical_node_nokia_gx_g42_block(
 
     The node role and software version are not set here: the shared retrieval
     step (:func:`retrieve_optical_node_role_and_software_version`) writes them
-    onto the block after this function runs. This is the internal
-    implementation of the populate step of
-    :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`.
+    onto the block after the subscription is transitioned to PROVISIONING.
+    This is the anti-corruption point for consumers that keep their own model:
+    call it from their own construct step on the shipped block they compose,
+    before their subscription model is transitioned to the PROVISIONING
+    lifecycle.
 
     Args:
         optical_module_block: The Nokia GX G42 node block to populate (any lifecycle variant).
@@ -143,60 +144,49 @@ def populate_optical_node_nokia_gx_g42_block(
     )
 
 
-@step("Populate Nokia GX G42 node block")
-def populate_optical_node_nokia_gx_g42_block_step(
-    optical_module_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
+@step("Construct Subscription model")
+def construct_optical_node_nokia_gx_g42_subscription(
+    product: UUIDstr,
+    customer_id: UUIDstr,
     location_id: UUIDstr,
     optical_module_node_fqdn: Fqdn,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
 ) -> State:
-    """Populate the Nokia GX G42 node block found in the state from the create-form keys.
+    """Construct the PROVISIONING domain subscription model for a Nokia GX G42 Optical Node.
 
-    The node role and software version are written to the block by the shared
-    retrieval step that runs after this one. Workflow steps execute with the
-    state serialized between steps, so the block is re-hydrated from its
-    serialized form before it is populated.
+    This step builds the shipped ``OpticalNodeNokiaGxG42`` model, populates
+    its block with the create-form values through
+    :func:`populate_optical_node_nokia_gx_g42_block` (the anti-corruption
+    point) and transitions the subscription to PROVISIONING in memory, so the
+    block found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` is the
+    PROVISIONING variant with its mandatory fields already set — the contract
+    of the shipped block steps of :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`
+    (the node role and software version are still unset: the shared retrieval
+    step discovers them from the device before the block is persisted).
 
-    Args:
-        optical_module_block: The Nokia GX G42 node block in the state under
-            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-        location_id: Subscription id of the Optical Location hosting the node.
-        optical_module_node_fqdn: Fully qualified domain name of the node.
-        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
-        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
-
-    Raises:
-        ValueError: If there is no Nokia GX G42 node block in the state.
-    """
-    node_block = optical_node_block_from_state(optical_module_block)
-    populate_optical_node_nokia_gx_g42_block(
-        optical_module_block=cast(NokiaGxG42BlockInactive, node_block),
-        location_id=location_id,
-        optical_module_node_fqdn=optical_module_node_fqdn,
-        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
-        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
-    )
-    return {OPTICAL_MODULE_BLOCK_STATE_KEY: node_block}
-
-
-@step("Construct Subscription model")
-def construct_optical_node_nokia_gx_g42_subscription(product: UUIDstr, customer_id: UUIDstr) -> State:
-    """Construct the initial domain subscription model for a Nokia GX G42 Optical Node.
-
-    This step builds the shipped ``OpticalNodeNokiaGxG42`` subscription model
-    and puts its node block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``
-    for the shipped block steps of :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`.
     Consumers that define their own product type (composing the
     ``NokiaGxG42Block`` under their own attribute name) write their own
-    construct step instead: it builds their (inactive) subscription, puts their
-    composed block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``, and then
-    runs :data:`CREATE_NOKIA_GX_G42_BLOCK_STEPS`.
+    construct step instead: it builds their subscription, populates the
+    composed block with the mandatory fields set (e.g. via
+    :func:`populate_optical_node_nokia_gx_g42_block`), transitions it to
+    PROVISIONING and puts the block in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     subscription = OpticalNodeNokiaGxG42Inactive.from_product_id(
         product_id=product,
         customer_id=customer_id,
         status=SubscriptionLifecycle.INITIAL,
+    )
+    populate_optical_node_nokia_gx_g42_block(
+        optical_module_block=subscription.optical_node,
+        location_id=location_id,
+        optical_module_node_fqdn=optical_module_node_fqdn,
+        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+    )
+    subscription = OpticalNodeNokiaGxG42Provisioning.from_other_lifecycle(
+        subscription, SubscriptionLifecycle.PROVISIONING
     )
 
     return {
@@ -207,19 +197,19 @@ def construct_optical_node_nokia_gx_g42_subscription(product: UUIDstr, customer_
 
 
 #: Create steps operating on the Nokia GX G42 node block in the state. Every
-#: step is block-level: the populate step writes the connection data and the
-#: remaining create-form fields onto the block, the shared retrieval step
-#: writes the node role and the discovered ``optical_module_node_software_version``
-#: onto it, and the last step persists the block, because workflow steps execute
-#: with the state serialized between steps (the block is re-hydrated from the
-#: database before every step operates on it). Consumers with their own model
-#: run this list after constructing their (inactive) subscription and putting
-#: their block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+#: step is block-level: the shared retrieval step discovers the
+#: ``optical_node_role`` and ``optical_module_node_software_version`` from the
+#: device and writes them onto the block, and the last step persists the
+#: block, because workflow steps execute with the state serialized between
+#: steps (the block is re-hydrated from the database before every step operates
+#: on it). The block is assumed to be in the PROVISIONING lifecycle status with
+#: its mandatory fields already set: the caller's construct step provides it
+#: (see :func:`construct_optical_node_nokia_gx_g42_subscription`). Consumers
+#: with their own model run this list after constructing their subscription the
+#: same way and putting their block in the state under
+#: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 CREATE_NOKIA_GX_G42_BLOCK_STEPS: StepList = (
-    begin
-    >> populate_optical_node_nokia_gx_g42_block_step
-    >> retrieve_optical_node_role_and_software_version
-    >> save_optical_node_block
+    begin >> retrieve_optical_node_role_and_software_version >> save_optical_node_block
 )
 
 
@@ -227,19 +217,20 @@ CREATE_NOKIA_GX_G42_BLOCK_STEPS: StepList = (
 def create_optical_node_nokia_gx_g42() -> StepList:
     """Workflow to create a new Nokia GX G42 Optical Node subscription.
 
-    The workflow is composed from the shipped parts: the construct step
-    builds the shipped :class:`OpticalNodeNokiaGxG42` model and puts its
-    block in the state, the shipped block steps read the software version
-    from the device, populate and persist the block, and the shipped
-    description step finalizes the subscription. It is therefore only valid
-    for the shipped product type; consumers with their own product type
-    compose their own create workflow with the same parts.
+    The workflow is composed from the shipped parts: the construct step builds
+    the shipped :class:`OpticalNodeNokiaGxG42` model, populates its block with
+    the create-form values and transitions it to PROVISIONING, the shipped
+    block steps retrieve the node role and software version from the device
+    and persist the block, and the shipped description step finalizes the
+    subscription. It is therefore only valid for the shipped product type;
+    consumers with their own product type compose their own create workflow
+    with the same parts.
     """
     return (
         begin
         >> construct_optical_node_nokia_gx_g42_subscription
-        >> CREATE_NOKIA_GX_G42_BLOCK_STEPS
         >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> CREATE_NOKIA_GX_G42_BLOCK_STEPS
         >> update_optical_node_subscription_description
         >> store_process_subscription()
     )
@@ -249,4 +240,5 @@ __all__ = [
     "CREATE_NOKIA_GX_G42_BLOCK_STEPS",
     "create_optical_node_nokia_gx_g42",
     "create_optical_node_nokia_gx_g42_form_pages",
+    "populate_optical_node_nokia_gx_g42_block",
 ]

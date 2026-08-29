@@ -9,15 +9,22 @@ workflow execution.
 import inspect
 import uuid
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, cast, get_args
 
 import pytest
 
 from orchestrator.core.domain.base import ProductBlockModel, SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.utils.state import inject_args
-from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockInactive
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_location import (
+    OpticalModuleLocationBlockInactive,
+    OpticalModuleLocationBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlock,
+    AbstractOpticalNodeBlockProvisioning,
+    OpticalNodeRole,
+)
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
     NokiaFlexIlsBlock,
     NokiaFlexIlsBlockInactive,
@@ -25,13 +32,13 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils imp
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import (
     OpticalModuleNodeManagementBlockInactive,
+    OpticalModuleNodeManagementBlockProvisioning,
     Platform,
     Vendor,
 )
 from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
     CREATE_NOKIA_FLEXILS_BLOCK_STEPS,
     populate_optical_node_nokia_flexils_block,
-    populate_optical_node_nokia_flexils_block_step,
 )
 from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import MODIFY_NOKIA_FLEXILS_BLOCK_STEPS
 from orchestrator.optical.workflows.optical_node.shared import (
@@ -177,6 +184,43 @@ def _stub_location(_location_id) -> OpticalModuleLocationBlockInactive:
     )
 
 
+def _make_flexils_block_provisioning() -> NokiaFlexIlsBlockProvisioning:
+    """A PROVISIONING FlexILS block with unset role/version (discovered by the retrieval step).
+
+    The block is fully valid (the contract of the shipped block steps) except
+    for the role and the software version, which the retrieval step writes:
+    blocks re-validate on attribute assignment, so the vendor, platform, FQDN
+    and the remaining mandatory fields must be set.
+    """
+    subscription_id = uuid.uuid4()
+    return NokiaFlexIlsBlockProvisioning.model_construct(
+        name="NokiaFlexIlsBlock",
+        subscription_instance_id=subscription_id,
+        owner_subscription_id=subscription_id,
+        optical_flexils_gmpls_id="10.0.0.3",
+        optical_flexils_target_id="TID-1",
+        management=OpticalModuleNodeManagementBlockProvisioning(
+            name="OpticalModuleNodeManagementBlock",
+            subscription_instance_id=uuid.uuid4(),
+            owner_subscription_id=subscription_id,
+            optical_module_node_vendor=Vendor.NOKIA,
+            optical_module_node_platform=Platform.FLEXILS,
+            optical_module_node_software_version=None,
+            optical_module_node_fqdn="flex.ba01.example.com",
+            optical_module_node_dcn_loopback_ip=None,
+            optical_module_node_dcn_interface_ip=None,
+        ),
+        location=OpticalModuleLocationBlockProvisioning(
+            name="OpticalModuleLocationBlock",
+            subscription_instance_id=uuid.uuid4(),
+            owner_subscription_id=subscription_id,
+            longitude="12.4964",
+            latitude="41.9028",
+            location_code="rom-01",
+        ),
+    )
+
+
 def test_populate_optical_node_nokia_flexils_block(monkeypatch) -> None:
     monkeypatch.setattr(shared_create, "location_block_from_subscription", _stub_location)
     block = _make_flexils_block()
@@ -205,30 +249,18 @@ def test_populate_optical_node_nokia_flexils_block(monkeypatch) -> None:
     assert block.optical_flexils_target_id == "TID-1"
 
 
-def test_populate_block_step_resolves_the_state(monkeypatch) -> None:
-    monkeypatch.setattr(shared_create, "location_block_from_subscription", _stub_location)
-    block = _make_flexils_block()
-    # Role and software version are written by the block-level discovery step,
-    # not by populate: pre-set them to simulate a preceding discovery.
-    block.optical_node_role = OpticalNodeRole.ROADM
-    block.management.optical_module_node_software_version = "9.0"
-    state = {
-        OPTICAL_MODULE_BLOCK_STATE_KEY: block,
-        "location_id": str(uuid.uuid4()),
-        "optical_module_node_fqdn": "flex.ba01.example.com",
-        "optical_module_node_dcn_interface_ip": "10.0.0.1",
-        "optical_module_node_dcn_loopback_ip": "10.0.0.2",
-        "optical_flexils_gmpls_id": "10.0.0.3",
-        "optical_flexils_target_id": "TID-1",
-    }
-
-    wrapped = inject_args(populate_optical_node_nokia_flexils_block_step.__wrapped__)  # type: ignore[unresolved-attribute]
-    result = wrapped(dict(state))
-
-    assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
-    assert block.optical_node_role == OpticalNodeRole.ROADM
-    assert str(block.optical_flexils_target_id) == "TID-1"
-    assert str(block.management.optical_module_node_fqdn) == "flex.ba01.example.com"
+def test_block_steps_take_the_lifecycle_matching_block_variant() -> None:
+    """Every shipped node block step consumes the PROVISIONING variant of the block, never the Inactive one."""
+    steps = (*CREATE_NOKIA_FLEXILS_BLOCK_STEPS, *MODIFY_NOKIA_FLEXILS_BLOCK_STEPS)
+    for step_obj in steps:
+        step_func = _step_functions([step_obj])[0]
+        annotation = inspect.signature(step_func).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation
+        members = get_args(annotation) or (annotation,)
+        for member in members:
+            if isinstance(member, type) and issubclass(member, AbstractOpticalNodeBlock):
+                assert issubclass(member, AbstractOpticalNodeBlockProvisioning), (
+                    f"{step_obj.name} consumes {member.__name__}, expected the PROVISIONING variant"
+                )
 
 
 def test_retrieve_optical_node_role_and_software_version_writes_to_block(monkeypatch) -> None:
@@ -237,7 +269,7 @@ def test_retrieve_optical_node_role_and_software_version_writes_to_block(monkeyp
         "_retrieve_optical_node_role_and_software_version",
         lambda _: (OpticalNodeRole.ROADM, "9.0"),
     )
-    block = _make_flexils_block()
+    block = _make_flexils_block_provisioning()
     state = {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
     wrapped = inject_args(retrieve_optical_node_role_and_software_version.__wrapped__)  # type: ignore[unresolved-attribute]

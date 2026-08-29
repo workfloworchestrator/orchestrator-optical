@@ -9,7 +9,7 @@ from orchestrator.optical.hal.optical_node import (
     retrieve_optical_node_role_and_software_version as _retrieve_optical_node_role_and_software_version,
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
+    AbstractOpticalNodeBlockProvisioning,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.optical_node.shared.create import (
@@ -19,7 +19,7 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
 
 @step("Retrieve node role and software version")
 def retrieve_optical_node_role_and_software_version(
-    optical_module_block: AbstractOpticalNodeBlockInactive | dict[str, Any] | None,
+    optical_module_block: AbstractOpticalNodeBlockProvisioning | dict[str, Any] | None,
 ) -> State:
     """Connect to the node and write its role and software version to the block.
 
@@ -28,8 +28,12 @@ def retrieve_optical_node_role_and_software_version(
     and the software version from the device, dispatching on the vendor and
     platform of the node through
     :func:`orchestrator.optical.hal.optical_node.retrieve_optical_node_role_and_software_version`.
-    It runs after the populate step, which writes the connection data (target
-    ID, GMPLS ID, management IPs and location) onto the block.
+    It runs after the construct step, which has written the connection data
+    (management FQDN, DCN IPs, vendor, platform and location) onto the block
+    and transitioned the subscription to PROVISIONING: the HAL dispatches on
+    the vendor and platform that the construct step has already written. The
+    node role it discovers is mandatory for the ACTIVE lifecycle, so this step
+    must run before the block is persisted by the step that follows it.
 
     Raises:
         ValueError: If there is no Optical Node block in the state under

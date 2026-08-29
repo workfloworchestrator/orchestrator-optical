@@ -6,7 +6,7 @@ from pydantic_forms.types import State
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import step
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockProvisioning
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
@@ -67,19 +67,23 @@ def load_optical_node_block(subscription: SubscriptionModel) -> State:
 @step("Updating subscription description")
 def update_optical_node_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalNodeBlockInactive | None = None,
+    optical_module_block: AbstractOpticalNodeBlockProvisioning | None = None,
 ) -> State:
     """Update the description of the Optical Node subscription.
 
-    The block is read from the ``optical_module_block`` state key when present
-    (e.g. when the shipped block steps ran against a consumer-owned block);
-    otherwise it falls back to the ``optical_node`` attribute of the shipped
-    subscription models.
+    The block is re-hydrated from the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``:
+    the shipped block steps (and a consumer's construct step) always put the
+    block in the state before this step runs, so it does not fall back to the
+    ``optical_node`` attribute of the subscription.
 
     Args:
         subscription: The Optical Node subscription.
-        optical_module_block: The Optical Node block of the subscription, when it
-            is available in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+        optical_module_block: The Optical Node block of the subscription, in the
+            state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+
+    Raises:
+        ValueError: If there is no Optical Node block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     # Workflow steps execute with the state serialized between steps, so the
     # block arrives as its serialized form and is re-hydrated from the database.
@@ -91,7 +95,7 @@ def update_optical_node_subscription_description(
 @step("Persist optical node block")
 def save_optical_node_block(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalNodeBlockInactive,
+    optical_module_block: AbstractOpticalNodeBlockProvisioning,
 ) -> State:
     """Persist the Optical Node block found in the state to the database.
 
@@ -100,7 +104,9 @@ def save_optical_node_block(
     :func:`optical_node_block_from_state`) before it is saved. This step saves
     the block tree of the loaded subscription (any consumer subscription model
     that has-a the block works) and returns the block, so it can be composed
-    by any consumer workflow.
+    by any consumer workflow. The shipped block steps always operate on the
+    PROVISIONING variant: their callers provide the block with the mandatory
+    fields set and the owner subscription in the PROVISIONING status.
 
     Args:
         subscription: The subscription owning the block.

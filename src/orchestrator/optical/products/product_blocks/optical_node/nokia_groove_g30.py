@@ -39,7 +39,7 @@ class NokiaGrooveG30BlockProvisioning(
 ):
     """Product Block of a Nokia Groove G30 Optical Node that is provisioning."""
 
-    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER, OpticalNodeRole.TRANSPONDER_XOADM]
+    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER, OpticalNodeRole.TRANSPONDER_XOADM] | None = None
 
     management: OpticalModuleNodeManagementBlockProvisioning
     location: OpticalModuleLocationBlockProvisioning
