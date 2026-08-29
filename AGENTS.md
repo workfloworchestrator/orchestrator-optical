@@ -86,8 +86,18 @@ references), both computed from the class's own annotations. Therefore: **every 
 every field it inherits**, or reloads will crash with ValidationError. The four base `ProductBlockModel` fields
 (`name`, `label`, `subscription_instance_id`, `owner_subscription_id`) are exempt — core passes them explicitly.
 
-This rule is fully applied: all 15 concrete block chains redeclare every inherited field. Any new block
-must follow the rule.
+This rule is fully applied: all 15 concrete block chains redeclare every inherited field. Any new block must follow the rule.
+
+- Product-block fields must **not** use `Annotated`-wrapped discriminated unions (`Annotated[Union[...],
+  Field(discriminator=...)]` or `Discriminator(fn)`): core 5.1.3's `is_list_type`/`is_union_type`/`is_of_type`
+  cannot see through `Annotated`, so such fields are misclassified as scalar strings (silently saved as `repr()`,
+  ValidationError on reload). The union aliases in `optical_port/unions.py` and `optical_node/unions.py` are plain
+  `Union[...]` on purpose — keep them plain (disambiguation is done by the `enforce_*` model validators).
+- A block with a `@computed_field` that loads its owner subscription from the DB
+  (`optical_coherent_pluggable_part_number`) requires an explicit `subscription.save()` in the construct step
+  **before** the in-step `from_other_lifecycle` transition: the transition serializes the block (`model_dump()`
+  evaluates the computed field) and the subscription/instance rows must already be persisted
+  (see `construct_optical_coherent_pluggable_subscription`).
 
 ### Dispatch
 
