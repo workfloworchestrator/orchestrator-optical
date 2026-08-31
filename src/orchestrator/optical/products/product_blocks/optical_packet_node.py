@@ -16,15 +16,15 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 )
 
 
-class OpticalModulePacketNodeInactive(ProductBlockModel, product_block_name="OpticalModulePacketNode"):
+class OpticalModulePacketNodeBlockInactive(ProductBlockModel, product_block_name="OpticalModulePacketNode"):
     """A packet layer Node that accepts Optical Coherent Pluggables that is inactive."""
 
     management: OpticalModuleNodeManagementBlockInactive
     location: OpticalModuleLocationBlockInactive
 
 
-class OpticalModulePacketNodeProvisioning(
-    OpticalModulePacketNodeInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class OpticalModulePacketNodeBlockProvisioning(
+    OpticalModulePacketNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """A packet layer Node that accepts Optical Coherent Pluggables that is provisioning."""
 
@@ -32,8 +32,8 @@ class OpticalModulePacketNodeProvisioning(
     location: OpticalModuleLocationBlockProvisioning
 
 
-class OpticalModulePacketNode(
-    OpticalModulePacketNodeProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+class OpticalModulePacketNodeBlock(
+    OpticalModulePacketNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """A packet layer Node that accepts Optical Coherent Pluggables."""
 

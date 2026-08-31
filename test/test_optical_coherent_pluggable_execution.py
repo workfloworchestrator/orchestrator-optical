@@ -23,7 +23,7 @@ import orchestrator.core.db as core_db
 from orchestrator.core.db import FixedInputTable, SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import packet_node_block_from_subscription
-from orchestrator.optical.products.product_blocks.optical_packet_node import OpticalModulePacketNode
+from orchestrator.optical.products.product_blocks.optical_packet_node import OpticalModulePacketNodeBlock
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
     OpticalCoherentPluggable,
     OpticalCoherentPluggablePartNumber,
@@ -119,7 +119,7 @@ def test_create_coherent_pluggable_end_to_end(
     # The block's computed part number resolves the owner subscription from the database.
     assert block.optical_coherent_pluggable_part_number == PART_NUMBER.value
     host_node = block.optical_port_host_node
-    assert isinstance(host_node, OpticalModulePacketNode)
+    assert isinstance(host_node, OpticalModulePacketNodeBlock)
     assert str(host_node.management.optical_module_node_fqdn) == HOST_NODE_FQDN
     assert (
         host_node.subscription_instance_id

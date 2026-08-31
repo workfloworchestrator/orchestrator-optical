@@ -30,8 +30,8 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     AbstractOpticalNodeBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_packet_node import (
-    OpticalModulePacketNode,
-    OpticalModulePacketNodeInactive,
+    OpticalModulePacketNodeBlock,
+    OpticalModulePacketNodeBlockInactive,
 )
 
 __all__ = [
@@ -343,7 +343,7 @@ def node_block_from_subscription(node_subscription_id: UUIDstr) -> AbstractOptic
     return active_class.from_db(subscription_instance_id=instance.subscription_instance_id)
 
 
-def packet_node_block_from_subscription(subscription_id: UUIDstr) -> OpticalModulePacketNode:
+def packet_node_block_from_subscription(subscription_id: UUIDstr) -> OpticalModulePacketNodeBlock:
     """Return the Optical Module Packet Node product block of the given subscription.
 
     The resolution is block-based: the subscription instance whose product
@@ -365,9 +365,9 @@ def packet_node_block_from_subscription(subscription_id: UUIDstr) -> OpticalModu
     """
     instance = _block_instance_of_subscription(
         subscription_id,
-        OpticalModulePacketNodeInactive.__names__,
+        OpticalModulePacketNodeBlockInactive.__names__,
         "Optical Module Packet Node block",
     )
     # The ACTIVE class is the most-derived subclass, so it can load INITIAL,
     # PROVISIONING and ACTIVE blocks (unlike the PROVISIONING class).
-    return OpticalModulePacketNode.from_db(subscription_instance_id=instance.subscription_instance_id)
+    return OpticalModulePacketNodeBlock.from_db(subscription_instance_id=instance.subscription_instance_id)

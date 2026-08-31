@@ -274,7 +274,7 @@ def configure_pipe_terminations(
     if not isinstance(host_node_a, AbstractOpticalNodeBlockInactive) or not isinstance(
         host_node_b, AbstractOpticalNodeBlockInactive
     ):
-        msg = "Optical pipe terminations must be hosted on Optical Nodes"
+        msg = "Optical pipe terminations must be hosted on Optical Module's Nodes"
         raise TypeError(msg)
     if (
         host_node_b.management.optical_module_node_vendor,

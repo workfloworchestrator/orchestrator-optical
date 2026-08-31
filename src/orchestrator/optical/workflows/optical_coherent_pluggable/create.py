@@ -42,7 +42,7 @@ from orchestrator.optical.products.product_blocks.optical_coherent_pluggable imp
     OpticalCoherentPluggableBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_packet_node import (
-    OpticalModulePacketNodeInactive,
+    OpticalModulePacketNodeBlockInactive,
 )
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
     OpticalCoherentPluggableInactive,
@@ -61,7 +61,7 @@ from orchestrator.optical.workflows.shared import active_subscription_selector_b
 
 def check_optical_coherent_pluggable_port_uniqueness(
     optical_port_name: str,
-    host_node_block: OpticalModulePacketNodeInactive,
+    host_node_block: OpticalModulePacketNodeBlockInactive,
     exclude_subscription_id: str | None = None,
 ) -> None:
     """Raise if the port name is already occupied on the host node by another subscription.
@@ -187,7 +187,7 @@ def create_optical_coherent_pluggable_form_pages(product_name: str) -> FormGener
         The collected user input of the shipped pages.
     """
     packet_node_choice = active_subscription_selector_by_block_type(
-        OpticalModulePacketNodeInactive, prompt="Select an Optical Packet Node"
+        OpticalModulePacketNodeBlockInactive, prompt="Select an Optical Packet Node"
     )
     part_number_choice = cast(
         type[Choice],
@@ -236,7 +236,7 @@ def create_optical_coherent_pluggable_form_generator(product_name: str) -> FormG
 
 def populate_optical_coherent_pluggable_block(
     optical_module_block: OpticalCoherentPluggableBlockInactive,
-    optical_port_host_node: OpticalModulePacketNodeInactive,
+    optical_port_host_node: OpticalModulePacketNodeBlockInactive,
     optical_port_name: str,
     optical_port_description: str | None = None,
     optical_coherent_pluggable_firmware_version: str | None = None,

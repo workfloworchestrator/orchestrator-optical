@@ -7,9 +7,9 @@ from pydantic import computed_field
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_packet_node import (
-    OpticalModulePacketNode,
-    OpticalModulePacketNodeInactive,
-    OpticalModulePacketNodeProvisioning,
+    OpticalModulePacketNodeBlock,
+    OpticalModulePacketNodeBlockInactive,
+    OpticalModulePacketNodeBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalPortBlock,
@@ -29,7 +29,7 @@ class OpticalCoherentPluggableBlockInactive(
     optical_port_description: str | None = None
     optical_coherent_pluggable_firmware_version: str | None = None
 
-    optical_port_host_node: OpticalModulePacketNodeInactive
+    optical_port_host_node: OpticalModulePacketNodeBlockInactive
 
     @computed_field
     @property
@@ -51,7 +51,7 @@ class OpticalCoherentPluggableBlockProvisioning(
     optical_port_description: str | None
     optical_coherent_pluggable_firmware_version: str
 
-    optical_port_host_node: OpticalModulePacketNodeProvisioning
+    optical_port_host_node: OpticalModulePacketNodeBlockProvisioning
 
 
 class OpticalCoherentPluggableBlock(
@@ -64,4 +64,4 @@ class OpticalCoherentPluggableBlock(
     optical_port_description: str | None
     optical_coherent_pluggable_firmware_version: str
 
-    optical_port_host_node: OpticalModulePacketNode
+    optical_port_host_node: OpticalModulePacketNodeBlock

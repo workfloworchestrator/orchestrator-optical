@@ -36,8 +36,8 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
     Vendor,
 )
 from orchestrator.optical.products.product_blocks.optical_packet_node import (
-    OpticalModulePacketNodeInactive,
-    OpticalModulePacketNodeProvisioning,
+    OpticalModulePacketNodeBlockInactive,
+    OpticalModulePacketNodeBlockProvisioning,
 )
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import OpticalCoherentPluggablePartNumber
 from orchestrator.optical.workflows import customer as customer_parts
@@ -107,9 +107,9 @@ class AbstractRouter(AbstractRouterProvisioning, lifecycle=[SubscriptionLifecycl
 BASE_BLOCK_FIELDS = {"name", "label", "subscription_instance_id", "owner_subscription_id"}
 
 
-def _make_packet_node_block() -> OpticalModulePacketNodeInactive:
+def _make_packet_node_block() -> OpticalModulePacketNodeBlockInactive:
     subscription_id = uuid.uuid4()
-    return OpticalModulePacketNodeInactive(
+    return OpticalModulePacketNodeBlockInactive(
         name="OpticalModulePacketNode",
         subscription_instance_id=subscription_id,
         owner_subscription_id=subscription_id,
@@ -146,7 +146,7 @@ def _make_pluggable_block_provisioning() -> OpticalCoherentPluggableBlockProvisi
         optical_port_name="port-1",
         optical_port_description=None,
         optical_coherent_pluggable_firmware_version="1.0",
-        optical_port_host_node=OpticalModulePacketNodeProvisioning(
+        optical_port_host_node=OpticalModulePacketNodeBlockProvisioning(
             name="OpticalModulePacketNode",
             subscription_instance_id=uuid.uuid4(),
             owner_subscription_id=subscription_id,
@@ -477,7 +477,7 @@ def _fake_packet_node_choice(*args, **kwargs) -> type[Choice]:
     return cast(type[Choice], Choice.__call__("FakePacketNodeChoice", {"node-1": "node-1"}))
 
 
-def _fake_packet_node_block_from_subscription(_subscription_id) -> OpticalModulePacketNodeInactive:
+def _fake_packet_node_block_from_subscription(_subscription_id) -> OpticalModulePacketNodeBlockInactive:
     return _make_packet_node_block()
 
 

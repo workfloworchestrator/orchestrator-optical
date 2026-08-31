@@ -28,12 +28,25 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
     NokiaGxG42BlockInactive,
     NokiaGxG42BlockProvisioning,
 )
-
-AnyOpticalNodeBlockInactiveUnion = NokiaFlexIlsBlockInactive | NokiaGrooveG30BlockInactive | NokiaGxG42BlockInactive
-AnyOpticalNodeBlockProvisioningUnion = (
-    NokiaFlexIlsBlockProvisioning | NokiaGrooveG30BlockProvisioning | NokiaGxG42BlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_packet_node import (
+    OpticalModulePacketNodeBlock,
+    OpticalModulePacketNodeBlockInactive,
+    OpticalModulePacketNodeBlockProvisioning,
 )
-AnyOpticalNodeBlockUnion = NokiaFlexIlsBlock | NokiaGrooveG30Block | NokiaGxG42Block
+
+AnyOpticalNodeBlockInactiveUnion = (
+    NokiaFlexIlsBlockInactive
+    | NokiaGrooveG30BlockInactive
+    | NokiaGxG42BlockInactive
+    | OpticalModulePacketNodeBlockInactive
+)
+AnyOpticalNodeBlockProvisioningUnion = (
+    NokiaFlexIlsBlockProvisioning
+    | NokiaGrooveG30BlockProvisioning
+    | NokiaGxG42BlockProvisioning
+    | OpticalModulePacketNodeBlockProvisioning
+)
+AnyOpticalNodeBlockUnion = NokiaFlexIlsBlock | NokiaGrooveG30Block | NokiaGxG42Block | OpticalModulePacketNodeBlock
 
 OlsBlockInactiveUnion = NokiaFlexIlsBlockInactive | NokiaGrooveG30BlockInactive
 OlsBlockProvisioningUnion = NokiaFlexIlsBlockProvisioning | NokiaGrooveG30BlockProvisioning
