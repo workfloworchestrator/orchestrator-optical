@@ -724,23 +724,21 @@ def create_pipe_form_pages(
     product_name: str,
     *,
     port_universe: Callable[[AbstractOpticalNodeBlockInactive], list[str]],
-    terminations_form: Callable[[str, type[Choice], type[Choice]], type[FormPage]],
 ) -> FormGenerator:
     """Yield the FormPages of an Optical Pipe create form, in order.
 
     This is the shared page sequence of the Optical Pipe create form: it yields
     the two-nodes page and the terminations page, and returns the collected user
     input as a flat dict of the ``optical_*`` state keys, consumed by the shipped
-    construct step. The per-family differences are injected as parameters: the
-    port universe (the device ports that can terminate this kind of pipe on a
-    node) and the terminations page factory. The customer of the subscription is
-    collected separately by the consumer (see
+    construct step. The only per-family difference is the port universe (the
+    device ports that can terminate this kind of pipe on a node); the terminations
+    page is always the shared one. The customer of the subscription is collected
+    separately by the consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
         product_name: Name of the product being created.
         port_universe: The device ports that can terminate this kind of pipe on a node.
-        terminations_form: The terminations FormPage factory of the pipe family.
 
     Returns:
         The collected user input of the shipped pages.
@@ -765,7 +763,7 @@ def create_pipe_form_pages(
         port_universe(node_b_block),
         prompt=port_prompt.format(fqdn=node_b_block.management.optical_module_node_fqdn),
     )
-    user_input_dict.update((yield terminations_form(product_name, port_a_choice, port_b_choice)).model_dump())
+    user_input_dict.update((yield pipe_terminations_form(product_name, port_a_choice, port_b_choice)).model_dump())
 
     user_input_dict["optical_pipe_name"] = user_input_dict["optical_pipe_name"] or default_pipe_identifier(
         node_a_block, user_input_dict["port_a_name"], node_b_block, user_input_dict["port_b_name"]

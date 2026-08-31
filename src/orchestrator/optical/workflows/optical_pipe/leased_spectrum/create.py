@@ -37,7 +37,6 @@ from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from pydantic_forms.validators import Choice
 
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
@@ -92,57 +91,46 @@ def leased_spectrum_ports_of_node(node_block: AbstractOpticalNodeBlockInactive) 
     return list(dict.fromkeys(get_device_line_ports_names(node_block)))
 
 
-def create_leased_spectrum_terminations_form(
-    product_name: str,
-    port_a_choice: type[Choice],
-    port_b_choice: type[Choice],
-) -> type[FormPage]:
-    """Return the terminations FormPage of the Optical Leased Spectrum create form.
+def create_leased_spectrum_provider_form(product_name: str) -> type[FormPage]:
+    """Return the provider FormPage of the Optical Leased Spectrum create form.
 
-    This is the second page of the shipped create form: the third-party provider
-    name, the optional leased spectrum identifier and the two terminating ports.
-    It is a building block for consumers that compose their own create form
-    generator: the shipped page sequence
-    (:func:`create_leased_spectrum_form_pages`) yields it second.
+    This is a dedicated page of the shipped create form that collects the
+    third-party provider name of the leased spectrum pipe. It is a building
+    block for consumers that compose their own create form generator: the
+    shipped page sequence (:func:`create_leased_spectrum_form_pages`) yields it
+    after the shared pipe pages.
 
     Args:
         product_name: Name of the product being created, used as the page title.
-        port_a_choice: The ``Choice`` selector of the unused ports of the first node.
-        port_b_choice: The ``Choice`` selector of the unused ports of the second node.
 
     Returns:
-        The terminations FormPage of the shipped create form.
+        The provider FormPage of the shipped create form.
     """
 
-    class CreateLeasedSpectrumTerminationsForm(FormPage):
-        model_config = ConfigDict(title=f"{product_name} - Terminations")
+    class CreateLeasedSpectrumProviderForm(FormPage):
+        model_config = ConfigDict(title=f"{product_name} - Provider")
 
         provider_name: str = Field(..., title="Third-Party Provider Name", min_length=1)
-        optical_pipe_name: str | None = Field(
-            None,
-            title="Leased Spectrum Identifier",
-            description="Circuit ID or provider reference. Leave empty to use the default "
-            "'<node A> <port A> --- <node B> <port B>'. The provider name is always prefixed.",
-        )
-        port_a_name: port_a_choice
-        port_b_name: port_b_choice
 
-    return CreateLeasedSpectrumTerminationsForm
+    return CreateLeasedSpectrumProviderForm
 
 
 def create_leased_spectrum_form_pages(product_name: str) -> FormGenerator:
     """Yield the FormPages of the Optical Leased Spectrum create form, in order.
 
-    This is the shipped create form as a page sequence: it yields the two-nodes
-    page and the terminations page, and returns the collected user input as a
-    flat dict of the ``optical_*`` state keys, consumed by the shipped
-    construct step (:func:`construct_leased_spectrum_subscription`). A Leased
-    Spectrum pipe is terminated by the OLS add/drop (SCG) ports of a Nokia
-    FlexILS node, or by the line ports of a Groove G30 or GX G42 node
-    (:func:`leased_spectrum_ports_of_node`); the terminations page also collects
-    the third-party provider name. Consumers yield from it in one line inside
-    their own create form generator, optionally interleaving their own pages.
-    The customer of the subscription is collected separately by the consumer (see
+    This is the shipped create form as a page sequence: it yields the shared
+    Optical Pipe pages (the two-nodes page and the terminations page, from
+    :func:`create_pipe_form_pages`) and a dedicated provider page that collects
+    the third-party provider name (:func:`create_leased_spectrum_provider_form`),
+    and returns the collected user input as a flat dict of the ``optical_*``
+    state keys, consumed by the shipped construct step
+    (:func:`construct_leased_spectrum_subscription`). A Leased Spectrum pipe is
+    terminated by the OLS add/drop (SCG) ports of a Nokia FlexILS node, or by
+    the line ports of a Groove G30 or GX G42 node
+    (:func:`leased_spectrum_ports_of_node`). Consumers yield from it in one line
+    inside their own create form generator, optionally interleaving their own
+    pages. The customer of the subscription is collected separately by the
+    consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
@@ -151,11 +139,9 @@ def create_leased_spectrum_form_pages(product_name: str) -> FormGenerator:
     Returns:
         The collected user input of the shipped pages.
     """
-    return create_pipe_form_pages(
-        product_name,
-        port_universe=leased_spectrum_ports_of_node,
-        terminations_form=create_leased_spectrum_terminations_form,
-    )
+    user_input_dict = yield from create_pipe_form_pages(product_name, port_universe=leased_spectrum_ports_of_node)
+    user_input_dict.update((yield create_leased_spectrum_provider_form(product_name)).model_dump())
+    return user_input_dict
 
 
 def create_leased_spectrum_form_generator(product_name: str) -> FormGenerator:

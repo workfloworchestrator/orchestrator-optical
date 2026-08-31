@@ -59,7 +59,6 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     new_optical_pipe_subscription,
     new_pipe_port_block,
     patch_port_block_class,
-    pipe_terminations_form,
     retrieve_optical_pipe_used_passbands,
     save_optical_pipe_block,
     set_optical_pipe_subscription_description,
@@ -107,7 +106,6 @@ def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
     return create_pipe_form_pages(
         product_name,
         port_universe=patch_ports_of_node,
-        terminations_form=pipe_terminations_form,
     )
 
 

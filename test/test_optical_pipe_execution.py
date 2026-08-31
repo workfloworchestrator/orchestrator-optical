@@ -56,26 +56,28 @@ def _create_pipe_user_inputs(
     port_a_name: str,
     port_b_name: str,
     pipe_name: str | None = None,
-    extra_terminations: dict[str, Any] | None = None,
+    provider_name: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return the pipe create form inputs: product, ends, terminations, summary.
+    """Return the pipe create form inputs: product, ends, terminations, [provider], summary.
 
-    The three shipped pipe create forms share the same page sequence;
-    ``extra_terminations`` carries the product-specific fields of the
-    terminations page (e.g. ``provider_name`` of the leased spectrum form).
+    The three shipped pipe create forms share the same page sequence
+    (product, customer, nodes, terminations); ``provider_name`` adds the
+    dedicated provider page of the leased spectrum form, which sits between the
+    terminations page and the summary page.
     """
     terminations: dict[str, Any] = {"port_a_name": port_a_name, "port_b_name": port_b_name}
     if pipe_name is not None:
         terminations["optical_pipe_name"] = pipe_name
-    if extra_terminations:
-        terminations.update(extra_terminations)
-    return [
+    pages: list[dict[str, Any]] = [
         {"product": product_id},
         {"customer_id": CUSTOMER_ID},
         {"node_a_id": node_a_id, "node_b_id": node_b_id},
         terminations,
-        {},
     ]
+    if provider_name is not None:
+        pages.append({"provider_name": provider_name})
+    pages.append({})
+    return pages
 
 
 def _terminate_pipe_user_inputs(subscription_id: str) -> list[dict[str, Any]]:
@@ -258,7 +260,7 @@ def test_leased_spectrum_create_validate_terminate(
             CLIENT_PORT,
             CLIENT_PORT,
             "circuit-77",
-            extra_terminations={"provider_name": "Acme Telecom"},
+            provider_name="Acme Telecom",
         ),
     )
     assert_process_completed(create_process_id)

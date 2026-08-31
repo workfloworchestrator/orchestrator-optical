@@ -49,7 +49,6 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     create_pipe_form_pages,
     new_optical_pipe_subscription,
     new_pipe_port_block,
-    pipe_terminations_form,
     retrieve_optical_pipe_used_passbands,
     save_optical_pipe_block,
     set_optical_pipe_subscription_description,
@@ -78,7 +77,6 @@ def create_fiber_span_form_pages(product_name: str) -> FormGenerator:
     return create_pipe_form_pages(
         product_name,
         port_universe=get_device_line_ports_names,
-        terminations_form=pipe_terminations_form,
     )
 
 
