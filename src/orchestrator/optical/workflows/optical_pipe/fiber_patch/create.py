@@ -107,7 +107,6 @@ def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
     """
     return create_pipe_form_pages(
         product_name,
-        connect_prompt="This fiber patch connects this node:",
         port_universe=patch_ports_of_node,
         port_prompt="Select an unused port on {fqdn}",
         distinct_nodes_message="The two ends of a fiber patch must be on different nodes.",

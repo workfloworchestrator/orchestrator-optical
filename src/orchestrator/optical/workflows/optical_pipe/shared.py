@@ -651,7 +651,8 @@ def default_pipe_identifier(
 
 def pipe_nodes_form(
     product_name: str,
-    node_choice: type[Choice],
+    node_a_choice: type[Choice],
+    node_b_choice: type[Choice],
     distinct_nodes_message: str,
 ) -> type[FormPage]:
     """Return the two-nodes FormPage of an Optical Pipe create form.
@@ -662,7 +663,8 @@ def pipe_nodes_form(
 
     Args:
         product_name: Name of the product being created, used as the page title.
-        node_choice: The ``Choice`` selector of the Optical Node subscriptions.
+        node_a_choice: The ``Choice`` selector of the Optical Node subscriptions of node A.
+        node_b_choice: The ``Choice`` selector of the Optical Node subscriptions of node B.
         distinct_nodes_message: Message raised when both ends are on the same node.
 
     Returns:
@@ -672,8 +674,8 @@ def pipe_nodes_form(
     class CreatePipeNodesForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        node_a_id: node_choice
-        node_b_id: node_choice
+        node_a_id: node_a_choice
+        node_b_id: node_b_choice
 
         @model_validator(mode="after")
         def validate_distinct_nodes(self) -> "CreatePipeNodesForm":
@@ -723,7 +725,6 @@ def pipe_terminations_form(
 def create_pipe_form_pages(
     product_name: str,
     *,
-    connect_prompt: str,
     port_universe: Callable[[AbstractOpticalNodeBlockInactive], list[str]],
     port_prompt: str,
     distinct_nodes_message: str,
@@ -735,16 +736,14 @@ def create_pipe_form_pages(
     the two-nodes page and the terminations page, and returns the collected user
     input as a flat dict of the ``optical_*`` state keys, consumed by the shipped
     construct step. The per-family differences are injected as parameters: the
-    node connect prompt, the port universe (the device ports that can terminate
-    this kind of pipe on a node), the port prompt (with a ``{fqdn}`` placeholder
-    for the node fqdn), the distinct-nodes message and the terminations page
-    factory. The customer of the subscription is collected separately by the
-    consumer (see
+    port universe (the device ports that can terminate this kind of pipe on a
+    node), the port prompt (with a ``{fqdn}`` placeholder for the node fqdn), the
+    distinct-nodes message and the terminations page factory. The customer of
+    the subscription is collected separately by the consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
         product_name: Name of the product being created.
-        connect_prompt: Prompt of the Optical Node selector.
         port_universe: The device ports that can terminate this kind of pipe on a node.
         port_prompt: Prompt of the unused-port selector, with a ``{fqdn}`` placeholder.
         distinct_nodes_message: Message raised when both ends are on the same node.
@@ -753,10 +752,13 @@ def create_pipe_form_pages(
     Returns:
         The collected user input of the shipped pages.
     """
-    node_choice = optical_node_selector(prompt=connect_prompt)
+    node_a_choice = optical_node_selector(prompt=f"This {product_name.lower()} connects this node:")
+    node_b_choice = optical_node_selector(prompt="...to this other node:")
 
     user_input_dict: dict[str, Any] = {}
-    user_input_dict.update((yield pipe_nodes_form(product_name, node_choice, distinct_nodes_message)).model_dump())
+    user_input_dict.update(
+        (yield pipe_nodes_form(product_name, node_a_choice, node_b_choice, distinct_nodes_message)).model_dump()
+    )
 
     node_a_block = node_block_from_subscription(user_input_dict["node_a_id"])
     node_b_block = node_block_from_subscription(user_input_dict["node_b_id"])

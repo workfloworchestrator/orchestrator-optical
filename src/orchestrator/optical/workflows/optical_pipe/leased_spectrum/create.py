@@ -153,7 +153,6 @@ def create_leased_spectrum_form_pages(product_name: str) -> FormGenerator:
     """
     return create_pipe_form_pages(
         product_name,
-        connect_prompt="This leased spectrum connects this node:",
         port_universe=leased_spectrum_ports_of_node,
         port_prompt="Select an unused line or add/drop port on {fqdn}",
         distinct_nodes_message="The two ends of a leased spectrum pipe must be on different nodes.",

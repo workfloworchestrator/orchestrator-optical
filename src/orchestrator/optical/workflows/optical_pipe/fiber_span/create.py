@@ -78,7 +78,6 @@ def create_fiber_span_form_pages(product_name: str) -> FormGenerator:
     """
     return create_pipe_form_pages(
         product_name,
-        connect_prompt="This fiber span connects this node:",
         port_universe=get_device_line_ports_names,
         port_prompt="Select an unused line port on {fqdn}",
         distinct_nodes_message="The two ends of a fiber span must be on different nodes.",
