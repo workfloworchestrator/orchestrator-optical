@@ -26,7 +26,6 @@ adding their own pages::
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 """
 
-from functools import partial
 from uuid import UUID, uuid4
 
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -79,15 +78,7 @@ def create_fiber_span_form_pages(product_name: str) -> FormGenerator:
     return create_pipe_form_pages(
         product_name,
         port_universe=get_device_line_ports_names,
-        port_prompt="Select an unused line port on {fqdn}",
-        distinct_nodes_message="The two ends of a fiber span must be on different nodes.",
-        terminations_form=partial(
-            pipe_terminations_form,
-            identifier_title="Fiber Span Identifier",
-            identifier_description=(
-                "Unique span ID or code. Leave empty to use the default 'node A port A --- node B port B'."
-            ),
-        ),
+        terminations_form=pipe_terminations_form,
     )
 
 
