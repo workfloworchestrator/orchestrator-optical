@@ -8,17 +8,19 @@ helpers (``new_pipe_port_block``, ``new_optical_pipe_subscription``). Database
 queries live in the neutral ``orchestrator/optical/db.py`` module.
 """
 
+from collections.abc import Callable
 from typing import Annotated, Any, TypeVar, cast
 from uuid import UUID
 
-from pydantic import Field
-from pydantic_forms.types import State, UUIDstr
+from pydantic import ConfigDict, Field, model_validator
+from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 
 from orchestrator.core.db import ProductTable, SubscriptionInstanceTable, SubscriptionTable, db
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel, ProductModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
+from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
 from orchestrator.optical.db import (
@@ -50,7 +52,9 @@ from orchestrator.optical.products.product_blocks.optical_port.transponder_line 
     OpticalTransponderLinePortBlockInactive,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
+from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import OPTICAL_NODE_PRODUCT_TYPES
+from orchestrator.optical.workflows.shared import create_summary_form, modify_summary_form
 
 T = TypeVar("T", bound=AbstractOpticalPortBlockInactive)
 
@@ -645,12 +649,255 @@ def default_pipe_identifier(
     )
 
 
+def pipe_nodes_form(
+    product_name: str,
+    node_choice: type[Choice],
+    distinct_nodes_message: str,
+) -> type[FormPage]:
+    """Return the two-nodes FormPage of an Optical Pipe create form.
+
+    This is the first page of the Optical Pipe create form: the two nodes the
+    pipe connects. The page title is the product name, and it validates that the
+    two ends of the pipe are on different nodes.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+        node_choice: The ``Choice`` selector of the Optical Node subscriptions.
+        distinct_nodes_message: Message raised when both ends are on the same node.
+
+    Returns:
+        The two-nodes FormPage of the Optical Pipe create form.
+    """
+
+    class CreatePipeNodesForm(FormPage):
+        model_config = ConfigDict(title=product_name)
+
+        node_a_id: node_choice
+        node_b_id: node_choice
+
+        @model_validator(mode="after")
+        def validate_distinct_nodes(self) -> "CreatePipeNodesForm":
+            if self.node_a_id == self.node_b_id:
+                msg = distinct_nodes_message
+                raise ValueError(msg)
+            return self
+
+    return CreatePipeNodesForm
+
+
+def pipe_terminations_form(
+    product_name: str,
+    port_a_choice: type[Choice],
+    port_b_choice: type[Choice],
+    identifier_title: str,
+    identifier_description: str,
+) -> type[FormPage]:
+    """Return the terminations FormPage of an Optical Pipe create form.
+
+    This is the second page of the Optical Pipe create form: the identifier of
+    the pipe and the two terminating ports. The identifier is optional: when it
+    is left empty, the create page sequence resolves it to the default
+    ``"node A port A --- node B port B"``.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+        port_a_choice: The ``Choice`` selector of the unused ports of node A.
+        port_b_choice: The ``Choice`` selector of the unused ports of node B.
+        identifier_title: Title of the pipe identifier field.
+        identifier_description: Description of the pipe identifier field.
+
+    Returns:
+        The terminations FormPage of the Optical Pipe create form.
+    """
+
+    class CreatePipeTerminationsForm(FormPage):
+        model_config = ConfigDict(title=f"{product_name} - Terminations")
+
+        optical_pipe_name: str | None = Field(None, title=identifier_title, description=identifier_description)
+        port_a_name: port_a_choice
+        port_b_name: port_b_choice
+
+    return CreatePipeTerminationsForm
+
+
+def create_pipe_form_pages(
+    product_name: str,
+    *,
+    connect_prompt: str,
+    port_universe: Callable[[AbstractOpticalNodeBlockInactive], list[str]],
+    port_prompt: str,
+    distinct_nodes_message: str,
+    terminations_form: Callable[[str, type[Choice], type[Choice]], type[FormPage]],
+) -> FormGenerator:
+    """Yield the FormPages of an Optical Pipe create form, in order.
+
+    This is the shared page sequence of the Optical Pipe create form: it yields
+    the two-nodes page and the terminations page, and returns the collected user
+    input as a flat dict of the ``optical_*`` state keys, consumed by the shipped
+    construct step. The per-family differences are injected as parameters: the
+    node connect prompt, the port universe (the device ports that can terminate
+    this kind of pipe on a node), the port prompt (with a ``{fqdn}`` placeholder
+    for the node fqdn), the distinct-nodes message and the terminations page
+    factory. The customer of the subscription is collected separately by the
+    consumer (see
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
+
+    Args:
+        product_name: Name of the product being created.
+        connect_prompt: Prompt of the Optical Node selector.
+        port_universe: The device ports that can terminate this kind of pipe on a node.
+        port_prompt: Prompt of the unused-port selector, with a ``{fqdn}`` placeholder.
+        distinct_nodes_message: Message raised when both ends are on the same node.
+        terminations_form: The terminations FormPage factory of the pipe family.
+
+    Returns:
+        The collected user input of the shipped pages.
+    """
+    node_choice = optical_node_selector(prompt=connect_prompt)
+
+    user_input_dict: dict[str, Any] = {}
+    user_input_dict.update((yield pipe_nodes_form(product_name, node_choice, distinct_nodes_message)).model_dump())
+
+    node_a_block = node_block_from_subscription(user_input_dict["node_a_id"])
+    node_b_block = node_block_from_subscription(user_input_dict["node_b_id"])
+
+    port_a_choice = unused_node_port_selector(
+        user_input_dict["node_a_id"],
+        port_universe(node_a_block),
+        prompt=port_prompt.format(fqdn=node_a_block.management.optical_module_node_fqdn),
+    )
+    port_b_choice = unused_node_port_selector(
+        user_input_dict["node_b_id"],
+        port_universe(node_b_block),
+        prompt=port_prompt.format(fqdn=node_b_block.management.optical_module_node_fqdn),
+    )
+    user_input_dict.update((yield terminations_form(product_name, port_a_choice, port_b_choice)).model_dump())
+
+    user_input_dict["optical_pipe_name"] = user_input_dict["optical_pipe_name"] or default_pipe_identifier(
+        node_a_block, user_input_dict["port_a_name"], node_b_block, user_input_dict["port_b_name"]
+    )
+    return user_input_dict
+
+
+def create_optical_pipe_form_generator(
+    product_name: str,
+    create_pages: Callable[[str], FormGenerator],
+    summary_fields: list[str],
+) -> FormGenerator:
+    """Generate the initial input form for creating an Optical Pipe.
+
+    The form emits the flat ``optical_*`` state keys consumed by the shipped
+    construct step. It is a thin composition of the customer page, the create
+    page sequence of the pipe family and the summary form.
+
+    Args:
+        product_name: Name of the product being created.
+        create_pages: The create page sequence of the pipe family.
+        summary_fields: The field names to display in the summary form.
+    """
+    user_input_dict = yield from customer_choice_form_page(title=product_name)
+    user_input_dict.update((yield from create_pages(product_name)))
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
+    return user_input_dict
+
+
+def modify_optical_pipe_form(
+    subscription: SubscriptionModel,
+    block_field_name: str = "optical_pipe",
+) -> type[FormPage]:
+    """Return the modify FormPage of an Optical Pipe subscription.
+
+    The page is prefilled with the current ``optical_pipe_name`` of the
+    subscription, so unchanged fields remain intact.
+
+    Args:
+        subscription: The ACTIVE subscription model of the Optical Pipe product
+            being modified (any consumer model that has-a the shipped block works).
+        block_field_name: Name of the attribute of the subscription model holding
+            the Optical Pipe block.
+
+    Returns:
+        The prefilled modify FormPage of the shipped modify form.
+    """
+    pipe = getattr(subscription, block_field_name)
+
+    class ModifyOpticalPipeForm(FormPage):
+        optical_pipe_name: str = pipe.optical_pipe_name
+
+    return ModifyOpticalPipeForm
+
+
+def modify_optical_pipe_form_pages(
+    subscription: SubscriptionModel,
+    block_field_name: str = "optical_pipe",
+) -> FormGenerator:
+    """Yield the FormPage of an Optical Pipe modify form.
+
+    This is the shipped modify form as a page sequence: it yields the prefilled
+    modify page and returns the collected user input as a flat dict of the
+    ``optical_*`` state keys, consumed by the shipped modify steps. The customer
+    of the subscription is collected separately by the consumer (see
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
+
+    Args:
+        subscription: The ACTIVE subscription model of the Optical Pipe product
+            being modified (any consumer model that has-a the shipped block works).
+        block_field_name: Name of the attribute of the subscription model holding
+            the Optical Pipe block.
+
+    Returns:
+        The collected user input of the shipped pages.
+    """
+    user_input = yield modify_optical_pipe_form(subscription, block_field_name)
+    return user_input.model_dump()
+
+
+def modify_optical_pipe_form_generator(
+    subscription_id: UUIDstr,
+    subscription_model: type[SubscriptionModel],
+    block_field_name: str = "optical_pipe",
+) -> FormGenerator:
+    """Generate the initial input form for modifying an Optical Pipe subscription.
+
+    The form is prefilled with the current values of the subscription, so
+    unchanged fields remain intact. It is a thin composition of the customer
+    page, the modify page sequence and the summary form.
+
+    Args:
+        subscription_id: The identifier of the subscription being modified.
+        subscription_model: The ACTIVE subscription model class of the Optical
+            Pipe product.
+        block_field_name: Name of the attribute of the subscription model holding
+            the Optical Pipe block.
+    """
+    subscription = subscription_model.from_subscription(subscription_id)
+    pipe = getattr(subscription, block_field_name)
+
+    user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
+    user_input_dict.update((yield from modify_optical_pipe_form_pages(subscription, block_field_name)))
+
+    summary_fields = ["customer_id", "optical_pipe_name"]
+    yield from modify_summary_form(
+        user_input_dict,
+        pipe,
+        summary_fields,
+        extra_before={"customer_id": str(subscription.customer_id)},
+    )
+
+    return user_input_dict | {"subscription": subscription}
+
+
 __all__ = [
     "OPTICAL_MODULE_BLOCK_STATE_KEY",
     "configure_pipe_terminations",
+    "create_optical_pipe_form_generator",
+    "create_pipe_form_pages",
     "default_pipe_identifier",
     "leased_spectrum_port_block_class",
     "load_optical_pipe_block",
+    "modify_optical_pipe_form",
+    "modify_optical_pipe_form_generator",
+    "modify_optical_pipe_form_pages",
     "multiple_optical_pipe_selector",
     "new_optical_pipe_subscription",
     "new_pipe_port_block",
@@ -659,6 +906,8 @@ __all__ = [
     "optical_pipe_selector",
     "optical_pipe_subscription_description",
     "patch_port_block_class",
+    "pipe_nodes_form",
+    "pipe_terminations_form",
     "save_optical_pipe_block",
     "set_optical_pipe_subscription_description",
     "unused_node_port_selector",

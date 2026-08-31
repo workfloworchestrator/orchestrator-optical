@@ -16,7 +16,7 @@ consumers build their own form generator by yielding from the shipped page
 sequence in one line and adding their own pages::
 
     user_input_dict = yield from modify_leased_spectrum_form_pages(
-        subscription, block_field_name="pipe"
+        subscription, block_field_name="optical_pipe"
     )
     user_input_dict.update((yield my_own_page).model_dump())
 """
@@ -24,47 +24,19 @@ sequence in one line and adding their own pages::
 from pydantic_forms.types import FormGenerator, UUIDstr
 
 from orchestrator.core.domain import SubscriptionModel
-from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrum
-from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,
+    modify_optical_pipe_form_generator,
+    modify_optical_pipe_form_pages,
     save_optical_pipe_block,
     set_optical_pipe_subscription_description,
     update_optical_pipe_block,
 )
-from orchestrator.optical.workflows.shared import modify_summary_form
-
-
-def modify_leased_spectrum_form(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_pipe",
-) -> type[FormPage]:
-    """Return the modify FormPage of the Optical Leased Spectrum subscription.
-
-    The page is prefilled with the current values of the subscription, so
-    unchanged fields remain intact.
-
-    Args:
-        subscription: The ACTIVE subscription model of the Optical Leased
-            Spectrum product being modified (any consumer model that has-a the
-            shipped block works).
-        block_field_name: Name of the attribute of the subscription model holding
-            the Optical Leased Spectrum block.
-
-    Returns:
-        The prefilled modify FormPage of the shipped modify form.
-    """
-    pipe = getattr(subscription, block_field_name)
-
-    class ModifyLeasedSpectrumForm(FormPage):
-        optical_pipe_name: str = pipe.optical_pipe_name
-
-    return ModifyLeasedSpectrumForm
 
 
 def modify_leased_spectrum_form_pages(
@@ -92,8 +64,7 @@ def modify_leased_spectrum_form_pages(
     Returns:
         The collected user input of the shipped pages.
     """
-    user_input = yield modify_leased_spectrum_form(subscription, block_field_name)
-    return user_input.model_dump()
+    return modify_optical_pipe_form_pages(subscription, block_field_name)
 
 
 def modify_leased_spectrum_form_generator(
@@ -104,9 +75,9 @@ def modify_leased_spectrum_form_generator(
     """Generate the initial input form for modifying an Optical Leased Spectrum subscription.
 
     The form is prefilled with the current values of the subscription, so
-    unchanged fields remain intact. It is a thin composition of the shipped
-    page sequence (:func:`modify_leased_spectrum_form_pages`) and the summary
-    form.
+    unchanged fields remain intact. It is a thin composition of the customer
+    page, the shipped page sequence
+    (:func:`modify_leased_spectrum_form_pages`) and the summary form.
 
     Args:
         subscription_id: The identifier of the subscription being modified.
@@ -116,21 +87,7 @@ def modify_leased_spectrum_form_generator(
         block_field_name: Name of the attribute of the subscription model holding
             the Optical Leased Spectrum block.
     """
-    subscription = subscription_model.from_subscription(subscription_id)
-    pipe = getattr(subscription, block_field_name)
-
-    user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
-    user_input_dict.update((yield from modify_leased_spectrum_form_pages(subscription, block_field_name)))
-
-    summary_fields = ["customer_id", "optical_pipe_name"]
-    yield from modify_summary_form(
-        user_input_dict,
-        pipe,
-        summary_fields,
-        extra_before={"customer_id": str(subscription.customer_id)},
-    )
-
-    return user_input_dict | {"subscription": subscription}
+    return (yield from modify_optical_pipe_form_generator(subscription_id, subscription_model, block_field_name))
 
 
 #: Modify steps operating on the Optical Leased Spectrum block in the state.

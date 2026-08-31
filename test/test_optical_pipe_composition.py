@@ -87,11 +87,16 @@ def _fake_node_block_from_subscription(node_subscription_id: str) -> SimpleNames
 
 
 def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch, module: Any) -> None:
-    """Patch the DB/device-backed form selectors of a pipe create module with DB-free fakes."""
-    monkeypatch.setattr(module, "optical_node_selector", _fake_node_choice)
-    monkeypatch.setattr(module, "node_block_from_subscription", _fake_node_block_from_subscription)
+    """Patch the DB/device-backed form selectors with DB-free fakes.
+
+    The generic node/port selectors are resolved in the shared pipe module
+    (``pipe_shared``), while the family-specific port universe (here the line
+    ports) is resolved in the family create module (``module``).
+    """
+    monkeypatch.setattr(pipe_shared, "optical_node_selector", _fake_node_choice)
+    monkeypatch.setattr(pipe_shared, "node_block_from_subscription", _fake_node_block_from_subscription)
+    monkeypatch.setattr(pipe_shared, "unused_node_port_selector", _fake_port_choice)
     monkeypatch.setattr(module, "get_device_line_ports_names", Mock(return_value=["port-a-1", "port-b-1"]))
-    monkeypatch.setattr(module, "unused_node_port_selector", _fake_port_choice)
 
 
 def _make_span_block(optical_pipe_name: str | None = None) -> OpticalFiberSpanBlockInactive:

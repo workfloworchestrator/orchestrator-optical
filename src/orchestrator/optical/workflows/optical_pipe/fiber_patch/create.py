@@ -27,14 +27,12 @@ pages::
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 """
 
-from typing import Any, cast
+from functools import partial
+from typing import cast
 from uuid import UUID, uuid4
 
-from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
-from pydantic_forms.validators import Choice
 
-from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
@@ -54,21 +52,19 @@ from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import
     OpticalFiberPatchInactive,
     OpticalFiberPatchProvisioning,
 )
-from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     configure_pipe_terminations,
-    default_pipe_identifier,
+    create_optical_pipe_form_generator,
+    create_pipe_form_pages,
     new_optical_pipe_subscription,
     new_pipe_port_block,
-    optical_node_selector,
     patch_port_block_class,
+    pipe_terminations_form,
     retrieve_optical_pipe_used_passbands,
     save_optical_pipe_block,
     set_optical_pipe_subscription_description,
-    unused_node_port_selector,
 )
-from orchestrator.optical.workflows.shared import create_summary_form
 
 
 def patch_ports_of_node(node_block: AbstractOpticalNodeBlockInactive) -> list[str]:
@@ -89,94 +85,18 @@ def patch_ports_of_node(node_block: AbstractOpticalNodeBlockInactive) -> list[st
     return list(dict.fromkeys([*client_ports, *all_ports]))
 
 
-def create_fiber_patch_nodes_form(
-    product_name: str,
-    node_choice: type[Choice],
-) -> type[FormPage]:
-    """Return the identity FormPage of the Optical Fiber Patch create form.
-
-    This is the first page of the shipped create form: the two nodes connected
-    by the patch. It is a building block for consumers that compose their own
-    create form generator: the shipped page sequence
-    (:func:`create_fiber_patch_form_pages`) yields it first. The page validates
-    that the two ends of the patch are on different nodes.
-
-    Args:
-        product_name: Name of the product being created, used as the page title.
-        node_choice: The ``Choice`` selector of the Optical Node subscriptions,
-            as built by
-            :func:`orchestrator.optical.workflows.optical_pipe.shared.optical_node_selector`.
-
-    Returns:
-        The identity FormPage of the shipped create form.
-    """
-
-    class CreateFiberPatchNodesForm(FormPage):
-        model_config = ConfigDict(title=product_name)
-
-        node_a_id: node_choice
-        node_b_id: node_choice
-
-        @model_validator(mode="after")
-        def validate_distinct_nodes(self) -> "CreateFiberPatchNodesForm":
-            """Raise if the two ends of the patch are on the same node."""
-            if self.node_a_id == self.node_b_id:
-                msg = "The two ends of a fiber patch must be on different nodes."
-                raise ValueError(msg)
-            return self
-
-    return CreateFiberPatchNodesForm
-
-
-def create_fiber_patch_terminations_form(
-    product_name: str,
-    port_a_choice: type[Choice],
-    port_b_choice: type[Choice],
-) -> type[FormPage]:
-    """Return the terminations FormPage of the Optical Fiber Patch create form.
-
-    This is the second page of the shipped create form: the identifier of the
-    patch and the terminating ports on the two nodes. It is a building block
-    for consumers that compose their own create form generator: the shipped
-    page sequence (:func:`create_fiber_patch_form_pages`) yields it second.
-
-    Args:
-        product_name: Name of the product being created, used as the page title.
-        port_a_choice: The ``Choice`` selector of the unused ports of node A,
-            as built by
-            :func:`orchestrator.optical.workflows.optical_pipe.shared.unused_node_port_selector`.
-        port_b_choice: The ``Choice`` selector of the unused ports of node B,
-            as built by
-            :func:`orchestrator.optical.workflows.optical_pipe.shared.unused_node_port_selector`.
-
-    Returns:
-        The terminations FormPage of the shipped create form.
-    """
-
-    class CreateFiberPatchTerminationsForm(FormPage):
-        model_config = ConfigDict(title=f"{product_name} - Terminations")
-
-        port_a_name: port_a_choice
-        port_b_name: port_b_choice
-        optical_pipe_name: str | None = Field(
-            None,
-            title="Fiber Patch Identifier",
-            description="Unique patch ID or code. Leave empty to use the default 'node A port A --- node B port B'.",
-        )
-
-    return CreateFiberPatchTerminationsForm
-
-
 def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
     """Yield the FormPages of the Optical Fiber Patch create form, in order.
 
-    This is the shipped create form as a page sequence: it yields the identity
+    This is the shipped create form as a page sequence: it yields the two-nodes
     page and the terminations page, and returns the collected user input as a
     flat dict of the ``optical_*`` state keys, consumed by the shipped
-    construct step (:func:`construct_fiber_patch_subscription`). Consumers
-    yield from it in one line inside their own create form generator,
-    optionally interleaving their own pages. The customer of the subscription
-    is collected separately by the consumer (see
+    construct step (:func:`construct_fiber_patch_subscription`). A Fiber Patch
+    is terminated by the client (SCG) ports of a Nokia FlexILS node, or by the
+    client and line ports of a Groove G30 or GX G42 node
+    (:func:`patch_ports_of_node`). Consumers yield from it in one line inside
+    their own create form generator, optionally interleaving their own pages.
+    The customer of the subscription is collected separately by the consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
@@ -185,34 +105,20 @@ def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
     Returns:
         The collected user input of the shipped pages.
     """
-    node_choice = optical_node_selector(prompt="This fiber patch connects this node:")
-
-    user_input_dict: dict[str, Any] = {}
-
-    nodes_input = yield create_fiber_patch_nodes_form(product_name, node_choice)
-    user_input_dict.update(nodes_input.model_dump())
-
-    node_a_block = node_block_from_subscription(user_input_dict["node_a_id"])
-    node_b_block = node_block_from_subscription(user_input_dict["node_b_id"])
-
-    port_a_choice = unused_node_port_selector(
-        user_input_dict["node_a_id"],
-        patch_ports_of_node(node_a_block),
-        prompt=f"Select an unused port on {node_a_block.management.optical_module_node_fqdn}",
+    return create_pipe_form_pages(
+        product_name,
+        connect_prompt="This fiber patch connects this node:",
+        port_universe=patch_ports_of_node,
+        port_prompt="Select an unused port on {fqdn}",
+        distinct_nodes_message="The two ends of a fiber patch must be on different nodes.",
+        terminations_form=partial(
+            pipe_terminations_form,
+            identifier_title="Fiber Patch Identifier",
+            identifier_description=(
+                "Unique patch ID or code. Leave empty to use the default 'node A port A --- node B port B'."
+            ),
+        ),
     )
-    port_b_choice = unused_node_port_selector(
-        user_input_dict["node_b_id"],
-        patch_ports_of_node(node_b_block),
-        prompt=f"Select an unused port on {node_b_block.management.optical_module_node_fqdn}",
-    )
-
-    terminations_input = yield create_fiber_patch_terminations_form(product_name, port_a_choice, port_b_choice)
-    user_input_dict.update(terminations_input.model_dump())
-
-    user_input_dict["optical_pipe_name"] = user_input_dict["optical_pipe_name"] or default_pipe_identifier(
-        node_a_block, user_input_dict["port_a_name"], node_b_block, user_input_dict["port_b_name"]
-    )
-    return user_input_dict
 
 
 def create_fiber_patch_form_generator(product_name: str) -> FormGenerator:
@@ -226,20 +132,13 @@ def create_fiber_patch_form_generator(product_name: str) -> FormGenerator:
     Args:
         product_name: Name of the product being created.
     """
-    user_input_dict = yield from customer_choice_form_page(title=product_name)
-    user_input_dict.update((yield from create_fiber_patch_form_pages(product_name)))
-
-    summary_fields = [
-        "customer_id",
-        "optical_pipe_name",
-        "node_a_id",
-        "port_a_name",
-        "node_b_id",
-        "port_b_name",
-    ]
-    yield from create_summary_form(user_input_dict, product_name, summary_fields)
-
-    return user_input_dict
+    return (
+        yield from create_optical_pipe_form_generator(
+            product_name,
+            create_fiber_patch_form_pages,
+            ["customer_id", "optical_pipe_name", "node_a_id", "port_a_name", "node_b_id", "port_b_name"],
+        )
+    )
 
 
 def build_fiber_patch_block(
