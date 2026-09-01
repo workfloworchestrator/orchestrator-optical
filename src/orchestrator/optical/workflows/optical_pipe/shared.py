@@ -865,7 +865,7 @@ def modify_optical_pipe_form_generator(
     subscription = subscription_model.from_subscription(subscription_id)
     pipe = getattr(subscription, block_field_name)
 
-    user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
+    user_input_dict = yield from customer_choice_form_page(include=subscription.customer_id)
     user_input_dict.update((yield from modify_optical_pipe_form_pages(subscription, block_field_name)))
 
     summary_fields = ["customer_id", "optical_pipe_name"]
@@ -873,7 +873,7 @@ def modify_optical_pipe_form_generator(
         user_input_dict,
         pipe,
         summary_fields,
-        extra_before={"customer_id": str(subscription.customer_id)},
+        extra_before={"customer_id": subscription.customer_id},
     )
 
     return user_input_dict | {"subscription": subscription}
