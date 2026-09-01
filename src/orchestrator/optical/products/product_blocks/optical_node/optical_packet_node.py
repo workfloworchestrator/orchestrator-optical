@@ -13,10 +13,10 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlock,
-    _AbstractOpticalNodeBlockInactive,
-    _AbstractOpticalNodeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlock,
+    AbstractOpticalNodeBlockInactive,
+    AbstractOpticalNodeBlockProvisioning,
     OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import (
@@ -27,7 +27,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 
 
 class OpticalModulePacketNodeBlockInactive(
-    _AbstractOpticalNodeBlockInactive, product_block_name="OpticalModulePacketNode"
+    AbstractOpticalNodeBlockInactive, product_block_name="OpticalModulePacketNode"
 ):
     """A packet layer Node that accepts Optical Coherent Pluggables that is inactive."""
 
@@ -39,7 +39,7 @@ class OpticalModulePacketNodeBlockInactive(
 
 class OpticalModulePacketNodeBlockProvisioning(
     OpticalModulePacketNodeBlockInactive,
-    _AbstractOpticalNodeBlockProvisioning,
+    AbstractOpticalNodeBlockProvisioning,
     lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """A packet layer Node that accepts Optical Coherent Pluggables that is provisioning."""
@@ -51,7 +51,7 @@ class OpticalModulePacketNodeBlockProvisioning(
 
 
 class OpticalModulePacketNodeBlock(
-    OpticalModulePacketNodeBlockProvisioning, _AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OpticalModulePacketNodeBlockProvisioning, AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """A packet layer Node that accepts Optical Coherent Pluggables."""
 

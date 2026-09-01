@@ -22,7 +22,7 @@ class Platform(strEnum):
 
     SR = "SR"
     NCS = "NCS"
-    MX = "MX"
+    MX204 = "MX204"
     PTX = "PTX"
     FLEXILS = "FLEXILS"
     GROOVE_G30 = "GROOVE G30"

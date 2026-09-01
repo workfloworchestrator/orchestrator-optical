@@ -13,12 +13,12 @@
 
 from typing import Annotated
 
+from products.product_types.optical_fiber import OpticalFiber
 from pydantic import Field
 from pydantic_forms.types import UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 
 from orchestrator.core.types import SubscriptionLifecycle
-from products.product_types.optical_fiber import OpticalFiber
 from workflows.shared import subscriptions_by_product_type
 
 
@@ -26,8 +26,7 @@ def get_fibers_connected_to(
     device_subscription_id: UUIDstr,
     status: list[SubscriptionLifecycle] | None = None,
 ) -> list[OpticalFiber]:
-    """
-    Retrieve a list of fiber subscriptions that are connected to the given device subscription.
+    """Retrieve a list of fiber subscriptions that are connected to the given device subscription.
 
     Args:
         device_subscription_id (UUIDstr): The subscription ID of the device to check connectivity for.

@@ -11,16 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pydantic_forms.types import InputForm, State, UUIDstr
-from structlog import get_logger
-
-from orchestrator.core.forms import FormPage
-from orchestrator.core.forms.validators import (
-    DisplaySubscription,
-)
-from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, conditional, step
-from orchestrator.core.workflows.utils import terminate_workflow
 from products.product_blocks.optical_device import DeviceType
 from products.product_blocks.transport_channel import (
     OpticalTransportChannelBlock,
@@ -35,6 +25,16 @@ from products.services.optical_digital_service import (
     factory_reset_transponder_lines,
 )
 from products.services.optical_spectrum import delete_optical_circuit
+from pydantic_forms.types import InputForm, State, UUIDstr
+from structlog import get_logger
+
+from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import (
+    DisplaySubscription,
+)
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import StepList, begin, conditional, step
+from orchestrator.core.workflows.utils import terminate_workflow
 
 logger = get_logger(__name__)
 
@@ -159,8 +159,7 @@ additional_steps = begin
     additional_steps=additional_steps,
 )
 def terminate_optical_digital_service() -> StepList:
-    """
-    Workflow to terminate an Optical Digital Service subscription.
+    """Workflow to terminate an Optical Digital Service subscription.
     This workflow checks if the subscription is the last client for the transport channels
     and performs necessary steps to reset transponders/transceivers, delete optical sections, and update
     used passbands accordingly.

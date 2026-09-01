@@ -8,7 +8,7 @@ from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
     discover_flexils_node,
     get_flex_client,
 )
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 from orchestrator.optical.utils.custom_types.frequencies import available_to_used_passbands
 

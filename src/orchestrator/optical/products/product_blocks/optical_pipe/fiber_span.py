@@ -1,10 +1,10 @@
 """Product Blocks of Fiber Span Optical Pipes."""
 
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.products.product_blocks.optical_pipe._abstracts import (
-    _AbstractOpticalPipeBlock,
-    _AbstractOpticalPipeBlockInactive,
-    _AbstractOpticalPipeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
+    AbstractOpticalPipeBlock,
+    AbstractOpticalPipeBlockInactive,
+    AbstractOpticalPipeBlockProvisioning,
     FiberSides,
 )
 from orchestrator.optical.products.product_blocks.optical_port.unions import (
@@ -14,7 +14,7 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import (
 )
 
 
-class OpticalFiberSpanBlockInactive(_AbstractOpticalPipeBlockInactive, product_block_name="FiberSpanBlock"):
+class OpticalFiberSpanBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberSpanBlock"):
     """Inactive state of a Fiber Span product block."""
 
     optical_pipe_name: str | None = None
@@ -23,7 +23,7 @@ class OpticalFiberSpanBlockInactive(_AbstractOpticalPipeBlockInactive, product_b
 
 class OpticalFiberSpanBlockProvisioning(
     OpticalFiberSpanBlockInactive,
-    _AbstractOpticalPipeBlockProvisioning,
+    AbstractOpticalPipeBlockProvisioning,
     lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Provisioning state of a Fiber Span product block."""
@@ -34,7 +34,7 @@ class OpticalFiberSpanBlockProvisioning(
 
 class OpticalFiberSpanBlock(
     OpticalFiberSpanBlockProvisioning,
-    _AbstractOpticalPipeBlock,
+    AbstractOpticalPipeBlock,
     lifecycle=[SubscriptionLifecycle.ACTIVE],
 ):
     """Active state of a Fiber Span product block."""

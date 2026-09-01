@@ -10,10 +10,10 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlock,
-    _AbstractOpticalNodeBlockInactive,
-    _AbstractOpticalNodeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlock,
+    AbstractOpticalNodeBlockInactive,
+    AbstractOpticalNodeBlockProvisioning,
     OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import (
@@ -25,7 +25,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 )
 
 
-class NokiaGrooveG30BlockInactive(_AbstractOpticalNodeBlockInactive, product_block_name="NokiaGrooveG30Block"):
+class NokiaGrooveG30BlockInactive(AbstractOpticalNodeBlockInactive, product_block_name="NokiaGrooveG30Block"):
     """Product Block of a Nokia Groove G30 Optical Node that is inactive."""
 
     optical_node_role: Literal[OpticalNodeRole.TRANSPONDER, OpticalNodeRole.TRANSPONDER_XOADM] | None = None
@@ -46,7 +46,7 @@ class NokiaGrooveG30BlockInactive(_AbstractOpticalNodeBlockInactive, product_blo
 
 
 class NokiaGrooveG30BlockProvisioning(
-    NokiaGrooveG30BlockInactive, _AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    NokiaGrooveG30BlockInactive, AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Product Block of a Nokia Groove G30 Optical Node that is provisioning."""
 
@@ -57,7 +57,7 @@ class NokiaGrooveG30BlockProvisioning(
 
 
 class NokiaGrooveG30Block(
-    NokiaGrooveG30BlockProvisioning, _AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    NokiaGrooveG30BlockProvisioning, AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """Product Block of a Nokia Groove G30 Optical Node that is active."""
 

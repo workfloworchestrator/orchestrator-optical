@@ -11,8 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-# **G30 Upgrade Workflow: FP4.5.2 → FP4.8.0**.
+"""# **G30 Upgrade Workflow: FP4.5.2 → FP4.8.0**.
 
 This workflow orchestrates the firmware upgrade of an Infinera G30 device. Due to version dependencies,
 this is a **multi-stage process**.
@@ -77,9 +76,14 @@ from string import Template
 from typing import Annotated, Any, TypeAlias
 
 import requests
+from products.product_blocks.optical_device import Platform
+from products.product_types.optical_device import OpticalDevice
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from requests.exceptions import HTTPError
+from services.asyncsshcli import async_ssh_cli
+from services.nokia import G30Client
+from settings import garr_settings
 from structlog import get_logger
 
 from orchestrator.core import workflow
@@ -89,11 +93,6 @@ from orchestrator.core.forms.validators import Choice, Label, choice_list
 from orchestrator.core.targets import Target
 from orchestrator.core.workflow import StepList, begin, callback_step, conditional, done, init, inputstep, step
 from orchestrator.core.workflows.steps import store_process_subscription
-from products.product_blocks.optical_device import Platform
-from products.product_types.optical_device import OpticalDevice
-from services.asyncsshcli import async_ssh_cli
-from services.nokia import G30Client
-from settings import garr_settings
 from workflows.shared import active_subscription_with_instance_value_selector
 from workflows.tasks.shared import (
     raise_if_no_traffic_btw_routers,
@@ -486,7 +485,7 @@ def _download_sw_image(lo_ip: str, mngmt_ip: str, new_version: str, callback_url
         with contextlib.suppress(Exception):
             requests.post(
                 f"{callback_url}/progress", json={"status": "verifying downloaded version"}, verify=False, timeout=5
-            )  # noqa: E501, S501
+            )
         version = _verify_sw_image_downloaded(g30, new_version)
         requests.post(callback_url, json={"status": "completed", "version": version}, verify=False, timeout=10)  # noqa: S501
     except Exception as exc:  # noqa: BLE001
@@ -737,7 +736,7 @@ def _cold_restart_chm1s(
             with contextlib.suppress(Exception):
                 requests.post(
                     f"{callback_url}/progress", json={"status": "waiting", "error": str(exc)}, verify=False, timeout=5
-                )  # noqa: E501, S501
+                )
         time.sleep(15)
 
 

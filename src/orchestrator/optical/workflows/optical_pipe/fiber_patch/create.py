@@ -46,8 +46,8 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_patch import OpticalFiberPatchBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.unions import PatchPortBlockInactive
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import (
-    OpticalFiberPatchInactive,
-    OpticalFiberPatchProvisioning,
+    OpticalFiberPatchSubscriptionInactive,
+    OpticalFiberPatchSubscriptionProvisioning,
 )
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
@@ -214,8 +214,12 @@ def construct_fiber_patch_subscription(
         subscription_id, node_a_id, node_b_id, port_a_name, port_b_name, optical_pipe_name
     )
 
-    subscription = new_optical_pipe_subscription(OpticalFiberPatchInactive, product, customer_id, pipe_block)
-    subscription = OpticalFiberPatchProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
+    subscription = new_optical_pipe_subscription(
+        OpticalFiberPatchSubscriptionInactive, product, customer_id, pipe_block
+    )
+    subscription = OpticalFiberPatchSubscriptionProvisioning.from_other_lifecycle(
+        subscription, SubscriptionLifecycle.PROVISIONING
+    )
 
     return {
         "subscription": subscription,

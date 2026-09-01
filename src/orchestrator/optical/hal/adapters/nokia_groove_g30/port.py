@@ -10,10 +10,10 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_port_navigator_node_from_port_name,
     get_g30_client,
 )
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import _AbstractOpticalNodeBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port._abstracts import _AbstractOpticalPortBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia.g30.data_models.ne import (
     AdminStatusEnum,
     CardTypeEnum,
@@ -144,7 +144,7 @@ def retrieve_transceiver_modes(optical_node_block: NokiaGrooveG30BlockProvisioni
 
 
 def set_port_description(
-    port_block: _AbstractOpticalPortBlockProvisioning,
+    port_block: AnyOpticalPortBlockProvisioning,
     port_description: str,
 ) -> dict[str, Any]:
     """Set the description of a Groove G30 optical port.
@@ -196,7 +196,7 @@ def set_channel_description(
 
 
 def set_port_admin_state(
-    port_block: _AbstractOpticalPortBlockProvisioning,
+    port_block: AnyOpticalPortBlockProvisioning,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
     """Set the administrative state of a Groove G30 optical port.
@@ -227,8 +227,8 @@ def set_port_admin_state(
 
 
 def configure_termination(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning,
-    remote_port_block: _AbstractOpticalPortBlockProvisioning,
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Configure a Groove G30 port when attaching a fiber to it."""
     host_node = optical_port_block.optical_port_host_node
@@ -320,7 +320,7 @@ def configure_termination(
             raise ValueError(msg)
 
 
-def factory_reset(optical_port_block: _AbstractOpticalPortBlockProvisioning) -> dict[str, Any]:
+def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[str, Any]:
     """Prune the configuration of a Groove G30 port."""
     host_node = optical_port_block.optical_port_host_node
     port_name = _port_name(optical_port_block)
@@ -341,8 +341,8 @@ def factory_reset(optical_port_block: _AbstractOpticalPortBlockProvisioning) -> 
 
 
 def check_fiber(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning,
-    remote_port_block: _AbstractOpticalPortBlockProvisioning,
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> None:
     """Check if a Groove G30 port attached to a fiber is correctly configured."""
     host_node = optical_port_block.optical_port_host_node
@@ -390,8 +390,8 @@ def check_fiber(
 
 
 def _same_node(
-    node_a: _AbstractOpticalNodeBlockProvisioning,
-    node_b: _AbstractOpticalNodeBlockProvisioning,
+    node_a: AnyOpticalNodeBlockProvisioningUnion,
+    node_b: AnyOpticalNodeBlockProvisioningUnion,
 ) -> bool:
     """Return whether two Optical Node blocks refer to the same device."""
     if node_a is node_b:

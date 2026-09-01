@@ -26,7 +26,7 @@ class OpticalNodeRole(strEnum):
     IPODWDM = "IPoDWDM"
 
 
-class _AbstractOpticalNodeBlockInactive(ProductBlockModel):
+class AbstractOpticalNodeBlockInactive(ProductBlockModel):
     """Abstract implementation of an Optical Node that is inactive."""
 
     optical_node_role: OpticalNodeRole | None = None
@@ -35,8 +35,8 @@ class _AbstractOpticalNodeBlockInactive(ProductBlockModel):
     location: OpticalModuleLocationBlockInactive
 
 
-class _AbstractOpticalNodeBlockProvisioning(
-    _AbstractOpticalNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class AbstractOpticalNodeBlockProvisioning(
+    AbstractOpticalNodeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Abstract implementaiton of an Optical Node that is provisioning."""
 
@@ -46,7 +46,7 @@ class _AbstractOpticalNodeBlockProvisioning(
     location: OpticalModuleLocationBlockProvisioning
 
 
-class _AbstractOpticalNodeBlock(_AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class AbstractOpticalNodeBlock(AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Abstract implementation of an Optical Node."""
 
     optical_node_role: OpticalNodeRole

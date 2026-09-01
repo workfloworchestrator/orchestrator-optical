@@ -11,15 +11,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from products.product_blocks.optical_device import DeviceType
+from products.product_types.optical_fiber import OpticalFiber
+from products.services.optical_device import retrieve_ports_spectral_occupations
+from products.services.optical_device_port import check_fiber_terminating_port
 from pydantic_forms.types import State
 from structlog import get_logger
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from products.product_blocks.optical_device import DeviceType
-from products.product_types.optical_fiber import OpticalFiber
-from products.services.optical_device import retrieve_ports_spectral_occupations
-from products.services.optical_device_port import check_fiber_terminating_port
 from workflows.optical_fiber.create_optical_fiber import subscription_description
 
 logger = get_logger(__name__)

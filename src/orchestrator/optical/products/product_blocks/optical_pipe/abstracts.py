@@ -15,15 +15,15 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import (
 FiberSides = Annotated[list[SI], Len(min_length=2, max_length=2), "List of the 2 ports connected by the fiber."]
 
 
-class _AbstractOpticalPipeBlockInactive(ProductBlockModel):
+class AbstractOpticalPipeBlockInactive(ProductBlockModel):
     """Abstract base class for all optical pipe blocks in the INACTIVE state."""
 
     optical_pipe_name: str | None = None
     optical_pipe_terminations: FiberSides[AnyOpticalPortBlockInactive] | None = None
 
 
-class _AbstractOpticalPipeBlockProvisioning(
-    _AbstractOpticalPipeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class AbstractOpticalPipeBlockProvisioning(
+    AbstractOpticalPipeBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Abstract base class for all optical pipe blocks in the PROVISIONING state."""
 
@@ -31,7 +31,7 @@ class _AbstractOpticalPipeBlockProvisioning(
     optical_pipe_terminations: FiberSides[AnyOpticalPortBlockProvisioning]
 
 
-class _AbstractOpticalPipeBlock(_AbstractOpticalPipeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class AbstractOpticalPipeBlock(AbstractOpticalPipeBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Abstract base class for all optical pipe blocks in the ACTIVE state."""
 
     optical_pipe_name: str

@@ -17,6 +17,7 @@ from re import match
 from time import sleep
 from typing import Annotated
 
+from products.product_blocks.optical_device import DeviceType, Platform, Vendor
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from utils.custom_types.ip_address import IPAddress
@@ -28,7 +29,6 @@ from orchestrator.core.services.products import get_product_by_name
 from orchestrator.core.targets import Target
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, done, step, workflow
-from products.product_blocks.optical_device import DeviceType, Platform, Vendor
 from workflows.partner.shared import get_partner_subscription_by_name
 from workflows.shared import subscriptions_by_product_type_and_instance_value
 
@@ -196,8 +196,7 @@ def find_pops_and_duplicate_addresses(
 
 @step("Create workflow input forms")
 def create_workflow_inputs(devices: list[dict]) -> State:
-    """
-    Constructs the input list required to initiate sub-workflows for creating devices.
+    """Constructs the input list required to initiate sub-workflows for creating devices.
 
     This function simulates user-filled forms by building the necessary input dictionaries
     based on the device data provided. For workflows decorated with `@create_workflow`, an

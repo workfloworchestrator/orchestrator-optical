@@ -15,7 +15,7 @@ from pydantic_forms.types import State
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.hal.port import check_fiber_terminating_port
-from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatch
+from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,
     set_optical_pipe_subscription_description,
@@ -23,13 +23,13 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
 
 
 @step("Load Initial State")
-def load_initial_state_fiber_patch(subscription: OpticalFiberPatch) -> State:
+def load_initial_state_fiber_patch(subscription: OpticalFiberPatchSubscription) -> State:
     """Load the initial state of the Optical Fiber Patch."""
     return {"subscription": subscription}
 
 
 @step("Check Fiber Patch Terminations")
-def check_patch_terminations(subscription: OpticalFiberPatch) -> State:
+def check_patch_terminations(subscription: OpticalFiberPatchSubscription) -> State:
     """Verify that the terminating ports of the fiber patch are correctly configured."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
     check_fiber_terminating_port(port_a, port_b)

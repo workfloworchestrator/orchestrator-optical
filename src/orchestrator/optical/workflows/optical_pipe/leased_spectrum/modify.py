@@ -28,7 +28,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrum
+from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
 from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,
     modify_optical_pipe_form_generator,
@@ -69,7 +69,7 @@ def modify_leased_spectrum_form_pages(
 
 def modify_leased_spectrum_form_generator(
     subscription_id: UUIDstr,
-    subscription_model: type[SubscriptionModel] = OpticalLeasedSpectrum,
+    subscription_model: type[SubscriptionModel] = OpticalLeasedSpectrumSubscription,
     block_field_name: str = "optical_pipe",
 ) -> FormGenerator:
     """Generate the initial input form for modifying an Optical Leased Spectrum subscription.

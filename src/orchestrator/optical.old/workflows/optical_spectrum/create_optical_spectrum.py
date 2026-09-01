@@ -13,6 +13,22 @@
 
 from typing import Annotated
 
+from products.product_blocks.optical_device import DeviceType
+from products.product_blocks.optical_fiber import (
+    OpticalDevicePortBlockInactive,
+)
+from products.product_types.optical_device import OpticalDevice
+from products.product_types.optical_fiber import OpticalFiber
+from products.product_types.optical_spectrum import (
+    OpticalSpectrumInactive,
+    OpticalSpectrumProvisioning,
+)
+from products.services.optical_device_port import (
+    set_port_description,
+)
+from products.services.optical_spectrum import (
+    deploy_optical_circuit,
+)
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
@@ -30,22 +46,6 @@ from orchestrator.core.workflow import (
 )
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from products.product_blocks.optical_device import DeviceType
-from products.product_blocks.optical_fiber import (
-    OpticalDevicePortBlockInactive,
-)
-from products.product_types.optical_device import OpticalDevice
-from products.product_types.optical_fiber import OpticalFiber
-from products.product_types.optical_spectrum import (
-    OpticalSpectrumInactive,
-    OpticalSpectrumProvisioning,
-)
-from products.services.optical_device_port import (
-    set_port_description,
-)
-from products.services.optical_spectrum import (
-    deploy_optical_circuit,
-)
 from workflows.optical_device.shared import (
     multiple_optical_device_selector,
     optical_client_port_selector,

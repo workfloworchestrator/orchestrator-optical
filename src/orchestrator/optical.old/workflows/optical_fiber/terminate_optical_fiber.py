@@ -13,6 +13,10 @@
 
 from typing import Annotated
 
+from products.product_types.optical_fiber import OpticalFiber
+from products.services.optical_device_port import (
+    factory_reset_port_configuration,
+)
 from pydantic import Field, model_validator
 from pydantic_forms.types import InputForm, State, UUIDstr
 from structlog import get_logger
@@ -21,10 +25,6 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
-from products.product_types.optical_fiber import OpticalFiber
-from products.services.optical_device_port import (
-    factory_reset_port_configuration,
-)
 
 logger = get_logger(__name__)
 

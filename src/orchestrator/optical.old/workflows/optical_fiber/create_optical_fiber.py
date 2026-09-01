@@ -12,16 +12,6 @@
 # limitations under the License.
 from typing import Annotated
 
-from pydantic import ConfigDict, Field, model_validator
-from pydantic_forms.types import FormGenerator, State, UUIDstr
-from pydantic_forms.validators import Choice
-from structlog import get_logger
-
-from orchestrator.core.forms import FormPage
-from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.steps import store_process_subscription
-from orchestrator.core.workflows.utils import create_workflow
 from products.product_blocks.optical_device import DeviceType, Platform
 from products.product_blocks.optical_fiber import (
     ListOfFiberTypes,
@@ -36,6 +26,16 @@ from products.services.optical_device import retrieve_ports_spectral_occupations
 from products.services.optical_device_port import (
     configure_termination_when_attaching_new_fiber,
 )
+from pydantic import ConfigDict, Field, model_validator
+from pydantic_forms.types import FormGenerator, State, UUIDstr
+from pydantic_forms.validators import Choice
+from structlog import get_logger
+
+from orchestrator.core.forms import FormPage
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.steps import store_process_subscription
+from orchestrator.core.workflows.utils import create_workflow
 from workflows.optical_device.shared import unused_optical_port_selector
 from workflows.partner.shared import get_partner_subscription_by_name
 from workflows.shared import (

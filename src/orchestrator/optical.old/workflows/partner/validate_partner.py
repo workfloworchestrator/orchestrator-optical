@@ -11,12 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from products.product_types.partner import Partner
 from pydantic_forms.types import State
 from structlog import get_logger
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from products.product_types.partner import Partner
 from workflows.partner.create_partner import subscription_description
 
 logger = get_logger(__name__)

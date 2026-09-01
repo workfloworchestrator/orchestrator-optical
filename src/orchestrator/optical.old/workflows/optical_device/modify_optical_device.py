@@ -13,6 +13,12 @@
 
 from typing import Annotated, TypeAlias, cast
 
+from products.product_blocks.optical_device import DeviceType, Platform, Vendor
+from products.product_types.optical_device import (
+    OpticalDevice,
+    OpticalDeviceProvisioning,
+)
+from products.product_types.pop import PoP
 from pydantic import Field
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
@@ -26,12 +32,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from products.product_blocks.optical_device import DeviceType, Platform, Vendor
-from products.product_types.optical_device import (
-    OpticalDevice,
-    OpticalDeviceProvisioning,
-)
-from products.product_types.pop import PoP
 from workflows.shared import active_subscription_selector
 
 

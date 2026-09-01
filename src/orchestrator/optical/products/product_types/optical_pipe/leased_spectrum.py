@@ -6,29 +6,31 @@ from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum i
     OpticalLeasedSpectrumBlockInactive,
     OpticalLeasedSpectrumBlockProvisioning,
 )
-from orchestrator.optical.products.product_types.optical_pipe._abstracts import (
-    _AbstractOpticalPipe,
-    _AbstractOpticalPipeInactive,
-    _AbstractOpticalPipeProvisioning,
+from orchestrator.optical.products.product_types.optical_pipe.abstracts import (
+    AbstractOpticalPipeSubscription,
+    AbstractOpticalPipeSubscriptionInactive,
+    AbstractOpticalPipeSubscriptionProvisioning,
 )
 
 
-class OpticalLeasedSpectrumInactive(AbstractOpticalPipeInactive, is_base=True):
+class OpticalLeasedSpectrumSubscriptionInactive(AbstractOpticalPipeSubscriptionInactive, is_base=True):
     """Base model for a leased spectrum subscription in the INACTIVE state."""
 
     optical_pipe: OpticalLeasedSpectrumBlockInactive
 
 
-class OpticalLeasedSpectrumProvisioning(
-    OpticalLeasedSpectrumInactive, _AbstractOpticalPipeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class OpticalLeasedSpectrumSubscriptionProvisioning(
+    OpticalLeasedSpectrumSubscriptionInactive,
+    AbstractOpticalPipeSubscriptionProvisioning,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Base model for a leased spectrum subscription in the PROVISIONING state."""
 
     optical_pipe: OpticalLeasedSpectrumBlockProvisioning
 
 
-class OpticalLeasedSpectrum(
-    OpticalLeasedSpectrumProvisioning, _AbstractOpticalPipe, lifecycle=[SubscriptionLifecycle.ACTIVE]
+class OpticalLeasedSpectrumSubscription(
+    OpticalLeasedSpectrumSubscriptionProvisioning, AbstractOpticalPipeSubscription, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """Base model for a leased spectrum subscription in the ACTIVE state."""
 

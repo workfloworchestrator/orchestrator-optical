@@ -10,7 +10,7 @@ from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port._abstracts import _AbstractOpticalPortBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia import TL1CommandDeniedError
 
 
@@ -45,7 +45,7 @@ def get_device_line_ports_names(optical_node_block: NokiaFlexIlsBlockProvisionin
 
 
 def set_port_description(
-    port_block: _AbstractOpticalPortBlockProvisioning,
+    port_block: AnyOpticalPortBlockProvisioning,
     port_description: str,
 ) -> dict[str, Any]:
     """Set the description of an optical port.
@@ -71,7 +71,7 @@ def set_port_description(
 
 
 def set_port_admin_state(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    optical_port_block: AnyOpticalPortBlockProvisioning,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
     """Set the administrative state of a Nokia FlexILS port.
@@ -115,7 +115,7 @@ def set_port_admin_state(
     return flex.rtrv_scg(aid=port_name).model_dump()
 
 
-def _ensure_manualmode2(optical_port_block: _AbstractOpticalPortBlockProvisioning) -> None:
+def _ensure_manualmode2(optical_port_block: AnyOpticalPortBlockProvisioning) -> None:
     """Ensure the given FlexILS SCG port is in MANUALMODE-2, setting it there if needed.
 
     Args:
@@ -145,8 +145,8 @@ def _ensure_manualmode2(optical_port_block: _AbstractOpticalPortBlockProvisionin
 
 
 def configure_termination(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning,
-    remote_port_block: _AbstractOpticalPortBlockProvisioning,
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Configure a Nokia FlexILS port when attaching a fiber to it."""
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
@@ -178,8 +178,8 @@ def configure_termination(
 
 
 def factory_reset(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning,
-    remote_port_block: _AbstractOpticalPortBlockProvisioning,
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Prune the configuration of a Nokia FlexILS port."""
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
@@ -204,8 +204,8 @@ def factory_reset(
 
 
 def check_fiber(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning,
-    remote_port_block: _AbstractOpticalPortBlockProvisioning,
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> None:
     """Check if a Nokia FlexILS port attached to a fiber is correctly configured."""
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))

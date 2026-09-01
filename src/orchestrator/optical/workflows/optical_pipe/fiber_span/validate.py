@@ -15,7 +15,7 @@ from pydantic_forms.types import State
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.hal.port import check_fiber_terminating_port
-from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
+from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,
     retrieve_optical_pipe_used_passbands,
@@ -25,13 +25,13 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
 
 
 @step("Load Initial State")
-def load_initial_state_fiber_span(subscription: OpticalFiberSpan) -> State:
+def load_initial_state_fiber_span(subscription: OpticalFiberSpanSubscription) -> State:
     """Load the initial state of the Optical Fiber Span."""
     return {"subscription": subscription}
 
 
 @step("Check Fiber Span Terminations")
-def check_span_terminations(subscription: OpticalFiberSpan) -> State:
+def check_span_terminations(subscription: OpticalFiberSpanSubscription) -> State:
     """Verify that the terminating line ports of the fiber span are correctly configured."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
     check_fiber_terminating_port(port_a, port_b)

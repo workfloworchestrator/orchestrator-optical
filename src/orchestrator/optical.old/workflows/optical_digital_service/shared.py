@@ -13,21 +13,20 @@
 
 from typing import Annotated
 
+from products.product_blocks.optical_device import Platform
+from products.product_types.optical_device import OpticalDevice
 from pydantic import Field
 from pydantic_forms.types import UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 
 from orchestrator.core.types import SubscriptionLifecycle
-from products.product_blocks.optical_device import Platform
-from products.product_types.optical_device import OpticalDevice
 from workflows.shared import (
     subscription_instance_values_by_block_type_depending_on_instance_id,
 )
 
 
 def _parse_port_identifiers(port_name: str, platform: Platform) -> tuple[str, str, str]:
-    """
-    Split a port name into shelf_id, slot_id, and port_id based on platform conventions.
+    """Split a port name into shelf_id, slot_id, and port_id based on platform conventions.
 
     Args:
         port_name: The full port identifier string.
@@ -55,8 +54,7 @@ def _parse_port_identifiers(port_name: str, platform: Platform) -> tuple[str, st
 def trx_line_port_patched_but_not_used_selector(
     optical_device_subscription_id: UUIDstr, client_port_name: str, prompt: str = ""
 ) -> Choice:
-    """
-    Return a Choice object for selecting an unused optical line port
+    """Return a Choice object for selecting an unused optical line port
     on the same shelf/slot as the client port.
 
     Args:

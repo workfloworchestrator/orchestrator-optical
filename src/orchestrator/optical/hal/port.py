@@ -21,9 +21,9 @@ from orchestrator.optical.hal._common import (
 from orchestrator.optical.hal.adapters.nokia_flexils import port as flexils
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import port as groove_g30
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import port as gx_g42
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import _AbstractOpticalNodeBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port._abstracts import _AbstractOpticalPortBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 
 __all__ = [
     "check_fiber_terminating_port",
@@ -39,7 +39,7 @@ __all__ = [
 ]
 
 
-def get_device_ports_names(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> list[str]:
+def get_device_ports_names(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[str]:
     """Retrieve the list of optical port names of an Optical Node.
 
     Args:
@@ -63,7 +63,7 @@ def get_device_ports_names(optical_node_block: _AbstractOpticalNodeBlockProvisio
             raise UnsupportedPlatformError(msg)
 
 
-def get_device_client_ports_names(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> list[str]:
+def get_device_client_ports_names(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[str]:
     """Retrieve the list of client optical port names of an Optical Node.
 
     Args:
@@ -87,7 +87,7 @@ def get_device_client_ports_names(optical_node_block: _AbstractOpticalNodeBlockP
             raise UnsupportedPlatformError(msg)
 
 
-def get_device_line_ports_names(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> list[str]:
+def get_device_line_ports_names(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[str]:
     """Retrieve the list of line optical port names of an Optical Node.
 
     Args:
@@ -111,7 +111,7 @@ def get_device_line_ports_names(optical_node_block: _AbstractOpticalNodeBlockPro
             raise UnsupportedPlatformError(msg)
 
 
-def retrieve_transceiver_modes(optical_node_block: _AbstractOpticalNodeBlockProvisioning, port_name: str) -> list[str]:
+def retrieve_transceiver_modes(optical_node_block: AnyOpticalNodeBlockProvisioningUnion, port_name: str) -> list[str]:
     """Retrieve the list of supported transceiver modes for a specific port on an Optical Node.
 
     Args:
@@ -137,9 +137,7 @@ def retrieve_transceiver_modes(optical_node_block: _AbstractOpticalNodeBlockProv
             raise UnsupportedPlatformError(msg)
 
 
-def set_port_description(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning, port_description: str
-) -> dict[str, Any]:
+def set_port_description(optical_port_block: AnyOpticalPortBlockProvisioning, port_description: str) -> dict[str, Any]:
     """Set the description of an optical port.
 
     Args:
@@ -167,7 +165,7 @@ def set_port_description(
 
 
 def set_channel_description(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     facility_id: str,
     description: str,
 ) -> dict[str, Any]:
@@ -198,7 +196,7 @@ def set_channel_description(
 
 
 def set_port_admin_state(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    optical_port_block: AnyOpticalPortBlockProvisioning,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
     """Set the administrative state of an optical port.
@@ -228,8 +226,8 @@ def set_port_admin_state(
 
 
 def configure_termination_when_attaching_new_fiber(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning,
-    remote_port_block: _AbstractOpticalPortBlockProvisioning,
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Configure an optical port when attaching a fiber to it.
 
@@ -258,8 +256,8 @@ def configure_termination_when_attaching_new_fiber(
 
 
 def factory_reset_port_configuration(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning,
-    remote_port_block: _AbstractOpticalPortBlockProvisioning,
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Prune the configuration of an optical port.
 
@@ -288,8 +286,8 @@ def factory_reset_port_configuration(
 
 
 def check_fiber_terminating_port(
-    optical_port_block: _AbstractOpticalPortBlockProvisioning,
-    remote_port_block: _AbstractOpticalPortBlockProvisioning,
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> None:
     """Check if an optical port attached to a fiber is correctly configured.
 

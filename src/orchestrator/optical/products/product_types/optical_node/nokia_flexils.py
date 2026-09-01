@@ -6,21 +6,21 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils imp
     NokiaFlexIlsBlockInactive,
     NokiaFlexIlsBlockProvisioning,
 )
-from orchestrator.optical.products.product_types.optical_node._abstracts import (
-    _AbstractOpticalNode,
-    _AbstractOpticalNodeInactive,
-    _AbstractOpticalNodeProvisioning,
+from orchestrator.optical.products.product_types.optical_node.abstracts import (
+    AbstractOpticalNode,
+    AbstractOpticalNodeInactive,
+    AbstractOpticalNodeProvisioning,
 )
 
 
-class OpticalNodeNokiaFlexIlsInactive(_AbstractOpticalNodeInactive, is_base=True):
+class OpticalNodeNokiaFlexIlsInactive(AbstractOpticalNodeInactive, is_base=True):
     """A Nokia FlexILS Optical Node that is inactive."""
 
     optical_node: NokiaFlexIlsBlockInactive
 
 
 class OpticalNodeNokiaFlexIlsProvisioning(
-    OpticalNodeNokiaFlexIlsInactive, _AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    OpticalNodeNokiaFlexIlsInactive, AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """A Nokia FlexILS Optical Node that is provisioning."""
 
@@ -28,7 +28,7 @@ class OpticalNodeNokiaFlexIlsProvisioning(
 
 
 class OpticalNodeNokiaFlexIls(
-    OpticalNodeNokiaFlexIlsProvisioning, _AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OpticalNodeNokiaFlexIlsProvisioning, AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """A Nokia FlexILS Optical Node that is active."""
 

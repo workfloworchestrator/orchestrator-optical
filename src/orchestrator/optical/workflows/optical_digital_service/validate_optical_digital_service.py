@@ -15,9 +15,7 @@ from orchestrator.optical.hal.transport_channel import (
     validate_trx_line,
 )
 from orchestrator.optical.products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlockInactive,
-)
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalService
 from orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service import (
     subscription_description,
@@ -57,7 +55,7 @@ def verify_trx_line_ports(subscription: OpticalDigitalService) -> State:
     central_freqs = tuple(ch.optical_transport_central_frequency for ch in channels)
     modes = tuple(ch.optical_transport_mode for ch in channels)
     devices = tuple(
-        cast(_AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
+        cast(AnyOpticalNodeBlockProvisioningUnion, port.optical_port_host_node)
         for port in channels[0].optical_transport_line_ports
     )
     port_names = (
@@ -78,7 +76,7 @@ def verify_trx_client_ports(subscription: OpticalDigitalService) -> State:
 
     for port in ods.optical_digital_service_client_ports:
         validate_trx_client(
-            cast(_AbstractOpticalNodeBlockInactive, port.optical_port_host_node),
+            cast(AnyOpticalNodeBlockProvisioningUnion, port.optical_port_host_node),
             port.optical_port_name,
             port.optical_port_description or "",
             subscription.optical_digital_service_speed,
@@ -100,7 +98,7 @@ def verify_transponder_crossconnects(subscription: OpticalDigitalService) -> Sta
         lines_b.append(channel.optical_transport_line_ports[1])
 
     for client, lines in [(client_a, lines_a), (client_b, lines_b)]:
-        device = cast(_AbstractOpticalNodeBlockInactive, client.optical_port_host_node)
+        device = cast(AnyOpticalNodeBlockProvisioningUnion, client.optical_port_host_node)
         client_name = client.optical_port_name
         line_names = [line.optical_port_name for line in lines]
 
@@ -133,7 +131,7 @@ def verify_optical_transport_channels(subscription: OpticalDigitalService) -> St
         passband = spectrum.optical_spectrum_passband
         port = channel.optical_transport_line_ports[0]
         carrier_bandwidth = get_signal_bandwidth(
-            cast(_AbstractOpticalNodeBlockInactive, port.optical_port_host_node),
+            cast(AnyOpticalNodeBlockProvisioningUnion, port.optical_port_host_node),
             port.optical_port_name,
         )
         carrier_frequency = channel.optical_transport_central_frequency

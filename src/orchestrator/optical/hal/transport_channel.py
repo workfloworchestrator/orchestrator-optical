@@ -22,7 +22,7 @@ from orchestrator.optical.hal._common import (
 from orchestrator.optical.hal.adapters.nokia_flexils import transponder as flexils
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import transponder as groove_g30
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import transponder as gx_g42
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import _AbstractOpticalNodeBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
@@ -43,7 +43,7 @@ __all__ = [
 ]
 
 
-def get_signal_bandwidth(optical_node_block: _AbstractOpticalNodeBlockProvisioning, port_name: str) -> int:
+def get_signal_bandwidth(optical_node_block: AnyOpticalNodeBlockProvisioningUnion, port_name: str) -> int:
     """Return the signal bandwidth, in MHz, of the transport channel carried by the given line port.
 
     Args:
@@ -72,7 +72,7 @@ def get_signal_bandwidth(optical_node_block: _AbstractOpticalNodeBlockProvisioni
 
 
 def configure_line_transceivers(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
@@ -121,7 +121,7 @@ def configure_line_transceivers(
 
 
 def configure_transceiver_client(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
@@ -158,7 +158,7 @@ def configure_transceiver_client(
 
 
 def configure_transponder_crossconnect(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -203,7 +203,7 @@ def configure_transponder_crossconnect(
 
 
 def delete_transponder_crossconnect(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning, client_port_name: str
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion, client_port_name: str
 ) -> dict[str, Any]:
     """Delete a cross-connect between client and line ports on the given Optical Node.
 
@@ -233,7 +233,7 @@ def delete_transponder_crossconnect(
 
 
 def factory_reset_transponder_client(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning, port_name: str
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion, port_name: str
 ) -> dict[str, Any]:
     """Factory reset the client port configuration of the given Optical Node.
 
@@ -262,7 +262,7 @@ def factory_reset_transponder_client(
 
 
 def factory_reset_transponder_lines(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     line_port_names: list[str],
 ) -> dict[str, Any] | list[Any]:
     """Factory reset the transponder line configuration of the given Optical Node.
@@ -292,7 +292,7 @@ def factory_reset_transponder_lines(
 
 
 def validate_trx_line(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
@@ -338,7 +338,7 @@ def validate_trx_line(
 
 
 def validate_trx_client(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
@@ -370,7 +370,7 @@ def validate_trx_client(
 
 
 def validate_trx_crossconnect(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -412,7 +412,7 @@ def validate_trx_crossconnect(
 
 
 def delta_rx_power_vs_target(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     optical_spectrum_name: str,
     circuit_identifier: str = "",
 ) -> float:
@@ -447,7 +447,7 @@ def delta_rx_power_vs_target(
 
 
 def align_tx_power_to_target(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     line_port_name: str,
     db_from_target: Decimal | float | str,
 ) -> dict[str, Any]:

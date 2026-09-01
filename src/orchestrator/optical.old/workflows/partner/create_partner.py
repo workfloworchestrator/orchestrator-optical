@@ -13,6 +13,8 @@
 
 from uuid import uuid4
 
+from products.product_blocks.partner import PartnerType
+from products.product_types.partner import PartnerInactive, PartnerProvisioning
 from pydantic import ConfigDict
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
@@ -23,8 +25,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from products.product_blocks.partner import PartnerType
-from products.product_types.partner import PartnerInactive, PartnerProvisioning
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:

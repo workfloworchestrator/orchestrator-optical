@@ -13,6 +13,7 @@
 
 from re import match
 
+from products.product_types.pop import PopInactive, PopProvisioning
 from pydantic import ConfigDict, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
@@ -24,7 +25,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from products.product_types.pop import PopInactive, PopProvisioning
 from workflows.partner.shared import get_partner_subscription_by_name
 from workflows.shared import create_summary_form, subscriptions_by_product_type_and_instance_value
 

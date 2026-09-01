@@ -13,23 +13,21 @@ from __future__ import annotations
 import re
 from decimal import Decimal
 
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlockProvisioning,
-)
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import (
     NokiaGrooveG30BlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port._abstracts import _AbstractOpticalPortBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 
 
 class UnsupportedPlatformError(NotImplementedError):
     """Raised when a HAL operation has no implementation for the node's vendor/platform."""
 
 
-def _vendor_platform(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> tuple[Vendor, Platform]:
+def _vendor_platform(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> tuple[Vendor, Platform]:
     """Return the ``(vendor, platform)`` dispatch key of the given Optical Node block."""
     return (
         optical_node_block.management.optical_module_node_vendor,
@@ -37,13 +35,13 @@ def _vendor_platform(optical_node_block: _AbstractOpticalNodeBlockProvisioning) 
     )
 
 
-def _node_id(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> str:
+def _node_id(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> str:
     """Return the fqdn of the given Optical Node block, for use in identifiers and messages."""
     fqdn = optical_node_block.management.optical_module_node_fqdn
     return fqdn if fqdn is not None else "<no fqdn>"
 
 
-def _as_flexils_block(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> NokiaFlexIlsBlockProvisioning:
+def _as_flexils_block(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> NokiaFlexIlsBlockProvisioning:
     """Narrow an Optical Node block to the Nokia FlexILS block type."""
     if not isinstance(optical_node_block, NokiaFlexIlsBlockProvisioning):
         msg = f"Expected a NokiaFlexIlsBlock, got {type(optical_node_block).__name__}"
@@ -51,7 +49,7 @@ def _as_flexils_block(optical_node_block: _AbstractOpticalNodeBlockProvisioning)
     return optical_node_block
 
 
-def _as_g30_block(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> NokiaGrooveG30BlockProvisioning:
+def _as_g30_block(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> NokiaGrooveG30BlockProvisioning:
     """Narrow an Optical Node block to the Nokia Groove G30 block type."""
     if not isinstance(optical_node_block, NokiaGrooveG30BlockProvisioning):
         msg = f"Expected a NokiaGrooveG30Block, got {type(optical_node_block).__name__}"
@@ -59,7 +57,7 @@ def _as_g30_block(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> 
     return optical_node_block
 
 
-def _as_g42_block(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> NokiaGxG42BlockProvisioning:
+def _as_g42_block(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> NokiaGxG42BlockProvisioning:
     """Narrow an Optical Node block to the Nokia GX G42 block type."""
     if not isinstance(optical_node_block, NokiaGxG42BlockProvisioning):
         msg = f"Expected a NokiaGxG42Block, got {type(optical_node_block).__name__}"
@@ -67,7 +65,7 @@ def _as_g42_block(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> 
     return optical_node_block
 
 
-def _port_name(port_block: _AbstractOpticalPortBlockProvisioning) -> str:
+def _port_name(port_block: AnyOpticalPortBlockProvisioning) -> str:
     """Return the device-side name of the given Optical Port block."""
     name = port_block.optical_port_name
     if name is None:

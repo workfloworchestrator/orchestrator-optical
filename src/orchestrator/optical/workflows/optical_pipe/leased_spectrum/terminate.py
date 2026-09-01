@@ -22,7 +22,7 @@ from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.port import factory_reset_port_configuration
-from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrum
+from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
 
 WARNING_MSG = "To confirm termination of this Optical Leased Spectrum pipe, type 'TERMINATE' below."
 WarningField = Annotated[
@@ -98,7 +98,7 @@ def terminate_initial_input_form_generator(
 
 
 @step("Factory Reset Leased Spectrum Ports")
-def factory_reset_leased_spectrum_ports(subscription: OpticalLeasedSpectrum) -> State:
+def factory_reset_leased_spectrum_ports(subscription: OpticalLeasedSpectrumSubscription) -> State:
     """Prune the configuration of the terminating ports of the leased spectrum pipe."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
     configuration_results = {

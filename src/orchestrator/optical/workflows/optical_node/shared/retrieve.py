@@ -8,9 +8,7 @@ from orchestrator.core.workflow import step
 from orchestrator.optical.hal.node import (
     retrieve_optical_node_role_and_software_version as _retrieve_optical_node_role_and_software_version,
 )
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlockProvisioning,
-)
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.optical_node.shared.create import (
     optical_node_block_from_state,
@@ -19,7 +17,7 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
 
 @step("Retrieve node role and software version")
 def retrieve_optical_node_role_and_software_version(
-    optical_module_block: _AbstractOpticalNodeBlockProvisioning | dict[str, Any] | None,
+    optical_module_block: AnyOpticalNodeBlockProvisioningUnion | dict[str, Any] | None,
 ) -> State:
     """Connect to the node and write its role and software version to the block.
 

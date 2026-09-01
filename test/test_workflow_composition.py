@@ -105,7 +105,7 @@ def test_shipped_type_modify_workflow_composition() -> None:
 
 
 def test_consumer_model_modify_workflow_composition() -> None:
-    from test.test_optical_node_composition import _AbstractRouter
+    from test.test_optical_node_composition import AbstractRouter
 
     @modify_workflow(
         initial_input_form=partial(
@@ -202,7 +202,7 @@ def test_shipped_type_coherent_pluggable_modify_workflow_composition() -> None:
 
 
 def test_consumer_model_coherent_pluggable_modify_workflow_composition() -> None:
-    from test.test_optical_coherent_pluggable_composition import _AbstractRouter
+    from test.test_optical_coherent_pluggable_composition import AbstractRouter
 
     @modify_workflow(
         initial_input_form=partial(

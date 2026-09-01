@@ -10,10 +10,10 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlock,
-    _AbstractOpticalNodeBlockInactive,
-    _AbstractOpticalNodeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlock,
+    AbstractOpticalNodeBlockInactive,
+    AbstractOpticalNodeBlockProvisioning,
     OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import (
@@ -25,10 +25,10 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 )
 
 
-class NokiaGxG42BlockInactive(_AbstractOpticalNodeBlockInactive, product_block_name="NokiaGxG42Block"):
+class NokiaGxG42BlockInactive(AbstractOpticalNodeBlockInactive, product_block_name="NokiaGxG42Block"):
     """Product Block of a Nokia GX G42 Optical Node that is inactive."""
 
-    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER] | None = None
+    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER] = OpticalNodeRole.TRANSPONDER
 
     management: OpticalModuleNodeManagementBlockInactive
     location: OpticalModuleLocationBlockInactive
@@ -46,17 +46,17 @@ class NokiaGxG42BlockInactive(_AbstractOpticalNodeBlockInactive, product_block_n
 
 
 class NokiaGxG42BlockProvisioning(
-    NokiaGxG42BlockInactive, _AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    NokiaGxG42BlockInactive, AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Product Block of a Nokia GX G42 Optical Node that is provisioning."""
 
-    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER] | None = None
+    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER]
 
     management: OpticalModuleNodeManagementBlockProvisioning
     location: OpticalModuleLocationBlockProvisioning
 
 
-class NokiaGxG42Block(NokiaGxG42BlockProvisioning, _AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class NokiaGxG42Block(NokiaGxG42BlockProvisioning, AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Product Block of a Nokia GX G42 Optical Node that is active."""
 
     optical_node_role: Literal[OpticalNodeRole.TRANSPONDER]

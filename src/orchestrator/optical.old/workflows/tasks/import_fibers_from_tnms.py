@@ -221,8 +221,7 @@ def discard_already_created_fibers(fetched_fibers: list[dict[str, str]]) -> Stat
 
 @step("Create workflow input forms")
 def create_workflow_inputs(sifted_fibers: list[dict[str, str]], device_sub_id_by_fqdn: dict[str, UUIDstr]) -> State:
-    """
-    Create the list of input forms for the sub-workflows as if they were filled
+    """Create the list of input forms for the sub-workflows as if they were filled
     by the user.
     """
     product_id = get_product_by_name("optical_fiber").product_id

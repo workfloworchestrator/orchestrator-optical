@@ -84,19 +84,19 @@ class RouterBlock(RouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTI
     for_the_optical_module: OpticalModuleLocationBlock
 
 
-class _AbstractRouterInactive(SubscriptionModel):
+class AbstractRouterInactive(SubscriptionModel):
     """Abstract consumer-style subscription model composing the block."""
 
     router: RouterBlockInactive
 
 
-class _AbstractRouterProvisioning(AbstractRouterInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class AbstractRouterProvisioning(AbstractRouterInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     """The provisioning variant of the consumer-style subscription model."""
 
     router: RouterBlockProvisioning
 
 
-class _AbstractRouter(AbstractRouterProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class AbstractRouter(AbstractRouterProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """The active variant of the consumer-style subscription model."""
 
     router: RouterBlock

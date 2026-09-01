@@ -6,7 +6,7 @@ import json
 from structlog import get_logger
 
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.services.nokia.g30.data_models.ne import FwStateEnum
 from orchestrator.optical.utils.datadiff import compare_pydantic_objects

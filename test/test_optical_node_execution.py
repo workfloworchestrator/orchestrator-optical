@@ -20,7 +20,7 @@ from orchestrator.core.db import SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import node_block_from_subscription
 from orchestrator.optical.products import ProductName
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30Block
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42Block

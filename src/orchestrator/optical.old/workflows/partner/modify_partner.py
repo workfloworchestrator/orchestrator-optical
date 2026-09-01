@@ -11,6 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from products.product_types.partner import (
+    Partner,
+    PartnerProvisioning,
+)
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import read_only_field
 from structlog import get_logger
@@ -22,10 +26,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from products.product_types.partner import (
-    Partner,
-    PartnerProvisioning,
-)
 from workflows.shared import modify_summary_form
 
 

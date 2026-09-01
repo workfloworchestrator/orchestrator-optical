@@ -41,8 +41,7 @@ T = TypeVar("T")
 
 
 def subscriptions_by_product_type(product_type: str, status: list[SubscriptionLifecycle]) -> list[SubscriptionTable]:
-    """
-    retrieve_subscription_list_by_product This function lets you retrieve a
+    """retrieve_subscription_list_by_product This function lets you retrieve a
     list of all subscriptions of a given product type. For example, you could
     call this like so:
 
@@ -130,8 +129,7 @@ def modify_summary_form(user_input: dict, block: ProductBlockModel, fields: list
 
 
 def active_subscription_selector(product_type: str, prompt: str | None = None) -> type[Choice]:
-    """
-    Create a `Choice` selector for subscriptions of a given product type.
+    """Create a `Choice` selector for subscriptions of a given product type.
 
     Args:
         product_type (str): The type of product to filter subscriptions by.
@@ -192,8 +190,7 @@ def single_choice_to_multiple_choices(
     *args: Any,
     **kwargs: Any,
 ) -> type[list[Choice]]:
-    """
-    Convert a single choice function into a multiple choice list.
+    """Convert a single choice function into a multiple choice list.
 
     Args:
         min_items: Minimum number of selections required
@@ -216,8 +213,7 @@ def subscription_instances_by_block_type_and_resource_value(
     resource_value: str,
     states: list[SubscriptionLifecycle] = [SubscriptionLifecycle.ACTIVE],  # noqa: B006
 ) -> list[SubscriptionInstanceTable]:
-    """
-    From the database, retrieve the subscription instances that match specific product block type and resource value.
+    """From the database, retrieve the subscription instances that match specific product block type and resource value.
     Usage example:
         >>> sis = subscription_instances_by_block_type_and_resource_value(
         ...     "OpticalDevicePort",
@@ -262,8 +258,7 @@ def subscription_instance_values_by_block_type_depending_on_instance_id(
     depending_on_instance_id: str,
     states: list[SubscriptionLifecycle],
 ) -> list[SubscriptionInstanceValueTable]:
-    """
-    This function retrieves a list of all subscription instance values (i.e. product block attributes, e.g. port_name)
+    """This function retrieves a list of all subscription instance values (i.e. product block attributes, e.g. port_name)
     of a specific product block type (e.g. OpticalDevicePort) that depend on the given instance id
     (e.g. OpticalDeviceBlock of flex.ba01 subscription instance id) and whose owner subscription
     (e.g. OpticalFiber flex.ba01---flex.mt00 might own an optical port of flex.ba01)

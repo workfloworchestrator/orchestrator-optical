@@ -14,6 +14,7 @@
 from re import match
 from typing import Annotated
 
+from products.product_types.pop import PoP, PopProvisioning
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from services import netbox
@@ -26,7 +27,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from products.product_types.pop import PoP, PopProvisioning
 
 
 def subscription_description(subscription: SubscriptionModel) -> str:

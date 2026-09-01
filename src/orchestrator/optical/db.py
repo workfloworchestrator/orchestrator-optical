@@ -25,14 +25,12 @@ from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlock
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlock,
-    _AbstractOpticalNodeBlockInactive,
-)
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
 from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
     OpticalModulePacketNodeBlock,
     OpticalModulePacketNodeBlockInactive,
 )
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockUnion
 
 __all__ = [
     "location_block_from_subscription",
@@ -307,7 +305,7 @@ def location_block_from_subscription(location_id: UUIDstr) -> OpticalModuleLocat
     return OpticalModuleLocationBlock.from_db(subscription_instance_id=instance.subscription_instance_id)
 
 
-def node_block_from_subscription(node_subscription_id: UUIDstr) -> _AbstractOpticalNodeBlock:
+def node_block_from_subscription(node_subscription_id: UUIDstr) -> AnyOpticalNodeBlockUnion:
     """Return the Optical Node product block of the given node subscription.
 
     The resolution is block-based: the subscription instance whose product
@@ -330,14 +328,14 @@ def node_block_from_subscription(node_subscription_id: UUIDstr) -> _AbstractOpti
     """
     instance = _block_instance_of_subscription(
         node_subscription_id,
-        _AbstractOpticalNodeBlockInactive.__names__,
+        AbstractOpticalNodeBlockInactive.__names__,
         "Optical Node block",
     )
     block_class = ProductBlockModel.registry[instance.product_block.name]
     # The ACTIVE variant is the most-derived subclass, so it can load INITIAL,
     # PROVISIONING and ACTIVE blocks (unlike the PROVISIONING class).
     active_class = cast(
-        type[_AbstractOpticalNodeBlock],
+        type[AnyOpticalNodeBlockUnion],
         lookup_specialized_type(block_class, SubscriptionLifecycle.ACTIVE),
     )
     return active_class.from_db(subscription_instance_id=instance.subscription_instance_id)

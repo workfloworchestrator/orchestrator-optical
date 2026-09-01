@@ -20,12 +20,6 @@ from random import sample
 from typing import Any, ClassVar
 
 from pydantic_forms.types import UUIDstr
-
-from products.product_blocks.optical_device import (
-    OpticalDeviceBlock,
-    OpticalDeviceBlockProvisioning,
-    Platform,
-)
 from services.nokia import FlexilsClient, G30Client, G42Client
 from utils.attributedispatch import (
     attribute_dispatch_base,
@@ -35,6 +29,12 @@ from utils.custom_types.frequencies import available_to_used_passbands
 from utils.custom_types.ip_address import IPAddress
 from utils.datadiff import compare_pydantic_objects
 from workflows.shared import subscription_instances_by_block_type_and_resource_value
+
+from products.product_blocks.optical_device import (
+    OpticalDeviceBlock,
+    OpticalDeviceBlockProvisioning,
+    Platform,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -167,8 +167,7 @@ def get_optical_device_client(optical_device: OpticalDeviceBlockProvisioning) ->
 def retrieve_omses_terminating_on_device(
     optical_device: OpticalDeviceBlock,
 ) -> list[dict[str, Any]]:
-    """
-    Retrieve all the Optical Muxed Sections terminating on a given Optical Device.
+    """Retrieve all the Optical Muxed Sections terminating on a given Optical Device.
 
     This function acts as a generic dispatcher based on the platform of the optical device.
     Specific implementations of this function must specify the platform they work on.
@@ -234,8 +233,7 @@ def _(optical_device: OpticalDeviceBlock) -> list[dict[str, Any]]:
 def retrieve_ports_spectral_occupations(
     optical_device: OpticalDeviceBlockProvisioning,
 ) -> dict[str, list[tuple[int, int]]]:
-    """
-    Retrieve the spectral occupations of ports on a given Optical Device.
+    """Retrieve the spectral occupations of ports on a given Optical Device.
 
     This function acts as a generic dispatcher based on the platform of the optical device.
     Specific implementations of this function must specify the platform they work on.
@@ -286,8 +284,7 @@ def retrieve_ports_spectral_occupations(
 
 @attributedispatch("platform")
 def validate_management_network_config(optical_device: OpticalDeviceBlock) -> None:
-    """
-    Check the network configuration of a given Optical Device.
+    """Check the network configuration of a given Optical Device.
 
     This function acts as a generic dispatcher based on the platform of the optical device.
     Specific implementations of this function must specify the platform they work on.

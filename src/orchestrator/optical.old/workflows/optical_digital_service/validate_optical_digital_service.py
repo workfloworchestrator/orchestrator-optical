@@ -228,11 +228,6 @@ Labels are sorted alphabetically and joined with `+`.
 </details>
 """
 
-from pydantic_forms.types import State
-from structlog import get_logger
-
-from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.utils import validate_workflow
 from products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
 from products.product_types.optical_digital_service import OpticalDigitalService
 from products.services.optical_digital_service import (
@@ -242,6 +237,11 @@ from products.services.optical_digital_service import (
     validate_trx_line,
 )
 from products.services.optical_spectrum import validate_optical_circuit
+from pydantic_forms.types import State
+from structlog import get_logger
+
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.utils import validate_workflow
 from workflows.optical_digital_service.create_optical_digital_service import (
     subscription_description,
 )

@@ -31,7 +31,7 @@ class OpticalPortRole(strEnum):
     COHERENT_PLUGGABLE = "Coherent Pluggable"
 
 
-class _AbstractOpticalPortBlockInactive(ProductBlockModel):
+class AbstractOpticalPortBlockInactive(ProductBlockModel):
     """Abstract implementation of an Optical Port Product Block that is inactive."""
 
     optical_port_role: OpticalPortRole | None = None
@@ -40,8 +40,8 @@ class _AbstractOpticalPortBlockInactive(ProductBlockModel):
     optical_port_host_node: AnyOpticalNodeBlockInactiveUnion
 
 
-class _AbstractOpticalPortBlockProvisioning(
-    _AbstractOpticalPortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class AbstractOpticalPortBlockProvisioning(
+    AbstractOpticalPortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Abstract implementation of an Optical Port Product Block that is provisioning."""
 
@@ -51,29 +51,46 @@ class _AbstractOpticalPortBlockProvisioning(
     optical_port_host_node: AnyOpticalNodeBlockProvisioningUnion
 
 
-class _AbstractOpticalPortBlock(_AbstractOpticalPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class AbstractOpticalPortBlock(AbstractOpticalPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Abstract implementation of an Optical Port Product Block that is active."""
 
+    optical_port_role: OpticalPortRole
+    optical_port_name: str
+    optical_port_description: str | None
     optical_port_host_node: AnyOpticalNodeBlockUnion
 
 
-class _AbstractOpticalOlsPortBlockInactive(_AbstractOpticalPortBlockInactive):
+class AbstractOpticalOlsPortBlockInactive(AbstractOpticalPortBlockInactive):
     """Abstract implementation of an Optical Port Block with passbands that is inactive."""
 
+    optical_port_role: OpticalPortRole | None = None
+    optical_port_name: str | None = None
+    optical_port_description: str | None = None
     optical_passbands: OpticalPassbandList = Field(default_factory=list)
     optical_port_host_node: OlsBlockInactiveUnion
 
 
-class _AbstractOpticalOlsPortBlockProvisioning(
-    _AbstractOpticalOlsPortBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class AbstractOpticalOlsPortBlockProvisioning(
+    AbstractOpticalOlsPortBlockInactive,
+    AbstractOpticalPortBlockProvisioning,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Abstract implementation of an Optcial Port Block with passbands that is provisioning."""
 
+    optical_port_role: OpticalPortRole
+    optical_port_name: str
+    optical_port_description: str | None
     optical_passbands: OpticalPassbandList
     optical_port_host_node: OlsBlockProvisioningUnion
 
 
-class _AbstractOpticalOlsPortBlock(_AbstractOpticalOlsPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class AbstractOpticalOlsPortBlock(
+    AbstractOpticalOlsPortBlockProvisioning, AbstractOpticalPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
     """Abstract implementation of an Optical Port Block with passbands that is active."""
 
+    optical_port_role: OpticalPortRole
+    optical_port_name: str
+    optical_port_description: str | None
+    optical_passbands: OpticalPassbandList
     optical_port_host_node: OlsBlockUnion

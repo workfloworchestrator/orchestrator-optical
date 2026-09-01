@@ -217,17 +217,6 @@ Final step updates subscription lifecycle to ACTIVE.
 from time import sleep
 from typing import Annotated
 
-from pydantic import Field, model_validator
-from pydantic_forms.types import FormGenerator, State, UUIDstr
-from structlog import get_logger
-from utils.custom_types.frequencies import Bandwidth, Frequency, Passband
-
-from orchestrator.core.forms import FormPage
-from orchestrator.core.forms.validators import choice_list, unique_conlist
-from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.core.workflows.steps import set_status
-from orchestrator.core.workflows.utils import modify_workflow
 from products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
 from products.product_types.optical_digital_service import (
     OpticalDigitalService,
@@ -239,6 +228,17 @@ from products.services.optical_digital_service import (
 from products.services.optical_spectrum import (
     modify_optical_circuit,
 )
+from pydantic import Field, model_validator
+from pydantic_forms.types import FormGenerator, State, UUIDstr
+from structlog import get_logger
+from utils.custom_types.frequencies import Bandwidth, Frequency, Passband
+
+from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import choice_list, unique_conlist
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.steps import set_status
+from orchestrator.core.workflows.utils import modify_workflow
 from workflows.optical_device.shared import (
     transceiver_mode_selector,
 )

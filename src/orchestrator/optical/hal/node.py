@@ -29,10 +29,8 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as groove_g3
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import node as gx_g42
 from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlockProvisioning,
-    OpticalNodeRole,
-)
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.services.nokia import G30Client, G42Client
 from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
@@ -55,7 +53,7 @@ __all__ = [
 
 
 def get_optical_node_client(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
 ) -> FlexilsClient | G30Client | G42Client:
     """Return the client to reach the given Optical Node, based on its vendor.
 
@@ -80,7 +78,7 @@ def get_optical_node_client(
             raise UnsupportedPlatformError(msg)
 
 
-def retrieve_software_version(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> str:
+def retrieve_software_version(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> str:
     """Retrieve the software version of the node from the device, dispatching on the vendor.
 
     Args:
@@ -106,7 +104,7 @@ def retrieve_software_version(optical_node_block: _AbstractOpticalNodeBlockProvi
 
 
 def retrieve_optical_node_role_and_software_version(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
 ) -> tuple[OpticalNodeRole, str]:
     """Retrieve the node role and software version of the node, dispatching on the vendor.
 
@@ -135,7 +133,7 @@ def retrieve_optical_node_role_and_software_version(
 
 
 def retrieve_omses_terminating_on_device(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
 ) -> list[dict[str, Any]]:
     """Retrieve all the Optical Muxed Sections terminating on a given Optical Node.
 
@@ -160,7 +158,7 @@ def retrieve_omses_terminating_on_device(
 
 
 def retrieve_ports_spectral_occupations(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
 ) -> dict[str, list[tuple[int, int]]]:
     """Retrieve the spectral occupations of the ports of a given Optical Node.
 
@@ -184,7 +182,7 @@ def retrieve_ports_spectral_occupations(
             raise UnsupportedPlatformError(msg)
 
 
-def validate_management_network_config(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> None:
+def validate_management_network_config(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> None:
     """Check the network configuration of a given Optical Node.
 
     Args:

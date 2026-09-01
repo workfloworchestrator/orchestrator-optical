@@ -27,7 +27,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatch
+from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,
     modify_optical_pipe_form_generator,
@@ -68,7 +68,7 @@ def modify_fiber_patch_form_pages(
 
 def modify_fiber_patch_form_generator(
     subscription_id: UUIDstr,
-    subscription_model: type[SubscriptionModel] = OpticalFiberPatch,
+    subscription_model: type[SubscriptionModel] = OpticalFiberPatchSubscription,
     block_field_name: str = "optical_pipe",
 ) -> FormGenerator:
     """Generate the initial input form for modifying an Optical Fiber Patch subscription.

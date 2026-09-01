@@ -69,8 +69,7 @@ def initial_input_form_generator() -> FormGenerator:
 
 @step("Check that no other instances depend on this subscription")
 def check_dependencies(subscription_id: str) -> State:
-    """
-    Checks if a given subscription can be safely deleted by verifying two conditions:
+    """Checks if a given subscription can be safely deleted by verifying two conditions:
     1. The subscription is not currently 'in sync'.
     2. No other subscription instances depend on any instances of this subscription.
 
@@ -123,8 +122,7 @@ def check_dependencies(subscription_id: str) -> State:
 
 @step("Delete subscription, its instances and any processes")
 def delete_db_entries(subscription_id: str) -> State:
-    """
-    Deletes a subscription, its related instances, and any associated processes from the database.
+    """Deletes a subscription, its related instances, and any associated processes from the database.
 
     This function performs the following actions:
     1. Retrieves the subscription by its ID.

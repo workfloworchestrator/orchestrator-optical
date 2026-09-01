@@ -13,6 +13,9 @@
 
 from typing import Annotated, TypeAlias
 
+from products.product_blocks.optical_device import Platform
+from products.product_types.optical_device import OpticalDevice
+from products.services.optical_device import get_optical_device_client
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
@@ -21,9 +24,6 @@ from structlog import get_logger
 from orchestrator.core.forms import FormPage
 from orchestrator.core.targets import Target
 from orchestrator.core.workflow import StepList, begin, done, step, workflow
-from products.product_blocks.optical_device import Platform
-from products.product_types.optical_device import OpticalDevice
-from products.services.optical_device import get_optical_device_client
 from workflows.shared import active_subscription_with_instance_value_selector
 
 logger = get_logger(__name__)

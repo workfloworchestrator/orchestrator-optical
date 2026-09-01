@@ -6,28 +6,32 @@ from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import
     OpticalFiberSpanBlockInactive,
     OpticalFiberSpanBlockProvisioning,
 )
-from orchestrator.optical.products.product_types.optical_pipe._abstracts import (
-    _AbstractOpticalPipe,
-    _AbstractOpticalPipeInactive,
-    _AbstractOpticalPipeProvisioning,
+from orchestrator.optical.products.product_types.optical_pipe.abstracts import (
+    AbstractOpticalPipeSubscription,
+    AbstractOpticalPipeSubscriptionInactive,
+    AbstractOpticalPipeSubscriptionProvisioning,
 )
 
 
-class OpticalFiberSpanInactive(AbstractOpticalPipeInactive, is_base=True):
+class OpticalFiberSpanSubscriptionInactive(AbstractOpticalPipeSubscriptionInactive, is_base=True):
     """Base model for a fiber span subscription in the INACTIVE state."""
 
     optical_pipe: OpticalFiberSpanBlockInactive
 
 
-class OpticalFiberSpanProvisioning(
-    OpticalFiberSpanInactive, _AbstractOpticalPipeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+class OpticalFiberSpanSubscriptionProvisioning(
+    OpticalFiberSpanSubscriptionInactive,
+    AbstractOpticalPipeSubscriptionProvisioning,
+    lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Base model for a fiber span subscription in the PROVISIONING state."""
 
     optical_pipe: OpticalFiberSpanBlockProvisioning
 
 
-class OpticalFiberSpan(OpticalFiberSpanProvisioning, _AbstractOpticalPipe, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalFiberSpanSubscription(
+    OpticalFiberSpanSubscriptionProvisioning, AbstractOpticalPipeSubscription, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
     """Base model for a fiber span subscription in the ACTIVE state."""
 
     optical_pipe: OpticalFiberSpanBlock

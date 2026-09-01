@@ -48,17 +48,15 @@ from orchestrator.optical.hal.port import (
     get_device_client_ports_names,
     get_device_line_ports_names,
 )
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlockInactive,
-)
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import (
     OpticalLeasedSpectrumBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_port.unions import LeasedSpectrumPortBlockInactive
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import (
-    OpticalLeasedSpectrumInactive,
-    OpticalLeasedSpectrumProvisioning,
+    OpticalLeasedSpectrumSubscriptionInactive,
+    OpticalLeasedSpectrumSubscriptionProvisioning,
 )
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
@@ -74,7 +72,7 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
 )
 
 
-def leased_spectrum_ports_of_node(node_block: _AbstractOpticalNodeBlockInactive) -> list[str]:
+def leased_spectrum_ports_of_node(node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[str]:
     """Return the ports of a node that can terminate a leased spectrum pipe.
 
     On a Nokia FlexILS node only the OLS add/drop (SCG) ports are selectable: the
@@ -277,8 +275,10 @@ def construct_leased_spectrum_subscription(
         optical_pipe_name,
     )
 
-    subscription = new_optical_pipe_subscription(OpticalLeasedSpectrumInactive, product, customer_id, pipe_block)
-    subscription = OpticalLeasedSpectrumProvisioning.from_other_lifecycle(
+    subscription = new_optical_pipe_subscription(
+        OpticalLeasedSpectrumSubscriptionInactive, product, customer_id, pipe_block
+    )
+    subscription = OpticalLeasedSpectrumSubscriptionProvisioning.from_other_lifecycle(
         subscription, SubscriptionLifecycle.PROVISIONING
     )
 

@@ -29,15 +29,15 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
+from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
+    OpticalModulePacketNodeBlockInactive,
+    OpticalModulePacketNodeBlockProvisioning,
+)
 from orchestrator.optical.products.product_blocks.optical_node_management import (
     OpticalModuleNodeManagementBlockInactive,
     OpticalModuleNodeManagementBlockProvisioning,
     Platform,
     Vendor,
-)
-from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
-    OpticalModulePacketNodeBlockInactive,
-    OpticalModulePacketNodeBlockProvisioning,
 )
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import OpticalCoherentPluggablePartNumber
 from orchestrator.optical.workflows import customer as customer_parts
@@ -86,19 +86,19 @@ class RouterBlock(RouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTI
     for_the_optical_module: OpticalCoherentPluggableBlock
 
 
-class _AbstractRouterInactive(SubscriptionModel):
+class AbstractRouterInactive(SubscriptionModel):
     """Abstract consumer-style subscription model composing the block."""
 
     router: RouterBlockInactive
 
 
-class _AbstractRouterProvisioning(AbstractRouterInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class AbstractRouterProvisioning(AbstractRouterInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     """The provisioning variant of the consumer-style subscription model."""
 
     router: RouterBlockProvisioning
 
 
-class _AbstractRouter(AbstractRouterProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class AbstractRouter(AbstractRouterProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """The active variant of the consumer-style subscription model."""
 
     router: RouterBlock

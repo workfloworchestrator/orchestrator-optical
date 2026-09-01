@@ -32,9 +32,9 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlockInactive,
-    _AbstractOpticalNodeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlockInactive,
+    AbstractOpticalNodeBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
     NokiaFlexIlsBlockInactive,
@@ -48,13 +48,13 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
     NokiaGxG42BlockInactive,
     NokiaGxG42BlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_pipe._abstracts import _AbstractOpticalPipeBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import AbstractOpticalPipeBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_patch import OpticalFiberPatchBlockInactive
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
 from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import OpticalLeasedSpectrumBlockInactive
-from orchestrator.optical.products.product_blocks.optical_port._abstracts import (
-    _AbstractOpticalOlsPortBlockProvisioning,
-    _AbstractOpticalPortBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
+    AbstractOpticalOlsPortBlockProvisioning,
+    AbstractOpticalPortBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.transponder_client import (
@@ -139,7 +139,7 @@ WRITERS = [
     # --- Optical Node family ---
     _entry(
         populate_abstract_optical_node_fields,
-        _AbstractOpticalNodeBlockInactive,
+        AbstractOpticalNodeBlockInactive,
         (
             "location",
             "management.optical_module_node_fqdn",
@@ -153,7 +153,7 @@ WRITERS = [
     # onto the block (the shared helper and the populate functions no longer do).
     _entry(
         retrieve_optical_node_role_and_software_version,
-        _AbstractOpticalNodeBlockProvisioning,
+        AbstractOpticalNodeBlockProvisioning,
         (
             "optical_node_role",
             "management.optical_module_node_software_version",
@@ -161,7 +161,7 @@ WRITERS = [
     ),
     _entry(
         update_optical_node_block_fields,
-        _AbstractOpticalNodeBlockInactive,
+        AbstractOpticalNodeBlockInactive,
         (
             "management.optical_module_node_fqdn",
             "management.optical_module_node_dcn_loopback_ip",
@@ -266,10 +266,10 @@ WRITERS = [
     _entry(build_fiber_span_block, OpticalFiberSpanBlockInactive, ("optical_pipe_name",)),
     _entry(build_fiber_patch_block, OpticalFiberPatchBlockInactive, ("optical_pipe_name",)),
     _entry(build_leased_spectrum_block, OpticalLeasedSpectrumBlockInactive, ("optical_pipe_name",)),
-    _entry(update_optical_pipe_block, _AbstractOpticalPipeBlockProvisioning, ("optical_pipe_name",)),
+    _entry(update_optical_pipe_block, AbstractOpticalPipeBlockProvisioning, ("optical_pipe_name",)),
     _entry(
         new_pipe_port_block,
-        _AbstractOpticalPortBlockInactive,
+        AbstractOpticalPortBlockInactive,
         ("optical_port_name", "optical_port_host_node", "optical_port_description"),
     ),
     # --- Optical Spectrum Service family ---
@@ -289,7 +289,7 @@ WRITERS = [
         OpticalSpectrumSectionBlockInactive,
         ("optical_spectrum_section_add_drop_ports", "optical_spectrum_section_express_ports"),
     ),
-    _entry(update_used_passbands, _AbstractOpticalOlsPortBlockProvisioning, ("optical_passbands",)),
+    _entry(update_used_passbands, AbstractOpticalOlsPortBlockProvisioning, ("optical_passbands",)),
     _entry(
         update_optical_spectrum_subscription,
         OpticalSpectrumBlockProvisioning,

@@ -3,7 +3,7 @@
 from structlog import get_logger
 
 from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
 
 logger = get_logger(__name__)

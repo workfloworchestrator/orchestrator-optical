@@ -24,9 +24,9 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products import ProductName
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlock
 from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlock
-from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatch
-from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
-from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrum
+from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
+from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
+from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
 from test.conftest import CUSTOMER_ID, FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
 
 pytestmark = pytest.mark.db
@@ -124,7 +124,7 @@ def test_fiber_span_full_lifecycle(
     assert subscription.insync is True
 
     # The span terminates on OLS line ports, one per end, each hosted on its node.
-    span = OpticalFiberSpan.from_subscription(subscription_id)
+    span = OpticalFiberSpanSubscription.from_subscription(subscription_id)
     assert span.optical_pipe.optical_pipe_name == "span-01"
     _assert_pipe_terminations(
         span.optical_pipe, "span-a.optical.test", "span-b.optical.test", LINE_PORT, OlsLinePortBlock
@@ -142,7 +142,7 @@ def test_fiber_span_full_lifecycle(
     assert_process_completed(modify_process_id)
     assert _subscription_table(subscription_id).description == f"span-02 ({FIBER_SPAN_PRODUCT})"
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
-    assert OpticalFiberSpan.from_subscription(subscription_id).optical_pipe.optical_pipe_name == "span-02"
+    assert OpticalFiberSpanSubscription.from_subscription(subscription_id).optical_pipe.optical_pipe_name == "span-02"
 
     validate_process_id = run_process("validate_fiber_span", [{"subscription_id": subscription_id}])
     assert_process_completed(validate_process_id)
@@ -173,7 +173,9 @@ def test_fiber_span_create_default_pipe_name(
     subscription_id = subscription_id_of_process(create_process_id)
 
     expected_name = f"span-dflt-a.optical.test {LINE_PORT} --- span-dflt-b.optical.test {LINE_PORT}"
-    assert OpticalFiberSpan.from_subscription(subscription_id).optical_pipe.optical_pipe_name == expected_name
+    assert (
+        OpticalFiberSpanSubscription.from_subscription(subscription_id).optical_pipe.optical_pipe_name == expected_name
+    )
     assert _subscription_table(subscription_id).description == f"{expected_name} ({FIBER_SPAN_PRODUCT})"
 
 
@@ -224,7 +226,7 @@ def test_fiber_patch_create_validate_terminate(
     assert subscription.description == f"patch-01 ({FIBER_PATCH_PRODUCT})"
 
     # On a FlexILS node the client (SCG) ports map to OLS add/drop port blocks.
-    patch = OpticalFiberPatch.from_subscription(subscription_id)
+    patch = OpticalFiberPatchSubscription.from_subscription(subscription_id)
     assert patch.optical_pipe.optical_pipe_name == "patch-01"
     _assert_pipe_terminations(
         patch.optical_pipe, "patch-a.optical.test", "patch-b.optical.test", CLIENT_PORT, OlsAddDropPortBlock
@@ -272,7 +274,7 @@ def test_leased_spectrum_create_validate_terminate(
     # The provider name has no dedicated block field: it is persisted by prefixing the pipe name.
     assert subscription.description == f"Acme Telecom circuit-77 ({LEASED_SPECTRUM_PRODUCT})"
 
-    leased_spectrum = OpticalLeasedSpectrum.from_subscription(subscription_id)
+    leased_spectrum = OpticalLeasedSpectrumSubscription.from_subscription(subscription_id)
     assert leased_spectrum.optical_pipe.optical_pipe_name == "Acme Telecom circuit-77"
     _assert_pipe_terminations(
         leased_spectrum.optical_pipe, "lease-a.optical.test", "lease-b.optical.test", CLIENT_PORT, OlsAddDropPortBlock

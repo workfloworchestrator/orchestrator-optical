@@ -22,7 +22,7 @@ from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.port import factory_reset_port_configuration
-from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatch
+from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 
 WARNING_MSG = "To confirm termination of this Optical Fiber Patch, type 'TERMINATE' below."
 WarningField = Annotated[
@@ -98,7 +98,7 @@ def terminate_initial_input_form_generator(
 
 
 @step("Factory Reset Fiber Patch Ports")
-def factory_reset_patch_ports(subscription: OpticalFiberPatch) -> State:
+def factory_reset_patch_ports(subscription: OpticalFiberPatchSubscription) -> State:
     """Prune the configuration of the terminating ports of the fiber patch."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
     configuration_results = {

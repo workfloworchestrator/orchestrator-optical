@@ -22,9 +22,9 @@ from orchestrator.optical.products.product_types.optical_node.nokia_flexils impo
 from orchestrator.optical.products.product_types.optical_node.nokia_groove_g30 import OpticalNodeNokiaGrooveG30
 from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42
 from orchestrator.optical.products.product_types.optical_packet_node import OpticalModulePacketNodeSubscription
-from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatch
-from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
-from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrum
+from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
+from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
+from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
 from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
 
 
@@ -55,12 +55,12 @@ class ProductType(strEnum):
     OPTICAL_DIGITAL_SERVICE_100G_ETHERNET = OpticalDigitalService.__name__
     OPTICAL_DIGITAL_SERVICE_400G_ETHERNET = OpticalDigitalService.__name__
     OPTICAL_DIGITAL_SERVICE_800G_ETHERNET = OpticalDigitalService.__name__
-    OPTICAL_FIBER_PATCH = OpticalFiberPatch.__name__
-    OPTICAL_FIBER_SPAN = OpticalFiberSpan.__name__
+    OPTICAL_FIBER_PATCH = OpticalFiberPatchSubscription.__name__
+    OPTICAL_FIBER_SPAN = OpticalFiberSpanSubscription.__name__
     OPTICAL_NODE_NOKIA_FLEXILS = OpticalNodeNokiaFlexIls.__name__
     OPTICAL_NODE_NOKIA_GROOVE_G30 = OpticalNodeNokiaGrooveG30.__name__
     OPTICAL_NODE_NOKIA_GX_G42 = OpticalNodeNokiaGxG42.__name__
-    OPTICAL_LEASED_SPECTRUM = OpticalLeasedSpectrum.__name__
+    OPTICAL_LEASED_SPECTRUM = OpticalLeasedSpectrumSubscription.__name__
     OPTICAL_SPECTRUM = OpticalSpectrum.__name__
     OPTICAL_MODULE_LOCATION = OpticalModuleLocationSubscription.__name__
     OPTICAL_MODULE_PACKET_NODE = OpticalModulePacketNodeSubscription.__name__
@@ -73,12 +73,12 @@ SUBSCRIPTION_MODEL_REGISTRY.update(
         ProductName.OPTICAL_DIGITAL_SERVICE_100G_ETHERNET.value: OpticalDigitalService,
         ProductName.OPTICAL_DIGITAL_SERVICE_400G_ETHERNET.value: OpticalDigitalService,
         ProductName.OPTICAL_DIGITAL_SERVICE_800G_ETHERNET.value: OpticalDigitalService,
-        ProductName.OPTICAL_FIBER_PATCH.value: OpticalFiberPatch,
-        ProductName.OPTICAL_FIBER_SPAN.value: OpticalFiberSpan,
+        ProductName.OPTICAL_FIBER_PATCH.value: OpticalFiberPatchSubscription,
+        ProductName.OPTICAL_FIBER_SPAN.value: OpticalFiberSpanSubscription,
         ProductName.OPTICAL_NODE_NOKIA_FLEXILS.value: OpticalNodeNokiaFlexIls,
         ProductName.OPTICAL_NODE_NOKIA_GROOVE_G30.value: OpticalNodeNokiaGrooveG30,
         ProductName.OPTICAL_NODE_NOKIA_GX_G42.value: OpticalNodeNokiaGxG42,
-        ProductName.OPTICAL_LEASED_SPECTRUM.value: OpticalLeasedSpectrum,
+        ProductName.OPTICAL_LEASED_SPECTRUM.value: OpticalLeasedSpectrumSubscription,
         ProductName.OPTICAL_SPECTRUM.value: OpticalSpectrum,
         ProductName.OPTICAL_MODULE_LOCATION.value: OpticalModuleLocationSubscription,
         ProductName.OPTICAL_MODULE_PACKET_NODE.value: OpticalModulePacketNodeSubscription,

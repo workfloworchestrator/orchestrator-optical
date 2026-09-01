@@ -495,23 +495,6 @@ Path finding algorithm:
 from time import sleep
 from typing import Annotated
 
-from pydantic import Field, model_validator
-from pydantic_forms.types import FormGenerator, State, UUIDstr
-from structlog import get_logger
-from utils.custom_types.frequencies import Frequency
-
-from orchestrator.core.domain import SubscriptionModel
-from orchestrator.core.forms import FormPage
-from orchestrator.core.forms.validators import Choice, Divider, Label, choice_list, unique_conlist
-from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.core.workflow import (
-    StepList,
-    begin,
-    conditional,
-    step,
-)
-from orchestrator.core.workflows.steps import set_status, store_process_subscription
-from orchestrator.core.workflows.utils import create_workflow
 from products.product_blocks.optical_device import DeviceType, Platform
 from products.product_blocks.optical_device_port import OpticalDevicePortBlock
 from products.product_blocks.optical_digital_service import ClientSpeednType
@@ -538,6 +521,23 @@ from products.services.optical_spectrum import (
     append_optical_circuit_label,
     deploy_optical_circuit,
 )
+from pydantic import Field, model_validator
+from pydantic_forms.types import FormGenerator, State, UUIDstr
+from structlog import get_logger
+from utils.custom_types.frequencies import Frequency
+
+from orchestrator.core.domain import SubscriptionModel
+from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Choice, Divider, Label, choice_list, unique_conlist
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import (
+    StepList,
+    begin,
+    conditional,
+    step,
+)
+from orchestrator.core.workflows.steps import set_status, store_process_subscription
+from orchestrator.core.workflows.utils import create_workflow
 from workflows.optical_device.shared import (
     multiple_optical_device_selector,
     optical_device_selector_of_types,

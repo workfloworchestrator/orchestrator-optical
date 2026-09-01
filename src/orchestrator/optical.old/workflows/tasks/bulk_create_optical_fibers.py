@@ -17,6 +17,7 @@ from re import match
 from time import sleep
 from typing import Annotated
 
+from products.product_blocks.optical_fiber import FiberType
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
@@ -27,7 +28,6 @@ from orchestrator.core.services.products import get_product_by_name
 from orchestrator.core.targets import Target
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, done, step, workflow
-from products.product_blocks.optical_fiber import FiberType
 from workflows.shared import subscriptions_by_product_type_and_instance_value
 
 achtung = (
@@ -186,8 +186,7 @@ def initial_input_form_generator() -> FormGenerator:
 
 @step("Create workflow input forms")
 def create_workflow_inputs(csv_data: list[dict[str, str]]) -> State:
-    """
-    Constructs a list of input forms to simulate user-filled forms for a workflow that creates
+    """Constructs a list of input forms to simulate user-filled forms for a workflow that creates
     optical fibers. This is required for workflows decorated with `@create_workflow`, which
     expects a predefined sequence of inputs.
 

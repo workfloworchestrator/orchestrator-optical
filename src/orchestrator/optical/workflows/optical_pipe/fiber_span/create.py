@@ -39,8 +39,8 @@ from orchestrator.optical.hal.port import get_device_line_ports_names
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlockInactive
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import (
-    OpticalFiberSpanInactive,
-    OpticalFiberSpanProvisioning,
+    OpticalFiberSpanSubscriptionInactive,
+    OpticalFiberSpanSubscriptionProvisioning,
 )
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
@@ -185,8 +185,10 @@ def construct_fiber_span_subscription(
         subscription_id, node_a_id, node_b_id, port_a_name, port_b_name, optical_pipe_name
     )
 
-    subscription = new_optical_pipe_subscription(OpticalFiberSpanInactive, product, customer_id, pipe_block)
-    subscription = OpticalFiberSpanProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
+    subscription = new_optical_pipe_subscription(OpticalFiberSpanSubscriptionInactive, product, customer_id, pipe_block)
+    subscription = OpticalFiberSpanSubscriptionProvisioning.from_other_lifecycle(
+        subscription, SubscriptionLifecycle.PROVISIONING
+    )
 
     return {
         "subscription": subscription,

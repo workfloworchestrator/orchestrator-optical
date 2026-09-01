@@ -13,15 +13,15 @@ modify/terminate/validate transitions.
 from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 
 import orchestrator.core.db as core_db
-from orchestrator.core.db import ProcessTable, ProcessSubscriptionTable, ProductTable, SubscriptionTable
+from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import ProcessStatus
-from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
+from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
 from test.conftest import CUSTOMER_ID, FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
-from sqlalchemy import select
 
 pytestmark = pytest.mark.db
 
@@ -102,7 +102,7 @@ def _optical_path_value(span_subscription_id: str, src_node_subscription_id: str
     The path selector offers the ``";"``-joined subscription instance ids of the OLS line
     port blocks of the fiber spans, in the order the shortest path traverses them.
     """
-    pipe = OpticalFiberSpan.from_subscription(span_subscription_id).optical_pipe
+    pipe = OpticalFiberSpanSubscription.from_subscription(span_subscription_id).optical_pipe
     terminations = pipe.optical_pipe_terminations
     src_port = next(
         t for t in terminations if str(t.optical_port_host_node.owner_subscription_id) == src_node_subscription_id

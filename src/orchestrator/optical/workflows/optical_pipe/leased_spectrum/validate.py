@@ -13,7 +13,7 @@ from pydantic_forms.types import State
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.hal.port import check_fiber_terminating_port
-from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrum
+from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
 from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,
     retrieve_optical_pipe_used_passbands,
@@ -23,13 +23,13 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
 
 
 @step("Load Initial State")
-def load_initial_state_leased_spectrum(subscription: OpticalLeasedSpectrum) -> State:
+def load_initial_state_leased_spectrum(subscription: OpticalLeasedSpectrumSubscription) -> State:
     """Load the initial state of the Optical Leased Spectrum pipe."""
     return {"subscription": subscription}
 
 
 @step("Check Leased Spectrum Terminations")
-def check_leased_spectrum_terminations(subscription: OpticalLeasedSpectrum) -> State:
+def check_leased_spectrum_terminations(subscription: OpticalLeasedSpectrumSubscription) -> State:
     """Verify that the terminating ports of the leased spectrum pipe are correctly configured."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
     check_fiber_terminating_port(port_a, port_b)

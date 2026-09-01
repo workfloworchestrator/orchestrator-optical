@@ -11,16 +11,14 @@ from orchestrator.optical.db import subscription_instances_by_block_type
 from orchestrator.optical.hal._common import _as_flexils_block, _node_id
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
 from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockProvisioning
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
-    _AbstractOpticalNodeBlockProvisioning,
-    OpticalNodeRole,
-)
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
     NokiaFlexIlsBlock,
     NokiaFlexIlsBlockProvisioning,
 )
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port._abstracts import _AbstractOpticalPortBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
 from orchestrator.optical.services.nokia.flexils.commands.base import TL1BaseResponse
 from orchestrator.optical.services.nokia.g30.data_models.ne import EquipmentTypeEnum_1
@@ -496,7 +494,7 @@ def get_flex_client(optical_node_block: NokiaFlexIlsBlockProvisioning) -> Flexil
     return FlexilsClient.get_instance(tid=tid, gne_ip=gne_ip)
 
 
-def _get_flex_client(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> FlexilsClientProtocol:
+def _get_flex_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> FlexilsClientProtocol:
     """Return a FlexILS TL1 client for the given Optical Node block.
 
     Wraps :func:`get_flex_client`, returning the dynamically-bound TL1 command
@@ -505,7 +503,7 @@ def _get_flex_client(optical_node_block: _AbstractOpticalNodeBlockProvisioning) 
     return cast(FlexilsClientProtocol, get_flex_client(_as_flexils_block(optical_node_block)))
 
 
-def _get_remote_node_id(remote_port_block: _AbstractOpticalPortBlockProvisioning) -> str:
+def _get_remote_node_id(remote_port_block: AnyOpticalPortBlockProvisioning) -> str:
     """Extract the node id of the device hosting the remote port, based on its vendor.
 
     Args:

@@ -12,8 +12,7 @@
 # limitations under the License.
 
 
-"""
-# **G42 Upgrade Workflow: R6.0.0 → R8.0.2**.
+"""# **G42 Upgrade Workflow: R6.0.0 → R8.0.2**.
 
 This workflow orchestrates the firmware upgrade of an Nokia G42 device (Platform GX). Due to version dependencies
 and internal upgrade paths, this is a **multi-stage process**.
@@ -84,6 +83,8 @@ import re
 from string import Template
 from typing import Annotated, TypeAlias
 
+from products.product_blocks.optical_device import Platform
+from products.product_types.optical_device import OpticalDevice
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from services.nokia import G42Client
@@ -97,8 +98,6 @@ from orchestrator.core.forms.validators import Choice, Label, choice_list
 from orchestrator.core.targets import Target
 from orchestrator.core.workflow import StepList, begin, conditional, done, init, inputstep, retrystep, step
 from orchestrator.core.workflows.steps import store_process_subscription
-from products.product_blocks.optical_device import Platform
-from products.product_types.optical_device import OpticalDevice
 from workflows.shared import (
     active_subscription_with_instance_value_selector,
 )
@@ -173,8 +172,7 @@ def retrieve_q_factors(client: G42Client) -> dict[str, float]:
 
 
 def check_active_software(client: G42Client, acceptable_versions: str | list[str]) -> str:
-    """
-    Check if the active software on the ne and on each card (location) is within the
+    """Check if the active software on the ne and on each card (location) is within the
     list of acceptable versions.
 
     Raises:

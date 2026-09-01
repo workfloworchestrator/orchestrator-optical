@@ -13,13 +13,6 @@
 
 from typing import Annotated, cast
 
-from pydantic import Field
-from pydantic_forms.types import UUIDstr
-from pydantic_forms.validators import Choice, choice_list
-
-from orchestrator.core.db import SubscriptionTable
-from orchestrator.core.db.models import SubscriptionInstanceValueTable
-from orchestrator.core.types import SubscriptionLifecycle
 from products.product_blocks.optical_device import DeviceType
 from products.product_types.optical_device import OpticalDevice
 from products.services.optical_device_port import (
@@ -28,6 +21,13 @@ from products.services.optical_device_port import (
     get_device_ports_names,
     retrieve_transceiver_modes,
 )
+from pydantic import Field
+from pydantic_forms.types import UUIDstr
+from pydantic_forms.validators import Choice, choice_list
+
+from orchestrator.core.db import SubscriptionTable
+from orchestrator.core.db.models import SubscriptionInstanceValueTable
+from orchestrator.core.types import SubscriptionLifecycle
 from workflows.shared import (
     subscription_instance_values_by_block_type_depending_on_instance_id,
     subscriptions_by_product_type_and_instance_value,
@@ -132,8 +132,7 @@ def unused_optical_line_port_selector(optical_device_subscription_id: UUIDstr, p
 def get_optical_device_subscriptions_by_types(
     device_types: list[DeviceType],
 ) -> list[SubscriptionTable]:
-    """
-    Retrieves a list of active OpticalDevice subscriptions with the given optical device types.
+    """Retrieves a list of active OpticalDevice subscriptions with the given optical device types.
 
     Args:
         device_types (List[DeviceType]): The types of optical device to retrieve subscriptions for.
@@ -159,8 +158,7 @@ def optical_device_selector_of_types(
     device_types: list[DeviceType],
     prompt: str | None = None,
 ) -> type[Choice]:
-    """
-    Selects an optical device from a list of devices.
+    """Selects an optical device from a list of devices.
 
     Args:
         device_types (List[DeviceType]): A list of device types to filter the optical devices.
@@ -190,8 +188,7 @@ def multiple_optical_device_selector(
     *,
     unique_items: bool = True,
 ) -> type[list[Choice]]:
-    """
-    Selects multiple optical devices from a list of devices.
+    """Selects multiple optical devices from a list of devices.
 
     Args:
         device_types: A list of device types to filter the optical devices
@@ -218,8 +215,7 @@ def transceiver_mode_selector(
     port_name: str,
     prompt: str | None = None,
 ) -> type[Choice]:
-    """
-    Creates a Choice object for selecting a transceiver mode for a given port.
+    """Creates a Choice object for selecting a transceiver mode for a given port.
 
     Args:
         optical_device_subscription_id (UUIDstr): The subscription ID of the optical device.

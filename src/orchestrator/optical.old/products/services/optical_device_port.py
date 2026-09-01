@@ -17,19 +17,19 @@ import json
 import re
 from typing import TYPE_CHECKING, Any, Literal
 
+from services.nokia import TL1CommandDeniedError
+from utils.attributedispatch import attribute_dispatch_base, attributedispatch
+
 from products.product_blocks.optical_device import OpticalDeviceBlock, OpticalDeviceBlockProvisioning, Platform
 from products.product_blocks.optical_device_port import OpticalDevicePortBlock, OpticalDevicePortBlockProvisioning
 from products.services.optical_device import get_flex_client, get_g30_client, get_g42_client
-from services.nokia import TL1CommandDeniedError
-from utils.attributedispatch import attribute_dispatch_base, attributedispatch
 
 if TYPE_CHECKING:
     from services.nokia.g30.data_navigators.ne import PortItemNode, SubportItemNode
 
 
 def g30_ids_from_port_name(port_name: str) -> tuple[int, int, int | None, int, int | None]:
-    """
-    Returns the shelf_id, slot_id, subslot_id, port_id, subport_id.
+    """Returns the shelf_id, slot_id, subslot_id, port_id, subport_id.
 
     Args:
         port_name: The name of the port to obtain the endpoint from
@@ -58,8 +58,7 @@ def g30_ids_from_port_name(port_name: str) -> tuple[int, int, int | None, int, i
 def g30_port_navigator_node_from_port_name(
     g30_device_block: OpticalDeviceBlock, port_name: str
 ) -> tuple[PortItemNode | SubportItemNode, int, int, int | None, int, int | None]:
-    """
-    Returns the RESTCONF endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id.
+    """Returns the RESTCONF endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id.
 
     Args:
         g30_device_block: OpticalDeviceBlock of the Groove G30 device
@@ -97,8 +96,7 @@ def g30_port_navigator_node_from_port_name(
 
 @attributedispatch("platform")
 def retrieve_transceiver_modes(optical_device: OpticalDeviceBlock, port_name: str) -> list[str]:  # noqa: ARG001
-    """
-    Retrieve the list of supported modulations for a specific port on an optical device.
+    """Retrieve the list of supported modulations for a specific port on an optical device.
 
     This function uses an attribute-based dispatch mechanism to determine the
     appropriate implementation based on the platform of the optical device.
@@ -282,8 +280,7 @@ def _g42_get_device_ports_names(optical_device: OpticalDeviceBlock) -> list[str]
 
 
 def get_device_ports_names(optical_device: OpticalDeviceBlock) -> list[str]:
-    """
-    Retrieve a list of optical ports of an OpticalDevice (generic function).
+    """Retrieve a list of optical ports of an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -309,8 +306,7 @@ def get_device_ports_names(optical_device: OpticalDeviceBlock) -> list[str]:
 
 @attributedispatch("platform")
 def get_device_client_ports_names(optical_device: OpticalDeviceBlock) -> list[str]:
-    """
-    Retrieve a list of optical ports of an OpticalDevice (generic function).
+    """Retrieve a list of optical ports of an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -380,8 +376,7 @@ def _(optical_device: OpticalDeviceBlock) -> list[str]:
 
 @attributedispatch("platform")
 def get_device_line_ports_names(optical_device: OpticalDeviceBlock) -> list[str]:
-    """
-    Retrieve a list of optical ports of an OpticalDevice (generic function).
+    """Retrieve a list of optical ports of an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -441,8 +436,7 @@ def _(optical_device: OpticalDeviceBlock) -> list[str]:
 
 @attributedispatch("platform")
 def set_port_description(optical_device: OpticalDeviceBlock, port_name: str, port_description: str) -> dict[str, Any]:  # noqa: ARG001
-    """
-    Set the description of an optical port on an OpticalDevice (generic function).
+    """Set the description of an optical port on an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -496,8 +490,7 @@ def _(optical_device: OpticalDeviceBlock, port_name: str, port_description: str)
 
 @attributedispatch("platform")
 def set_channel_description(optical_device: OpticalDeviceBlock, facility_id: str, description: str) -> dict[str, Any]:  # noqa: ARG001
-    """
-    Set the description of an optical channel on an OpticalDevice (generic function).
+    """Set the description of an optical channel on an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -558,8 +551,7 @@ def set_port_admin_state(
     port_name: str,  # noqa: ARG001
     admin_state: Literal["up", "down", "maintenance"],  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Set the administrative state of an optical port on an OpticalDevice (generic function).
+    """Set the administrative state of an optical port on an OpticalDevice (generic function).
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -584,8 +576,7 @@ def _(
     port_name: str,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
-    """
-    FlexILS has 3 admin states for the tributary ports: IS (in service), OOS (out of service), and MT (maintenance).
+    """FlexILS has 3 admin states for the tributary ports: IS (in service), OOS (out of service), and MT (maintenance).
     Line ports (OTS) can only be in IS or MT state.
     It works as a finite state machine with the following transitions:
     OOS <-edit---edit-> IS <-rst---put-> MT.
@@ -676,8 +667,7 @@ def configure_termination_when_attaching_new_fiber(
     port: OpticalDevicePortBlockProvisioning,  # noqa: ARG001
     remote_port: OpticalDevicePortBlockProvisioning,  # noqa: ARG001
 ) -> dict[str, Any]:
-    """
-    Configure an optical port on an OpticalDevice when attaching a fiber to it.
+    """Configure an optical port on an OpticalDevice when attaching a fiber to it.
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:
@@ -971,8 +961,7 @@ def check_fiber_terminating_port(
     port: OpticalDevicePortBlock,  # noqa: ARG001
     remote_port: OpticalDevicePortBlock,  # noqa: ARG001
 ) -> None:
-    """
-    Check if an optical port on an OpticalDevice attached to a fiber is correctly configured.
+    """Check if an optical port on an OpticalDevice attached to a fiber is correctly configured.
     Specific implementations of this generic function MUST specify the *platform* they work on.
 
     Args:

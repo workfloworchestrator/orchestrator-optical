@@ -19,11 +19,9 @@ from orchestrator.optical.hal._common import (
     _vendor_platform,
 )
 from orchestrator.optical.hal.adapters.nokia_flexils import spectrum as flexils
-from orchestrator.optical.products.product_blocks.optical_node._abstracts import _AbstractOpticalNodeBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port._abstracts import (
-    _AbstractOpticalOlsPortBlockProvisioning,
-)
+from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlockProvisioning,
 )
@@ -42,7 +40,7 @@ __all__ = [
 
 
 def deploy_optical_circuit(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
@@ -92,7 +90,7 @@ def deploy_optical_circuit(
 
 
 def modify_optical_circuit(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
@@ -149,7 +147,7 @@ def modify_optical_circuit(
 
 
 def delete_optical_circuit(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
@@ -192,7 +190,7 @@ def delete_optical_circuit(
 
 
 def validate_optical_circuit(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
@@ -235,7 +233,7 @@ def validate_optical_circuit(
 
 
 def append_optical_circuit_label(
-    source_optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    source_optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
@@ -281,9 +279,9 @@ def append_optical_circuit_label(
 
 
 def create_optical_cross_connection(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
-    from_port: _AbstractOpticalOlsPortBlockProvisioning,
-    to_port: _AbstractOpticalOlsPortBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
+    from_port: AnyOpticalPortBlockProvisioning,
+    to_port: AnyOpticalPortBlockProvisioning,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth] | None = None,
     label: str | None = None,
@@ -335,9 +333,9 @@ def create_optical_cross_connection(
 
 
 def delete_optical_cross_connection(
-    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
-    from_port: _AbstractOpticalOlsPortBlockProvisioning,
-    to_port: _AbstractOpticalOlsPortBlockProvisioning,
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
+    from_port: AnyOpticalPortBlockProvisioning,
+    to_port: AnyOpticalPortBlockProvisioning,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth] | None = None,
     label: str | None = None,

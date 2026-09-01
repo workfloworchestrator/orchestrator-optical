@@ -14,12 +14,6 @@
 from collections import deque
 from typing import NewType
 
-from pydantic_forms.types import UUIDstr
-from pydantic_forms.validators import Choice
-from structlog import get_logger
-from utils.custom_types.frequencies import Passband, disjoint_intervals_overlap_search
-
-from orchestrator.core.types import SubscriptionLifecycle
 from products.product_blocks.optical_device import DeviceType, OpticalDeviceBlock, Platform
 from products.product_blocks.optical_device_port import OpticalDevicePortBlock
 from products.product_blocks.optical_spectrum import OpticalSpectrumBlockInactive, OpticalSpectrumBlockProvisioning
@@ -32,6 +26,12 @@ from products.product_blocks.optical_spectrum_section import (
 )
 from products.product_types.optical_fiber import OpticalFiber
 from products.services.optical_device import retrieve_ports_spectral_occupations
+from pydantic_forms.types import UUIDstr
+from pydantic_forms.validators import Choice
+from structlog import get_logger
+from utils.custom_types.frequencies import Passband, disjoint_intervals_overlap_search
+
+from orchestrator.core.types import SubscriptionLifecycle
 from workflows.shared import subscriptions_by_product_type
 
 logger = get_logger(__name__)
@@ -209,8 +209,7 @@ def all_valid_shortest_paths_between_trxs(
 
 
 def are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path: Path) -> bool:
-    """
-    Validates whether the given path represents a valid connection between optical device ports.
+    """Validates whether the given path represents a valid connection between optical device ports.
     The function iterates through the path and checks if ports on the same Groove G30 are on the
     same shelf and slot. It skips every second port in the path and performs the validation
     only for ports associated with the Groove G30 platform.
@@ -254,8 +253,7 @@ def build_constrained_graph_from_active_fibers(
     exclude_node_sub_ids: list[UUIDstr] = [],
     exclude_span_sub_ids: list[UUIDstr] = [],
 ) -> Graph:
-    """
-    Builds a constrained graph representation of active optical fibers based on the provided passband
+    """Builds a constrained graph representation of active optical fibers based on the provided passband
     and exclusion constraints.
 
     The function retrieves all active optical fiber subscriptions, filters them based on exclusion
@@ -344,8 +342,7 @@ def find_add_drop_ports(
     src_trx_port_block_id: UUIDstr,
     dst_trx_port_block_id: UUIDstr,
 ) -> tuple[OpticalDevicePortBlock, OpticalDevicePortBlock]:
-    """
-    Retrieve the add/drop ports connected to the transponder/transceiver ports.
+    """Retrieve the add/drop ports connected to the transponder/transceiver ports.
     """
     src_trx_port = OpticalDevicePortBlock.from_db(src_trx_port_block_id)
     dst_trx_port = OpticalDevicePortBlock.from_db(dst_trx_port_block_id)
@@ -372,8 +369,7 @@ def find_add_drop_ports(
 
 
 def compute_all_shortest_paths(graph: Graph, src: Node, dst: Node) -> list[Path]:
-    """
-    Finds all shortest paths from src to dst in a graph where path cost is
+    """Finds all shortest paths from src to dst in a graph where path cost is
     the number of accumulated fiber_ports segments.
 
     Args:
@@ -521,8 +517,7 @@ def transport_channel_path_selector(
     exclude_span_sub_ids: list[UUIDstr] = [],
     prompt: str = "Select an optical path.",
 ) -> Choice:
-    """
-    Selects an optical path between two transceiver port blocks based on the given parameters.
+    """Selects an optical path between two transceiver port blocks based on the given parameters.
     The selected path MUST then be parsed using path.split(";") to obtain the sequence of subscription instance IDs of the OpticalDevicePortBlock.
 
     Args:
@@ -560,8 +555,7 @@ def optical_spectrum_path_selector(
     exclude_span_sub_ids: list[UUIDstr] = [],
     prompt: str = "Select an optical path.",
 ) -> Choice:
-    """
-    Selects an optical path between two optical devices based on the given parameters.
+    """Selects an optical path between two optical devices based on the given parameters.
     The selected path MUST then be parsed using path.split(";") to obtain the sequence
     of subscription instance IDs of the OpticalDevicePortBlock.
 
@@ -600,8 +594,7 @@ def store_list_of_ports_into_spectrum_sections(
     optical_path: list[UUIDstr],
     optical_spectrum: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning,
 ) -> None:
-    """
-    Decomposes a continuous list of optical ports into platform-specific sections and
+    """Decomposes a continuous list of optical ports into platform-specific sections and
     saves them to the provided optical spectrum block.
 
     The function groups the provided optical path into "sections" based on the device platform.

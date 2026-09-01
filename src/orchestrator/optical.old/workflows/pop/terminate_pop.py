@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from products.product_types.pop import PoP
 from pydantic_forms.types import InputForm, State, UUIDstr
 from structlog import get_logger
 
@@ -18,7 +19,6 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
-from products.product_types.pop import PoP
 
 logger = get_logger(__name__)
 

@@ -11,12 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from products.product_types.pop import PoP
 from pydantic_forms.types import State
 from structlog import get_logger
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from products.product_types.pop import PoP
 from workflows.pop.create_pop import subscription_description
 
 logger = get_logger(__name__)

@@ -12,6 +12,9 @@
 # limitations under the License.
 
 
+from products.product_blocks.optical_device import DeviceType
+from products.product_types.optical_device import OpticalDevice
+from products.product_types.optical_fiber import OpticalFiber
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from structlog import get_logger
 
@@ -22,9 +25,6 @@ from orchestrator.core.services.products import get_product_by_name
 from orchestrator.core.targets import Target
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, done, step, workflow
-from products.product_blocks.optical_device import DeviceType
-from products.product_types.optical_device import OpticalDevice
-from products.product_types.optical_fiber import OpticalFiber
 from workflows.optical_device.shared import (
     multiple_optical_device_selector,
 )

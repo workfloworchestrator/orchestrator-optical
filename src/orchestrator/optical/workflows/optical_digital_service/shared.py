@@ -17,7 +17,7 @@ from pydantic_forms.validators import Choice, choice_list
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import subscription_instance_values_by_block_type_depending_on_instance_id
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform
-from orchestrator.optical.products.product_types.optical_node._abstracts import _AbstractOpticalNode
+from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
 
 max_g30_line_port_id = 2
 
@@ -68,7 +68,7 @@ def trx_line_port_patched_but_not_used_selector(
     Returns:
         A pydantic_forms.validators.Choice type listing valid line ports.
     """
-    subscription = _AbstractOpticalNode.from_subscription(optical_node_subscription_id)
+    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
     node = subscription.optical_node
     node_vendor = node.management.optical_module_node_platform
     shelf_id, slot_id, _ = _parse_port_identifiers(client_port_name, node_vendor)

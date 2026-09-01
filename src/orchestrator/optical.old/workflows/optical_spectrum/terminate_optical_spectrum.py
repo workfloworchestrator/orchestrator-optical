@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from products.product_types.optical_spectrum import OpticalSpectrum
+from products.services.optical_spectrum import delete_optical_circuit
 from pydantic_forms.types import InputForm, State, UUIDstr
 from structlog import get_logger
 
@@ -18,8 +20,6 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
-from products.product_types.optical_spectrum import OpticalSpectrum
-from products.services.optical_spectrum import delete_optical_circuit
 from workflows.optical_spectrum.shared import (
     update_used_passbands,
 )
