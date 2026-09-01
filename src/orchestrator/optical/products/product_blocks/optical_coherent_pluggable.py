@@ -36,6 +36,7 @@ class OpticalCoherentPluggableBlockInactive(
     def optical_coherent_pluggable_part_number(self) -> str:
         """From fixed_inputs."""
         sub = SubscriptionModel.from_subscription(self.owner_subscription_id)
+        # pyrefly: ignore [missing-attribute]  # noqa: ERA001
         return sub.optical_coherent_pluggable_part_number  # ty: ignore[unresolved-attribute] # We can't cast to the Product Type since that would cause a circular import
 
 
