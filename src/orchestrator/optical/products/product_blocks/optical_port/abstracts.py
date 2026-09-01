@@ -12,6 +12,9 @@ from orchestrator.optical.products.product_blocks.optical_node.unions import (
     AnyOpticalNodeBlockInactiveUnion,
     AnyOpticalNodeBlockProvisioningUnion,
     AnyOpticalNodeBlockUnion,
+    OlsBlockInactiveUnion,
+    OlsBlockProvisioningUnion,
+    OlsBlockUnion,
 )
 from orchestrator.optical.utils.custom_types.frequencies import Passband
 
@@ -58,7 +61,7 @@ class AbstractOpticalOlsPortBlockInactive(AbstractOpticalPortBlockInactive):
     """Abstract implementation of an Optical Port Block with passbands that is inactive."""
 
     optical_passbands: OpticalPassbandList = Field(default_factory=list)
-    optical_port_host_node: AnyOpticalNodeBlockInactiveUnion
+    optical_port_host_node: OlsBlockInactiveUnion
 
 
 class AbstractOpticalOlsPortBlockProvisioning(
@@ -67,10 +70,10 @@ class AbstractOpticalOlsPortBlockProvisioning(
     """Abstract implementation of an Optcial Port Block with passbands that is provisioning."""
 
     optical_passbands: OpticalPassbandList
-    optical_port_host_node: AnyOpticalNodeBlockProvisioningUnion
+    optical_port_host_node: OlsBlockProvisioningUnion
 
 
 class AbstractOpticalOlsPortBlock(AbstractOpticalOlsPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Abstract implementation of an Optical Port Block with passbands that is active."""
 
-    optical_port_host_node: AnyOpticalNodeBlockUnion
+    optical_port_host_node: OlsBlockUnion

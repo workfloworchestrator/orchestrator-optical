@@ -23,6 +23,7 @@ class OpticalNodeRole(strEnum):
     AMPLIFIER = "Amplifier"
     TRANSPONDER = "Transponder"
     TRANSPONDER_XOADM = "Transponder and xOADM"
+    IPODWDM = "IPoDWDM"
 
 
 class AbstractOpticalNodeBlockInactive(ProductBlockModel, product_block_name="AbstractOpticalNodeBlock"):
