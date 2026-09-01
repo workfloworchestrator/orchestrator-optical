@@ -20,15 +20,15 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import subscription_instances_by_block_type_and_resource_value
-from orchestrator.optical.hal.optical_digital_service import (
-    allign_tx_power_to_target,
+from orchestrator.optical.hal.spectrum import deploy_optical_circuit
+from orchestrator.optical.hal.transponder import (
+    align_tx_power_to_target,
     configure_line_transceivers,
     configure_transceiver_client,
     configure_transponder_crossconnect,
-    diff_btw_current_rx_power_and_target,
+    delta_rx_power_vs_target,
     get_signal_bandwidth,
 )
-from orchestrator.optical.hal.optical_spectrum import deploy_optical_circuit
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlock,
@@ -697,7 +697,7 @@ def set_trx_transmitted_power(
 
         for i, trib_port in enumerate(add_drop_ports):
             trib_device = trib_port.optical_port_host_node
-            db_from_target = diff_btw_current_rx_power_and_target(
+            db_from_target = delta_rx_power_vs_target(
                 trib_device,
                 spectrum_name,
                 circuit_identifier=channel.optical_transport_channel_name,
@@ -714,9 +714,9 @@ def set_trx_transmitted_power(
             trx = cast(AbstractOpticalNodeBlockInactive, trx_line_port.optical_port_host_node)
             trx_port_name = trx_line_port.optical_port_name
             result_key = f"{trx.management.optical_module_node_fqdn} {trx_port_name}"
-            results[result_key] = allign_tx_power_to_target(trx, trx_port_name, db_from_target)
+            results[result_key] = align_tx_power_to_target(trx, trx_port_name, db_from_target)
             sleep(5)  # wait for the power to stabilize before measuring the next port
-            db_from_target = diff_btw_current_rx_power_and_target(
+            db_from_target = delta_rx_power_vs_target(
                 trib_device,
                 spectrum_name,
                 circuit_identifier=channel.optical_transport_channel_name,

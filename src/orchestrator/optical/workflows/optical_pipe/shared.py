@@ -28,8 +28,8 @@ from orchestrator.optical.db import (
     subscription_instance_values_by_block_type_depending_on_instance_id,
     subscriptions_by_product_type,
 )
-from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
-from orchestrator.optical.hal.optical_port import configure_termination_when_attaching_new_fiber
+from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
+from orchestrator.optical.hal.port import configure_termination_when_attaching_new_fiber
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,

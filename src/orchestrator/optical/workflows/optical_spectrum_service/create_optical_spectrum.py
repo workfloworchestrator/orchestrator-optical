@@ -15,8 +15,8 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.hal.optical_port import set_port_description
-from orchestrator.optical.hal.optical_spectrum import deploy_optical_circuit
+from orchestrator.optical.hal.port import set_port_description
+from orchestrator.optical.hal.spectrum import deploy_optical_circuit
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive

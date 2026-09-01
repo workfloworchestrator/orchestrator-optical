@@ -5,7 +5,7 @@ from typing import Any
 from pydantic_forms.types import State
 
 from orchestrator.core.workflow import step
-from orchestrator.optical.hal.optical_node import (
+from orchestrator.optical.hal.node import (
     retrieve_optical_node_role_and_software_version as _retrieve_optical_node_role_and_software_version,
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
@@ -27,7 +27,7 @@ def retrieve_optical_node_role_and_software_version(
     workflows: it resolves the block from the state and retrieves the node role
     and the software version from the device, dispatching on the vendor and
     platform of the node through
-    :func:`orchestrator.optical.hal.optical_node.retrieve_optical_node_role_and_software_version`.
+    :func:`orchestrator.optical.hal.node.retrieve_optical_node_role_and_software_version`.
     It runs after the construct step, which has written the connection data
     (management FQDN, DCN IPs, vendor, platform and location) onto the block
     and transitioned the subscription to PROVISIONING: the HAL dispatches on

@@ -14,8 +14,8 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.db import subscription_instances_by_block_type_and_resource_value
-from orchestrator.optical.hal.optical_digital_service import get_signal_bandwidth
-from orchestrator.optical.hal.optical_spectrum import modify_optical_circuit
+from orchestrator.optical.hal.spectrum import modify_optical_circuit
+from orchestrator.optical.hal.transponder import get_signal_bandwidth
 from orchestrator.optical.products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,

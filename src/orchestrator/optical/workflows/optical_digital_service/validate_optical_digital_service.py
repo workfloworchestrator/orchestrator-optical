@@ -7,13 +7,13 @@ from structlog import get_logger
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from orchestrator.optical.hal.optical_digital_service import (
+from orchestrator.optical.hal.spectrum import validate_optical_circuit
+from orchestrator.optical.hal.transponder import (
     get_signal_bandwidth,
     validate_trx_client,
     validate_trx_crossconnect,
     validate_trx_line,
 )
-from orchestrator.optical.hal.optical_spectrum import validate_optical_circuit
 from orchestrator.optical.products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,

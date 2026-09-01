@@ -40,8 +40,8 @@ from orchestrator.optical.db import (
     subscriptions_by_product_type,
     subscriptions_by_product_type_and_instance_value,
 )
-from orchestrator.optical.hal.optical_node import retrieve_ports_spectral_occupations
-from orchestrator.optical.hal.optical_port import (
+from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
+from orchestrator.optical.hal.port import (
     get_device_client_ports_names,
     get_device_line_ports_names,
     get_device_ports_names,

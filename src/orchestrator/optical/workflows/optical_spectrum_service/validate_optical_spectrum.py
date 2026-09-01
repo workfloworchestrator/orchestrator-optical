@@ -4,7 +4,7 @@ from pydantic_forms.types import State
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from orchestrator.optical.hal.optical_spectrum import validate_optical_circuit
+from orchestrator.optical.hal.spectrum import validate_optical_circuit
 from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
     subscription_description,

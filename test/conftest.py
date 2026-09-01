@@ -423,12 +423,12 @@ def _fake_validate_trx_crossconnect(*args: Any, **kwargs: Any) -> None:
     """Accept the faked transponder crossconnect as consistent."""
 
 
-def _fake_diff_btw_current_rx_power_and_target(*args: Any, **kwargs: Any) -> float:
+def _fake_delta_rx_power_vs_target(*args: Any, **kwargs: Any) -> float:
     """Report the faked received power already aligned to its target."""
     return 0.0
 
 
-def _fake_allign_tx_power_to_target(*args: Any, **kwargs: Any) -> dict[str, Any]:
+def _fake_align_tx_power_to_target(*args: Any, **kwargs: Any) -> dict[str, Any]:
     """Align the faked transmitted power to its target, returning the alignment state."""
     return {}
 
@@ -494,10 +494,9 @@ def install_device_stubs(
                     _fake_retrieve_optical_node_role_and_software_version
                 ),
             },
-            # The node validate steps call the HAL dispatcher through module attribute
-            # access (optical_node_hal.retrieve_software_version), so the patch target is
-            # the HAL module itself.
-            "orchestrator.optical.hal.optical_node": {
+            # The node validate steps import the HAL dispatcher directly
+            # (retrieve_software_version), so the patch target is their namespace.
+            "orchestrator.optical.workflows.optical_node.shared.validate": {
                 "retrieve_software_version": _fake_retrieve_software_version,
             },
         },
@@ -566,8 +565,8 @@ def install_device_stubs(
                 "configure_transceiver_client": _fake_configure_transceiver_client,
                 "configure_transponder_crossconnect": _fake_configure_transponder_crossconnect,
                 "get_signal_bandwidth": _fake_get_signal_bandwidth,
-                "diff_btw_current_rx_power_and_target": _fake_diff_btw_current_rx_power_and_target,
-                "allign_tx_power_to_target": _fake_allign_tx_power_to_target,
+                "delta_rx_power_vs_target": _fake_delta_rx_power_vs_target,
+                "align_tx_power_to_target": _fake_align_tx_power_to_target,
                 "deploy_optical_circuit": _fake_deploy_optical_circuit,
                 "sleep": _fake_sleep,
             },

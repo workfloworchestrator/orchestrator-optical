@@ -14,7 +14,7 @@ from pydantic_forms.types import State
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from orchestrator.optical.hal.optical_port import check_fiber_terminating_port
+from orchestrator.optical.hal.port import check_fiber_terminating_port
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
 from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,

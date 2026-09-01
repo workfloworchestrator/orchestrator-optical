@@ -21,7 +21,7 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
-from orchestrator.optical.hal.optical_port import factory_reset_port_configuration
+from orchestrator.optical.hal.port import factory_reset_port_configuration
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
 
 WARNING_MSG = (

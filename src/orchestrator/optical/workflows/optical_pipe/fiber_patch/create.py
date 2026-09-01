@@ -37,7 +37,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
-from orchestrator.optical.hal.optical_port import (
+from orchestrator.optical.hal.port import (
     get_device_client_ports_names,
     get_device_ports_names,
 )

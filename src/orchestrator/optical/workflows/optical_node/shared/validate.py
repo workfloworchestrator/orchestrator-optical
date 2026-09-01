@@ -5,7 +5,7 @@ from pydantic_forms.types import State
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.optical.db import node_block_from_subscription
-from orchestrator.optical.hal import optical_node as optical_node_hal
+from orchestrator.optical.hal.node import retrieve_software_version
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.optical_node.shared.create import _optical_node_block_of_subscription
 from orchestrator.optical.workflows.optical_node.shared.modify import (
@@ -54,7 +54,7 @@ def refresh_optical_node_software_version(subscription: SubscriptionModel) -> St
         refreshed software version.
     """
     node_block = node_block_from_subscription(str(subscription.subscription_id))
-    version = optical_node_hal.retrieve_software_version(node_block)
+    version = retrieve_software_version(node_block)
     node_block.management.optical_module_node_software_version = version
     node_block.save(subscription_id=subscription.subscription_id, status=subscription.status)
     return {"subscription": subscription}

@@ -11,12 +11,12 @@ from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, conditional, step
 from orchestrator.core.workflows.utils import terminate_workflow
-from orchestrator.optical.hal.optical_digital_service import (
+from orchestrator.optical.hal.spectrum import delete_optical_circuit
+from orchestrator.optical.hal.transponder import (
     delete_transponder_crossconnect,
     factory_reset_transponder_client,
     factory_reset_transponder_lines,
 )
-from orchestrator.optical.hal.optical_spectrum import delete_optical_circuit
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
 )
