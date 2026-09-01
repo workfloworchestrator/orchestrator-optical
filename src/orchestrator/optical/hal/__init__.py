@@ -51,7 +51,7 @@ from orchestrator.optical.hal.spectrum import (
     modify_optical_circuit,
     validate_optical_circuit,
 )
-from orchestrator.optical.hal.transponder import (
+from orchestrator.optical.hal.transport_channel import (
     align_tx_power_to_target,
     configure_line_transceivers,
     configure_transceiver_client,

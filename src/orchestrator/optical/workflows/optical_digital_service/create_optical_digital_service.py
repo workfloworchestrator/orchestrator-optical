@@ -21,7 +21,7 @@ from orchestrator.core.workflows.steps import set_status, store_process_subscrip
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import subscription_instances_by_block_type_and_resource_value
 from orchestrator.optical.hal.spectrum import deploy_optical_circuit
-from orchestrator.optical.hal.transponder import (
+from orchestrator.optical.hal.transport_channel import (
     align_tx_power_to_target,
     configure_line_transceivers,
     configure_transceiver_client,

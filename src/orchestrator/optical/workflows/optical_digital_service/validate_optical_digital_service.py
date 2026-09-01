@@ -8,7 +8,7 @@ from structlog import get_logger
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.hal.spectrum import validate_optical_circuit
-from orchestrator.optical.hal.transponder import (
+from orchestrator.optical.hal.transport_channel import (
     get_signal_bandwidth,
     validate_trx_client,
     validate_trx_crossconnect,
