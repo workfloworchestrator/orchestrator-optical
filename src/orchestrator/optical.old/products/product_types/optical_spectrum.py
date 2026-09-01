@@ -24,13 +24,9 @@ class OpticalSpectrumInactive(SubscriptionModel, is_base=True):
     optical_spectrum: OpticalSpectrumBlockInactive
 
 
-class OpticalSpectrumProvisioning(
-    OpticalSpectrumInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class OpticalSpectrumProvisioning(OpticalSpectrumInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     optical_spectrum: OpticalSpectrumBlockProvisioning
 
 
-class OpticalSpectrum(
-    OpticalSpectrumProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalSpectrum(OpticalSpectrumProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     optical_spectrum: OpticalSpectrumBlock

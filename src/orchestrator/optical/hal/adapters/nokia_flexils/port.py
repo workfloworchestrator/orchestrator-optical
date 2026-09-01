@@ -8,9 +8,9 @@ from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
     _get_remote_node_id,
     get_flex_client,
 )
-from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalPortBlockInactive
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import _AbstractOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia import TL1CommandDeniedError
 
 
@@ -24,7 +24,7 @@ def _scg_aids(flex: Any) -> list[str]:
         return []
 
 
-def get_device_ports_names(optical_node_block: NokiaFlexIlsBlockInactive) -> list[str]:
+def get_device_ports_names(optical_node_block: NokiaFlexIlsBlockProvisioning) -> list[str]:
     """Return the SCG and OTS AIDs of a Nokia FlexILS node."""
     flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
     scg_aids = _scg_aids(flex)
@@ -32,20 +32,20 @@ def get_device_ports_names(optical_node_block: NokiaFlexIlsBlockInactive) -> lis
     return scg_aids + ots_aids
 
 
-def get_device_client_ports_names(optical_node_block: NokiaFlexIlsBlockInactive) -> list[str]:
+def get_device_client_ports_names(optical_node_block: NokiaFlexIlsBlockProvisioning) -> list[str]:
     """Return the SCG AIDs of a Nokia FlexILS node."""
     flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
     return _scg_aids(flex)
 
 
-def get_device_line_ports_names(optical_node_block: NokiaFlexIlsBlockInactive) -> list[str]:
+def get_device_line_ports_names(optical_node_block: NokiaFlexIlsBlockProvisioning) -> list[str]:
     """Return the OTS AIDs of a Nokia FlexILS node."""
     flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
     return [str(x["AID"]) for x in flex.rtrv_ots().parsed_data]
 
 
 def set_port_description(
-    port_block: AbstractOpticalPortBlockInactive,
+    port_block: _AbstractOpticalPortBlockProvisioning,
     port_description: str,
 ) -> dict[str, Any]:
     """Set the description of an optical port.
@@ -71,7 +71,7 @@ def set_port_description(
 
 
 def set_port_admin_state(
-    optical_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
     """Set the administrative state of a Nokia FlexILS port.
@@ -115,7 +115,7 @@ def set_port_admin_state(
     return flex.rtrv_scg(aid=port_name).model_dump()
 
 
-def _ensure_manualmode2(optical_port_block: AbstractOpticalPortBlockInactive) -> None:
+def _ensure_manualmode2(optical_port_block: _AbstractOpticalPortBlockProvisioning) -> None:
     """Ensure the given FlexILS SCG port is in MANUALMODE-2, setting it there if needed.
 
     Args:
@@ -145,8 +145,8 @@ def _ensure_manualmode2(optical_port_block: AbstractOpticalPortBlockInactive) ->
 
 
 def configure_termination(
-    optical_port_block: AbstractOpticalPortBlockInactive,
-    remote_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    remote_port_block: _AbstractOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Configure a Nokia FlexILS port when attaching a fiber to it."""
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
@@ -178,8 +178,8 @@ def configure_termination(
 
 
 def factory_reset(
-    optical_port_block: AbstractOpticalPortBlockInactive,
-    remote_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    remote_port_block: _AbstractOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Prune the configuration of a Nokia FlexILS port."""
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
@@ -204,8 +204,8 @@ def factory_reset(
 
 
 def check_fiber(
-    optical_port_block: AbstractOpticalPortBlockInactive,
-    remote_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    remote_port_block: _AbstractOpticalPortBlockProvisioning,
 ) -> None:
     """Check if a Nokia FlexILS port attached to a fiber is correctly configured."""
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))

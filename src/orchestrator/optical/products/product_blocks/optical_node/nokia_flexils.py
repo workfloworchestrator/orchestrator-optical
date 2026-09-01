@@ -10,10 +10,10 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlock,
-    AbstractOpticalNodeBlockInactive,
-    AbstractOpticalNodeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlock,
+    _AbstractOpticalNodeBlockInactive,
+    _AbstractOpticalNodeBlockProvisioning,
     OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import (
@@ -26,7 +26,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 
 
-class NokiaFlexIlsBlockInactive(AbstractOpticalNodeBlockInactive, product_block_name="NokiaFlexIlsBlock"):
+class NokiaFlexIlsBlockInactive(_AbstractOpticalNodeBlockInactive, product_block_name="NokiaFlexIlsBlock"):
     """Product Block of a Nokia FlexILS Optical Node that is inactive."""
 
     optical_node_role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER] | None = None
@@ -49,7 +49,7 @@ class NokiaFlexIlsBlockInactive(AbstractOpticalNodeBlockInactive, product_block_
 
 
 class NokiaFlexIlsBlockProvisioning(
-    NokiaFlexIlsBlockInactive, AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    NokiaFlexIlsBlockInactive, _AbstractOpticalNodeBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """Product Block of a Nokia FlexILS Optical Node that is provisioning."""
 
@@ -62,7 +62,7 @@ class NokiaFlexIlsBlockProvisioning(
 
 
 class NokiaFlexIlsBlock(
-    NokiaFlexIlsBlockProvisioning, AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    NokiaFlexIlsBlockProvisioning, _AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """Product Block of a Nokia FlexILS Optical Node that is active."""
 

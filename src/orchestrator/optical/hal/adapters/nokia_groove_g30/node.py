@@ -5,17 +5,16 @@ import json
 
 from structlog import get_logger
 
-from orchestrator.optical.hal._common import OpticalNodeBlock
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
-from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockInactive
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.services.nokia.g30.data_models.ne import FwStateEnum
 from orchestrator.optical.utils.datadiff import compare_pydantic_objects
 
 logger = get_logger(__name__)
 
 
-def software_version(node: OpticalNodeBlock) -> str:
+def software_version(node: NokiaGrooveG30BlockProvisioning) -> str:
     """Retrieve the software version of a Groove G30 node from the device via RESTCONF.
 
     Args:
@@ -54,7 +53,7 @@ def software_version(node: OpticalNodeBlock) -> str:
     return version
 
 
-def role(node: OpticalNodeBlock) -> OpticalNodeRole:
+def role(node: NokiaGrooveG30BlockProvisioning) -> OpticalNodeRole:
     """Determine the node role of a Groove G30 node from its inventory.
 
     The node is a transponder unless it carries an OCC2 (Optical carrier card
@@ -72,7 +71,7 @@ def role(node: OpticalNodeBlock) -> OpticalNodeRole:
     return OpticalNodeRole.TRANSPONDER_XOADM if has_occ2 else OpticalNodeRole.TRANSPONDER
 
 
-def validate_management_network_config(optical_node_block: NokiaGrooveG30BlockInactive) -> None:
+def validate_management_network_config(optical_node_block: NokiaGrooveG30BlockProvisioning) -> None:
     """Check the network configuration of a Nokia Groove G30 node against the expected template."""
     g30 = get_g30_client(optical_node_block)
     intf_navigator = g30.data.ne_ne.system.networking.interface

@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import _AbstractOpticalNodeBlockProvisioning
 from orchestrator.optical.services.nokia import G30Client
 
 if TYPE_CHECKING:
     from orchestrator.optical.services.nokia.g30.data_navigators.ne import PortItemNode, SubportItemNode
 
 
-def get_g30_client(optical_node_block: AbstractOpticalNodeBlockInactive) -> G30Client:
+def get_g30_client(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> G30Client:
     """Return a RESTCONF client to reach the given Nokia Groove G30 node.
 
     Args:
@@ -65,7 +65,7 @@ def g30_ids_from_port_name(port_name: str) -> tuple[int, int, int | None, int, i
 
 
 def g30_port_navigator_node_from_port_name(
-    g30_device_block: AbstractOpticalNodeBlockInactive,
+    g30_device_block: _AbstractOpticalNodeBlockProvisioning,
     port_name: str,
 ) -> tuple[PortItemNode | SubportItemNode, int, int, int | None, int, int | None]:
     """Return the RESTCONF endpoint of a Groove G30 port, with its shelf, slot, subslot, port and subport ids.

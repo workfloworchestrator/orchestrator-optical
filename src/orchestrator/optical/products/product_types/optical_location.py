@@ -23,7 +23,9 @@ class OpticalModuleLocationSubscriptionProvisioning(
     optical_location: OpticalModuleLocationBlockProvisioning
 
 
-class OpticalModuleLocationSubscription(OpticalModuleLocationSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalModuleLocationSubscription(
+    OpticalModuleLocationSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
     """Abstract model of an Optical Location that is active."""
 
     optical_location: OpticalModuleLocationBlock

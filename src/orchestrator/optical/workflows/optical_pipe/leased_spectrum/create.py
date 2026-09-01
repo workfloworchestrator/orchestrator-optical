@@ -48,8 +48,8 @@ from orchestrator.optical.hal.port import (
     get_device_client_ports_names,
     get_device_line_ports_names,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import (
@@ -74,7 +74,7 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
 )
 
 
-def leased_spectrum_ports_of_node(node_block: AbstractOpticalNodeBlockInactive) -> list[str]:
+def leased_spectrum_ports_of_node(node_block: _AbstractOpticalNodeBlockInactive) -> list[str]:
     """Return the ports of a node that can terminate a leased spectrum pipe.
 
     On a Nokia FlexILS node only the OLS add/drop (SCG) ports are selectable: the

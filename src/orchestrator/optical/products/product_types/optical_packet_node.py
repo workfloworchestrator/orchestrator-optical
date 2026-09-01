@@ -23,7 +23,9 @@ class OpticalModulePacketNodeSubscriptionProvisioning(
     optical_packet_node: OpticalModulePacketNodeBlockProvisioning
 
 
-class OpticalModulePacketNodeSubscription(OpticalModulePacketNodeSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalModulePacketNodeSubscription(
+    OpticalModulePacketNodeSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
     """Abstract model of an Optical Packet Node."""
 
     optical_packet_node: OpticalModulePacketNodeBlock

@@ -16,6 +16,7 @@ from orchestrator.optical.hal._common import (
     UnsupportedPlatformError,
     _as_flexils_block,
     _as_g30_block,
+    _as_g42_block,
     _vendor_platform,
 )
 from orchestrator.optical.hal.adapters.nokia_flexils import node as flexils
@@ -28,8 +29,8 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as groove_g3
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import node as gx_g42
 from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlockProvisioning,
     OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
@@ -54,7 +55,7 @@ __all__ = [
 
 
 def get_optical_node_client(
-    optical_node_block: AbstractOpticalNodeBlockInactive,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
 ) -> FlexilsClient | G30Client | G42Client:
     """Return the client to reach the given Optical Node, based on its vendor.
 
@@ -79,7 +80,7 @@ def get_optical_node_client(
             raise UnsupportedPlatformError(msg)
 
 
-def retrieve_software_version(optical_node_block: AbstractOpticalNodeBlockInactive) -> str:
+def retrieve_software_version(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> str:
     """Retrieve the software version of the node from the device, dispatching on the vendor.
 
     Args:
@@ -96,16 +97,16 @@ def retrieve_software_version(optical_node_block: AbstractOpticalNodeBlockInacti
         case (Vendor.NOKIA, Platform.FLEXILS):
             return flexils.software_version(_as_flexils_block(optical_node_block))
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.software_version(optical_node_block)
+            return groove_g30.software_version(_as_g30_block(optical_node_block))
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.software_version(optical_node_block)
+            return gx_g42.software_version(_as_g42_block(optical_node_block))
         case _:
             msg = f"retrieve_software_version: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 
 def retrieve_optical_node_role_and_software_version(
-    optical_node_block: AbstractOpticalNodeBlockInactive,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
 ) -> tuple[OpticalNodeRole, str]:
     """Retrieve the node role and software version of the node, dispatching on the vendor.
 
@@ -123,15 +124,19 @@ def retrieve_optical_node_role_and_software_version(
         case (Vendor.NOKIA, Platform.FLEXILS):
             return flexils.role_and_version(_as_flexils_block(optical_node_block))
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.role(optical_node_block), groove_g30.software_version(optical_node_block)
+            g30_block = _as_g30_block(optical_node_block)
+            return groove_g30.role(g30_block), groove_g30.software_version(g30_block)
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.role(optical_node_block), gx_g42.software_version(optical_node_block)
+            g42_block = _as_g42_block(optical_node_block)
+            return gx_g42.role(g42_block), gx_g42.software_version(g42_block)
         case _:
             msg = f"retrieve_optical_node_role_and_software_version: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 
-def retrieve_omses_terminating_on_device(optical_node_block: AbstractOpticalNodeBlockInactive) -> list[dict[str, Any]]:
+def retrieve_omses_terminating_on_device(
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+) -> list[dict[str, Any]]:
     """Retrieve all the Optical Muxed Sections terminating on a given Optical Node.
 
     Args:
@@ -155,7 +160,7 @@ def retrieve_omses_terminating_on_device(optical_node_block: AbstractOpticalNode
 
 
 def retrieve_ports_spectral_occupations(
-    optical_node_block: AbstractOpticalNodeBlockInactive,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
 ) -> dict[str, list[tuple[int, int]]]:
     """Retrieve the spectral occupations of the ports of a given Optical Node.
 
@@ -179,7 +184,7 @@ def retrieve_ports_spectral_occupations(
             raise UnsupportedPlatformError(msg)
 
 
-def validate_management_network_config(optical_node_block: AbstractOpticalNodeBlockInactive) -> None:
+def validate_management_network_config(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> None:
     """Check the network configuration of a given Optical Node.
 
     Args:

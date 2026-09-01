@@ -41,9 +41,7 @@ from orchestrator.optical.hal.port import (
     get_device_client_ports_names,
     get_device_ports_names,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
-)
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_patch import OpticalFiberPatchBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.unions import PatchPortBlockInactive
@@ -65,7 +63,7 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
 )
 
 
-def patch_ports_of_node(node_block: AbstractOpticalNodeBlockInactive) -> list[str]:
+def patch_ports_of_node(node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[str]:
     """Return the ports of a node that can terminate a fiber patch.
 
     On a Nokia FlexILS node only the client (SCG) ports are selectable: the OTS

@@ -11,16 +11,16 @@ from orchestrator.optical.products.product_blocks.optical_node.optical_packet_no
     OpticalModulePacketNodeBlockInactive,
     OpticalModulePacketNodeBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
-    AbstractOpticalPortBlock,
-    AbstractOpticalPortBlockInactive,
-    AbstractOpticalPortBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import (
+    _AbstractOpticalPortBlock,
+    _AbstractOpticalPortBlockInactive,
+    _AbstractOpticalPortBlockProvisioning,
     OpticalPortRole,
 )
 
 
 class OpticalCoherentPluggableBlockInactive(
-    AbstractOpticalPortBlockInactive, product_block_name="CoherentPluggableBlock"
+    _AbstractOpticalPortBlockInactive, product_block_name="CoherentPluggableBlock"
 ):
     """Base class for inactive CoherentPluggableBlock product blocks."""
 
@@ -42,7 +42,7 @@ class OpticalCoherentPluggableBlockInactive(
 
 class OpticalCoherentPluggableBlockProvisioning(
     OpticalCoherentPluggableBlockInactive,
-    AbstractOpticalPortBlockProvisioning,
+    _AbstractOpticalPortBlockProvisioning,
     lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Base class for provisioning CoherentPluggableBlock product blocks."""
@@ -56,7 +56,7 @@ class OpticalCoherentPluggableBlockProvisioning(
 
 
 class OpticalCoherentPluggableBlock(
-    OpticalCoherentPluggableBlockProvisioning, AbstractOpticalPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OpticalCoherentPluggableBlockProvisioning, _AbstractOpticalPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """Base class for active CoherentPluggableBlock product blocks."""
 

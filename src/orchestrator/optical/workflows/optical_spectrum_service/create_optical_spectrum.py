@@ -18,9 +18,9 @@ from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.port import set_port_description
 from orchestrator.optical.hal.spectrum import deploy_optical_circuit
 from orchestrator.optical.products import ProductType
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
-from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
+from orchestrator.optical.products.product_types.optical_node._abstracts import _AbstractOpticalNode
 from orchestrator.optical.products.product_types.optical_spectrum_service import (
     OpticalSpectrumInactive,
     OpticalSpectrumProvisioning,
@@ -112,9 +112,9 @@ def initial_input_form_generator(
     user_input = yield OpticalSpectrumInputForm
     user_input_dict = user_input.model_dump()
 
-    sub_node_a = AbstractOpticalNode.from_subscription(user_input_dict["src_optical_device_id"])
+    sub_node_a = _AbstractOpticalNode.from_subscription(user_input_dict["src_optical_device_id"])
     optical_node_a = sub_node_a.optical_node
-    sub_node_b = AbstractOpticalNode.from_subscription(user_input_dict["dst_optical_device_id"])
+    sub_node_b = _AbstractOpticalNode.from_subscription(user_input_dict["dst_optical_device_id"])
     optical_node_b = sub_node_b.optical_node
 
     SrcOpticalPortSelector = optical_client_port_selector(  # noqa: N806
@@ -281,8 +281,8 @@ def divide_path_into_sections(
     dst_optical_device_id: UUIDstr,
 ) -> State:
     """Create the add/drop port blocks and split the optical path into vendor-specific sections."""
-    src_device = AbstractOpticalNode.from_subscription(src_optical_device_id).optical_node
-    dst_device = AbstractOpticalNode.from_subscription(dst_optical_device_id).optical_node
+    src_device = _AbstractOpticalNode.from_subscription(src_optical_device_id).optical_node
+    dst_device = _AbstractOpticalNode.from_subscription(dst_optical_device_id).optical_node
     spectrum = subscription.optical_spectrum_service
 
     # Source Add/Drop Port

@@ -4,15 +4,16 @@ import json
 from decimal import Decimal
 from typing import Any, Literal
 
-from orchestrator.optical.hal._common import OpticalNodeBlock, _node_id, _port_name
+from orchestrator.optical.hal._common import _node_id, _port_name
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_ids_from_port_name,
     g30_port_navigator_node_from_port_name,
     get_g30_client,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import _AbstractOpticalNodeBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalPortBlockInactive
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import _AbstractOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia.g30.data_models.ne import (
     AdminStatusEnum,
     CardTypeEnum,
@@ -26,7 +27,7 @@ from orchestrator.optical.services.nokia.g30.data_models.ne import (
 )
 
 
-def get_device_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
+def get_device_ports_names(optical_node_block: NokiaGrooveG30BlockProvisioning) -> list[str]:
     """Return the aliases of all the ports of a Groove G30 node."""
     g30 = get_g30_client(optical_node_block)
     shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
@@ -52,7 +53,7 @@ def get_device_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
     return ports_name
 
 
-def get_device_client_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
+def get_device_client_ports_names(optical_node_block: NokiaGrooveG30BlockProvisioning) -> list[str]:
     """Return the aliases of the client ports of a Groove G30 node."""
     g30 = get_g30_client(optical_node_block)
     shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
@@ -84,7 +85,7 @@ def get_device_client_ports_names(optical_node_block: OpticalNodeBlock) -> list[
     return ports_name
 
 
-def get_device_line_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
+def get_device_line_ports_names(optical_node_block: NokiaGrooveG30BlockProvisioning) -> list[str]:
     """Return the aliases of the line ports of a Groove G30 node."""
     g30 = get_g30_client(optical_node_block)
     shelves = g30.data.ne_ne.shelf.retrieve(depth=5, content="config")
@@ -106,7 +107,7 @@ def get_device_line_ports_names(optical_node_block: OpticalNodeBlock) -> list[st
     return ports_name
 
 
-def retrieve_transceiver_modes(optical_node_block: OpticalNodeBlock, port_name: str) -> list[str]:
+def retrieve_transceiver_modes(optical_node_block: NokiaGrooveG30BlockProvisioning, port_name: str) -> list[str]:
     """Return the supported transceiver modes of a Groove G30 line port."""
     # fmt: off
     mapping = {
@@ -143,7 +144,7 @@ def retrieve_transceiver_modes(optical_node_block: OpticalNodeBlock, port_name: 
 
 
 def set_port_description(
-    port_block: AbstractOpticalPortBlockInactive,
+    port_block: _AbstractOpticalPortBlockProvisioning,
     port_description: str,
 ) -> dict[str, Any]:
     """Set the description of a Groove G30 optical port.
@@ -166,7 +167,7 @@ def set_port_description(
 
 
 def set_channel_description(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     facility_id: str,
     description: str,
 ) -> dict[str, Any]:
@@ -195,7 +196,7 @@ def set_channel_description(
 
 
 def set_port_admin_state(
-    port_block: AbstractOpticalPortBlockInactive,
+    port_block: _AbstractOpticalPortBlockProvisioning,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
     """Set the administrative state of a Groove G30 optical port.
@@ -226,8 +227,8 @@ def set_port_admin_state(
 
 
 def configure_termination(
-    optical_port_block: AbstractOpticalPortBlockInactive,
-    remote_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    remote_port_block: _AbstractOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Configure a Groove G30 port when attaching a fiber to it."""
     host_node = optical_port_block.optical_port_host_node
@@ -319,7 +320,7 @@ def configure_termination(
             raise ValueError(msg)
 
 
-def factory_reset(optical_port_block: AbstractOpticalPortBlockInactive) -> dict[str, Any]:
+def factory_reset(optical_port_block: _AbstractOpticalPortBlockProvisioning) -> dict[str, Any]:
     """Prune the configuration of a Groove G30 port."""
     host_node = optical_port_block.optical_port_host_node
     port_name = _port_name(optical_port_block)
@@ -340,8 +341,8 @@ def factory_reset(optical_port_block: AbstractOpticalPortBlockInactive) -> dict[
 
 
 def check_fiber(
-    optical_port_block: AbstractOpticalPortBlockInactive,
-    remote_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    remote_port_block: _AbstractOpticalPortBlockProvisioning,
 ) -> None:
     """Check if a Groove G30 port attached to a fiber is correctly configured."""
     host_node = optical_port_block.optical_port_host_node
@@ -389,8 +390,8 @@ def check_fiber(
 
 
 def _same_node(
-    node_a: AbstractOpticalNodeBlockInactive,
-    node_b: AbstractOpticalNodeBlockInactive,
+    node_a: _AbstractOpticalNodeBlockProvisioning,
+    node_b: _AbstractOpticalNodeBlockProvisioning,
 ) -> bool:
     """Return whether two Optical Node blocks refer to the same device."""
     if node_a is node_b:

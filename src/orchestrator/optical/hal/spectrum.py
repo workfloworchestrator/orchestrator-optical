@@ -14,15 +14,19 @@ from __future__ import annotations
 from typing import Any
 
 from orchestrator.optical.hal._common import (
-    OlsPortBlock,
-    OpticalNodeBlock,
-    OpticalSpectrumSectionBlockT,
     UnsupportedPlatformError,
     _as_flexils_block,
     _vendor_platform,
 )
 from orchestrator.optical.hal.adapters.nokia_flexils import spectrum as flexils
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import _AbstractOpticalNodeBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import (
+    _AbstractOpticalOlsPortBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
+    OpticalSpectrumSectionBlockProvisioning,
+)
 from orchestrator.optical.services.nokia.flexils.commands.base import TL1BaseResponse
 from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
 
@@ -38,8 +42,8 @@ __all__ = [
 
 
 def deploy_optical_circuit(
-    optical_node_block: OpticalNodeBlock,
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth],
@@ -88,8 +92,8 @@ def deploy_optical_circuit(
 
 
 def modify_optical_circuit(
-    optical_node_block: OpticalNodeBlock,
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth],
@@ -145,8 +149,8 @@ def modify_optical_circuit(
 
 
 def delete_optical_circuit(
-    optical_node_block: OpticalNodeBlock,
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
     circuit_identifier: str = "",
@@ -188,8 +192,8 @@ def delete_optical_circuit(
 
 
 def validate_optical_circuit(
-    optical_node_block: OpticalNodeBlock,
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth],
@@ -231,8 +235,8 @@ def validate_optical_circuit(
 
 
 def append_optical_circuit_label(
-    source_optical_node_block: OpticalNodeBlock,
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
+    source_optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
     label: str,
@@ -277,9 +281,9 @@ def append_optical_circuit_label(
 
 
 def create_optical_cross_connection(
-    optical_node_block: OpticalNodeBlock,
-    from_port: OlsPortBlock,
-    to_port: OlsPortBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    from_port: _AbstractOpticalOlsPortBlockProvisioning,
+    to_port: _AbstractOpticalOlsPortBlockProvisioning,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth] | None = None,
     label: str | None = None,
@@ -331,9 +335,9 @@ def create_optical_cross_connection(
 
 
 def delete_optical_cross_connection(
-    optical_node_block: OpticalNodeBlock,
-    from_port: OlsPortBlock,
-    to_port: OlsPortBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
+    from_port: _AbstractOpticalOlsPortBlockProvisioning,
+    to_port: _AbstractOpticalOlsPortBlockProvisioning,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth] | None = None,
     label: str | None = None,

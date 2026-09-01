@@ -32,9 +32,7 @@ from products.product_blocks.optical_spectrum import (
 ListOfLine_ports = Annotated[list[SI], Len(min_length=2, max_length=2)]
 
 
-class OpticalTransportChannelBlockInactive(
-    ProductBlockModel, product_block_name="OpticalTransportChannel"
-):
+class OpticalTransportChannelBlockInactive(ProductBlockModel, product_block_name="OpticalTransportChannel"):
     och_id: int | None = None
     central_frequency: int | None = None
     mode: str | None = None
@@ -59,9 +57,7 @@ class OpticalTransportChannelBlockProvisioning(
         return f"och{self.och_id}_{first_code}-{second_code}"
 
 
-class OpticalTransportChannelBlock(
-    OpticalTransportChannelBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalTransportChannelBlock(OpticalTransportChannelBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     och_id: int
     central_frequency: int
     mode: str

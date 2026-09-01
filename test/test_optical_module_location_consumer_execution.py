@@ -72,15 +72,15 @@ from orchestrator.optical.workflows.optical_location.terminate import (
 from orchestrator.optical.workflows.optical_location.validate import OPTICAL_MODULE_LOCATION_VALIDATE_STEPS
 from orchestrator.optical.workflows.shared import modify_summary_form
 from test.test_optical_module_location_composition import (
-    AbstractRouter,
-    AbstractRouterInactive,
-    AbstractRouterProvisioning,
+    _AbstractRouter,
+    _AbstractRouterInactive,
+    _AbstractRouterProvisioning,
 )
 
 pytestmark = pytest.mark.db
 
 CONSUMER_PRODUCT_NAME = "Consumer Router"
-CONSUMER_PRODUCT_TYPE = AbstractRouterInactive.__name__
+CONSUMER_PRODUCT_TYPE = _AbstractRouterInactive.__name__
 CONSUMER_BLOCK_NAME = "LocationRouterBlock"
 CUSTOMER_ID = "cust-1"
 SHIPPED_PRODUCT_NAME = "Optical Module Location"
@@ -116,7 +116,7 @@ def construct_consumer_router_subscription(
     the shipped ``OPTICAL_MODULE_BLOCK_STATE_KEY`` is the PROVISIONING variant with
     its mandatory fields already set.
     """
-    subscription = AbstractRouterInactive.from_product_id(
+    subscription = _AbstractRouterInactive.from_product_id(
         product_id=product,
         customer_id=customer_id,
         status=SubscriptionLifecycle.INITIAL,
@@ -128,7 +128,7 @@ def construct_consumer_router_subscription(
         location_code=location_code,
         location_name=location_name,
     )
-    subscription = AbstractRouterProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
+    subscription = _AbstractRouterProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
 
     return {
         "subscription": subscription,
@@ -177,7 +177,7 @@ def modify_consumer_router_location_form_generator(subscription_id: UUIDstr) -> 
     ``functools.partial`` either: the bound parameters would be passed positionally
     from their signature defaults and collide with the binding.)
     """
-    subscription = AbstractRouter.from_subscription(subscription_id)
+    subscription = _AbstractRouter.from_subscription(subscription_id)
     location = subscription.router.for_the_optical_module
 
     user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
@@ -228,7 +228,7 @@ def consumer_router_catalog(postgres_database: Any) -> None:
     survive the per-test ``TRUNCATE`` of the volatile tables: the catalog tables are
     not truncated.
     """
-    SUBSCRIPTION_MODEL_REGISTRY[CONSUMER_PRODUCT_NAME] = AbstractRouterInactive
+    SUBSCRIPTION_MODEL_REGISTRY[CONSUMER_PRODUCT_NAME] = _AbstractRouterInactive
 
     with core_db.db.engine.begin() as conn:
         create_catalog(
@@ -368,8 +368,8 @@ def test_consumer_create_end_to_end(
     assert block.latitude == "41.9028"
 
     # The consumer model reloads with the block populated under its own attribute.
-    loaded = AbstractRouter.from_subscription(subscription_id)
-    assert isinstance(loaded, AbstractRouter)
+    loaded = _AbstractRouter.from_subscription(subscription_id)
+    assert isinstance(loaded, _AbstractRouter)
     assert isinstance(loaded.router.for_the_optical_module, OpticalModuleLocationBlock)
     assert loaded.router.for_the_optical_module.location_code == "rom-01"
 
@@ -416,7 +416,7 @@ def test_consumer_full_lifecycle_create_modify_terminate_validate(
     assert _subscription_table(subscription_id).insync is True
 
     # The consumer model still reloads with the updated block under its own attribute.
-    loaded = AbstractRouter.from_subscription(subscription_id)
+    loaded = _AbstractRouter.from_subscription(subscription_id)
     assert loaded.router.for_the_optical_module.location_code == "ams-01"
 
     validate_process_id = run_process("validate_consumer_router_location", [{"subscription_id": subscription_id}])
@@ -444,18 +444,18 @@ def test_consumer_subscription_lifecycle_variants_resolve_on_reload(
         run_process, product_id_for, assert_process_completed, subscription_id_of_process
     )
 
-    active_subscription = AbstractRouter.from_subscription(subscription_id)
-    assert isinstance(active_subscription, AbstractRouter)
+    active_subscription = _AbstractRouter.from_subscription(subscription_id)
+    assert isinstance(active_subscription, _AbstractRouter)
     assert isinstance(active_subscription.router.for_the_optical_module, OpticalModuleLocationBlock)
 
     set_subscription_status(subscription_id, SubscriptionLifecycle.PROVISIONING)
-    provisioning_subscription = AbstractRouterProvisioning.from_subscription(subscription_id)
-    assert isinstance(provisioning_subscription, AbstractRouterProvisioning)
+    provisioning_subscription = _AbstractRouterProvisioning.from_subscription(subscription_id)
+    assert isinstance(provisioning_subscription, _AbstractRouterProvisioning)
     assert isinstance(provisioning_subscription.router.for_the_optical_module, OpticalModuleLocationBlockProvisioning)
 
     set_subscription_status(subscription_id, SubscriptionLifecycle.INITIAL)
-    inactive_subscription = AbstractRouterInactive.from_subscription(subscription_id)
-    assert isinstance(inactive_subscription, AbstractRouterInactive)
+    inactive_subscription = _AbstractRouterInactive.from_subscription(subscription_id)
+    assert isinstance(inactive_subscription, _AbstractRouterInactive)
     assert isinstance(inactive_subscription.router.for_the_optical_module, OpticalModuleLocationBlockInactive)
 
 

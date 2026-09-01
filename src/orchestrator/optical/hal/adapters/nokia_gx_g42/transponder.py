@@ -5,8 +5,9 @@ from typing import Any, Literal
 
 from requests.exceptions import HTTPError
 
-from orchestrator.optical.hal._common import OpticalNodeBlock, _as_decimal, _node_id
+from orchestrator.optical.hal._common import _as_decimal, _node_id
 from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
+from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.services.nokia import G42Client
 from orchestrator.optical.services.nokia.g42.data_models.ioa_network_element import (
@@ -190,7 +191,7 @@ def _retrieve_time_slots(g42: G42Client, odu_name: str, speed: Literal["100GBE",
     raise ValueError(msg)
 
 
-def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -> int:
+def get_signal_bandwidth(optical_node_block: NokiaGxG42BlockProvisioning, port_name: str) -> int:
     """Return the signal bandwidth, in MHz, of the transport channel carried by a GX G42 line port.
 
     Args:
@@ -227,7 +228,7 @@ def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -
 
 
 def configure_line_transceivers(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
@@ -312,7 +313,7 @@ def configure_line_transceivers(
 
 
 def configure_transceiver_client(  # noqa: PLR0915
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
@@ -402,7 +403,7 @@ def configure_transceiver_client(  # noqa: PLR0915
 
 
 def configure_transponder_crossconnect(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -460,7 +461,7 @@ def configure_transponder_crossconnect(
 
 
 def delete_transponder_crossconnect(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     client_port_name: str,
 ) -> dict[str, Any]:
     """Delete a cross-connect between client and line ports on the given GX G42 Optical Node.
@@ -505,7 +506,7 @@ def delete_transponder_crossconnect(
 
 
 def factory_reset_transponder_client(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     port_name: str,
 ) -> dict[str, Any]:
     """Factory reset the client port configuration of the given GX G42 Optical Node.
@@ -560,7 +561,7 @@ def factory_reset_transponder_client(
 
 
 def factory_reset_transponder_lines(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     line_port_names: list[str],
 ) -> dict[str, Any]:
     """Factory reset the transponder line configuration of the given GX G42 Optical Node.
@@ -608,7 +609,7 @@ def factory_reset_transponder_lines(
 
 
 def validate_trx_line(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
@@ -718,7 +719,7 @@ def validate_trx_line(
 
 
 def validate_trx_client(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
@@ -799,7 +800,7 @@ def validate_trx_client(
 
 
 def validate_trx_crossconnect(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -858,7 +859,7 @@ def validate_trx_crossconnect(
 
 
 def align_tx_power_to_target(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     line_port_name: str,
     db_from_target: Decimal | float | str,
 ) -> dict[str, Any]:

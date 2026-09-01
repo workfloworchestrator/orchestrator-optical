@@ -115,6 +115,7 @@ SW_IMAGES_PATH = Template(
 PATCH_PATH = f"{SFTP_USER}@{_sftp_server}:/nokia/tnms/nedata/ne_software_images/G30_uboot_patch/upubs.tar.gz"
 _ORCHESTRATOR_URL = garr_settings.ORCHESTRATOR_URL
 
+
 def initial_input_form_generator() -> FormGenerator:
     """Generates the initial input form for the G30 upgrade workflow.
 
@@ -148,6 +149,7 @@ def initial_input_form_generator() -> FormGenerator:
     )
     RouterChoice: TypeAlias = choice_list  # noqa: UP040
     routers_choice: RouterChoice = retrieve_all_router_from_netbox_selector()
+
     class InputForm(FormPage):
         achtung: Achtung
         subscription_id: g30_choice
@@ -482,7 +484,9 @@ def _download_sw_image(lo_ip: str, mngmt_ip: str, new_version: str, callback_url
             filetype="swimage",
         )
         with contextlib.suppress(Exception):
-            requests.post(f"{callback_url}/progress", json={"status": "verifying downloaded version"}, verify=False, timeout=5)  # noqa: E501, S501
+            requests.post(
+                f"{callback_url}/progress", json={"status": "verifying downloaded version"}, verify=False, timeout=5
+            )  # noqa: E501, S501
         version = _verify_sw_image_downloaded(g30, new_version)
         requests.post(callback_url, json={"status": "completed", "version": version}, verify=False, timeout=10)  # noqa: S501
     except Exception as exc:  # noqa: BLE001
@@ -731,7 +735,9 @@ def _cold_restart_chm1s(
                 )
         except Exception as exc:  # noqa: BLE001
             with contextlib.suppress(Exception):
-                requests.post(f"{callback_url}/progress", json={"status": "waiting", "error": str(exc)}, verify=False, timeout=5)  # noqa: E501, S501
+                requests.post(
+                    f"{callback_url}/progress", json={"status": "waiting", "error": str(exc)}, verify=False, timeout=5
+                )  # noqa: E501, S501
         time.sleep(15)
 
 

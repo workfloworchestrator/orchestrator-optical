@@ -28,9 +28,7 @@ AddDropPorts = Annotated[list[SI], Len(min_length=2, max_length=2)]
 RouteAsListOfPorts = Annotated[list[SI], Len(min_length=0, max_length=64)]
 
 
-class OpticalSpectrumSectionBlockInactive(
-    ProductBlockModel, product_block_name="OpticalSpectrumSection"
-):
+class OpticalSpectrumSectionBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrumSection"):
     add_drop_ports: AddDropPorts[OpticalDevicePortBlockInactive]
     optical_path: RouteAsListOfPorts[OpticalDevicePortBlockInactive]
 
@@ -42,8 +40,6 @@ class OpticalSpectrumSectionBlockProvisioning(
     optical_path: RouteAsListOfPorts[OpticalDevicePortBlockProvisioning]
 
 
-class OpticalSpectrumSectionBlock(
-    OpticalSpectrumSectionBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalSpectrumSectionBlock(OpticalSpectrumSectionBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     add_drop_ports: AddDropPorts[OpticalDevicePortBlock]
     optical_path: RouteAsListOfPorts[OpticalDevicePortBlock]

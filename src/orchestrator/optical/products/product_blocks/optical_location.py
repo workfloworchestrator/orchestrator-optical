@@ -11,6 +11,7 @@ from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordina
 
 _CODE_PATTERN = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
 
+
 def _validate_location_code(v: str) -> str:
     if not isinstance(v, str):
         msg = "Location code must be a string"
@@ -19,17 +20,13 @@ def _validate_location_code(v: str) -> str:
         msg = "Location code must be between 1 and 63 characters"
         raise ValueError(msg)
     if not _CODE_PATTERN.fullmatch(v):
-        msg = (
-            "must be a valid location code: "
-            "lowercase alphanumeric + hyphens, "
-            "must start and end with alphanumeric"
-        )
-        raise ValueError(
-            msg
-        )
+        msg = "must be a valid location code: lowercase alphanumeric + hyphens, must start and end with alphanumeric"
+        raise ValueError(msg)
     return v
 
+
 LocationCode = Annotated[str, AfterValidator(_validate_location_code)]
+
 
 class OpticalModuleLocationBlockInactive(ProductBlockModel, product_block_name="OpticalModuleLocationBlock"):
     """A Location that hosts optical equipment that is inactive."""

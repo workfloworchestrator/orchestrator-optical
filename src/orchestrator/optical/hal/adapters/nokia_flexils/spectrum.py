@@ -4,22 +4,26 @@ from time import sleep
 from typing import Any
 
 from orchestrator.optical.hal._common import (
-    OlsPortBlock,
-    OpticalSpectrumSectionBlockT,
     _as_flexils_block,
     _node_id,
     _port_name,
 )
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import FlexilsClientProtocol, _get_flex_client
 from orchestrator.optical.hal.adapters.nokia_flexils.port import _ensure_manualmode2
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
-from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import (
+    _AbstractOpticalOlsPortBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
+    OpticalSpectrumSectionBlockProvisioning,
+)
 from orchestrator.optical.services.nokia.flexils.commands.base import TL1BaseResponse
 from orchestrator.optical.services.nokia.flexils.exceptions import TL1CommandDeniedError
 from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
 
 
-def _node_role(port: OlsPortBlock) -> OpticalNodeRole:
+def _node_role(port: _AbstractOpticalOlsPortBlockProvisioning) -> OpticalNodeRole:
     """Return the role of the Optical Node hosting the given port."""
     role = port.optical_port_host_node.optical_node_role
     if role is None:
@@ -29,8 +33,8 @@ def _node_role(port: OlsPortBlock) -> OpticalNodeRole:
 
 
 def _divide_path_into_omses(
-    path: list[OlsPortBlock],
-) -> list[tuple[OlsPortBlock, OlsPortBlock]]:
+    path: list[_AbstractOpticalOlsPortBlockProvisioning],
+) -> list[tuple[_AbstractOpticalOlsPortBlockProvisioning, _AbstractOpticalOlsPortBlockProvisioning]]:
     """Divide an optical path into OMS (Optical Multiplex Section) segments, i.e. links between ROADMs.
 
     Args:
@@ -47,8 +51,8 @@ def _divide_path_into_omses(
         msg = "Optical path is empty"
         raise ValueError(msg)
 
-    omses: list[tuple[OlsPortBlock, OlsPortBlock]] = []
-    oms_source_port: OlsPortBlock = path[0]
+    omses: list[tuple[_AbstractOpticalOlsPortBlockProvisioning, _AbstractOpticalOlsPortBlockProvisioning]] = []
+    oms_source_port: _AbstractOpticalOlsPortBlockProvisioning = path[0]
     if _node_role(oms_source_port) != OpticalNodeRole.ROADM:
         msg = "Optical path does not start with a ROADM device"
         raise ValueError(msg)
@@ -71,9 +75,9 @@ def _divide_path_into_omses(
 
 def _find_or_create_oel(
     oel_aid: str,
-    source_device: NokiaFlexIlsBlockInactive,
-    dest_device: NokiaFlexIlsBlockInactive,
-    omses: list[tuple[OlsPortBlock, OlsPortBlock]],
+    source_device: NokiaFlexIlsBlockProvisioning,
+    dest_device: NokiaFlexIlsBlockProvisioning,
+    omses: list[tuple[_AbstractOpticalOlsPortBlockProvisioning, _AbstractOpticalOlsPortBlockProvisioning]],
 ) -> dict[str, Any]:
     """Find an existing OEL (Optical Engineered Lightpath) or create a new one.
 
@@ -132,7 +136,7 @@ def _find_or_create_oel(
     return response.parsed_data[0]
 
 
-def _oteintf_from_port_name(device: NokiaFlexIlsBlockInactive, port_name: str) -> str:
+def _oteintf_from_port_name(device: NokiaFlexIlsBlockProvisioning, port_name: str) -> str:
     """Find the Optical Traffic Engineering Interface (OTEINTF) corresponding to the given physical port name."""
     device_name = _node_id(device)
     flex = _get_flex_client(device)
@@ -170,7 +174,7 @@ def _find_fbm_port_if_fmm_port(flex: FlexilsClientProtocol, port_name: str) -> s
 
 
 def _get_flexils_name_client_tributary(
-    device: NokiaFlexIlsBlockInactive,
+    device: NokiaFlexIlsBlockProvisioning,
     port_name: str,
 ) -> tuple[str, FlexilsClientProtocol, str]:
     """Extract node name, flex client, and tributary endpoint for the given port."""
@@ -234,8 +238,8 @@ def _find_matching_osnc_on_flexils(
 
 
 def _find_or_create_osnc(
-    src_device: NokiaFlexIlsBlockInactive,
-    dst_device: NokiaFlexIlsBlockInactive,
+    src_device: NokiaFlexIlsBlockProvisioning,
+    dst_device: NokiaFlexIlsBlockProvisioning,
     circuit_identifier: str,
     osnc_label: str,
     oel_aid: str,
@@ -315,7 +319,7 @@ def _find_first_free_sch_id(flex: FlexilsClientProtocol, port_name: str) -> int:
     raise ValueError(msg)
 
 
-def _open_shutter(device: NokiaFlexIlsBlockInactive, sch_aid: str) -> None:
+def _open_shutter(device: NokiaFlexIlsBlockProvisioning, sch_aid: str) -> None:
     """Open the shutter of the given superchannel on the given device."""
     flex = _get_flex_client(device)
     flex.put_maintenance(aidtype="SCH", aid=sch_aid)
@@ -325,7 +329,7 @@ def _open_shutter(device: NokiaFlexIlsBlockInactive, sch_aid: str) -> None:
 
 def _find_flexils_osnc(
     optical_spectrum_name: str,
-    optical_spectrum_section: OpticalSpectrumSectionBlockT,
+    optical_spectrum_section: OpticalSpectrumSectionBlockProvisioning,
     passband: Passband | None = None,
     circuit_identifier: str = "",
 ) -> tuple[FlexilsClientProtocol, dict[str, Any]]:
@@ -395,7 +399,7 @@ def _find_flexils_osnc(
 
 def _remote_flex_for_section(
     flex: FlexilsClientProtocol,
-    optical_spectrum_section: OpticalSpectrumSectionBlockT,
+    optical_spectrum_section: OpticalSpectrumSectionBlockProvisioning,
 ) -> FlexilsClientProtocol:
     """Return the FlexILS client of the node at the far end of the given section.
 
@@ -417,8 +421,8 @@ def _remote_flex_for_section(
 
 
 def deploy(
-    optical_node_block: NokiaFlexIlsBlockInactive,  # noqa: ARG001
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
+    optical_node_block: NokiaFlexIlsBlockProvisioning,  # noqa: ARG001
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth],
@@ -428,7 +432,7 @@ def deploy(
     """Deploy an optical circuit specifically for FlexILS platform devices."""
     add_drop_ports = optical_spectrum_section_block.optical_spectrum_section_add_drop_ports
     express_ports = optical_spectrum_section_block.optical_spectrum_section_express_ports
-    path: list[OlsPortBlock] = [add_drop_ports[0], *express_ports, add_drop_ports[1]]
+    path: list[_AbstractOpticalOlsPortBlockProvisioning] = [add_drop_ports[0], *express_ports, add_drop_ports[1]]
 
     src_device = _as_flexils_block(add_drop_ports[0].optical_port_host_node)
     dst_device = _as_flexils_block(add_drop_ports[1].optical_port_host_node)
@@ -476,8 +480,8 @@ def deploy(
 
 
 def modify(
-    optical_node_block: NokiaFlexIlsBlockInactive,
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
+    optical_node_block: NokiaFlexIlsBlockProvisioning,
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth],
@@ -499,7 +503,7 @@ def modify(
 
     add_drop_ports = optical_spectrum_section_block.optical_spectrum_section_add_drop_ports
     express_ports = optical_spectrum_section_block.optical_spectrum_section_express_ports
-    path: list[OlsPortBlock] = [add_drop_ports[0], *express_ports, add_drop_ports[1]]
+    path: list[_AbstractOpticalOlsPortBlockProvisioning] = [add_drop_ports[0], *express_ports, add_drop_ports[1]]
 
     oel_aid = circuit_identifier[:127]
 
@@ -558,8 +562,8 @@ def modify(
 
 
 def delete(
-    optical_node_block: NokiaFlexIlsBlockInactive,  # noqa: ARG001
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
+    optical_node_block: NokiaFlexIlsBlockProvisioning,  # noqa: ARG001
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
     circuit_identifier: str = "",
@@ -582,8 +586,8 @@ def delete(
 
 
 def validate(
-    optical_node_block: NokiaFlexIlsBlockInactive,  # noqa: ARG001
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
+    optical_node_block: NokiaFlexIlsBlockProvisioning,  # noqa: ARG001
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth],
@@ -638,8 +642,8 @@ def validate(
 
 
 def append_label(
-    source_optical_node_block: NokiaFlexIlsBlockInactive,  # noqa: ARG001
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
+    source_optical_node_block: NokiaFlexIlsBlockProvisioning,  # noqa: ARG001
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
     passband: Passband,
     label: str,
@@ -680,9 +684,9 @@ def append_label(
 
 
 def create_cross_connection(
-    optical_node_block: NokiaFlexIlsBlockInactive,
-    from_port: OlsPortBlock,
-    to_port: OlsPortBlock,
+    optical_node_block: NokiaFlexIlsBlockProvisioning,
+    from_port: _AbstractOpticalOlsPortBlockProvisioning,
+    to_port: _AbstractOpticalOlsPortBlockProvisioning,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth] | None = None,
     label: str | None = None,
@@ -752,9 +756,9 @@ def create_cross_connection(
 
 
 def delete_cross_connection(
-    optical_node_block: NokiaFlexIlsBlockInactive,
-    from_port: OlsPortBlock,
-    to_port: OlsPortBlock,
+    optical_node_block: NokiaFlexIlsBlockProvisioning,
+    from_port: _AbstractOpticalOlsPortBlockProvisioning,
+    to_port: _AbstractOpticalOlsPortBlockProvisioning,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth] | None = None,
     label: str | None = None,

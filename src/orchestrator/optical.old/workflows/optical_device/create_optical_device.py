@@ -167,8 +167,4 @@ additional_steps = begin
     additional_steps=additional_steps,
 )
 def create_optical_device() -> StepList:
-    return (
-        begin
-        >> construct_optical_device_model
-        >> store_process_subscription()
-    )
+    return begin >> construct_optical_device_model >> store_process_subscription()

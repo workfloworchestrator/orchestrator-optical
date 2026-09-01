@@ -53,9 +53,7 @@ class OpticalDeviceBlockInactive(ProductBlockModel, product_block_name="OpticalD
     netbox_id: int | None = None
 
 
-class OpticalDeviceBlockProvisioning(
-    OpticalDeviceBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class OpticalDeviceBlockProvisioning(OpticalDeviceBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     fqdn: FQDN
     pop: PoPBlockProvisioning
     vendor: Vendor
@@ -72,9 +70,7 @@ class OpticalDeviceBlockProvisioning(
         return f"{self.vendor} {self.platform} {self.fqdn}"
 
 
-class OpticalDeviceBlock(
-    OpticalDeviceBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalDeviceBlock(OpticalDeviceBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     fqdn: FQDN
     pop: PoPBlock
     vendor: Vendor

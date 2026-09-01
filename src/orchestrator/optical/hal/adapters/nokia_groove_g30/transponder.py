@@ -6,12 +6,13 @@ from typing import Any
 
 from requests.exceptions import HTTPError
 
-from orchestrator.optical.hal._common import OpticalNodeBlock, _as_decimal, _node_id
+from orchestrator.optical.hal._common import _as_decimal, _node_id
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_ids_from_port_name,
     g30_port_navigator_node_from_port_name,
     get_g30_client,
 )
+from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
 from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects
@@ -99,7 +100,7 @@ def _extract_shelf_slot_port_ids_from_odu_string(
     return int(shelf_match.group(1)), int(slot_match.group(1)), int(port_match.group(1))
 
 
-def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -> int:
+def get_signal_bandwidth(optical_node_block: NokiaGrooveG30BlockProvisioning, port_name: str) -> int:
     """Return the signal bandwidth, in MHz, of the Groove G30 transport channel on the given line port.
 
     Args:
@@ -122,7 +123,7 @@ def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -
 
 
 def configure_line_transceivers(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
@@ -178,7 +179,7 @@ def configure_line_transceivers(
 
 
 def configure_transceiver_client(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
@@ -222,7 +223,7 @@ def configure_transceiver_client(
 
 
 def configure_transponder_crossconnect(  # noqa: PLR0912, PLR0915
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -381,7 +382,7 @@ def configure_transponder_crossconnect(  # noqa: PLR0912, PLR0915
 
 
 def delete_transponder_crossconnect(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     client_port_name: str,
 ) -> dict[str, Any]:
     """Delete a cross-connect between client and line ports on the given Groove G30 node.
@@ -455,7 +456,7 @@ def delete_transponder_crossconnect(
 
 
 def factory_reset_transponder_client(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     port_name: str,
 ) -> dict[str, Any]:
     """Factory reset the client port configuration of the given Groove G30 node.
@@ -480,7 +481,7 @@ def factory_reset_transponder_client(
 
 
 def factory_reset_transponder_lines(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     line_port_names: list[str],
 ) -> list[Any]:
     """Factory reset the transponder line configuration of the given Groove G30 node.
@@ -508,7 +509,7 @@ def factory_reset_transponder_lines(
 
 
 def validate_trx_line(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
@@ -573,7 +574,7 @@ def validate_trx_line(
 
 
 def validate_trx_client(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
@@ -628,7 +629,7 @@ def validate_trx_client(
 
 
 def validate_trx_crossconnect(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -671,7 +672,7 @@ def validate_trx_crossconnect(
 
 
 def align_tx_power_to_target(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
     line_port_name: str,
     db_from_target: Decimal | float | str,
 ) -> dict[str, Any]:

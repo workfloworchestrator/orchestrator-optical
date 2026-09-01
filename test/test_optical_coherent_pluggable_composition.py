@@ -86,19 +86,19 @@ class RouterBlock(RouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTI
     for_the_optical_module: OpticalCoherentPluggableBlock
 
 
-class AbstractRouterInactive(SubscriptionModel, is_base=True):
+class _AbstractRouterInactive(SubscriptionModel):
     """Abstract consumer-style subscription model composing the block."""
 
     router: RouterBlockInactive
 
 
-class AbstractRouterProvisioning(AbstractRouterInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class _AbstractRouterProvisioning(AbstractRouterInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     """The provisioning variant of the consumer-style subscription model."""
 
     router: RouterBlockProvisioning
 
 
-class AbstractRouter(AbstractRouterProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class _AbstractRouter(AbstractRouterProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """The active variant of the consumer-style subscription model."""
 
     router: RouterBlock

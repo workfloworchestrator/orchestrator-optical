@@ -42,9 +42,7 @@ ListOfClient_ports = Annotated[list[SI], Len(min_length=2, max_length=2)]
 ListOfTransport_channels = Annotated[list[SI], Len(min_length=1, max_length=2)]
 
 
-class OpticalDigitalServiceBlockInactive(
-    ProductBlockModel, product_block_name="OpticalDigitalService"
-):
+class OpticalDigitalServiceBlockInactive(ProductBlockModel, product_block_name="OpticalDigitalService"):
     service_name: str | None = None
     service_type: ClientSpeednType | None = None
     flow_id: int | None = None
@@ -62,9 +60,7 @@ class OpticalDigitalServiceBlockProvisioning(
     flow_id: int
     client_id: int
     client_ports: ListOfClient_ports[OpticalDevicePortBlockProvisioning]
-    transport_channels: ListOfTransport_channels[
-        OpticalTransportChannelBlockProvisioning
-    ]
+    transport_channels: ListOfTransport_channels[OpticalTransportChannelBlockProvisioning]
     nms_uuid: UUIDstr | None = None
 
     @computed_field
@@ -74,9 +70,7 @@ class OpticalDigitalServiceBlockProvisioning(
         return title
 
 
-class OpticalDigitalServiceBlock(
-    OpticalDigitalServiceBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalDigitalServiceBlock(OpticalDigitalServiceBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     service_name: str
     service_type: ClientSpeednType
     flow_id: int

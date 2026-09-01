@@ -107,7 +107,9 @@ def _optical_path_value(span_subscription_id: str, src_node_subscription_id: str
     src_port = next(
         t for t in terminations if str(t.optical_port_host_node.owner_subscription_id) == src_node_subscription_id
     )
-    dst_port = next(t for t in terminations if str(t.subscription_instance_id) != str(src_port.subscription_instance_id))
+    dst_port = next(
+        t for t in terminations if str(t.subscription_instance_id) != str(src_port.subscription_instance_id)
+    )
     return f"{src_port.subscription_instance_id};{dst_port.subscription_instance_id}"
 
 
@@ -131,13 +133,17 @@ def _create_user_inputs(node_a_id: str, node_b_id: str, optical_path: str) -> li
 
 def _run_create(run_process, node_a_id: str, node_b_id: str, span_subscription_id: str) -> tuple[str, str]:
     """Run the shipped create workflow and return the (process id, subscription id) pair."""
-    process_id = run_process("create_optical_spectrum", _create_user_inputs(node_a_id, node_b_id,
-                                                                             _optical_path_value(span_subscription_id, node_a_id)))
+    process_id = run_process(
+        "create_optical_spectrum",
+        _create_user_inputs(node_a_id, node_b_id, _optical_path_value(span_subscription_id, node_a_id)),
+    )
     _assert_process_completed(process_id)
     return process_id, _subscription_id_of_process(process_id)
 
 
-def test_create_optical_spectrum_service_end_to_end(run_process, seed_optical_node, stub_pipe_device, stub_spectrum_device) -> None:
+def test_create_optical_spectrum_service_end_to_end(
+    run_process, seed_optical_node, stub_pipe_device, stub_spectrum_device
+) -> None:
     """The shipped create workflow executes end to end over a two-node fiber span topology."""
     node_a_id, node_b_id, span_id = _seed_topology(run_process, seed_optical_node)
     process_id, subscription_id = _run_create(run_process, node_a_id, node_b_id, span_id)

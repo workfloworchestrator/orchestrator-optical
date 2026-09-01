@@ -24,9 +24,7 @@ class PartnerInactive(SubscriptionModel, is_base=True):
     partner: PartnerBlockInactive
 
 
-class PartnerProvisioning(
-    PartnerInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class PartnerProvisioning(PartnerInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     partner: PartnerBlockProvisioning
 
 

@@ -73,9 +73,7 @@ def construct_partner_model(
     subscription.partner.garrxdb_id = garrxdb_id
     subscription.partner.netbox_id = netbox_id
 
-    subscription = PartnerProvisioning.from_other_lifecycle(
-        subscription, SubscriptionLifecycle.PROVISIONING
-    )
+    subscription = PartnerProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
     subscription.description = subscription_description(subscription)
 
     return {

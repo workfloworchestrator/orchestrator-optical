@@ -6,21 +6,21 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
     NokiaGxG42BlockInactive,
     NokiaGxG42BlockProvisioning,
 )
-from orchestrator.optical.products.product_types.optical_node.abstracts import (
-    AbstractOpticalNode,
-    AbstractOpticalNodeInactive,
-    AbstractOpticalNodeProvisioning,
+from orchestrator.optical.products.product_types.optical_node._abstracts import (
+    _AbstractOpticalNode,
+    _AbstractOpticalNodeInactive,
+    _AbstractOpticalNodeProvisioning,
 )
 
 
-class OpticalNodeNokiaGxG42Inactive(AbstractOpticalNodeInactive, is_base=True):
+class OpticalNodeNokiaGxG42Inactive(_AbstractOpticalNodeInactive, is_base=True):
     """A Nokia GX G42 Optical Node that is inactive."""
 
     optical_node: NokiaGxG42BlockInactive
 
 
 class OpticalNodeNokiaGxG42Provisioning(
-    OpticalNodeNokiaGxG42Inactive, AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    OpticalNodeNokiaGxG42Inactive, _AbstractOpticalNodeProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """A Nokia GX G42 Optical Node that is provisioning."""
 
@@ -28,7 +28,7 @@ class OpticalNodeNokiaGxG42Provisioning(
 
 
 class OpticalNodeNokiaGxG42(
-    OpticalNodeNokiaGxG42Provisioning, AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OpticalNodeNokiaGxG42Provisioning, _AbstractOpticalNode, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """A Nokia GX G42 Optical Node that is active."""
 

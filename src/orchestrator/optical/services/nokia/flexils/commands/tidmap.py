@@ -28,6 +28,7 @@ class TidmapResponse(TL1BaseResponse):
 
 class RetrieveTidmap(TL1BaseCommand):
     """Retrieve the TID to ROUTERID (GMPLS ID) mapping of the FlexILS network."""
+
     help_text: ClassVar[str] = "RTRV-TIDMAP:[<TID>]::<CTAG>::::"
     verb: ClassVar[str] = "RTRV"
     modifier: ClassVar[str] = "TIDMAP"

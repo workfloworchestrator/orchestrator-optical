@@ -24,13 +24,9 @@ class OpticalDigitalServiceInactive(SubscriptionModel, is_base=True):
     optical_digital_service: OpticalDigitalServiceBlockInactive
 
 
-class OpticalDigitalServiceProvisioning(
-    OpticalDigitalServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class OpticalDigitalServiceProvisioning(OpticalDigitalServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     optical_digital_service: OpticalDigitalServiceBlockProvisioning
 
 
-class OpticalDigitalService(
-    OpticalDigitalServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalDigitalService(OpticalDigitalServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     optical_digital_service: OpticalDigitalServiceBlock

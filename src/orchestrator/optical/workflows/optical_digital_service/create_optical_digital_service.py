@@ -34,8 +34,8 @@ from orchestrator.optical.products.product_blocks.optical_digital_service import
     OpticalDigitalServiceBlock,
     OpticalDigitalServiceBlockInactive,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
@@ -56,7 +56,7 @@ from orchestrator.optical.products.product_types.optical_digital_service import 
     OpticalDigitalServiceSpeed,
     OpticalDigitalServiceType,
 )
-from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
+from orchestrator.optical.products.product_types.optical_node._abstracts import _AbstractOpticalNode
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
 from orchestrator.optical.workflows.customer import customer_choice_selector
 from orchestrator.optical.workflows.optical_digital_service.shared import (
@@ -177,9 +177,9 @@ def initial_input_form_generator(
     user_input = yield OdsForm0
     user_input_dict = user_input.model_dump()
 
-    sub_node_a = AbstractOpticalNode.from_subscription(user_input_dict["id_node_a"])
+    sub_node_a = _AbstractOpticalNode.from_subscription(user_input_dict["id_node_a"])
     optical_node_a = sub_node_a.optical_node
-    sub_node_b = AbstractOpticalNode.from_subscription(user_input_dict["id_node_b"])
+    sub_node_b = _AbstractOpticalNode.from_subscription(user_input_dict["id_node_b"])
     optical_node_b = sub_node_b.optical_node
 
     ClientAChoice = unused_optical_client_port_selector(  # noqa: N806
@@ -365,9 +365,9 @@ def construct_optical_digital_service_model(
     subscription instance id of the channel block, and the subscription model is
     wrapped around them.
     """
-    sub_node_a = AbstractOpticalNode.from_subscription(id_node_a)
+    sub_node_a = _AbstractOpticalNode.from_subscription(id_node_a)
     node_a = sub_node_a.optical_node
-    sub_node_b = AbstractOpticalNode.from_subscription(id_node_b)
+    sub_node_b = _AbstractOpticalNode.from_subscription(id_node_b)
     node_b = sub_node_b.optical_node
 
     subscription_id = uuid4()
@@ -541,7 +541,7 @@ def configure_trx_line_side(subscription: OpticalDigitalServiceProvisioning) -> 
         modes.append(channel.optical_transport_mode)
 
     devices = tuple(
-        cast(AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
+        cast(_AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
         for port in channels[0].optical_transport_line_ports
     )
     port_names = (
@@ -570,7 +570,7 @@ def configure_trx_client_side(subscription: OpticalDigitalServiceProvisioning) -
     ods = subscription.optical_digital_service
     results = {}
     for port in ods.optical_digital_service_client_ports:
-        device = cast(AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
+        device = cast(_AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
         results[device.management.optical_module_node_fqdn] = configure_transceiver_client(
             device,
             port.optical_port_name,
@@ -599,7 +599,7 @@ def configure_trx_crossconnects(
 
     results = {}
     for client, lines in [(client_a, lines_a), (client_b, lines_b)]:
-        device = cast(AbstractOpticalNodeBlockInactive, client.optical_port_host_node)
+        device = cast(_AbstractOpticalNodeBlockInactive, client.optical_port_host_node)
         client_name = client.optical_port_name
         line_names = [line.optical_port_name for line in lines]
 
@@ -633,7 +633,7 @@ def provision_optical_sections(
             raise ValueError(msg)
         port = channel.optical_transport_line_ports[0]
         carrier_width = get_signal_bandwidth(
-            cast(AbstractOpticalNodeBlockInactive, port.optical_port_host_node),
+            cast(_AbstractOpticalNodeBlockInactive, port.optical_port_host_node),
             port.optical_port_name,
         )
         carrier = (channel.optical_transport_central_frequency, carrier_width)
@@ -711,7 +711,7 @@ def set_trx_transmitted_power(
                 continue
 
             trx_line_port = line_ports[i]
-            trx = cast(AbstractOpticalNodeBlockInactive, trx_line_port.optical_port_host_node)
+            trx = cast(_AbstractOpticalNodeBlockInactive, trx_line_port.optical_port_host_node)
             trx_port_name = trx_line_port.optical_port_name
             result_key = f"{trx.management.optical_module_node_fqdn} {trx_port_name}"
             results[result_key] = align_tx_power_to_target(trx, trx_port_name, db_from_target)

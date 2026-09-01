@@ -44,13 +44,15 @@ class FiberType(StrEnum):
     G655_C = "G.655.C"
     G655_D = "G.655.D"
     G655_E = "G.655.E"
-    G656   = "G.656"
+    G656 = "G.656"
     G657_A = "G.657.A"
     G657_B = "G.657.B"
+
 
 ListOfPorts = Annotated[list[SI], Len(min_length=2, max_length=2)]
 ListOfLengths = Annotated[list[int], Len(min_length=0, max_length=5)]
 ListOfFiberTypes = Annotated[list[FiberType], Len(min_length=0, max_length=5)]
+
 
 class OpticalFiberBlockInactive(ProductBlockModel, product_block_name="OpticalFiber"):
     terminations: ListOfPorts[OpticalDevicePortBlockInactive]
@@ -61,9 +63,7 @@ class OpticalFiberBlockInactive(ProductBlockModel, product_block_name="OpticalFi
     fiber_types: ListOfFiberTypes | None = None
 
 
-class OpticalFiberBlockProvisioning(
-    OpticalFiberBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class OpticalFiberBlockProvisioning(OpticalFiberBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     terminations: ListOfPorts[OpticalDevicePortBlockProvisioning]
     fiber_name: str | None = None
     garrxdb_id: int | None = None
@@ -72,9 +72,7 @@ class OpticalFiberBlockProvisioning(
     fiber_types: ListOfFiberTypes | None = None
 
 
-class OpticalFiberBlock(
-    OpticalFiberBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalFiberBlock(OpticalFiberBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     terminations: ListOfPorts[OpticalDevicePortBlock]
     fiber_name: str
     garrxdb_id: int | None = None

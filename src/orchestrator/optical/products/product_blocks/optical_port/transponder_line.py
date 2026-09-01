@@ -8,16 +8,16 @@ from orchestrator.optical.products.product_blocks.optical_node.unions import (
     TransponderBlockProvisioningUnion,
     TransponderBlockUnion,
 )
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
-    AbstractOpticalPortBlock,
-    AbstractOpticalPortBlockInactive,
-    AbstractOpticalPortBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import (
+    _AbstractOpticalPortBlock,
+    _AbstractOpticalPortBlockInactive,
+    _AbstractOpticalPortBlockProvisioning,
     OpticalPortRole,
 )
 
 
 class OpticalTransponderLinePortBlockInactive(
-    AbstractOpticalPortBlockInactive, product_block_name="OpticalTransponderLinePortBlock"
+    _AbstractOpticalPortBlockInactive, product_block_name="OpticalTransponderLinePortBlock"
 ):
     """Optical Transponder Line Port Product Block that is inactive."""
 
@@ -29,7 +29,7 @@ class OpticalTransponderLinePortBlockInactive(
 
 class OpticalTransponderLinePortBlockProvisioning(
     OpticalTransponderLinePortBlockInactive,
-    AbstractOpticalPortBlockProvisioning,
+    _AbstractOpticalPortBlockProvisioning,
     lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Optical Transponder Line Port Product Block that is inactive."""
@@ -41,7 +41,7 @@ class OpticalTransponderLinePortBlockProvisioning(
 
 
 class OpticalTransponderLinePortBlock(
-    OpticalTransponderLinePortBlockProvisioning, AbstractOpticalPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OpticalTransponderLinePortBlockProvisioning, _AbstractOpticalPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """Optical Transponder Line Port Product Block that is inactive."""
 

@@ -24,9 +24,7 @@ class OpticalFiberInactive(SubscriptionModel, is_base=True):
     optical_fiber: OpticalFiberBlockInactive
 
 
-class OpticalFiberProvisioning(
-    OpticalFiberInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class OpticalFiberProvisioning(OpticalFiberInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     optical_fiber: OpticalFiberBlockProvisioning
 
 

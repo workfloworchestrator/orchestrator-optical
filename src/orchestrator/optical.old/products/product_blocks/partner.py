@@ -28,9 +28,7 @@ class PartnerBlockInactive(ProductBlockModel, product_block_name="Partner"):
     netbox_id: int | None = None
 
 
-class PartnerBlockProvisioning(
-    PartnerBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class PartnerBlockProvisioning(PartnerBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     partner_name: str
     partner_type: PartnerType
     garrxdb_id: int | None = None

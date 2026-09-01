@@ -8,13 +8,13 @@ from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
     discover_flexils_node,
     get_flex_client,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
-from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 from orchestrator.optical.utils.custom_types.frequencies import available_to_used_passbands
 
 
 def role_and_version(
-    optical_node_block: NokiaFlexIlsBlockInactive,
+    optical_node_block: NokiaFlexIlsBlockProvisioning,
 ) -> tuple[OpticalNodeRole, str]:
     """Retrieve the node role and software version of a Nokia FlexILS node from the device.
 
@@ -40,7 +40,7 @@ def role_and_version(
     )
 
 
-def role(node: NokiaFlexIlsBlockInactive) -> OpticalNodeRole:
+def role(node: NokiaFlexIlsBlockProvisioning) -> OpticalNodeRole:
     """Retrieve the node role of a Nokia FlexILS node from the device.
 
     Args:
@@ -61,7 +61,7 @@ def role(node: NokiaFlexIlsBlockInactive) -> OpticalNodeRole:
     return role
 
 
-def software_version(node: NokiaFlexIlsBlockInactive) -> str:
+def software_version(node: NokiaFlexIlsBlockProvisioning) -> str:
     """Retrieve the software version of a Nokia FlexILS node from the device.
 
     Args:
@@ -82,7 +82,7 @@ def software_version(node: NokiaFlexIlsBlockInactive) -> str:
     return version
 
 
-def retrieve_omses(optical_node_block: NokiaFlexIlsBlockInactive) -> list[dict[str, Any]]:
+def retrieve_omses(optical_node_block: NokiaFlexIlsBlockProvisioning) -> list[dict[str, Any]]:
     """Retrieve the Optical Muxed Sections terminating on a Nokia FlexILS node."""
     flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
     response = flex.rtrv_otelink()
@@ -118,7 +118,7 @@ def retrieve_omses(optical_node_block: NokiaFlexIlsBlockInactive) -> list[dict[s
 
 
 def retrieve_ports_spectral_occupations(
-    optical_node_block: NokiaFlexIlsBlockInactive,
+    optical_node_block: NokiaFlexIlsBlockProvisioning,
 ) -> dict[str, list[tuple[int, int]]]:
     """Retrieve the spectral occupations of the ports of a Nokia FlexILS node."""
     spectral_occupations: dict[str, list[tuple[int, int]]] = {}

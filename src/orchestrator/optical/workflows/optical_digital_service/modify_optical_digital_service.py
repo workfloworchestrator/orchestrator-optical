@@ -17,8 +17,8 @@ from orchestrator.optical.db import subscription_instances_by_block_type_and_res
 from orchestrator.optical.hal.spectrum import modify_optical_circuit
 from orchestrator.optical.hal.transport_channel import get_signal_bandwidth
 from orchestrator.optical.products.product_blocks.optical_digital_service import OpticalDigitalServiceBlock
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlockInactive,
 )
 from orchestrator.optical.products.product_types.optical_digital_service import (
     OpticalDigitalService,
@@ -209,7 +209,7 @@ def modify_optical_sections(
             raise ValueError(msg)
         port = channel.optical_transport_line_ports[0]
         carrier_width = get_signal_bandwidth(
-            cast(AbstractOpticalNodeBlockInactive, port.optical_port_host_node),
+            cast(_AbstractOpticalNodeBlockInactive, port.optical_port_host_node),
             port.optical_port_name,
         )
         carrier = (channel.optical_transport_central_frequency, carrier_width)

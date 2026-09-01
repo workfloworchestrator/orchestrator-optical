@@ -17,8 +17,8 @@ from orchestrator.optical.hal.transport_channel import (
     factory_reset_transponder_client,
     factory_reset_transponder_lines,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_transport_channel import (
     OpticalTransportChannelBlock,
@@ -60,7 +60,7 @@ def factory_reset_trx_crossconnects(subscription: OpticalDigitalService) -> Stat
     """Delete the cross-connects of the client ports on the devices."""
     results = {}
     for client in subscription.optical_digital_service.optical_digital_service_client_ports:
-        device = cast(AbstractOpticalNodeBlockInactive, client.optical_port_host_node)
+        device = cast(_AbstractOpticalNodeBlockInactive, client.optical_port_host_node)
         results[device.management.optical_module_node_fqdn] = delete_transponder_crossconnect(
             device, client.optical_port_name
         )
@@ -75,7 +75,7 @@ def factory_reset_trx_client_side(subscription: OpticalDigitalService) -> State:
     """Factory reset the client ports of the transponders on the devices."""
     results = {}
     for port in subscription.optical_digital_service.optical_digital_service_client_ports:
-        device = cast(AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
+        device = cast(_AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
         results[device.management.optical_module_node_fqdn] = factory_reset_transponder_client(
             device, port.optical_port_name
         )
@@ -91,7 +91,7 @@ def factory_reset_trx_line_side(subscription: OpticalDigitalService) -> State:
     channels = subscription.optical_digital_service.optical_digital_service_transport_channels
 
     devices = tuple(
-        cast(AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
+        cast(_AbstractOpticalNodeBlockInactive, port.optical_port_host_node)
         for port in channels[0].optical_transport_line_ports
     )
     port_names = (

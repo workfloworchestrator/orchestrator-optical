@@ -3,9 +3,10 @@
 import json
 from typing import Any, Literal
 
-from orchestrator.optical.hal._common import OpticalNodeBlock, _node_id, _port_name
+from orchestrator.optical.hal._common import _node_id, _port_name
 from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalPortBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import _AbstractOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia.g42.data_models.ioa_network_element import (
     AdminStateEnum,
     ExternalConnectivityEnum,
@@ -13,7 +14,7 @@ from orchestrator.optical.services.nokia.g42.data_models.ioa_network_element imp
 )
 
 
-def get_device_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
+def get_device_ports_names(optical_node_block: NokiaGxG42BlockProvisioning) -> list[str]:
     """Return the AIDs of all the ports of a GX G42 node."""
     g42 = get_g42_client(optical_node_block)
 
@@ -31,7 +32,7 @@ def get_device_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
     return ports
 
 
-def get_device_client_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
+def get_device_client_ports_names(optical_node_block: NokiaGxG42BlockProvisioning) -> list[str]:
     """Return the AIDs of the client ports of a GX G42 node."""
     g42 = get_g42_client(optical_node_block)
 
@@ -45,7 +46,7 @@ def get_device_client_ports_names(optical_node_block: OpticalNodeBlock) -> list[
     return ports
 
 
-def get_device_line_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
+def get_device_line_ports_names(optical_node_block: NokiaGxG42BlockProvisioning) -> list[str]:
     """Return the AIDs of the line ports of a GX G42 node."""
     g42 = get_g42_client(optical_node_block)
 
@@ -59,7 +60,7 @@ def get_device_line_ports_names(optical_node_block: OpticalNodeBlock) -> list[st
     return ports
 
 
-def retrieve_transceiver_modes(optical_node_block: OpticalNodeBlock, port_name: str) -> list[str]:
+def retrieve_transceiver_modes(optical_node_block: NokiaGxG42BlockProvisioning, port_name: str) -> list[str]:
     """Return the supported transceiver modes of a GX G42 line port."""
     # fmt: off
     mapping = {
@@ -139,7 +140,7 @@ def retrieve_transceiver_modes(optical_node_block: OpticalNodeBlock, port_name: 
     return supported_modes
 
 
-def set_port_description(port_block: AbstractOpticalPortBlockInactive, port_description: str) -> dict[str, Any]:
+def set_port_description(port_block: _AbstractOpticalPortBlockProvisioning, port_description: str) -> dict[str, Any]:
     """Set the description of a GX G42 optical port.
 
     Args:
@@ -164,7 +165,7 @@ def set_port_description(port_block: AbstractOpticalPortBlockInactive, port_desc
 
 
 def set_channel_description(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: NokiaGxG42BlockProvisioning,
     facility_id: str,
     description: str,
 ) -> dict[str, Any]:
@@ -200,7 +201,7 @@ def set_channel_description(
 
 
 def set_port_admin_state(
-    port_block: AbstractOpticalPortBlockInactive,
+    port_block: _AbstractOpticalPortBlockProvisioning,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
     """Set the administrative state of a GX G42 optical port.
@@ -234,8 +235,8 @@ def set_port_admin_state(
 
 
 def configure_termination(
-    optical_port_block: AbstractOpticalPortBlockInactive,
-    remote_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    remote_port_block: _AbstractOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Configure a GX G42 port when attaching a fiber to it."""
     host_node = optical_port_block.optical_port_host_node
@@ -251,7 +252,7 @@ def configure_termination(
     return uri.retrieve(content="config", depth=2).model_dump()
 
 
-def factory_reset(optical_port_block: AbstractOpticalPortBlockInactive) -> dict[str, Any]:
+def factory_reset(optical_port_block: _AbstractOpticalPortBlockProvisioning) -> dict[str, Any]:
     """Prune the configuration of a GX G42 port."""
     host_node = optical_port_block.optical_port_host_node
     g42 = get_g42_client(host_node)
@@ -267,8 +268,8 @@ def factory_reset(optical_port_block: AbstractOpticalPortBlockInactive) -> dict[
 
 
 def check_fiber(
-    optical_port_block: AbstractOpticalPortBlockInactive,
-    remote_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    remote_port_block: _AbstractOpticalPortBlockProvisioning,
 ) -> None:
     """Check if a GX G42 port attached to a fiber is correctly configured."""
     host_node = optical_port_block.optical_port_host_node

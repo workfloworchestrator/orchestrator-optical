@@ -32,31 +32,21 @@ from products.product_blocks.optical_spectrum_section import (
 OpticalSpectrumSectionsList = Annotated[list[SI], Len(min_length=0, max_length=9)]
 
 
-class OpticalSpectrumBlockInactive(
-    ProductBlockModel, product_block_name="OpticalSpectrum"
-):
+class OpticalSpectrumBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrum"):
     spectrum_name: str | None = None
     passband: Passband | None = None
-    optical_spectrum_sections: OpticalSpectrumSectionsList[
-        OpticalSpectrumSectionBlockInactive
-    ]
+    optical_spectrum_sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlockInactive]
     optical_spectrum_path_constraints: OpticalSpectrumPathConstraintsBlockInactive
 
 
-class OpticalSpectrumBlockProvisioning(
-    OpticalSpectrumBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class OpticalSpectrumBlockProvisioning(OpticalSpectrumBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     spectrum_name: str | None = None
     passband: Passband
-    optical_spectrum_sections: OpticalSpectrumSectionsList[
-        OpticalSpectrumSectionBlockProvisioning
-    ]
+    optical_spectrum_sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlockProvisioning]
     optical_spectrum_path_constraints: OpticalSpectrumPathConstraintsBlockProvisioning
 
 
-class OpticalSpectrumBlock(
-    OpticalSpectrumBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalSpectrumBlock(OpticalSpectrumBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     spectrum_name: str
     passband: Passband
     optical_spectrum_sections: OpticalSpectrumSectionsList[OpticalSpectrumSectionBlock]

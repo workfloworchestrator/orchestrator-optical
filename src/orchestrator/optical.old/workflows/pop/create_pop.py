@@ -56,15 +56,11 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
         def validate_data(self) -> "CreatePopForm":
             if self.code and not match(r"^[A-Z0-9]{4}$", self.code):
                 msg = "code must be 4 uppercase alphanumeric characters, e.g. 'AZ99'"
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
             if not self.full_name.startswith(self.code):
                 msg = "full_name must start with the code, e.g. 'AZ99-Alpha'"
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
             for resource, value in [
                 ("garrxdb_id", self.garrxdb_id),
@@ -82,9 +78,7 @@ def initial_input_form_generator(product_name: str) -> FormGenerator:
                     ],
                 )
                 if subs:
-                    raise ValueError(
-                        f"{resource} {value} already in use by subscription {subs[0].subscription_id}"
-                    )
+                    raise ValueError(f"{resource} {value} already in use by subscription {subs[0].subscription_id}")
 
             return self
 

@@ -20,9 +20,9 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
     OpticalModuleLocationBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlock,
-    AbstractOpticalNodeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlock,
+    _AbstractOpticalNodeBlockProvisioning,
     OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
@@ -72,19 +72,19 @@ class RouterBlock(RouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTI
     for_the_optical_module: NokiaFlexIlsBlock
 
 
-class AbstractRouterInactive(SubscriptionModel, is_base=True):
+class _AbstractRouterInactive(SubscriptionModel):
     """Abstract consumer-style subscription model composing the block."""
 
     router: RouterBlockInactive
 
 
-class AbstractRouterProvisioning(AbstractRouterInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class _AbstractRouterProvisioning(AbstractRouterInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     """The provisioning variant of the consumer-style subscription model."""
 
     router: RouterBlockProvisioning
 
 
-class AbstractRouter(AbstractRouterProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class _AbstractRouter(AbstractRouterProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """The active variant of the consumer-style subscription model."""
 
     router: RouterBlock
@@ -257,8 +257,8 @@ def test_block_steps_take_the_lifecycle_matching_block_variant() -> None:
         annotation = inspect.signature(step_func).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation
         members = get_args(annotation) or (annotation,)
         for member in members:
-            if isinstance(member, type) and issubclass(member, AbstractOpticalNodeBlock):
-                assert issubclass(member, AbstractOpticalNodeBlockProvisioning), (
+            if isinstance(member, type) and issubclass(member, _AbstractOpticalNodeBlock):
+                assert issubclass(member, _AbstractOpticalNodeBlockProvisioning), (
                     f"{step_obj.name} consumes {member.__name__}, expected the PROVISIONING variant"
                 )
 

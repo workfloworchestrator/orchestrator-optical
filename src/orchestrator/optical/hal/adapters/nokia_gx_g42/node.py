@@ -2,14 +2,14 @@
 
 from structlog import get_logger
 
-from orchestrator.optical.hal._common import OpticalNodeBlock
 from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
 
 logger = get_logger(__name__)
 
 
-def software_version(node: OpticalNodeBlock) -> str:
+def software_version(node: NokiaGxG42BlockProvisioning) -> str:
     """Retrieve the software version of a GX G42 node from the device via RESTCONF.
 
     Args:
@@ -39,7 +39,7 @@ def software_version(node: OpticalNodeBlock) -> str:
     return version
 
 
-def role(node: OpticalNodeBlock) -> OpticalNodeRole:  # noqa: ARG001
+def role(node: NokiaGxG42BlockProvisioning) -> OpticalNodeRole:  # noqa: ARG001
     """Return the node role of a GX G42 node, which is always a transponder.
 
     Args:

@@ -16,7 +16,7 @@ from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.hal.spectrum import modify_optical_circuit
 from orchestrator.optical.products import ProductType
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_types.optical_spectrum_service import (
     OpticalSpectrum,
     OpticalSpectrumProvisioning,

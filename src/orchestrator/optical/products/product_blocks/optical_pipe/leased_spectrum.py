@@ -1,10 +1,10 @@
 """Product Blocks of Leased Spectrum Optical Pipes."""
 
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
-    AbstractOpticalPipeBlock,
-    AbstractOpticalPipeBlockInactive,
-    AbstractOpticalPipeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_pipe._abstracts import (
+    _AbstractOpticalPipeBlock,
+    _AbstractOpticalPipeBlockInactive,
+    _AbstractOpticalPipeBlockProvisioning,
     FiberSides,
 )
 from orchestrator.optical.products.product_blocks.optical_port.unions import (
@@ -14,7 +14,7 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import (
 )
 
 
-class OpticalLeasedSpectrumBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="LeasedSpectrumBlock"):
+class OpticalLeasedSpectrumBlockInactive(_AbstractOpticalPipeBlockInactive, product_block_name="LeasedSpectrumBlock"):
     """Inactive state of a Leased Spectrum product block."""
 
     optical_pipe_name: str | None = None
@@ -23,7 +23,7 @@ class OpticalLeasedSpectrumBlockInactive(AbstractOpticalPipeBlockInactive, produ
 
 class OpticalLeasedSpectrumBlockProvisioning(
     OpticalLeasedSpectrumBlockInactive,
-    AbstractOpticalPipeBlockProvisioning,
+    _AbstractOpticalPipeBlockProvisioning,
     lifecycle=[SubscriptionLifecycle.PROVISIONING],
 ):
     """Provisioning state of a Leased Spectrum product block."""
@@ -34,7 +34,7 @@ class OpticalLeasedSpectrumBlockProvisioning(
 
 class OpticalLeasedSpectrumBlock(
     OpticalLeasedSpectrumBlockProvisioning,
-    AbstractOpticalPipeBlock,
+    _AbstractOpticalPipeBlock,
     lifecycle=[SubscriptionLifecycle.ACTIVE],
 ):
     """Active state of a Leased Spectrum product block."""

@@ -8,7 +8,7 @@ product block with ``match/case``:
   the node-level retrieve/validate operations.
 - :mod:`orchestrator.optical.hal.port` — port enumeration, admin state and
   fiber-termination configure/reset/check.
-- :mod:`orchestrator.optical.hal.transponder` — transponder line/client
+- :mod:`orchestrator.optical.hal.transport_channel` — transponder line/client
   configuration, cross-connects, validation and power alignment.
 - :mod:`orchestrator.optical.hal.spectrum` — the FlexILS optical circuit
   (OEL/OSNC/OCRS) engine and optical cross-connections.

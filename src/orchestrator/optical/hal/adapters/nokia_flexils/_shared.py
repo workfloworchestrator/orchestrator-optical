@@ -8,16 +8,19 @@ from structlog import get_logger
 
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import subscription_instances_by_block_type
-from orchestrator.optical.hal._common import OpticalNodeBlock, _as_flexils_block, _node_id
+from orchestrator.optical.hal._common import _as_flexils_block, _node_id
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
-from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockInactive
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlockProvisioning,
+    OpticalNodeRole,
+)
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
     NokiaFlexIlsBlock,
-    NokiaFlexIlsBlockInactive,
+    NokiaFlexIlsBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalPortBlockInactive
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import _AbstractOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
 from orchestrator.optical.services.nokia.flexils.commands.base import TL1BaseResponse
 from orchestrator.optical.services.nokia.g30.data_models.ne import EquipmentTypeEnum_1
@@ -348,7 +351,7 @@ def discover_flexils_node(
     optical_management_ip: IPAddress | None = None,
     optical_loopback_ip: IPAddress | None = None,
     optical_flexils_gmpls_id: IPAddress | None = None,
-    location: OpticalModuleLocationBlockInactive | None = None,
+    location: OpticalModuleLocationBlockProvisioning | None = None,
 ) -> tuple[OpticalNodeRole, str]:
     """Discover the properties of a Nokia FlexILS node.
 
@@ -438,7 +441,7 @@ def _find_closest_gne_ip(tid: str, latitude: float, longitude: float) -> str:
     raise ValueError(msg)
 
 
-def get_flex_client(optical_node_block: NokiaFlexIlsBlockInactive) -> FlexilsClient:
+def get_flex_client(optical_node_block: NokiaFlexIlsBlockProvisioning) -> FlexilsClient:
     """Return a TL1 client to reach the given Nokia FlexILS node.
 
     The node is contacted directly through its management IPs, tried in order
@@ -493,7 +496,7 @@ def get_flex_client(optical_node_block: NokiaFlexIlsBlockInactive) -> FlexilsCli
     return FlexilsClient.get_instance(tid=tid, gne_ip=gne_ip)
 
 
-def _get_flex_client(optical_node_block: OpticalNodeBlock) -> FlexilsClientProtocol:
+def _get_flex_client(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> FlexilsClientProtocol:
     """Return a FlexILS TL1 client for the given Optical Node block.
 
     Wraps :func:`get_flex_client`, returning the dynamically-bound TL1 command
@@ -502,7 +505,7 @@ def _get_flex_client(optical_node_block: OpticalNodeBlock) -> FlexilsClientProto
     return cast(FlexilsClientProtocol, get_flex_client(_as_flexils_block(optical_node_block)))
 
 
-def _get_remote_node_id(remote_port_block: AbstractOpticalPortBlockInactive) -> str:
+def _get_remote_node_id(remote_port_block: _AbstractOpticalPortBlockProvisioning) -> str:
     """Extract the node id of the device hosting the remote port, based on its vendor.
 
     Args:

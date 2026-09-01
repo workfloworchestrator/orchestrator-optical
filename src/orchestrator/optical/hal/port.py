@@ -12,16 +12,18 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from orchestrator.optical.hal._common import (
-    OpticalNodeBlock,
     UnsupportedPlatformError,
     _as_flexils_block,
+    _as_g30_block,
+    _as_g42_block,
     _vendor_platform,
 )
 from orchestrator.optical.hal.adapters.nokia_flexils import port as flexils
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import port as groove_g30
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import port as gx_g42
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import _AbstractOpticalNodeBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalPortBlockInactive
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import _AbstractOpticalPortBlockProvisioning
 
 __all__ = [
     "check_fiber_terminating_port",
@@ -37,7 +39,7 @@ __all__ = [
 ]
 
 
-def get_device_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
+def get_device_ports_names(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> list[str]:
     """Retrieve the list of optical port names of an Optical Node.
 
     Args:
@@ -53,15 +55,15 @@ def get_device_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
         case (Vendor.NOKIA, Platform.FLEXILS):
             return flexils.get_device_ports_names(_as_flexils_block(optical_node_block))
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.get_device_ports_names(optical_node_block)
+            return groove_g30.get_device_ports_names(_as_g30_block(optical_node_block))
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.get_device_ports_names(optical_node_block)
+            return gx_g42.get_device_ports_names(_as_g42_block(optical_node_block))
         case _:
             msg = f"get_device_ports_names: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 
-def get_device_client_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
+def get_device_client_ports_names(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> list[str]:
     """Retrieve the list of client optical port names of an Optical Node.
 
     Args:
@@ -77,15 +79,15 @@ def get_device_client_ports_names(optical_node_block: OpticalNodeBlock) -> list[
         case (Vendor.NOKIA, Platform.FLEXILS):
             return flexils.get_device_client_ports_names(_as_flexils_block(optical_node_block))
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.get_device_client_ports_names(optical_node_block)
+            return groove_g30.get_device_client_ports_names(_as_g30_block(optical_node_block))
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.get_device_client_ports_names(optical_node_block)
+            return gx_g42.get_device_client_ports_names(_as_g42_block(optical_node_block))
         case _:
             msg = f"get_device_client_ports_names: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 
-def get_device_line_ports_names(optical_node_block: OpticalNodeBlock) -> list[str]:
+def get_device_line_ports_names(optical_node_block: _AbstractOpticalNodeBlockProvisioning) -> list[str]:
     """Retrieve the list of line optical port names of an Optical Node.
 
     Args:
@@ -101,15 +103,15 @@ def get_device_line_ports_names(optical_node_block: OpticalNodeBlock) -> list[st
         case (Vendor.NOKIA, Platform.FLEXILS):
             return flexils.get_device_line_ports_names(_as_flexils_block(optical_node_block))
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.get_device_line_ports_names(optical_node_block)
+            return groove_g30.get_device_line_ports_names(_as_g30_block(optical_node_block))
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.get_device_line_ports_names(optical_node_block)
+            return gx_g42.get_device_line_ports_names(_as_g42_block(optical_node_block))
         case _:
             msg = f"get_device_line_ports_names: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 
-def retrieve_transceiver_modes(optical_node_block: OpticalNodeBlock, port_name: str) -> list[str]:
+def retrieve_transceiver_modes(optical_node_block: _AbstractOpticalNodeBlockProvisioning, port_name: str) -> list[str]:
     """Retrieve the list of supported transceiver modes for a specific port on an Optical Node.
 
     Args:
@@ -125,9 +127,9 @@ def retrieve_transceiver_modes(optical_node_block: OpticalNodeBlock, port_name: 
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.retrieve_transceiver_modes(optical_node_block, port_name)
+            return groove_g30.retrieve_transceiver_modes(_as_g30_block(optical_node_block), port_name)
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.retrieve_transceiver_modes(optical_node_block, port_name)
+            return gx_g42.retrieve_transceiver_modes(_as_g42_block(optical_node_block), port_name)
         case (Vendor.NOKIA, Platform.FLEXILS):
             return []
         case _:
@@ -135,7 +137,9 @@ def retrieve_transceiver_modes(optical_node_block: OpticalNodeBlock, port_name: 
             raise UnsupportedPlatformError(msg)
 
 
-def set_port_description(optical_port_block: AbstractOpticalPortBlockInactive, port_description: str) -> dict[str, Any]:
+def set_port_description(
+    optical_port_block: _AbstractOpticalPortBlockProvisioning, port_description: str
+) -> dict[str, Any]:
     """Set the description of an optical port.
 
     Args:
@@ -163,7 +167,7 @@ def set_port_description(optical_port_block: AbstractOpticalPortBlockInactive, p
 
 
 def set_channel_description(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
     facility_id: str,
     description: str,
 ) -> dict[str, Any]:
@@ -183,9 +187,9 @@ def set_channel_description(
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.set_channel_description(optical_node_block, facility_id, description)
+            return groove_g30.set_channel_description(_as_g30_block(optical_node_block), facility_id, description)
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.set_channel_description(optical_node_block, facility_id, description)
+            return gx_g42.set_channel_description(_as_g42_block(optical_node_block), facility_id, description)
         case (Vendor.NOKIA, Platform.FLEXILS):
             return {"not-applicable": "Nokia FlexILS devices do not support channel descriptions"}
         case _:
@@ -194,7 +198,7 @@ def set_channel_description(
 
 
 def set_port_admin_state(
-    optical_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
     """Set the administrative state of an optical port.
@@ -224,8 +228,8 @@ def set_port_admin_state(
 
 
 def configure_termination_when_attaching_new_fiber(
-    optical_port_block: AbstractOpticalPortBlockInactive,
-    remote_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    remote_port_block: _AbstractOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Configure an optical port when attaching a fiber to it.
 
@@ -254,8 +258,8 @@ def configure_termination_when_attaching_new_fiber(
 
 
 def factory_reset_port_configuration(
-    optical_port_block: AbstractOpticalPortBlockInactive,
-    remote_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    remote_port_block: _AbstractOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
     """Prune the configuration of an optical port.
 
@@ -284,8 +288,8 @@ def factory_reset_port_configuration(
 
 
 def check_fiber_terminating_port(
-    optical_port_block: AbstractOpticalPortBlockInactive,
-    remote_port_block: AbstractOpticalPortBlockInactive,
+    optical_port_block: _AbstractOpticalPortBlockProvisioning,
+    remote_port_block: _AbstractOpticalPortBlockProvisioning,
 ) -> None:
     """Check if an optical port attached to a fiber is correctly configured.
 

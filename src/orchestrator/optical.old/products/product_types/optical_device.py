@@ -24,13 +24,9 @@ class OpticalDeviceInactive(SubscriptionModel, is_base=True):
     optical_device: OpticalDeviceBlockInactive
 
 
-class OpticalDeviceProvisioning(
-    OpticalDeviceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
-):
+class OpticalDeviceProvisioning(OpticalDeviceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     optical_device: OpticalDeviceBlockProvisioning
 
 
-class OpticalDevice(
-    OpticalDeviceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
-):
+class OpticalDevice(OpticalDeviceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     optical_device: OpticalDeviceBlock

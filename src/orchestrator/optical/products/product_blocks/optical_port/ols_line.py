@@ -10,16 +10,16 @@ from orchestrator.optical.products.product_blocks.optical_node.unions import (
     OlsBlockProvisioningUnion,
     OlsBlockUnion,
 )
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
-    AbstractOpticalOlsPortBlock,
-    AbstractOpticalOlsPortBlockInactive,
-    AbstractOpticalOlsPortBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import (
+    _AbstractOpticalOlsPortBlock,
+    _AbstractOpticalOlsPortBlockInactive,
+    _AbstractOpticalOlsPortBlockProvisioning,
     OpticalPassbandList,
     OpticalPortRole,
 )
 
 
-class OlsLinePortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_block_name="OlsLinePortBlock"):
+class OlsLinePortBlockInactive(_AbstractOpticalOlsPortBlockInactive, product_block_name="OlsLinePortBlock"):
     """OLS Add Drop Port Product Block that is inactive."""
 
     optical_port_role: Literal[OpticalPortRole.OLS_LINE] = OpticalPortRole.OLS_LINE
@@ -30,7 +30,7 @@ class OlsLinePortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_bloc
 
 
 class OlsLinePortBlockProvisioning(
-    OlsLinePortBlockInactive, AbstractOpticalOlsPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+    OlsLinePortBlockInactive, _AbstractOpticalOlsPortBlockProvisioning, lifecycle=[SubscriptionLifecycle.PROVISIONING]
 ):
     """OLS Add Drop Port Product Block that is inactive."""
 
@@ -42,7 +42,7 @@ class OlsLinePortBlockProvisioning(
 
 
 class OlsLinePortBlock(
-    OlsLinePortBlockProvisioning, AbstractOpticalOlsPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OlsLinePortBlockProvisioning, _AbstractOpticalOlsPortBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]
 ):
     """OLS Add Drop Port Product Block that is inactive."""
 

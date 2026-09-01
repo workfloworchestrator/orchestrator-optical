@@ -14,9 +14,9 @@ from orchestrator.optical.db import (
     subscription_instances_by_block_type_and_resource_value,
 )
 from orchestrator.optical.products import ProductType
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
-    AbstractOpticalNodeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlockInactive,
+    _AbstractOpticalNodeBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
 from orchestrator.optical.products.product_blocks.optical_node_management import (
@@ -34,7 +34,7 @@ OPTICAL_NODE_PRODUCT_TYPES = [
 ]
 
 
-def _optical_node_block_of_subscription(subscription: SubscriptionModel) -> AbstractOpticalNodeBlockInactive:
+def _optical_node_block_of_subscription(subscription: SubscriptionModel) -> _AbstractOpticalNodeBlockInactive:
     """Return the Optical Node block under the ``optical_node`` attribute.
 
     This is the shipped-model fallback of the family: it reads the block from
@@ -62,7 +62,7 @@ def _optical_node_block_of_subscription(subscription: SubscriptionModel) -> Abst
 
 def optical_node_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalNodeBlockProvisioning | None = None,
+    optical_module_block: _AbstractOpticalNodeBlockProvisioning | None = None,
 ) -> str:
     """Generate human-readable subscription description for an Optical Node.
 
@@ -270,8 +270,8 @@ def populate_abstract_optical_node_fields(
 
 
 def optical_node_block_from_state(
-    optical_module_block: AbstractOpticalNodeBlockProvisioning | dict[str, Any] | None,
-) -> AbstractOpticalNodeBlockProvisioning:
+    optical_module_block: _AbstractOpticalNodeBlockProvisioning | dict[str, Any] | None,
+) -> _AbstractOpticalNodeBlockProvisioning:
     """Return the Optical Node block of the workflow state as a domain model.
 
     Workflow steps execute with the state serialized between steps, so a block
@@ -301,14 +301,14 @@ def optical_node_block_from_state(
     if optical_module_block is None:
         msg = "No Optical Node block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
         raise ValueError(msg)
-    if isinstance(optical_module_block, AbstractOpticalNodeBlockProvisioning):
+    if isinstance(optical_module_block, _AbstractOpticalNodeBlockProvisioning):
         return optical_module_block
     return _optical_node_block_from_state(optical_module_block)
 
 
 def _optical_node_block_from_state(
     optical_module_block: dict[str, Any],
-) -> AbstractOpticalNodeBlockProvisioning:
+) -> _AbstractOpticalNodeBlockProvisioning:
     """Reconstruct an Optical Node block from its serialized form.
 
     The state dict carries the full block data (the block is serialized with
@@ -341,7 +341,7 @@ def _optical_node_block_from_state(
         msg = f"No subscription instance with id {subscription_instance_id}"
         raise ValueError(msg)
     block_class = cast(
-        type[AbstractOpticalNodeBlockProvisioning],
+        type[_AbstractOpticalNodeBlockProvisioning],
         lookup_specialized_type(
             ProductBlockModel.registry[instance.product_block.name],
             SubscriptionLifecycle(instance.subscription.status),

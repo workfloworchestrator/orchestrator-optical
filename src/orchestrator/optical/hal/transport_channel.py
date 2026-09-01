@@ -13,14 +13,16 @@ from decimal import Decimal
 from typing import Any
 
 from orchestrator.optical.hal._common import (
-    OpticalNodeBlock,
     UnsupportedPlatformError,
     _as_flexils_block,
+    _as_g30_block,
+    _as_g42_block,
     _vendor_platform,
 )
 from orchestrator.optical.hal.adapters.nokia_flexils import transponder as flexils
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import transponder as groove_g30
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import transponder as gx_g42
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import _AbstractOpticalNodeBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
@@ -41,7 +43,7 @@ __all__ = [
 ]
 
 
-def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -> int:
+def get_signal_bandwidth(optical_node_block: _AbstractOpticalNodeBlockProvisioning, port_name: str) -> int:
     """Return the signal bandwidth, in MHz, of the transport channel carried by the given line port.
 
     Args:
@@ -58,9 +60,9 @@ def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.get_signal_bandwidth(optical_node_block, port_name)
+            return groove_g30.get_signal_bandwidth(_as_g30_block(optical_node_block), port_name)
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.get_signal_bandwidth(optical_node_block, port_name)
+            return gx_g42.get_signal_bandwidth(_as_g42_block(optical_node_block), port_name)
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "get_signal_bandwidth is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -70,7 +72,7 @@ def get_signal_bandwidth(optical_node_block: OpticalNodeBlock, port_name: str) -
 
 
 def configure_line_transceivers(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
@@ -96,7 +98,7 @@ def configure_line_transceivers(
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             return groove_g30.configure_line_transceivers(
-                optical_node_block,
+                _as_g30_block(optical_node_block),
                 port_names,
                 central_frequencies,
                 modes,
@@ -104,7 +106,7 @@ def configure_line_transceivers(
             )
         case (Vendor.NOKIA, Platform.GX_G42):
             return gx_g42.configure_line_transceivers(
-                optical_node_block,
+                _as_g42_block(optical_node_block),
                 port_names,
                 central_frequencies,
                 modes,
@@ -119,7 +121,7 @@ def configure_line_transceivers(
 
 
 def configure_transceiver_client(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
@@ -142,9 +144,11 @@ def configure_transceiver_client(
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.configure_transceiver_client(optical_node_block, port_name, description, speed)
+            return groove_g30.configure_transceiver_client(
+                _as_g30_block(optical_node_block), port_name, description, speed
+            )
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.configure_transceiver_client(optical_node_block, port_name, description, speed)
+            return gx_g42.configure_transceiver_client(_as_g42_block(optical_node_block), port_name, description, speed)
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "configure_transceiver_client is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -154,7 +158,7 @@ def configure_transceiver_client(
 
 
 def configure_transponder_crossconnect(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -178,14 +182,14 @@ def configure_transponder_crossconnect(
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             return groove_g30.configure_transponder_crossconnect(
-                optical_node_block,
+                _as_g30_block(optical_node_block),
                 client_port_name,
                 line_port_names,
                 xconn_description,
             )
         case (Vendor.NOKIA, Platform.GX_G42):
             return gx_g42.configure_transponder_crossconnect(
-                optical_node_block,
+                _as_g42_block(optical_node_block),
                 client_port_name,
                 line_port_names,
                 xconn_description,
@@ -198,7 +202,9 @@ def configure_transponder_crossconnect(
             raise UnsupportedPlatformError(msg)
 
 
-def delete_transponder_crossconnect(optical_node_block: OpticalNodeBlock, client_port_name: str) -> dict[str, Any]:
+def delete_transponder_crossconnect(
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning, client_port_name: str
+) -> dict[str, Any]:
     """Delete a cross-connect between client and line ports on the given Optical Node.
 
     Args:
@@ -215,9 +221,9 @@ def delete_transponder_crossconnect(optical_node_block: OpticalNodeBlock, client
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.delete_transponder_crossconnect(optical_node_block, client_port_name)
+            return groove_g30.delete_transponder_crossconnect(_as_g30_block(optical_node_block), client_port_name)
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.delete_transponder_crossconnect(optical_node_block, client_port_name)
+            return gx_g42.delete_transponder_crossconnect(_as_g42_block(optical_node_block), client_port_name)
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "delete_transponder_crossconnect is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -226,7 +232,9 @@ def delete_transponder_crossconnect(optical_node_block: OpticalNodeBlock, client
             raise UnsupportedPlatformError(msg)
 
 
-def factory_reset_transponder_client(optical_node_block: OpticalNodeBlock, port_name: str) -> dict[str, Any]:
+def factory_reset_transponder_client(
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning, port_name: str
+) -> dict[str, Any]:
     """Factory reset the client port configuration of the given Optical Node.
 
     Args:
@@ -242,9 +250,9 @@ def factory_reset_transponder_client(optical_node_block: OpticalNodeBlock, port_
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.factory_reset_transponder_client(optical_node_block, port_name)
+            return groove_g30.factory_reset_transponder_client(_as_g30_block(optical_node_block), port_name)
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.factory_reset_transponder_client(optical_node_block, port_name)
+            return gx_g42.factory_reset_transponder_client(_as_g42_block(optical_node_block), port_name)
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "factory_reset_transponder_client is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -254,7 +262,7 @@ def factory_reset_transponder_client(optical_node_block: OpticalNodeBlock, port_
 
 
 def factory_reset_transponder_lines(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
     line_port_names: list[str],
 ) -> dict[str, Any] | list[Any]:
     """Factory reset the transponder line configuration of the given Optical Node.
@@ -272,9 +280,9 @@ def factory_reset_transponder_lines(
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.factory_reset_transponder_lines(optical_node_block, line_port_names)
+            return groove_g30.factory_reset_transponder_lines(_as_g30_block(optical_node_block), line_port_names)
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.factory_reset_transponder_lines(optical_node_block, line_port_names)
+            return gx_g42.factory_reset_transponder_lines(_as_g42_block(optical_node_block), line_port_names)
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "factory_reset_transponder_lines is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -284,7 +292,7 @@ def factory_reset_transponder_lines(
 
 
 def validate_trx_line(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
@@ -307,7 +315,7 @@ def validate_trx_line(
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             return groove_g30.validate_trx_line(
-                optical_node_block,
+                _as_g30_block(optical_node_block),
                 port_names,
                 central_frequencies,
                 modes,
@@ -315,7 +323,7 @@ def validate_trx_line(
             )
         case (Vendor.NOKIA, Platform.GX_G42):
             return gx_g42.validate_trx_line(
-                optical_node_block,
+                _as_g42_block(optical_node_block),
                 port_names,
                 central_frequencies,
                 modes,
@@ -330,7 +338,7 @@ def validate_trx_line(
 
 
 def validate_trx_client(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
@@ -350,9 +358,9 @@ def validate_trx_client(
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.validate_trx_client(optical_node_block, port_name, description, speed)
+            return groove_g30.validate_trx_client(_as_g30_block(optical_node_block), port_name, description, speed)
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.validate_trx_client(optical_node_block, port_name, description, speed)
+            return gx_g42.validate_trx_client(_as_g42_block(optical_node_block), port_name, description, speed)
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "validate_trx_client is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -362,7 +370,7 @@ def validate_trx_client(
 
 
 def validate_trx_crossconnect(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
@@ -383,14 +391,14 @@ def validate_trx_crossconnect(
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             return groove_g30.validate_trx_crossconnect(
-                optical_node_block,
+                _as_g30_block(optical_node_block),
                 client_port_name,
                 line_port_names,
                 xconn_description,
             )
         case (Vendor.NOKIA, Platform.GX_G42):
             return gx_g42.validate_trx_crossconnect(
-                optical_node_block,
+                _as_g42_block(optical_node_block),
                 client_port_name,
                 line_port_names,
                 xconn_description,
@@ -404,7 +412,7 @@ def validate_trx_crossconnect(
 
 
 def delta_rx_power_vs_target(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
     optical_spectrum_name: str,
     circuit_identifier: str = "",
 ) -> float:
@@ -439,7 +447,7 @@ def delta_rx_power_vs_target(
 
 
 def align_tx_power_to_target(
-    optical_node_block: OpticalNodeBlock,
+    optical_node_block: _AbstractOpticalNodeBlockProvisioning,
     line_port_name: str,
     db_from_target: Decimal | float | str,
 ) -> dict[str, Any]:
@@ -464,9 +472,11 @@ def align_tx_power_to_target(
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.align_tx_power_to_target(optical_node_block, line_port_name, db_from_target)
+            return groove_g30.align_tx_power_to_target(
+                _as_g30_block(optical_node_block), line_port_name, db_from_target
+            )
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.align_tx_power_to_target(optical_node_block, line_port_name, db_from_target)
+            return gx_g42.align_tx_power_to_target(_as_g42_block(optical_node_block), line_port_name, db_from_target)
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "align_tx_power_to_target is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)

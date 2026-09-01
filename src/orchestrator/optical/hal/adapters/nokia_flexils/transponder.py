@@ -2,11 +2,11 @@
 
 from orchestrator.optical.hal._common import _node_id
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import _get_flex_client
-from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 
 
 def delta_rx_power_vs_target(
-    optical_node_block: NokiaFlexIlsBlockInactive,
+    optical_node_block: NokiaFlexIlsBlockProvisioning,
     optical_spectrum_name: str,
     circuit_identifier: str = "",
 ) -> float:

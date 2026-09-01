@@ -30,18 +30,18 @@ from orchestrator.optical.db import (
 )
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import configure_termination_when_attaching_new_fiber
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
-    AbstractOpticalPipeBlockInactive,
-    AbstractOpticalPipeBlockProvisioning,
+from orchestrator.optical.products.product_blocks.optical_pipe._abstracts import (
+    _AbstractOpticalPipeBlockInactive,
+    _AbstractOpticalPipeBlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
-    AbstractOpticalOlsPortBlockInactive,
-    AbstractOpticalPortBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import (
+    _AbstractOpticalOlsPortBlockInactive,
+    _AbstractOpticalPortBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlockInactive
@@ -56,7 +56,7 @@ from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import OPTICAL_NODE_PRODUCT_TYPES
 from orchestrator.optical.workflows.shared import create_summary_form, modify_summary_form
 
-T = TypeVar("T", bound=AbstractOpticalPortBlockInactive)
+T = TypeVar("T", bound=_AbstractOpticalPortBlockInactive)
 
 PORT_BLOCK_TYPES = [
     "OlsLinePortBlock",
@@ -66,7 +66,7 @@ PORT_BLOCK_TYPES = [
 ]
 
 
-def _optical_pipe_block_of_subscription(subscription: SubscriptionModel) -> AbstractOpticalPipeBlockInactive:
+def _optical_pipe_block_of_subscription(subscription: SubscriptionModel) -> _AbstractOpticalPipeBlockInactive:
     """Return the Optical Pipe block under the ``optical_pipe`` attribute.
 
     This is the shipped-model fallback of the family: it reads the block from
@@ -94,7 +94,7 @@ def _optical_pipe_block_of_subscription(subscription: SubscriptionModel) -> Abst
 
 def optical_pipe_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalPipeBlockInactive | None = None,
+    optical_module_block: _AbstractOpticalPipeBlockInactive | None = None,
 ) -> str:
     """Generate the human-readable description of an Optical Pipe subscription.
 
@@ -125,8 +125,8 @@ def optical_pipe_subscription_description(
 
 
 def optical_pipe_block_from_state(
-    optical_module_block: AbstractOpticalPipeBlockProvisioning | dict[str, Any] | None,
-) -> AbstractOpticalPipeBlockProvisioning:
+    optical_module_block: _AbstractOpticalPipeBlockProvisioning | dict[str, Any] | None,
+) -> _AbstractOpticalPipeBlockProvisioning:
     """Return the Optical Pipe block of the workflow state as a domain model.
 
     Workflow steps execute with the state serialized between steps, so a block
@@ -151,12 +151,12 @@ def optical_pipe_block_from_state(
     if optical_module_block is None:
         msg = "No Optical Pipe block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
         raise ValueError(msg)
-    if isinstance(optical_module_block, AbstractOpticalPipeBlockProvisioning):
+    if isinstance(optical_module_block, _AbstractOpticalPipeBlockProvisioning):
         return optical_module_block
     return _optical_pipe_block_from_state(optical_module_block)
 
 
-def _optical_pipe_block_from_state(optical_module_block: dict[str, Any]) -> AbstractOpticalPipeBlockProvisioning:
+def _optical_pipe_block_from_state(optical_module_block: dict[str, Any]) -> _AbstractOpticalPipeBlockProvisioning:
     """Reconstruct an Optical Pipe block from its serialized form.
 
     The state dict carries the full block data (the block is serialized with
@@ -188,7 +188,7 @@ def _optical_pipe_block_from_state(optical_module_block: dict[str, Any]) -> Abst
         msg = f"No subscription instance with id {subscription_instance_id}"
         raise ValueError(msg)
     block_class = cast(
-        type[AbstractOpticalPipeBlockProvisioning],
+        type[_AbstractOpticalPipeBlockProvisioning],
         lookup_specialized_type(
             ProductBlockModel.registry[instance.product_block.name],
             SubscriptionLifecycle(instance.subscription.status),
@@ -223,7 +223,7 @@ def load_optical_pipe_block(subscription: SubscriptionModel) -> State:
 @step("Persist optical pipe block")
 def save_optical_pipe_block(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalPipeBlockProvisioning,
+    optical_module_block: _AbstractOpticalPipeBlockProvisioning,
 ) -> State:
     """Persist the Optical Pipe block found in the state to the database.
 
@@ -251,7 +251,7 @@ def save_optical_pipe_block(
 
 @step("Configure Optical Pipe Terminations")
 def configure_pipe_terminations(
-    optical_module_block: AbstractOpticalPipeBlockProvisioning,
+    optical_module_block: _AbstractOpticalPipeBlockProvisioning,
 ) -> State:
     """Configure the terminating ports of an optical pipe on the devices.
 
@@ -275,8 +275,8 @@ def configure_pipe_terminations(
     port_a, port_b = terminations
     host_node_a = port_a.optical_port_host_node
     host_node_b = port_b.optical_port_host_node
-    if not isinstance(host_node_a, AbstractOpticalNodeBlockInactive) or not isinstance(
-        host_node_b, AbstractOpticalNodeBlockInactive
+    if not isinstance(host_node_a, _AbstractOpticalNodeBlockInactive) or not isinstance(
+        host_node_b, _AbstractOpticalNodeBlockInactive
     ):
         msg = "Optical pipe terminations must be hosted on Optical Module's Nodes"
         raise TypeError(msg)
@@ -303,7 +303,7 @@ def configure_pipe_terminations(
 
 @step("Updating Optical Pipe block")
 def update_optical_pipe_block(
-    optical_module_block: AbstractOpticalPipeBlockProvisioning,
+    optical_module_block: _AbstractOpticalPipeBlockProvisioning,
     optical_pipe_name: str,
 ) -> State:
     """Update the Optical Pipe block in the state from the modify-form keys.
@@ -332,7 +332,7 @@ def update_optical_pipe_block(
 @step("Set Optical Pipe subscription description")
 def set_optical_pipe_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalPipeBlockProvisioning | None = None,
+    optical_module_block: _AbstractOpticalPipeBlockProvisioning | None = None,
 ) -> State:
     """Set the description of the Optical Pipe subscription.
 
@@ -354,7 +354,7 @@ def set_optical_pipe_subscription_description(
 
 @step("Retrieve Used Passbands")
 def retrieve_optical_pipe_used_passbands(
-    optical_module_block: AbstractOpticalPipeBlockProvisioning,
+    optical_module_block: _AbstractOpticalPipeBlockProvisioning,
 ) -> State:
     """Refresh the passbands in use on the Open Line System terminating ports.
 
@@ -370,7 +370,7 @@ def retrieve_optical_pipe_used_passbands(
     pipe_block = optical_pipe_block_from_state(optical_module_block)
     terminations = pipe_block.optical_pipe_terminations
     for port in terminations:
-        if not isinstance(port, AbstractOpticalOlsPortBlockInactive):
+        if not isinstance(port, _AbstractOpticalOlsPortBlockInactive):
             continue
         host_node = port.optical_port_host_node
         if host_node.optical_node_role not in (
@@ -422,7 +422,7 @@ def optical_node_selector(prompt: str = "Select an Optical Node") -> type[Choice
     return cast(type[Choice], Choice(prompt, zip(products.keys(), products.items(), strict=False)))
 
 
-def used_port_names_on_node(node_block: AbstractOpticalNodeBlockInactive) -> set[str]:
+def used_port_names_on_node(node_block: _AbstractOpticalNodeBlockInactive) -> set[str]:
     """Return the names of the ports of a node that are already used by other subscriptions.
 
     The port blocks of all pipe, spectrum and transport channel subscriptions are stored
@@ -475,10 +475,10 @@ def unused_node_port_selector(
 
 
 def patch_port_block_class(
-    host_node_block: AbstractOpticalNodeBlockInactive,
+    host_node_block: _AbstractOpticalNodeBlockInactive,
     port_name: str,
     client_ports: list[str],
-) -> type[AbstractOpticalPortBlockInactive]:
+) -> type[_AbstractOpticalPortBlockInactive]:
     """Return the Fiber Patch port block class for a port of a node.
 
     The ports of the client enumeration of a Nokia FlexILS node are its OLS add/drop
@@ -507,10 +507,10 @@ def patch_port_block_class(
 
 
 def leased_spectrum_port_block_class(
-    host_node_block: AbstractOpticalNodeBlockInactive,
+    host_node_block: _AbstractOpticalNodeBlockInactive,
     port_name: str,
     client_ports: list[str],
-) -> type[AbstractOpticalPortBlockInactive]:
+) -> type[_AbstractOpticalPortBlockInactive]:
     """Return the Leased Spectrum port block class for a port of a node.
 
     The ports of the client enumeration of a Nokia FlexILS node are its OLS add/drop
@@ -535,9 +535,9 @@ def leased_spectrum_port_block_class(
     return OlsLinePortBlockInactive
 
 
-def new_pipe_port_block[T: AbstractOpticalPortBlockInactive](
+def new_pipe_port_block[T: _AbstractOpticalPortBlockInactive](
     subscription_id: UUID,
-    host_node_block: AbstractOpticalNodeBlockInactive,
+    host_node_block: _AbstractOpticalNodeBlockInactive,
     port_name: str,
     port_description: str,
     port_block_class: type[T],
@@ -570,7 +570,7 @@ def new_optical_pipe_subscription(
     subscription_model: type[SubscriptionModel],
     product_id: UUIDstr,
     customer_id: str,
-    pipe_block: AbstractOpticalPipeBlockInactive,
+    pipe_block: _AbstractOpticalPipeBlockInactive,
 ) -> SubscriptionModel:
     """Build a new pipe subscription model around a pre-built pipe block.
 
@@ -637,9 +637,9 @@ def new_optical_pipe_subscription(
 
 
 def default_pipe_identifier(
-    node_a_block: AbstractOpticalNodeBlockInactive,
+    node_a_block: _AbstractOpticalNodeBlockInactive,
     port_a_name: str,
-    node_b_block: AbstractOpticalNodeBlockInactive,
+    node_b_block: _AbstractOpticalNodeBlockInactive,
     port_b_name: str,
 ) -> str:
     """Return the default identifier of a pipe, e.g. ``"nodeA portA --- nodeB portB"``."""
@@ -723,7 +723,7 @@ def pipe_terminations_form(
 def create_pipe_form_pages(
     product_name: str,
     *,
-    port_universe: Callable[[AbstractOpticalNodeBlockInactive], list[str]],
+    port_universe: Callable[[_AbstractOpticalNodeBlockInactive], list[str]],
 ) -> FormGenerator:
     """Yield the FormPages of an Optical Pipe create form, in order.
 

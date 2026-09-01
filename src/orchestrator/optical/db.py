@@ -25,9 +25,9 @@ from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlock
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlock,
-    AbstractOpticalNodeBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlock,
+    _AbstractOpticalNodeBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
     OpticalModulePacketNodeBlock,
@@ -307,7 +307,7 @@ def location_block_from_subscription(location_id: UUIDstr) -> OpticalModuleLocat
     return OpticalModuleLocationBlock.from_db(subscription_instance_id=instance.subscription_instance_id)
 
 
-def node_block_from_subscription(node_subscription_id: UUIDstr) -> AbstractOpticalNodeBlock:
+def node_block_from_subscription(node_subscription_id: UUIDstr) -> _AbstractOpticalNodeBlock:
     """Return the Optical Node product block of the given node subscription.
 
     The resolution is block-based: the subscription instance whose product
@@ -330,14 +330,14 @@ def node_block_from_subscription(node_subscription_id: UUIDstr) -> AbstractOptic
     """
     instance = _block_instance_of_subscription(
         node_subscription_id,
-        AbstractOpticalNodeBlockInactive.__names__,
+        _AbstractOpticalNodeBlockInactive.__names__,
         "Optical Node block",
     )
     block_class = ProductBlockModel.registry[instance.product_block.name]
     # The ACTIVE variant is the most-derived subclass, so it can load INITIAL,
     # PROVISIONING and ACTIVE blocks (unlike the PROVISIONING class).
     active_class = cast(
-        type[AbstractOpticalNodeBlock],
+        type[_AbstractOpticalNodeBlock],
         lookup_specialized_type(block_class, SubscriptionLifecycle.ACTIVE),
     )
     return active_class.from_db(subscription_instance_id=instance.subscription_instance_id)

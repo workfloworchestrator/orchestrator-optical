@@ -6,7 +6,7 @@ from pydantic_forms.types import State
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import step
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import _AbstractOpticalNodeBlockProvisioning
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
@@ -67,7 +67,7 @@ def load_optical_node_block(subscription: SubscriptionModel) -> State:
 @step("Updating subscription description")
 def update_optical_node_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalNodeBlockProvisioning | None = None,
+    optical_module_block: _AbstractOpticalNodeBlockProvisioning | None = None,
 ) -> State:
     """Update the description of the Optical Node subscription.
 
@@ -95,7 +95,7 @@ def update_optical_node_subscription_description(
 @step("Persist optical node block")
 def save_optical_node_block(
     subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalNodeBlockProvisioning,
+    optical_module_block: _AbstractOpticalNodeBlockProvisioning,
 ) -> State:
     """Persist the Optical Node block found in the state to the database.
 

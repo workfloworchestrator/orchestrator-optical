@@ -48,14 +48,14 @@ from orchestrator.optical.hal.port import (
     retrieve_transceiver_modes,
 )
 from orchestrator.optical.products import ProductType
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_node._abstracts import (
+    _AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
-    AbstractOpticalOlsPortBlockInactive,
-    AbstractOpticalPortBlockInactive,
+from orchestrator.optical.products.product_blocks.optical_port._abstracts import (
+    _AbstractOpticalOlsPortBlockInactive,
+    _AbstractOpticalPortBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_spectrum import (
     OpticalSpectrumBlockInactive,
@@ -65,7 +65,7 @@ from orchestrator.optical.products.product_blocks.optical_spectrum_section impor
     OpticalSpectrumSectionBlockInactive,
     OpticalSpectrumSectionBlockProvisioning,
 )
-from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
+from orchestrator.optical.products.product_types.optical_node._abstracts import _AbstractOpticalNode
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpan
 from orchestrator.optical.utils.custom_types.frequencies import Passband, disjoint_intervals_overlap_search
 
@@ -96,7 +96,7 @@ class NoOpticalPathFoundError(RuntimeError):
         super().__init__(msg)
 
 
-def _node_fqdn(node: AbstractOpticalNodeBlockInactive) -> str:
+def _node_fqdn(node: _AbstractOpticalNodeBlockInactive) -> str:
     """Return the fqdn of an Optical Node block, tolerating unset values."""
     return (
         str(node.management.optical_module_node_fqdn)
@@ -105,23 +105,23 @@ def _node_fqdn(node: AbstractOpticalNodeBlockInactive) -> str:
     )
 
 
-def _load_ols_port(port_id: UUIDstr) -> AbstractOpticalOlsPortBlockInactive:
+def _load_ols_port(port_id: UUIDstr) -> _AbstractOpticalOlsPortBlockInactive:
     """Load an OLS Optical Port block from its subscription instance id."""
-    return cast(AbstractOpticalOlsPortBlockInactive, ProductBlockModel.from_db(UUID(str(port_id))))
+    return cast(_AbstractOpticalOlsPortBlockInactive, ProductBlockModel.from_db(UUID(str(port_id))))
 
 
-def _load_port(port_id: UUIDstr) -> AbstractOpticalPortBlockInactive:
+def _load_port(port_id: UUIDstr) -> _AbstractOpticalPortBlockInactive:
     """Load an Optical Port block from its subscription instance id."""
-    return cast(AbstractOpticalPortBlockInactive, ProductBlockModel.from_db(UUID(str(port_id))))
+    return cast(_AbstractOpticalPortBlockInactive, ProductBlockModel.from_db(UUID(str(port_id))))
 
 
 def find_constrained_shortest_path(
-    src_device: AbstractOpticalNodeBlockInactive,
-    dst_device: AbstractOpticalNodeBlockInactive,
+    src_device: _AbstractOpticalNodeBlockInactive,
+    dst_device: _AbstractOpticalNodeBlockInactive,
     passband: Passband,
     exclude_node_sub_ids: list[UUIDstr] | None = None,
     exclude_span_sub_ids: list[UUIDstr] | None = None,
-) -> list[tuple[AbstractOpticalOlsPortBlockInactive, AbstractOpticalOlsPortBlockInactive]]:
+) -> list[tuple[_AbstractOpticalOlsPortBlockInactive, _AbstractOpticalOlsPortBlockInactive]]:
     """Find shortest path between optical devices respecting given constraints.
 
     Args:
@@ -438,7 +438,7 @@ def are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path: Path) -> bool:
 def find_add_drop_ports(
     src_trx_port_block_id: UUIDstr,
     dst_trx_port_block_id: UUIDstr,
-) -> tuple[AbstractOpticalPortBlockInactive, AbstractOpticalPortBlockInactive]:
+) -> tuple[_AbstractOpticalPortBlockInactive, _AbstractOpticalPortBlockInactive]:
     """Retrieve the add/drop ports connected to the transponder/transceiver ports.
 
     Args:
@@ -457,8 +457,8 @@ def find_add_drop_ports(
     fiber_a = OpticalFiberSpan.from_subscription(src_trx_port.owner_subscription_id).optical_pipe
     fiber_b = OpticalFiberSpan.from_subscription(dst_trx_port.owner_subscription_id).optical_pipe
 
-    src_add_drop_port: AbstractOpticalPortBlockInactive | None = None
-    dst_add_drop_port: AbstractOpticalPortBlockInactive | None = None
+    src_add_drop_port: _AbstractOpticalPortBlockInactive | None = None
+    dst_add_drop_port: _AbstractOpticalPortBlockInactive | None = None
     for t in fiber_a.optical_pipe_terminations:
         if t.subscription_instance_id != src_trx_port.subscription_instance_id:
             src_add_drop_port = t
@@ -703,7 +703,7 @@ def store_list_of_ports_into_spectrum_sections(
     """
     ports = [_load_ols_port(port_id) for port_id in optical_path]
 
-    sections: list[list[AbstractOpticalOlsPortBlockInactive]] = []
+    sections: list[list[_AbstractOpticalOlsPortBlockInactive]] = []
     current_section = [ports[0]]
     previous_port = ports[0]
     for current_port in ports[1:]:
@@ -846,7 +846,7 @@ def multiple_optical_node_selector(
 
 def optical_port_selector(optical_node_subscription_id: UUIDstr, prompt: str = "") -> type[Choice]:
     """Return a Choice object for selecting an optical port of an Optical Node."""
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
+    subscription = _AbstractOpticalNode.from_subscription(optical_node_subscription_id)
     node = subscription.optical_node
     ports = get_device_ports_names(node)
     if not prompt:
@@ -868,7 +868,7 @@ def unused_optical_port_selector(
         product_block_type: The product block type whose ``optical_port_name`` values mark
             ports as already in use (e.g. "OlsAddDropPortBlock", "OlsLinePortBlock").
     """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
+    subscription = _AbstractOpticalNode.from_subscription(optical_node_subscription_id)
     node = subscription.optical_node
     ports = get_device_ports_names(node)
 
@@ -900,7 +900,7 @@ def optical_client_port_selector(
         optical_node_subscription_id: Subscription id of the Optical Node.
         prompt: A custom prompt message for the selection.
     """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
+    subscription = _AbstractOpticalNode.from_subscription(optical_node_subscription_id)
     node = subscription.optical_node
     ports = get_device_client_ports_names(node)
     if not prompt:
@@ -922,7 +922,7 @@ def unused_optical_client_port_selector(
         product_block_type: The product block type whose ``optical_port_name`` values mark
             ports as already in use (e.g. "OlsAddDropPortBlock", "OpticalTransponderClientPortBlock").
     """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
+    subscription = _AbstractOpticalNode.from_subscription(optical_node_subscription_id)
     node = subscription.optical_node
     ports = get_device_client_ports_names(node)
 
@@ -954,7 +954,7 @@ def optical_line_port_selector(
         optical_node_subscription_id: Subscription id of the Optical Node.
         prompt: A custom prompt message for the selection.
     """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
+    subscription = _AbstractOpticalNode.from_subscription(optical_node_subscription_id)
     node = subscription.optical_node
     ports = get_device_line_ports_names(node)
     if not prompt:
@@ -976,7 +976,7 @@ def unused_optical_line_port_selector(
         product_block_type: The product block type whose ``optical_port_name`` values mark
             ports as already in use (e.g. "OlsLinePortBlock", "OpticalTransponderLinePortBlock").
     """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
+    subscription = _AbstractOpticalNode.from_subscription(optical_node_subscription_id)
     node = subscription.optical_node
     ports = get_device_line_ports_names(node)
 
@@ -1014,7 +1014,7 @@ def transceiver_mode_selector(
     Returns:
         A Choice class containing the prompt and a list of available transceiver modes.
     """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
+    subscription = _AbstractOpticalNode.from_subscription(optical_node_subscription_id)
     modulations = retrieve_transceiver_modes(subscription.optical_node, port_name)
     if not prompt:
         prompt = "Select a modulation"

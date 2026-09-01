@@ -28,6 +28,7 @@ class SysResponse(TL1BaseResponse):
 
 class RetrieveSys(TL1BaseCommand):
     """Retrieve the system data (NETYPE and SWVERSION) of a FlexILS node."""
+
     help_text: ClassVar[str] = "RTRV-SYS:[<TID>]::<CTAG>::::"
     verb: ClassVar[str] = "RTRV"
     modifier: ClassVar[str] = "SYS"
