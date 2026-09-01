@@ -6,7 +6,7 @@ from pydantic import computed_field
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.products.product_blocks.optical_packet_node import (
+from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
     OpticalModulePacketNodeBlock,
     OpticalModulePacketNodeBlockInactive,
     OpticalModulePacketNodeBlockProvisioning,

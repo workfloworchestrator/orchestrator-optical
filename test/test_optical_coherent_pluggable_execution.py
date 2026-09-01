@@ -23,7 +23,7 @@ import orchestrator.core.db as core_db
 from orchestrator.core.db import FixedInputTable, SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import packet_node_block_from_subscription
-from orchestrator.optical.products.product_blocks.optical_packet_node import OpticalModulePacketNodeBlock
+from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import OpticalModulePacketNodeBlock
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
     OpticalCoherentPluggable,
     OpticalCoherentPluggablePartNumber,

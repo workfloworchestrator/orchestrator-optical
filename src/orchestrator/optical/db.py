@@ -29,7 +29,7 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     AbstractOpticalNodeBlock,
     AbstractOpticalNodeBlockInactive,
 )
-from orchestrator.optical.products.product_blocks.optical_packet_node import (
+from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
     OpticalModulePacketNodeBlock,
     OpticalModulePacketNodeBlockInactive,
 )

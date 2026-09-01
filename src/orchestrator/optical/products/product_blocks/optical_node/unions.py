@@ -28,7 +28,7 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
     NokiaGxG42BlockInactive,
     NokiaGxG42BlockProvisioning,
 )
-from orchestrator.optical.products.product_blocks.optical_packet_node import (
+from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
     OpticalModulePacketNodeBlock,
     OpticalModulePacketNodeBlockInactive,
     OpticalModulePacketNodeBlockProvisioning,

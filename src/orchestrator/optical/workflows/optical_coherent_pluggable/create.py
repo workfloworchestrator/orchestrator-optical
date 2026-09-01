@@ -41,7 +41,7 @@ from orchestrator.optical.products.product_blocks.optical_coherent_pluggable imp
     OpticalCoherentPluggableBlock,
     OpticalCoherentPluggableBlockInactive,
 )
-from orchestrator.optical.products.product_blocks.optical_packet_node import (
+from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
     OpticalModulePacketNodeBlockInactive,
 )
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
