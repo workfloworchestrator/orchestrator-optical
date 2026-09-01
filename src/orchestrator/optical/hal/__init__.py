@@ -1,48 +1,39 @@
 """Hardware Abstraction Layer for the optical orchestrator.
 
-This package provides the device-facing operations of the optical orchestrator:
-node discovery and client factory (optical_node), port operations (optical_port),
-digital service provisioning (optical_digital_service) and optical circuit
-provisioning (optical_spectrum). All platform-specific behavior is dispatched
-with match/case on the vendor of the Optical Node product block.
+This package provides the device-facing operations of the optical orchestrator,
+organized by area and dispatched on the vendor/platform of the Optical Node
+product block with ``match/case``:
+
+- :mod:`orchestrator.optical.hal.node` — node discovery, client factories and
+  the node-level retrieve/validate operations.
+- :mod:`orchestrator.optical.hal.port` — port enumeration, admin state and
+  fiber-termination configure/reset/check.
+- :mod:`orchestrator.optical.hal.transponder` — transponder line/client
+  configuration, cross-connects, validation and power alignment.
+- :mod:`orchestrator.optical.hal.spectrum` — the FlexILS optical circuit
+  (OEL/OSNC/OCRS) engine and optical cross-connections.
+
+Each area module routes to a per-device adapter under
+:mod:`orchestrator.optical.hal.adapters` (one subpackage per vendor platform).
 """
 
-from orchestrator.optical.hal.optical_digital_service import (
-    allign_tx_power_to_target,
-    configure_line_transceivers,
-    configure_transceiver_client,
-    configure_transponder_crossconnect,
-    delete_transponder_crossconnect,
-    diff_btw_current_rx_power_and_target,
-    factory_reset_transponder_client,
-    factory_reset_transponder_lines,
-    get_signal_bandwidth,
-    validate_trx_client,
-    validate_trx_crossconnect,
-    validate_trx_line,
-)
-from orchestrator.optical.hal.optical_node import (
+from orchestrator.optical.hal.node import (
     FlexilsGneProvider,
     discover_flexils_node,
     get_flex_client,
     get_g30_client,
     get_g42_client,
     get_optical_node_client,
-    retrieve_g30_software_version,
-    retrieve_g42_software_version,
     retrieve_omses_terminating_on_device,
     retrieve_optical_node_role_and_software_version,
     retrieve_ports_spectral_occupations,
     retrieve_software_version,
     validate_management_network_config,
 )
-from orchestrator.optical.hal.optical_port import (
+from orchestrator.optical.hal.port import (
     check_fiber_terminating_port,
     configure_termination_when_attaching_new_fiber,
     factory_reset_port_configuration,
-    flexils_check_port_is_in_manualmode2_else_set_it,
-    g30_ids_from_port_name,
-    g30_port_navigator_node_from_port_name,
     get_device_client_ports_names,
     get_device_line_ports_names,
     get_device_ports_names,
@@ -51,7 +42,7 @@ from orchestrator.optical.hal.optical_port import (
     set_port_admin_state,
     set_port_description,
 )
-from orchestrator.optical.hal.optical_spectrum import (
+from orchestrator.optical.hal.spectrum import (
     append_optical_circuit_label,
     create_optical_cross_connection,
     delete_optical_circuit,
@@ -60,11 +51,24 @@ from orchestrator.optical.hal.optical_spectrum import (
     modify_optical_circuit,
     validate_optical_circuit,
 )
+from orchestrator.optical.hal.transponder import (
+    align_tx_power_to_target,
+    configure_line_transceivers,
+    configure_transceiver_client,
+    configure_transponder_crossconnect,
+    delete_transponder_crossconnect,
+    delta_rx_power_vs_target,
+    factory_reset_transponder_client,
+    factory_reset_transponder_lines,
+    get_signal_bandwidth,
+    validate_trx_client,
+    validate_trx_crossconnect,
+    validate_trx_line,
+)
 
 __all__ = [
     "FlexilsGneProvider",
-    "FlexilsNodeDiscovery",
-    "allign_tx_power_to_target",
+    "align_tx_power_to_target",
     "append_optical_circuit_label",
     "check_fiber_terminating_port",
     "configure_line_transceivers",
@@ -75,15 +79,12 @@ __all__ = [
     "delete_optical_circuit",
     "delete_optical_cross_connection",
     "delete_transponder_crossconnect",
+    "delta_rx_power_vs_target",
     "deploy_optical_circuit",
-    "diff_btw_current_rx_power_and_target",
     "discover_flexils_node",
     "factory_reset_port_configuration",
     "factory_reset_transponder_client",
     "factory_reset_transponder_lines",
-    "flexils_check_port_is_in_manualmode2_else_set_it",
-    "g30_ids_from_port_name",
-    "g30_port_navigator_node_from_port_name",
     "get_device_client_ports_names",
     "get_device_line_ports_names",
     "get_device_ports_names",
@@ -93,8 +94,6 @@ __all__ = [
     "get_optical_node_client",
     "get_signal_bandwidth",
     "modify_optical_circuit",
-    "retrieve_g30_software_version",
-    "retrieve_g42_software_version",
     "retrieve_omses_terminating_on_device",
     "retrieve_optical_node_role_and_software_version",
     "retrieve_ports_spectral_occupations",

@@ -1,80 +1,22 @@
-"""Services for Optical Spectrum circuits.
-
-This module implements the FlexILS-centric engine used to provision optical
-circuits on the spectrum sections of an Optical Spectrum subscription: OEL,
-OSNC and OCRS TL1 objects, shutters and labels. Operations are dispatched on
-the vendor of the Optical Node product block with match/case statements; for
-Groove G30 and GX G42 nodes the operations are no-ops, as those platforms do
-not have internal optical cross-connections.
-
-The device-side identifiers (OEL AID, OSNC CKTIDSUFFIX, OCRS circuit
-identifiers) are derived from the ``circuit_identifier`` parameter, i.e. the
-``subscription_instance_id`` of the spectrum subscription, instead of GARR
-business logic such as pop codes.
-"""
+"""Spectrum-area operations for the Nokia FlexILS device adapter."""
 
 from time import sleep
-from typing import Any, cast
+from typing import Any
 
-from orchestrator.optical.hal.optical_digital_service import FlexilsClientProtocol
-from orchestrator.optical.hal.optical_node import get_flex_client
-from orchestrator.optical.hal.optical_port import flexils_check_port_is_in_manualmode2_else_set_it
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
-    AbstractOpticalNodeBlock,
-    AbstractOpticalNodeBlockInactive,
-    AbstractOpticalNodeBlockProvisioning,
-    OpticalNodeRole,
+from orchestrator.optical.hal._common import (
+    OlsPortBlock,
+    OpticalSpectrumSectionBlockT,
+    _as_flexils_block,
+    _node_id,
+    _port_name,
 )
+from orchestrator.optical.hal.adapters.nokia_flexils._shared import FlexilsClientProtocol, _get_flex_client
+from orchestrator.optical.hal.adapters.nokia_flexils.port import _ensure_manualmode2
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockInactive
-from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
-    AbstractOpticalOlsPortBlock,
-    AbstractOpticalOlsPortBlockInactive,
-    AbstractOpticalOlsPortBlockProvisioning,
-)
-from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
-    OpticalSpectrumSectionBlock,
-    OpticalSpectrumSectionBlockInactive,
-    OpticalSpectrumSectionBlockProvisioning,
-)
 from orchestrator.optical.services.nokia.flexils.commands.base import TL1BaseResponse
 from orchestrator.optical.services.nokia.flexils.exceptions import TL1CommandDeniedError
 from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
-
-OpticalNodeBlock = AbstractOpticalNodeBlock | AbstractOpticalNodeBlockProvisioning | AbstractOpticalNodeBlockInactive
-OlsPortBlock = (
-    AbstractOpticalOlsPortBlock | AbstractOpticalOlsPortBlockProvisioning | AbstractOpticalOlsPortBlockInactive
-)
-OpticalSpectrumSectionBlockT = (
-    OpticalSpectrumSectionBlock | OpticalSpectrumSectionBlockProvisioning | OpticalSpectrumSectionBlockInactive
-)
-
-
-def _get_flex_client(optical_node_block: OpticalNodeBlock) -> FlexilsClientProtocol:
-    """Return a FlexILS TL1 client for the given Optical Node block.
-
-    Wraps `hal.optical_node.get_flex_client`, returning the dynamically-bound TL1
-    command surface as a protocol so that it type checks.
-    """
-    if not isinstance(optical_node_block, NokiaFlexIlsBlockInactive):
-        msg = f"Expected a Nokia FlexILS node block, got {type(optical_node_block).__name__}"
-        raise TypeError(msg)
-    return cast(FlexilsClientProtocol, get_flex_client(optical_node_block))
-
-
-def _node_id(optical_node_block: OpticalNodeBlock) -> str:
-    """Return the fqdn of the given Optical Node block, for use in identifiers and messages."""
-    fqdn = optical_node_block.management.optical_module_node_fqdn
-    return fqdn if fqdn is not None else "<no fqdn>"
-
-
-def _port_name(port: OlsPortBlock) -> str:
-    """Return the optical port name of the given Optical Port block."""
-    name = port.optical_port_name
-    if name is None:
-        msg = f"Optical port {port!r} has no name"
-        raise ValueError(msg)
-    return name
 
 
 def _node_role(port: OlsPortBlock) -> OpticalNodeRole:
@@ -129,8 +71,8 @@ def _divide_path_into_omses(
 
 def _find_or_create_oel(
     oel_aid: str,
-    source_device: OpticalNodeBlock,
-    dest_device: OpticalNodeBlock,
+    source_device: NokiaFlexIlsBlockInactive,
+    dest_device: NokiaFlexIlsBlockInactive,
     omses: list[tuple[OlsPortBlock, OlsPortBlock]],
 ) -> dict[str, Any]:
     """Find an existing OEL (Optical Engineered Lightpath) or create a new one.
@@ -161,8 +103,8 @@ def _find_or_create_oel(
 
     explicit_route: list[tuple[str, str, str, str]] = []
     for src_port, dst_port in omses:
-        src_node = src_port.optical_port_host_node
-        dst_node = dst_port.optical_port_host_node
+        src_node = _as_flexils_block(src_port.optical_port_host_node)
+        dst_node = _as_flexils_block(dst_port.optical_port_host_node)
 
         src_node_name = _node_id(src_node)
         dst_node_name = _node_id(dst_node)
@@ -190,7 +132,7 @@ def _find_or_create_oel(
     return response.parsed_data[0]
 
 
-def _oteintf_from_port_name(device: OpticalNodeBlock, port_name: str) -> str:
+def _oteintf_from_port_name(device: NokiaFlexIlsBlockInactive, port_name: str) -> str:
     """Find the Optical Traffic Engineering Interface (OTEINTF) corresponding to the given physical port name."""
     device_name = _node_id(device)
     flex = _get_flex_client(device)
@@ -228,7 +170,7 @@ def _find_fbm_port_if_fmm_port(flex: FlexilsClientProtocol, port_name: str) -> s
 
 
 def _get_flexils_name_client_tributary(
-    device: OpticalNodeBlock,
+    device: NokiaFlexIlsBlockInactive,
     port_name: str,
 ) -> tuple[str, FlexilsClientProtocol, str]:
     """Extract node name, flex client, and tributary endpoint for the given port."""
@@ -292,8 +234,8 @@ def _find_matching_osnc_on_flexils(
 
 
 def _find_or_create_osnc(
-    src_device: OpticalNodeBlock,
-    dst_device: OpticalNodeBlock,
+    src_device: NokiaFlexIlsBlockInactive,
+    dst_device: NokiaFlexIlsBlockInactive,
     circuit_identifier: str,
     osnc_label: str,
     oel_aid: str,
@@ -373,7 +315,7 @@ def _find_first_free_sch_id(flex: FlexilsClientProtocol, port_name: str) -> int:
     raise ValueError(msg)
 
 
-def _open_shutter(device: OpticalNodeBlock, sch_aid: str) -> None:
+def _open_shutter(device: NokiaFlexIlsBlockInactive, sch_aid: str) -> None:
     """Open the shutter of the given superchannel on the given device."""
     flex = _get_flex_client(device)
     flex.put_maintenance(aidtype="SCH", aid=sch_aid)
@@ -407,8 +349,12 @@ def _find_flexils_osnc(
     """
     src_port_raw = _port_name(optical_spectrum_section.optical_spectrum_section_add_drop_ports[0])
     dst_port_raw = _port_name(optical_spectrum_section.optical_spectrum_section_add_drop_ports[1])
-    src_device = optical_spectrum_section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-    dst_device = optical_spectrum_section.optical_spectrum_section_add_drop_ports[1].optical_port_host_node
+    src_device = _as_flexils_block(
+        optical_spectrum_section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
+    )
+    dst_device = _as_flexils_block(
+        optical_spectrum_section.optical_spectrum_section_add_drop_ports[1].optical_port_host_node
+    )
 
     src_node_name, src_flex, src_port = _get_flexils_name_client_tributary(src_device, src_port_raw)
     dst_node_name, dst_flex, dst_port = _get_flexils_name_client_tributary(dst_device, dst_port_raw)
@@ -470,61 +416,8 @@ def _remote_flex_for_section(
     return remote_flex
 
 
-def deploy_optical_circuit(
-    optical_node_block: OpticalNodeBlock,
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
-    optical_spectrum_name: str,
-    passband: Passband,
-    carrier: tuple[Frequency, Bandwidth],
-    label: str | None = None,
-    circuit_identifier: str = "",
-) -> dict[str, Any]:
-    """Deploy an optical circuit for the given optical spectrum section.
-
-    Args:
-        optical_node_block: The source Optical Node of the section.
-        optical_spectrum_section_block: The optical spectrum section configuration.
-        optical_spectrum_name: The user-facing name of the optical spectrum.
-        passband: Frequency range allowed for transmission.
-        carrier: Tuple of (center frequency, bandwidth) for the carrier signal.
-        label: Optional label for the circuit.
-        circuit_identifier: The subscription instance id of the circuit; used to derive the
-            device-side OEL AID and OSNC CKTIDSUFFIX.
-
-    Returns:
-        Platform-specific deployment configuration.
-
-    Raises:
-        ValueError: If the circuit cannot be deployed.
-    """
-    match (
-        optical_node_block.management.optical_module_node_vendor,
-        optical_node_block.management.optical_module_node_platform,
-    ):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            return _deploy_optical_circuit_flexils(
-                optical_node_block,
-                optical_spectrum_section_block,
-                optical_spectrum_name,
-                passband,
-                carrier,
-                label,
-                circuit_identifier,
-            )
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return {
-                "not-applicable": "Groove G30s (H4 links) do not need internal optical crossconnections configurations"
-            }
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return {"not-applicable": "GX G42s do not need internal optical crossconnections configurations"}
-
-        case _:
-            msg = "Unsupported Optical Node vendor/platform combination"
-            raise NotImplementedError(msg)
-
-
-def _deploy_optical_circuit_flexils(
-    optical_node_block: OpticalNodeBlock,  # noqa: ARG001
+def deploy(
+    optical_node_block: NokiaFlexIlsBlockInactive,  # noqa: ARG001
     optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
     optical_spectrum_name: str,  # noqa: ARG001
     passband: Passband,
@@ -537,8 +430,8 @@ def _deploy_optical_circuit_flexils(
     express_ports = optical_spectrum_section_block.optical_spectrum_section_express_ports
     path: list[OlsPortBlock] = [add_drop_ports[0], *express_ports, add_drop_ports[1]]
 
-    src_device = add_drop_ports[0].optical_port_host_node
-    dst_device = add_drop_ports[1].optical_port_host_node
+    src_device = _as_flexils_block(add_drop_ports[0].optical_port_host_node)
+    dst_device = _as_flexils_block(add_drop_ports[1].optical_port_host_node)
     src_flexils_name = _node_id(src_device)
     dst_flexils_name = _node_id(dst_device)
 
@@ -554,7 +447,7 @@ def _deploy_optical_circuit_flexils(
     )
 
     for port in add_drop_ports:
-        flexils_check_port_is_in_manualmode2_else_set_it(port)
+        _ensure_manualmode2(port)
 
     osnc = _find_or_create_osnc(
         src_device=src_device,
@@ -582,68 +475,8 @@ def _deploy_optical_circuit_flexils(
     }
 
 
-def modify_optical_circuit(
-    optical_node_block: OpticalNodeBlock,
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
-    optical_spectrum_name: str,
-    passband: Passband,
-    carrier: tuple[Frequency, Bandwidth],
-    label: str | None = None,
-    old_passband: Passband | None = None,
-    circuit_identifier: str = "",
-) -> dict[str, Any]:
-    """Modify an optical circuit for the given optical spectrum section.
-
-    The circuit is found by its circuit identifier, so the spectrum name is not
-    expected to change; when it does, the new name is only reflected in the OSNC
-    label if provided.
-
-    Args:
-        optical_node_block: The source Optical Node of the section.
-        optical_spectrum_section_block: The optical spectrum section configuration.
-        optical_spectrum_name: The user-facing name of the optical spectrum.
-        passband: The new frequency range allowed for transmission.
-        carrier: Tuple of (center frequency, bandwidth) for the carrier signal.
-        label: Optional label for the circuit.
-        old_passband: The old passband of the optical circuit.
-        circuit_identifier: The subscription instance id of the circuit; used to derive the
-            device-side OEL AID and OSNC CKTIDSUFFIX.
-
-    Returns:
-        Platform-specific modification result.
-
-    Raises:
-        ValueError: If the circuit cannot be modified.
-    """
-    match (
-        optical_node_block.management.optical_module_node_vendor,
-        optical_node_block.management.optical_module_node_platform,
-    ):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            return _modify_optical_circuit_flexils(
-                optical_node_block,
-                optical_spectrum_section_block,
-                optical_spectrum_name,
-                passband,
-                carrier,
-                label,
-                old_passband,
-                circuit_identifier,
-            )
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return {
-                "not-applicable": "Groove G30s (H4 links) do not have any internal optical crossconnections to modify"
-            }
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return {"not-applicable": "GX G42s do not have any internal optical crossconnections to modify"}
-
-        case _:
-            msg = "Unsupported Optical Node vendor/platform combination"
-            raise NotImplementedError(msg)
-
-
-def _modify_optical_circuit_flexils(
-    optical_node_block: OpticalNodeBlock,
+def modify(
+    optical_node_block: NokiaFlexIlsBlockInactive,
     optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
     optical_spectrum_name: str,
     passband: Passband,
@@ -673,7 +506,7 @@ def _modify_optical_circuit_flexils(
     matches_oel = osnc.get("OELAID", "").strip(r"\" ") == oel_aid[:64]
     new_oel: dict[str, Any] | None = None
     if not matches_oel:
-        dst_optical_device = add_drop_ports[1].optical_port_host_node
+        dst_optical_device = _as_flexils_block(add_drop_ports[1].optical_port_host_node)
         omses = _divide_path_into_omses(path)
         new_oel = _find_or_create_oel(
             oel_aid,
@@ -724,61 +557,32 @@ def _modify_optical_circuit_flexils(
     }
 
 
-def delete_optical_circuit(
-    optical_node_block: OpticalNodeBlock,
+def delete(
+    optical_node_block: NokiaFlexIlsBlockInactive,  # noqa: ARG001
     optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
     optical_spectrum_name: str,
     passband: Passband,
     circuit_identifier: str = "",
 ) -> dict[str, Any]:
-    """Delete an optical circuit for the given optical spectrum section.
+    """Delete an optical circuit specifically for FlexILS platform devices."""
+    flex, osnc = _find_flexils_osnc(
+        optical_spectrum_name,
+        optical_spectrum_section_block,
+        passband,
+        circuit_identifier,
+    )
 
-    Args:
-        optical_node_block: The source Optical Node of the section.
-        optical_spectrum_section_block: The optical spectrum section configuration.
-        optical_spectrum_name: The user-facing name of the optical spectrum.
-        passband: Frequency range allowed for transmission.
-        circuit_identifier: The subscription instance id of the circuit; used as the OSNC CKTIDSUFFIX.
+    # Lock the OSNC in admin state
+    flex.ed_osnc(aid=osnc["LOCENDPOINT"], is_oos="OOS")
 
-    Returns:
-        Platform-specific deletion result.
+    # Delete the OSNC
+    flex.dlt_osnc(aid=osnc["LOCENDPOINT"])
 
-    Raises:
-        ValueError: If the circuit cannot be found.
-    """
-    match (
-        optical_node_block.management.optical_module_node_vendor,
-        optical_node_block.management.optical_module_node_platform,
-    ):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            flex, osnc = _find_flexils_osnc(
-                optical_spectrum_name,
-                optical_spectrum_section_block,
-                passband,
-                circuit_identifier,
-            )
-
-            # Lock the OSNC in admin state
-            flex.ed_osnc(aid=osnc["LOCENDPOINT"], is_oos="OOS")
-
-            # Delete the OSNC
-            flex.dlt_osnc(aid=osnc["LOCENDPOINT"])
-
-            return {"deleted_OSNC": osnc["LOCENDPOINT"]}
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return {
-                "not-applicable": "Groove G30s (H4 links) do not have any internal optical crossconnections to delete"
-            }
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return {"not-applicable": "GX G42s do not have any internal optical crossconnections to delete"}
-
-        case _:
-            msg = "Unsupported Optical Node vendor/platform combination"
-            raise NotImplementedError(msg)
+    return {"deleted_OSNC": osnc["LOCENDPOINT"]}
 
 
-def validate_optical_circuit(
-    optical_node_block: OpticalNodeBlock,
+def validate(
+    optical_node_block: NokiaFlexIlsBlockInactive,  # noqa: ARG001
     optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
     optical_spectrum_name: str,
     passband: Passband,
@@ -800,57 +604,41 @@ def validate_optical_circuit(
     Raises:
         ValueError: If the configuration is invalid.
     """
-    match (
-        optical_node_block.management.optical_module_node_vendor,
-        optical_node_block.management.optical_module_node_platform,
-    ):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            flex, osnc = _find_flexils_osnc(
-                optical_spectrum_name,
-                optical_spectrum_section_block,
-                passband,
-                circuit_identifier,
-            )  # already raises error if CKTIDSUFFIX/LOCENDPOINT/REMENDPOINT/PASSBANDLIST do not match
+    flex, osnc = _find_flexils_osnc(
+        optical_spectrum_name,
+        optical_spectrum_section_block,
+        passband,
+        circuit_identifier,
+    )  # already raises error if CKTIDSUFFIX/LOCENDPOINT/REMENDPOINT/PASSBANDLIST do not match
 
-            remote_flex = _remote_flex_for_section(flex, optical_spectrum_section_block)
+    remote_flex = _remote_flex_for_section(flex, optical_spectrum_section_block)
 
-            errors = []
+    errors = []
 
-            actual_carrier = tuple(int(x) for x in osnc.get("CARRIERLIST", []))
-            expected_carrier = carrier
-            if actual_carrier != expected_carrier:
-                errors.append(f"Carrier mismatch: expected {expected_carrier}, got {actual_carrier}")
+    actual_carrier = tuple(int(x) for x in osnc.get("CARRIERLIST", []))
+    expected_carrier = carrier
+    if actual_carrier != expected_carrier:
+        errors.append(f"Carrier mismatch: expected {expected_carrier}, got {actual_carrier}")
 
-            actual_label = osnc.get("LABEL", "").strip(r"\" ")
-            if label not in actual_label:
-                errors.append(f"Label mismatch: expected to contain '{label}', got '{actual_label}'")
+    actual_label = osnc.get("LABEL", "").strip(r"\" ")
+    if label not in actual_label:
+        errors.append(f"Label mismatch: expected to contain '{label}', got '{actual_label}'")
 
-            local_shutter = flex.rtrv_sch(aid=osnc["LOCENDPOINT"]).parsed_data[0]
-            if local_shutter.get("SHUTTERSTATE") != "OPEN":
-                errors.append(f"Local shutter not OPEN: {local_shutter.get('SHUTTERSTATE')}")
+    local_shutter = flex.rtrv_sch(aid=osnc["LOCENDPOINT"]).parsed_data[0]
+    if local_shutter.get("SHUTTERSTATE") != "OPEN":
+        errors.append(f"Local shutter not OPEN: {local_shutter.get('SHUTTERSTATE')}")
 
-            remote_shutter = remote_flex.rtrv_sch(aid=osnc["REMENDPOINT"]).parsed_data[0]
-            if remote_shutter.get("SHUTTERSTATE") != "OPEN":
-                errors.append(f"Remote shutter not OPEN: {remote_shutter.get('SHUTTERSTATE')}")
+    remote_shutter = remote_flex.rtrv_sch(aid=osnc["REMENDPOINT"]).parsed_data[0]
+    if remote_shutter.get("SHUTTERSTATE") != "OPEN":
+        errors.append(f"Remote shutter not OPEN: {remote_shutter.get('SHUTTERSTATE')}")
 
-            if errors:
-                msg = f"OSNC validation failed for {optical_spectrum_name}: " + "; ".join(errors)
-                raise ValueError(msg)
-
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            # Groove G30s (H4 links) do not have internal optical crossconnections to validate
-            return
-        case (Vendor.NOKIA, Platform.GX_G42):
-            # GX G42s do not have internal optical crossconnections to validate
-            return
-
-        case _:
-            msg = "Unsupported Optical Node vendor/platform combination"
-            raise NotImplementedError(msg)
+    if errors:
+        msg = f"OSNC validation failed for {optical_spectrum_name}: " + "; ".join(errors)
+        raise ValueError(msg)
 
 
-def append_optical_circuit_label(
-    source_optical_node_block: OpticalNodeBlock,
+def append_label(
+    source_optical_node_block: NokiaFlexIlsBlockInactive,  # noqa: ARG001
     optical_spectrum_section_block: OpticalSpectrumSectionBlockT,
     optical_spectrum_name: str,
     passband: Passband,
@@ -873,41 +661,26 @@ def append_optical_circuit_label(
     Raises:
         ValueError: If the OSNC cannot be found.
     """
-    match (
-        source_optical_node_block.management.optical_module_node_vendor,
-        source_optical_node_block.management.optical_module_node_platform,
-    ):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            flex, osnc = _find_flexils_osnc(
-                optical_spectrum_name,
-                optical_spectrum_section_block,
-                passband,
-                circuit_identifier,
-            )
-            old_label = osnc.get("LABEL", "").strip(r"\" ")
-            labels = old_label.split("+")
-            labels.append(label)
-            labels = sorted(name.strip() for name in labels)
-            new_label = "+".join(labels)
-            flex.ed_osnc(aid=osnc["LOCENDPOINT"], label=new_label)
-            response = flex.rtrv_osnc(aid=osnc["LOCENDPOINT"])
-            osnc = response.parsed_data[0]
+    flex, osnc = _find_flexils_osnc(
+        optical_spectrum_name,
+        optical_spectrum_section_block,
+        passband,
+        circuit_identifier,
+    )
+    old_label = osnc.get("LABEL", "").strip(r"\" ")
+    labels = old_label.split("+")
+    labels.append(label)
+    labels = sorted(name.strip() for name in labels)
+    new_label = "+".join(labels)
+    flex.ed_osnc(aid=osnc["LOCENDPOINT"], label=new_label)
+    response = flex.rtrv_osnc(aid=osnc["LOCENDPOINT"])
+    osnc = response.parsed_data[0]
 
-            return {"updated_OSNC": osnc}
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return {
-                "not-applicable": "Groove G30s (H4 links) do not have any internal optical crossconnections to label"
-            }
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return {"not-applicable": "GX G42s do not have any internal optical crossconnections to label"}
-
-        case _:
-            msg = "Unsupported Optical Node vendor/platform combination"
-            raise NotImplementedError(msg)
+    return {"updated_OSNC": osnc}
 
 
-def create_optical_cross_connection(
-    optical_node_block: OpticalNodeBlock,
+def create_cross_connection(
+    optical_node_block: NokiaFlexIlsBlockInactive,
     from_port: OlsPortBlock,
     to_port: OlsPortBlock,
     passband: Passband,
@@ -936,65 +709,50 @@ def create_optical_cross_connection(
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the cross connection cannot be created.
     """
-    match (
-        optical_node_block.management.optical_module_node_vendor,
-        optical_node_block.management.optical_module_node_platform,
-    ):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            from_port_name = _port_name(from_port)
-            to_port_name = _port_name(to_port)
+    from_port_name = _port_name(from_port)
+    to_port_name = _port_name(to_port)
 
-            if label:
-                label = rf'"{label}"'
+    if label:
+        label = rf'"{label}"'
 
-            if carrier is None:
-                carrier = ((passband[0] + passband[-1]) // 2, passband[-1] - passband[0])
+    if carrier is None:
+        carrier = ((passband[0] + passband[-1]) // 2, passband[-1] - passband[0])
 
-            if "S" in to_port_name:
-                # let's use the system port as from_port
-                to_port_name, from_port_name = from_port_name, to_port_name
+    if "S" in to_port_name:
+        # let's use the system port as from_port
+        to_port_name, from_port_name = from_port_name, to_port_name
 
-            flex = _get_flex_client(optical_node_block)
+    flex = _get_flex_client(optical_node_block)
 
-            from_sch_id = _find_first_free_sch_id(flex, from_port_name)
-            to_sch_id = _find_first_free_sch_id(flex, to_port_name)
+    from_sch_id = _find_first_free_sch_id(flex, from_port_name)
+    to_sch_id = _find_first_free_sch_id(flex, to_port_name)
 
-            fromaid = f"{from_port_name}-{from_sch_id}"
-            toaid = f"{to_port_name}-{to_sch_id}"
+    fromaid = f"{from_port_name}-{from_sch_id}"
+    toaid = f"{to_port_name}-{to_sch_id}"
 
-            flex.ent_ocrs(
-                fromaid=fromaid,
-                toaid=toaid,
-                label=label,
-                cktidsuffix=circuit_identifier,
-                freqslotplantype="FREQ-SLOT-PLAN-NONE",
-                schoffset="0",
-                passbandlist=passband,
-                carrierlist=carrier,
-                autoretunelmsch="DISABLED",
-                intracarrspecshaping="ENABLED",
-            )
+    flex.ent_ocrs(
+        fromaid=fromaid,
+        toaid=toaid,
+        label=label,
+        cktidsuffix=circuit_identifier,
+        freqslotplantype="FREQ-SLOT-PLAN-NONE",
+        schoffset="0",
+        passbandlist=passband,
+        carrierlist=carrier,
+        autoretunelmsch="DISABLED",
+        intracarrspecshaping="ENABLED",
+    )
 
-            flex.put_maintenance(aidtype="SCH", aid=fromaid)
-            flex.ed_sch(aid=fromaid, shutterstate="OPEN")
-            flex.rst_maintenance(aidtype="SCH", aid=fromaid)
+    flex.put_maintenance(aidtype="SCH", aid=fromaid)
+    flex.ed_sch(aid=fromaid, shutterstate="OPEN")
+    flex.rst_maintenance(aidtype="SCH", aid=fromaid)
 
-            response = flex.rtrv_ocrs(fromaid=fromaid, toaid=toaid)
-            return response.parsed_data[0]
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            msg = "create_optical_cross_connection is not implemented for Groove G30 nodes"
-            raise NotImplementedError(msg)
-        case (Vendor.NOKIA, Platform.GX_G42):
-            msg = "create_optical_cross_connection is not implemented for GX G42 nodes"
-            raise NotImplementedError(msg)
-
-        case _:
-            msg = "Unsupported Optical Node vendor/platform combination"
-            raise NotImplementedError(msg)
+    response = flex.rtrv_ocrs(fromaid=fromaid, toaid=toaid)
+    return response.parsed_data[0]
 
 
-def delete_optical_cross_connection(
-    optical_node_block: OpticalNodeBlock,
+def delete_cross_connection(
+    optical_node_block: NokiaFlexIlsBlockInactive,
     from_port: OlsPortBlock,
     to_port: OlsPortBlock,
     passband: Passband,
@@ -1023,53 +781,39 @@ def delete_optical_cross_connection(
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the cross connection cannot be found.
     """
-    match (
-        optical_node_block.management.optical_module_node_vendor,
-        optical_node_block.management.optical_module_node_platform,
-    ):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            from_port_name = _port_name(from_port)
-            to_port_name = _port_name(to_port)
+    from_port_name = _port_name(from_port)
+    to_port_name = _port_name(to_port)
 
-            if carrier is None:
-                carrier = ((passband[0] + passband[-1]) // 2, passband[-1] - passband[0])
+    if carrier is None:
+        carrier = ((passband[0] + passband[-1]) // 2, passband[-1] - passband[0])
 
-            if "S" in to_port_name:
-                # let's use the system port as from_port
-                to_port_name, from_port_name = from_port_name, to_port_name
+    if "S" in to_port_name:
+        # let's use the system port as from_port
+        to_port_name, from_port_name = from_port_name, to_port_name
 
-            flex = _get_flex_client(optical_node_block)
+    flex = _get_flex_client(optical_node_block)
 
-            ocrs = flex.rtrv_ocrs().parsed_data
-            for ocr in ocrs:
-                ocr_from_port = "-".join(ocr.get("FROMAID", "").split("-")[:-1])
-                ocr_to_port = "-".join(ocr.get("TOAID", "").split("-")[:-1])
-                ocr_passband = tuple(int(x) for x in ocr.get("PASSBANDLIST", []))
-                ocr_carrier = tuple(int(x) for x in ocr.get("CARRIERLIST", []))
-                ocr_cktidsuffix = ocr.get("CKTIDSUFFIX", "").strip(r"\" ")
-                ocr_label = ocr.get("LABEL", "").strip(r"\" ")
-                if (
-                    ocr_from_port == from_port_name
-                    and ocr_to_port == to_port_name
-                    and ocr_passband == passband
-                    and ocr_carrier == carrier
-                    and ocr_cktidsuffix == circuit_identifier
-                    and ocr_label == (label or "")
-                ):
-                    return flex.dlt_ocrs(fromaid=ocr["FROMAID"], toaid=ocr["TOAID"])
+    ocrs = flex.rtrv_ocrs().parsed_data
+    for ocr in ocrs:
+        ocr_from_port = "-".join(ocr.get("FROMAID", "").split("-")[:-1])
+        ocr_to_port = "-".join(ocr.get("TOAID", "").split("-")[:-1])
+        ocr_passband = tuple(int(x) for x in ocr.get("PASSBANDLIST", []))
+        ocr_carrier = tuple(int(x) for x in ocr.get("CARRIERLIST", []))
+        ocr_cktidsuffix = ocr.get("CKTIDSUFFIX", "").strip(r"\" ")
+        ocr_label = ocr.get("LABEL", "").strip(r"\" ")
+        if (
+            ocr_from_port == from_port_name
+            and ocr_to_port == to_port_name
+            and ocr_passband == passband
+            and ocr_carrier == carrier
+            and ocr_cktidsuffix == circuit_identifier
+            and ocr_label == (label or "")
+        ):
+            return flex.dlt_ocrs(fromaid=ocr["FROMAID"], toaid=ocr["TOAID"])
 
-            msg = (
-                f"Could not find the optical cross connection from {from_port_name} to {to_port_name} "
-                f"with passband {passband}, carrier {carrier}, label '{label}', "
-                f"and circuit identifier '{circuit_identifier}'"
-            )
-            raise ValueError(msg)
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            msg = "delete_optical_cross_connection is not implemented for Groove G30 nodes"
-            raise NotImplementedError(msg)
-        case (Vendor.NOKIA, Platform.GX_G42):
-            msg = "delete_optical_cross_connection is not implemented for GX G42 nodes"
-            raise NotImplementedError(msg)
-        case _:
-            msg = "Unsupported Optical Node vendor/platform combination"
-            raise NotImplementedError(msg)
+    msg = (
+        f"Could not find the optical cross connection from {from_port_name} to {to_port_name} "
+        f"with passband {passband}, carrier {carrier}, label '{label}', "
+        f"and circuit identifier '{circuit_identifier}'"
+    )
+    raise ValueError(msg)
