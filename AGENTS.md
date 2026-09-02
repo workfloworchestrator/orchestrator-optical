@@ -30,11 +30,15 @@ src/orchestrator/optical/
 │   │                         #   the blocks (no spectrum/section/transport_channel types — consolidated
 │   │                         #   optical_spectrum_service.py; no unions.py under optical_pipe/)
 │   └── __init__.py           #   ProductName + ProductType enums, SUBSCRIPTION_MODEL_REGISTRY update
-├── hal/                      # Hardware Abstraction Layer: device-facing operations
-│   ├── optical_node.py       #   Vendor/Vendor_of dispatch, client factories, GNE discovery, spectral occupations
-│   ├── optical_port.py       #   port enumeration/admin state/fiber termination configure-reset-check
-│   ├── optical_digital_service.py  # transponder line/client/crossconnect config + validation + power alignment
-│   └── optical_spectrum.py   #   FlexILS OEL/OSNC/OCRS optical circuit engine
+├── hal/                      # Hardware Abstraction Layer: device-facing operations (per-vendor code under adapters/)
+│   ├── __init__.py           #   public surface: re-exports the area dispatchers below
+│   ├── _common.py            #   vendor/platform dispatch key, block narrowing, shared errors, port-role helpers
+│   ├── node.py               #   client/discovery access + node-level retrieve/validate dispatchers
+│   ├── port.py               #   port enumeration (incl. get_device_ports_by_role) / admin state / fiber-termination
+│   │                         #   configure-reset-check keyed by (local port role, pipe type)
+│   ├── spectrum.py           #   FlexILS optical-circuit engine (OEL/OSNC/OCRS); no-ops on G30/G42
+│   ├── transport_channel.py  #   transponder line/client/crossconnect config + validation + power alignment
+│   └── adapters/             #   per-device implementations: nokia_flexils (TL1) / nokia_groove_g30, nokia_gx_g42 (RESTCONF)
 ├── services/                 # Device integrations (do not "fix" the auto-generated parts)
 │   ├── nokia/                #   flexils (TL1 client + per-command modules), g30, g42 (RESTCONF clients with
 │   │                         #   auto-generated data_models/data_navigators), tnms (TAPI client)

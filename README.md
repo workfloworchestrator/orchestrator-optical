@@ -6,6 +6,16 @@ The WFO Optical Module is a Python module that can be installed as a dependency 
 [WFO](https://workfloworchestrator.org) users that want to integrate with their optical equipment. This project is
 built on top of [`orchestrator-core`](https://github.com/workfloworchestrator/orchestrator-core).
 
+## Optical pipes
+
+A pipe links two Optical Node ports into a usable path. The module ships three kinds of pipe:
+
+- **Fiber span** (`fiber_span`) — a physical fiber segment between two line ports. Both ends must be on the same
+  vendor and platform (Nokia FlexILS or Nokia Groove G30); a span is not terminated on a Nokia GX G42.
+- **Fiber patch** (`fiber_patch`) — a short fiber or patch cord between two ports; the two ends may be on the same node.
+- **Leased spectrum** (`leased_spectrum`) — spectrum leased from a third-party provider, typically a cross-vendor
+  connection (a FlexILS add/drop port or a transponder line port facing the provider).
+
 ## Installation
 
 To use the models and services from this module, you will need to make some changes to your local implementation of the
