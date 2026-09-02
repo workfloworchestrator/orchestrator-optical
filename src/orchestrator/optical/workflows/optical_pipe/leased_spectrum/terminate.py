@@ -101,12 +101,13 @@ def terminate_initial_input_form_generator(
 def factory_reset_leased_spectrum_ports(subscription: OpticalLeasedSpectrumSubscription) -> State:
     """Prune the configuration of the terminating ports of the leased spectrum pipe."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
+    pipe_type = subscription.optical_pipe.optical_pipe_type
     configuration_results = {
         f"{port_a.optical_port_host_node.management.optical_module_node_fqdn} {port_a.optical_port_name}": (
-            factory_reset_port_configuration(port_a, port_b)
+            factory_reset_port_configuration(port_a, port_b, pipe_type)
         ),
         f"{port_b.optical_port_host_node.management.optical_module_node_fqdn} {port_b.optical_port_name}": (
-            factory_reset_port_configuration(port_b, port_a)
+            factory_reset_port_configuration(port_b, port_a, pipe_type)
         ),
     }
     return {"configuration_results": configuration_results}

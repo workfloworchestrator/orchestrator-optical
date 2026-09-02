@@ -35,15 +35,16 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
-from orchestrator.optical.hal.port import get_device_line_ports_names
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
-from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlockInactive
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import (
     OpticalFiberSpanSubscriptionInactive,
     OpticalFiberSpanSubscriptionProvisioning,
 )
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
+    PORT_BLOCK_CLASS_BY_ROLE,
     configure_pipe_terminations,
     create_optical_pipe_form_generator,
     create_pipe_form_pages,
@@ -76,7 +77,7 @@ def create_fiber_span_form_pages(product_name: str) -> FormGenerator:
     """
     return create_pipe_form_pages(
         product_name,
-        port_universe=get_device_line_ports_names,
+        pipe_type=OpticalPipeType.SPAN,
     )
 
 
@@ -130,19 +131,20 @@ def build_fiber_span_block(
     node_a_block = node_block_from_subscription(node_a_id)
     node_b_block = node_block_from_subscription(node_b_id)
 
+    port_block_class = PORT_BLOCK_CLASS_BY_ROLE[OpticalPortRole.OLS_LINE]
     port_a = new_pipe_port_block(
         subscription_id,
         node_a_block,
         port_a_name,
         f"Physically connected to {node_b_block.management.optical_module_node_fqdn} {port_b_name}.",
-        OlsLinePortBlockInactive,
+        port_block_class,
     )
     port_b = new_pipe_port_block(
         subscription_id,
         node_b_block,
         port_b_name,
         f"Physically connected to {node_a_block.management.optical_module_node_fqdn} {port_a_name}.",
-        OlsLinePortBlockInactive,
+        port_block_class,
     )
 
     pipe_block = OpticalFiberSpanBlockInactive.new(

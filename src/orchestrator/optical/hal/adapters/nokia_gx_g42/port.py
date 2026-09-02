@@ -3,15 +3,25 @@
 import json
 from typing import Any, Literal
 
-from orchestrator.optical.hal._common import _node_id, _port_name
+from orchestrator.optical.hal._common import (
+    UnsupportedPortRoleError,
+    _node_id,
+    _port_name,
+    _ports_by_role,
+    _same_node,
+)
 from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia.g42.data_models.ioa_network_element import (
     AdminStateEnum,
     ExternalConnectivityEnum,
     PortTypeEnum,
 )
+
+#: Port roles a GX G42 node can enumerate: transponder line and client ports (no OLS ports).
+_G42_SUPPORTED_ROLES = frozenset({OpticalPortRole.TRANSPONDER_LINE, OpticalPortRole.TRANSPONDER_CLIENT})
 
 
 def get_device_ports_names(optical_node_block: NokiaGxG42BlockProvisioning) -> list[str]:
@@ -58,6 +68,34 @@ def get_device_line_ports_names(optical_node_block: NokiaGxG42BlockProvisioning)
             ports.extend(p.AID for p in (card.port or []) if p.AID is not None and p.port_type == PortTypeEnum.LINE)
 
     return ports
+
+
+def get_device_ports_by_role(
+    optical_node_block: NokiaGxG42BlockProvisioning,
+    roles: list[OpticalPortRole] | None = None,
+) -> list[str]:
+    """Return the device port names of a GX G42 node for the requested Optical Port roles.
+
+    A GX G42 node exposes only transponder line and client ports; it cannot enumerate OLS or
+    coherent pluggable ports.
+    """
+    line_ports: list[str] | None = None
+    client_ports: list[str] | None = None
+
+    def port_names_for_role(role: OpticalPortRole) -> list[str]:
+        nonlocal line_ports, client_ports
+        if role is OpticalPortRole.TRANSPONDER_LINE:
+            if line_ports is None:
+                line_ports = get_device_line_ports_names(optical_node_block)
+            return line_ports
+        if role is OpticalPortRole.TRANSPONDER_CLIENT:
+            if client_ports is None:
+                client_ports = get_device_client_ports_names(optical_node_block)
+            return client_ports
+        msg = f"GX G42 does not support port role {role.value}"
+        raise UnsupportedPortRoleError(msg)
+
+    return _ports_by_role(_G42_SUPPORTED_ROLES, port_names_for_role, roles)
 
 
 def retrieve_transceiver_modes(optical_node_block: NokiaGxG42BlockProvisioning, port_name: str) -> list[str]:
@@ -238,17 +276,31 @@ def configure_termination(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> dict[str, Any]:
-    """Configure a GX G42 port when attaching a fiber to it."""
+    """Configure a GX G42 port when attaching a fiber to it.
+
+    A same-node fiber patch (both ends on this device) is recorded as an internal
+    patch (no external connectivity); every other connection is an external one.
+    """
     host_node = optical_port_block.optical_port_host_node
+    remote_host_node = remote_port_block.optical_port_host_node
+    remote_port_name = _port_name(remote_port_block)
     shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
     g42 = get_g42_client(host_node)
     uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    uri.update(
-        name=port_id,
-        external_connectivity=ExternalConnectivityEnum.YES,
-        connected_to=f"{_node_id(remote_port_block.optical_port_host_node)} {_port_name(remote_port_block)}",
-        admin_state=AdminStateEnum.UNLOCK,
-    )
+    if _same_node(host_node, remote_host_node):
+        uri.update(
+            name=port_id,
+            external_connectivity=ExternalConnectivityEnum.NO,
+            connected_to=f"patched to {remote_port_name}",
+            admin_state=AdminStateEnum.UNLOCK,
+        )
+    else:
+        uri.update(
+            name=port_id,
+            external_connectivity=ExternalConnectivityEnum.YES,
+            connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
+            admin_state=AdminStateEnum.UNLOCK,
+        )
     return uri.retrieve(content="config", depth=2).model_dump()
 
 
@@ -273,15 +325,23 @@ def check_fiber(
 ) -> None:
     """Check if a GX G42 port attached to a fiber is correctly configured."""
     host_node = optical_port_block.optical_port_host_node
+    remote_host_node = remote_port_block.optical_port_host_node
+    remote_port_name = _port_name(remote_port_block)
     g42 = get_g42_client(host_node)
     shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
     endpoint = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
     conf = endpoint.retrieve(depth=2, content="config")
 
-    expected_connected_to = f"{_node_id(remote_port_block.optical_port_host_node)} {_port_name(remote_port_block)}"
+    if _same_node(host_node, remote_host_node):
+        expected_connected_to = f"patched to {remote_port_name}"
+        expected_connectivity = ExternalConnectivityEnum.NO
+    else:
+        expected_connected_to = f"{_node_id(remote_host_node)} {remote_port_name}"
+        expected_connectivity = ExternalConnectivityEnum.YES
+
     checks = (
         conf.admin_state == AdminStateEnum.UNLOCK
-        and conf.external_connectivity == ExternalConnectivityEnum.YES
+        and conf.external_connectivity == expected_connectivity
         and conf.connected_to == expected_connected_to
     )
     if not checks:
@@ -292,7 +352,7 @@ def check_fiber(
                     "port_name": _port_name(optical_port_block),
                     "expected": {
                         "admin-status": "unlock",
-                        "external-connectivity": "yes",
+                        "external-connectivity": expected_connectivity.value,
                         "connected-to": expected_connected_to,
                     },
                     "actual": {

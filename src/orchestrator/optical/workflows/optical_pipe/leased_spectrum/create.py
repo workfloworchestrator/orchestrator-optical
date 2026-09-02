@@ -44,12 +44,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
-from orchestrator.optical.hal.port import (
-    get_device_client_ports_names,
-    get_device_line_ports_names,
-)
-from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
-from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import (
     OpticalLeasedSpectrumBlockInactive,
 )
@@ -60,33 +55,18 @@ from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum im
 )
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
+    PORT_BLOCK_CLASS_BY_ROLE,
     configure_pipe_terminations,
     create_optical_pipe_form_generator,
     create_pipe_form_pages,
-    leased_spectrum_port_block_class,
     new_optical_pipe_subscription,
     new_pipe_port_block,
+    pipe_port_roles,
+    resolve_port_role,
     retrieve_optical_pipe_used_passbands,
     save_optical_pipe_block,
     set_optical_pipe_subscription_description,
 )
-
-
-def leased_spectrum_ports_of_node(node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[str]:
-    """Return the ports of a node that can terminate a leased spectrum pipe.
-
-    On a Nokia FlexILS node only the OLS add/drop (SCG) ports are selectable: the
-    OTS ports are OLS line ports that the FlexILS HAL cannot configure end-to-end
-    for a leased spectrum pipe. On Groove G30 and GX G42 nodes only the line ports
-    are selectable; the client ports are not part of the leased spectrum port block
-    union.
-    """
-    if (
-        node_block.management.optical_module_node_vendor,
-        node_block.management.optical_module_node_platform,
-    ) == (Vendor.NOKIA, Platform.FLEXILS):
-        return get_device_client_ports_names(node_block)
-    return list(dict.fromkeys(get_device_line_ports_names(node_block)))
 
 
 def create_leased_spectrum_provider_form(product_name: str) -> type[FormPage]:
@@ -137,7 +117,7 @@ def create_leased_spectrum_form_pages(product_name: str) -> FormGenerator:
     Returns:
         The collected user input of the shipped pages.
     """
-    user_input_dict = yield from create_pipe_form_pages(product_name, port_universe=leased_spectrum_ports_of_node)
+    user_input_dict = yield from create_pipe_form_pages(product_name, pipe_type=OpticalPipeType.LEASED_SPECTRUM)
     user_input_dict.update((yield create_leased_spectrum_provider_form(product_name)).model_dump())
     return user_input_dict
 
@@ -205,21 +185,21 @@ def build_leased_spectrum_block(
     node_a_block = node_block_from_subscription(node_a_id)
     node_b_block = node_block_from_subscription(node_b_id)
 
-    client_ports_a = get_device_client_ports_names(node_a_block)
-    client_ports_b = get_device_client_ports_names(node_b_block)
+    roles_a = pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, node_a_block)
+    roles_b = pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, node_b_block)
     port_a = new_pipe_port_block(
         subscription_id,
         node_a_block,
         port_a_name,
         f"Physically connected to {node_b_block.management.optical_module_node_fqdn} {port_b_name}.",
-        leased_spectrum_port_block_class(node_a_block, port_a_name, client_ports_a),
+        PORT_BLOCK_CLASS_BY_ROLE[resolve_port_role(node_a_block, port_a_name, roles_a)],
     )
     port_b = new_pipe_port_block(
         subscription_id,
         node_b_block,
         port_b_name,
         f"Physically connected to {node_a_block.management.optical_module_node_fqdn} {port_a_name}.",
-        leased_spectrum_port_block_class(node_b_block, port_b_name, client_ports_b),
+        PORT_BLOCK_CLASS_BY_ROLE[resolve_port_role(node_b_block, port_b_name, roles_b)],
     )
 
     pipe_block = OpticalLeasedSpectrumBlockInactive.new(

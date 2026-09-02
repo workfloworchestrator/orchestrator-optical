@@ -32,8 +32,9 @@ def load_initial_state_leased_spectrum(subscription: OpticalLeasedSpectrumSubscr
 def check_leased_spectrum_terminations(subscription: OpticalLeasedSpectrumSubscription) -> State:
     """Verify that the terminating ports of the leased spectrum pipe are correctly configured."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
-    check_fiber_terminating_port(port_a, port_b)
-    check_fiber_terminating_port(port_b, port_a)
+    pipe_type = subscription.optical_pipe.optical_pipe_type
+    check_fiber_terminating_port(port_a, port_b, pipe_type)
+    check_fiber_terminating_port(port_b, port_a, pipe_type)
     return {}
 
 

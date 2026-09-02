@@ -37,12 +37,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
-from orchestrator.optical.hal.port import (
-    get_device_client_ports_names,
-    get_device_ports_names,
-)
-from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
-from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_patch import OpticalFiberPatchBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.unions import PatchPortBlockInactive
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import (
@@ -51,34 +46,18 @@ from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import
 )
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
+    PORT_BLOCK_CLASS_BY_ROLE,
     configure_pipe_terminations,
     create_optical_pipe_form_generator,
     create_pipe_form_pages,
     new_optical_pipe_subscription,
     new_pipe_port_block,
-    patch_port_block_class,
+    pipe_port_roles,
+    resolve_port_role,
     retrieve_optical_pipe_used_passbands,
     save_optical_pipe_block,
     set_optical_pipe_subscription_description,
 )
-
-
-def patch_ports_of_node(node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[str]:
-    """Return the ports of a node that can terminate a fiber patch.
-
-    On a Nokia FlexILS node only the client (SCG) ports are selectable: the OTS
-    ports are OLS line ports, which are not part of the Fiber Patch port block
-    union. On Groove G30 and GX G42 nodes the client and line ports of the
-    transponder cards are selectable.
-    """
-    client_ports = get_device_client_ports_names(node_block)
-    if (
-        node_block.management.optical_module_node_vendor,
-        node_block.management.optical_module_node_platform,
-    ) == (Vendor.NOKIA, Platform.FLEXILS):
-        return client_ports
-    all_ports = get_device_ports_names(node_block)
-    return list(dict.fromkeys([*client_ports, *all_ports]))
 
 
 def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
@@ -103,7 +82,7 @@ def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
     """
     return create_pipe_form_pages(
         product_name,
-        port_universe=patch_ports_of_node,
+        pipe_type=OpticalPipeType.PATCH,
     )
 
 
@@ -157,21 +136,21 @@ def build_fiber_patch_block(
     node_a_block = node_block_from_subscription(node_a_id)
     node_b_block = node_block_from_subscription(node_b_id)
 
-    client_ports_a = get_device_client_ports_names(node_a_block)
-    client_ports_b = get_device_client_ports_names(node_b_block)
+    roles_a = pipe_port_roles(OpticalPipeType.PATCH, node_a_block)
+    roles_b = pipe_port_roles(OpticalPipeType.PATCH, node_b_block)
     port_a = new_pipe_port_block(
         subscription_id,
         node_a_block,
         port_a_name,
         f"Physically connected to {node_b_block.management.optical_module_node_fqdn} {port_b_name}.",
-        patch_port_block_class(node_a_block, port_a_name, client_ports_a),
+        PORT_BLOCK_CLASS_BY_ROLE[resolve_port_role(node_a_block, port_a_name, roles_a)],
     )
     port_b = new_pipe_port_block(
         subscription_id,
         node_b_block,
         port_b_name,
         f"Physically connected to {node_a_block.management.optical_module_node_fqdn} {port_a_name}.",
-        patch_port_block_class(node_b_block, port_b_name, client_ports_b),
+        PORT_BLOCK_CLASS_BY_ROLE[resolve_port_role(node_b_block, port_b_name, roles_b)],
     )
 
     pipe_block = OpticalFiberPatchBlockInactive.new(

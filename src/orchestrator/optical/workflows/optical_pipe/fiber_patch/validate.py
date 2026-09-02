@@ -32,8 +32,9 @@ def load_initial_state_fiber_patch(subscription: OpticalFiberPatchSubscription) 
 def check_patch_terminations(subscription: OpticalFiberPatchSubscription) -> State:
     """Verify that the terminating ports of the fiber patch are correctly configured."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
-    check_fiber_terminating_port(port_a, port_b)
-    check_fiber_terminating_port(port_b, port_a)
+    pipe_type = subscription.optical_pipe.optical_pipe_type
+    check_fiber_terminating_port(port_a, port_b, pipe_type)
+    check_fiber_terminating_port(port_b, port_a, pipe_type)
     return {}
 
 

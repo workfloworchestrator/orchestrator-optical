@@ -21,7 +21,10 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import Workflow, begin
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow, modify_workflow, terminate_workflow, validate_workflow
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.workflows import customer as customer_parts
 from orchestrator.optical.workflows.optical_pipe import shared as pipe_shared
 from orchestrator.optical.workflows.optical_pipe.fiber_patch.create import (
@@ -73,7 +76,7 @@ def _fake_customer_choice(include: str | None = None) -> type[Choice]:
     return cast(type[Choice], Choice.__call__("FakeCustomerChoice", {"cust-1": "cust-1", "cust-2": "cust-2"}))
 
 
-def _fake_node_choice(prompt: str | None = None) -> type[Choice]:
+def _fake_node_choice(*args: Any, **kwargs: Any) -> type[Choice]:
     return cast(type[Choice], Choice.__call__("FakeNodeChoice", {"node-a": "node-a", "node-b": "node-b"}))
 
 
@@ -83,20 +86,35 @@ def _fake_port_choice(node_subscription_id: str, ports: list[str], prompt: str |
 
 
 def _fake_node_block_from_subscription(node_subscription_id: str) -> SimpleNamespace:
-    return SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn=f"{node_subscription_id}.example.com"))
+    return SimpleNamespace(
+        management=SimpleNamespace(
+            optical_module_node_fqdn=f"{node_subscription_id}.example.com",
+            optical_module_node_vendor=Vendor.NOKIA,
+            optical_module_node_platform=Platform.FLEXILS,
+        )
+    )
 
 
-def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch, module: Any) -> None:
+def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch the DB/device-backed form selectors with DB-free fakes.
 
-    The generic node/port selectors are resolved in the shared pipe module
-    (``pipe_shared``), while the family-specific port universe (here the line
-    ports) is resolved in the family create module (``module``).
+    The node/port selectors and the role-based port universe are all resolved in
+    the shared pipe module (``pipe_shared``), so every patch targets its namespace.
     """
     monkeypatch.setattr(pipe_shared, "optical_node_selector", _fake_node_choice)
     monkeypatch.setattr(pipe_shared, "node_block_from_subscription", _fake_node_block_from_subscription)
     monkeypatch.setattr(pipe_shared, "unused_node_port_selector", _fake_port_choice)
-    monkeypatch.setattr(module, "get_device_line_ports_names", Mock(return_value=["port-a-1", "port-b-1"]))
+    monkeypatch.setattr(pipe_shared, "get_pipe_ports", Mock(return_value=["port-a-1", "port-b-1"]))
+
+
+def _node_block_with(fqdn: str, vendor: Vendor, platform: Platform) -> SimpleNamespace:
+    return SimpleNamespace(
+        management=SimpleNamespace(
+            optical_module_node_fqdn=fqdn,
+            optical_module_node_vendor=vendor,
+            optical_module_node_platform=platform,
+        )
+    )
 
 
 def _make_span_block(optical_pipe_name: str | None = None) -> OpticalFiberSpanBlockInactive:
@@ -149,7 +167,7 @@ def test_block_steps_consume_the_block_state_key() -> None:
 
 def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None:
     """The create page sequence resolves the node/port choices between yields and returns a flat dict."""
-    _monkeypatch_create_selectors(monkeypatch, fiber_span_create)
+    _monkeypatch_create_selectors(monkeypatch)
 
     generator = fiber_span_create.create_fiber_span_form_pages("Optical Fiber Span")
 
@@ -177,7 +195,7 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None
 def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) -> None:
     """Consumers yield from the shipped page sequence in one line and get the flat keys back."""
     monkeypatch.setattr(customer_parts, "customer_choice_selector", _fake_customer_choice)
-    _monkeypatch_create_selectors(monkeypatch, fiber_span_create)
+    _monkeypatch_create_selectors(monkeypatch)
 
     def my_create_form_generator(product_name):
         user_input_dict = yield from customer_parts.customer_choice_form_page()
@@ -362,3 +380,45 @@ def test_build_fiber_span_block(monkeypatch) -> None:
     assert block.optical_pipe_name == "span-01"
     assert len(block.optical_pipe_terminations) == 2
     assert {t.optical_port_name for t in block.optical_pipe_terminations} == {"p1", "p2"}
+
+
+def test_pipe_port_roles_by_pipe_type_and_vendor() -> None:
+    """pipe_port_roles maps (pipe type, vendor/platform) to the terminable Optical Port roles."""
+    ols_line, ols_add_drop = OpticalPortRole.OLS_LINE, OpticalPortRole.OLS_ADD_DROP
+    tp_client, tp_line = OpticalPortRole.TRANSPONDER_CLIENT, OpticalPortRole.TRANSPONDER_LINE
+    flexils = _node_block_with("flexils.example.com", Vendor.NOKIA, Platform.FLEXILS)
+    g30 = _node_block_with("g30.example.com", Vendor.NOKIA, Platform.GROOVE_G30)
+    g42 = _node_block_with("g42.example.com", Vendor.NOKIA, Platform.GX_G42)
+
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, flexils) == [ols_line]
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.PATCH, flexils) == [ols_add_drop]
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, flexils) == [ols_add_drop]
+
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, g30) == [ols_line]
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.PATCH, g30) == [tp_client, tp_line]
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, g42) == [tp_line]
+
+
+def test_pipe_nodes_form_enforces_span_same_vendor_and_patch_same_node(monkeypatch) -> None:
+    """A span requires the two nodes to share vendor/platform; a patch may use one node."""
+    monkeypatch.setattr(
+        pipe_shared,
+        "node_block_from_subscription",
+        lambda node_id: _node_block_with(
+            f"{node_id}.example.com",
+            Vendor.NOKIA,
+            Platform.FLEXILS if node_id == "node-a" else Platform.GROOVE_G30,
+        ),
+    )
+
+    span_form = pipe_shared.pipe_nodes_form("Span", _fake_node_choice(), _fake_node_choice(), require_same_vendor=True)
+    with pytest.raises(ValueError, match="same vendor and platform"):
+        span_form(node_a_id="node-a", node_b_id="node-b")
+
+    patch_form = pipe_shared.pipe_nodes_form("Patch", _fake_node_choice(), _fake_node_choice(), allow_same_node=True)
+    instance = patch_form(node_a_id="node-a", node_b_id="node-a")
+    assert instance.node_a_id == instance.node_b_id
+
+    distinct_form = pipe_shared.pipe_nodes_form("Leased", _fake_node_choice(), _fake_node_choice())
+    with pytest.raises(ValueError, match="different nodes"):
+        distinct_form(node_a_id="node-a", node_b_id="node-a")

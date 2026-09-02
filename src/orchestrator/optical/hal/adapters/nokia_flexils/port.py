@@ -3,15 +3,26 @@
 import json
 from typing import Any, Literal, cast
 
-from orchestrator.optical.hal._common import _as_flexils_block, _extract_remote_port_id, _node_id, _port_name
+from orchestrator.optical.hal._common import (
+    UnsupportedPortRoleError,
+    _as_flexils_block,
+    _extract_remote_port_id,
+    _node_id,
+    _port_name,
+    _ports_by_role,
+)
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
     _get_remote_node_id,
     get_flex_client,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
-from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia import TL1CommandDeniedError
+
+#: Port roles a Nokia FlexILS node can enumerate: OTS line ports and SCG add/drop (tributary) ports.
+_FLEXILS_SUPPORTED_ROLES = frozenset({OpticalPortRole.OLS_LINE, OpticalPortRole.OLS_ADD_DROP})
 
 
 def _scg_aids(flex: Any) -> list[str]:
@@ -42,6 +53,28 @@ def get_device_line_ports_names(optical_node_block: NokiaFlexIlsBlockProvisionin
     """Return the OTS AIDs of a Nokia FlexILS node."""
     flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
     return [str(x["AID"]) for x in flex.rtrv_ots().parsed_data]
+
+
+def get_device_ports_by_role(
+    optical_node_block: NokiaFlexIlsBlockProvisioning,
+    roles: list[OpticalPortRole] | None = None,
+) -> list[str]:
+    """Return the device port names of a Nokia FlexILS node for the requested Optical Port roles.
+
+    A FlexILS node exposes OLS line ports (OTS AIDs) and OLS add/drop tributary ports (SCG AIDs);
+    it cannot enumerate transponder or coherent pluggable ports.
+    """
+    flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
+
+    def port_names_for_role(role: OpticalPortRole) -> list[str]:
+        if role is OpticalPortRole.OLS_LINE:
+            return [str(x["AID"]) for x in flex.rtrv_ots().parsed_data]
+        if role is OpticalPortRole.OLS_ADD_DROP:
+            return _scg_aids(flex)
+        msg = f"Nokia FlexILS does not support port role {role.value}"
+        raise UnsupportedPortRoleError(msg)
+
+    return _ports_by_role(_FLEXILS_SUPPORTED_ROLES, port_names_for_role, roles)
 
 
 def set_port_description(
@@ -147,65 +180,84 @@ def _ensure_manualmode2(optical_port_block: AnyOpticalPortBlockProvisioning) -> 
 def configure_termination(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
+    pipe_type: OpticalPipeType,
 ) -> dict[str, Any]:
-    """Configure a Nokia FlexILS port when attaching a fiber to it."""
+    """Configure a Nokia FlexILS port when attaching a fiber to it.
+
+    The OTS-vs-SCG path is decided by the local port role and the pipe type: an
+    OLS line port carries a fiber span (OTS), while an OLS add/drop (tributary)
+    port carries a fiber patch or a leased spectrum (SCG). Branching on the
+    remote platform, as the legacy code did, misconfigured the cross-role cases
+    (e.g. a FlexILS<->FlexILS client patch).
+    """
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
     port_name = _port_name(optical_port_block)
     description = optical_port_block.optical_port_description or ""
 
-    # Handle FlexILS-to-FlexILS connection separately (simpler case)
-    if (
-        remote_port_block.optical_port_host_node.management.optical_module_node_vendor,
-        remote_port_block.optical_port_host_node.management.optical_module_node_platform,
-    ) == (Vendor.NOKIA, Platform.FLEXILS):
-        flex.ed_ots(aid=port_name, label=rf'"{description}"')
-        flex.rst_maintenance(aidtype="OTS", aid=port_name)
-        return flex.rtrv_ots(aid=port_name).model_dump()
-
-    # Handle FlexILS connections to other platform types
-    _ensure_manualmode2(optical_port_block)
-
-    remote_node_id = _get_remote_node_id(remote_port_block)
-    remote_port_id = _extract_remote_port_id(_port_name(remote_port_block))
-    provowremptp = f"{remote_node_id}/{remote_port_id}"
-    flex.ed_scg(
-        aid=port_name,
-        provowremptp=provowremptp,
-        label=rf'"{description}"',
-    )
-
-    return flex.rtrv_scg(aid=port_name).model_dump()
+    match (optical_port_block.optical_port_role, pipe_type):
+        case (OpticalPortRole.OLS_LINE, OpticalPipeType.SPAN):
+            flex.ed_ots(aid=port_name, label=rf'"{description}"')
+            flex.rst_maintenance(aidtype="OTS", aid=port_name)
+            return flex.rtrv_ots(aid=port_name).model_dump()
+        case (OpticalPortRole.OLS_ADD_DROP, OpticalPipeType.PATCH | OpticalPipeType.LEASED_SPECTRUM):
+            _ensure_manualmode2(optical_port_block)
+            remote_node_id = _get_remote_node_id(remote_port_block)
+            remote_port_id = _extract_remote_port_id(_port_name(remote_port_block))
+            provowremptp = f"{remote_node_id}/{remote_port_id}"
+            flex.ed_scg(
+                aid=port_name,
+                provowremptp=provowremptp,
+                label=rf'"{description}"',
+            )
+            return flex.rtrv_scg(aid=port_name).model_dump()
+        case _:
+            msg = (
+                f"Unsupported Nokia FlexILS termination for port role "
+                f"{optical_port_block.optical_port_role.value} and pipe type {pipe_type.value}"
+            )
+            raise ValueError(msg)
 
 
 def factory_reset(
     optical_port_block: AnyOpticalPortBlockProvisioning,
-    remote_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,  # noqa: ARG001
+    pipe_type: OpticalPipeType,
 ) -> dict[str, Any]:
-    """Prune the configuration of a Nokia FlexILS port."""
+    """Prune the configuration of a Nokia FlexILS port.
+
+    The OTS-vs-SCG path is decided by the local port role and the pipe type, as
+    in :func:`configure_termination`; the remote port is not needed to prune a
+    port (the SCG remote-tributary reference is simply cleared).
+    """
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
     port_name = _port_name(optical_port_block)
 
-    if (
-        remote_port_block.optical_port_host_node.management.optical_module_node_vendor,
-        remote_port_block.optical_port_host_node.management.optical_module_node_platform,
-    ) == (Vendor.NOKIA, Platform.FLEXILS):
-        flex.ed_ots(aid=port_name, label=r'""')
-        return flex.rtrv_ots(aid=port_name).model_dump()
-
-    set_port_admin_state(optical_port_block, "maintenance")
-    flex.ed_scg(
-        aid=port_name,
-        intftyp="MANUALMODE-2",
-        provowremptp=r'""',
-        label=r'""',
-    )
-    set_port_admin_state(optical_port_block, "down")
-    return flex.rtrv_scg(aid=port_name).model_dump()
+    match (optical_port_block.optical_port_role, pipe_type):
+        case (OpticalPortRole.OLS_LINE, OpticalPipeType.SPAN):
+            flex.ed_ots(aid=port_name, label=r'""')
+            return flex.rtrv_ots(aid=port_name).model_dump()
+        case (OpticalPortRole.OLS_ADD_DROP, OpticalPipeType.PATCH | OpticalPipeType.LEASED_SPECTRUM):
+            set_port_admin_state(optical_port_block, "maintenance")
+            flex.ed_scg(
+                aid=port_name,
+                intftyp="MANUALMODE-2",
+                provowremptp=r'""',
+                label=r'""',
+            )
+            set_port_admin_state(optical_port_block, "down")
+            return flex.rtrv_scg(aid=port_name).model_dump()
+        case _:
+            msg = (
+                f"Unsupported Nokia FlexILS factory reset for port role "
+                f"{optical_port_block.optical_port_role.value} and pipe type {pipe_type.value}"
+            )
+            raise ValueError(msg)
 
 
 def check_fiber(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
+    pipe_type: OpticalPipeType,
 ) -> None:
     """Check if a Nokia FlexILS port attached to a fiber is correctly configured."""
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
@@ -213,80 +265,83 @@ def check_fiber(
     remote_port_name = _port_name(remote_port_block)
     description = optical_port_block.optical_port_description or ""
 
-    # Handle FlexILS-to-FlexILS connection separately (simpler case)
-    if (
-        remote_port_block.optical_port_host_node.management.optical_module_node_vendor,
-        remote_port_block.optical_port_host_node.management.optical_module_node_platform,
-    ) == (Vendor.NOKIA, Platform.FLEXILS):
-        ots = flex.rtrv_ots(aid=port_name).parsed_data[0]
-        checks = (
-            description in ots["LABEL"]
-            and "IS" in ots["OPERSTATE"]
-            and remote_port_name in ots["PROVNBROTS"]
-            and ots["PROVNBROTS"] == ots["DISCNBROTS"]
-            and ots["HISTSTATS"] == "ENABLED"
-        )
-        if not checks:
-            raise ValueError(
-                json.dumps(
-                    {
-                        "optical_device": _node_id(optical_port_block.optical_port_host_node),
-                        "port_name": port_name,
-                        "expected": {
-                            "label": description,
-                            "operstate": "IS",
-                            "provnbrots": remote_port_name,
-                            "discnbrots": remote_port_name,
-                            "histstats": "ENABLED",
+    match (optical_port_block.optical_port_role, pipe_type):
+        case (OpticalPortRole.OLS_LINE, OpticalPipeType.SPAN):
+            ots = flex.rtrv_ots(aid=port_name).parsed_data[0]
+            checks = (
+                description in ots["LABEL"]
+                and "IS" in ots["OPERSTATE"]
+                and remote_port_name in ots["PROVNBROTS"]
+                and ots["PROVNBROTS"] == ots["DISCNBROTS"]
+                and ots["HISTSTATS"] == "ENABLED"
+            )
+            if not checks:
+                raise ValueError(
+                    json.dumps(
+                        {
+                            "optical_device": _node_id(optical_port_block.optical_port_host_node),
+                            "port_name": port_name,
+                            "expected": {
+                                "label": description,
+                                "operstate": "IS",
+                                "provnbrots": remote_port_name,
+                                "discnbrots": remote_port_name,
+                                "histstats": "ENABLED",
+                            },
+                            "actual": {
+                                "label": ots["LABEL"],
+                                "operstate": ots["OPERSTATE"],
+                                "provnbrots": ots["PROVNBROTS"],
+                                "discnbrots": ots["DISCNBROTS"],
+                                "histstats": ots["HISTSTATS"],
+                            },
                         },
-                        "actual": {
-                            "label": ots["LABEL"],
-                            "operstate": ots["OPERSTATE"],
-                            "provnbrots": ots["PROVNBROTS"],
-                            "discnbrots": ots["DISCNBROTS"],
-                            "histstats": ots["HISTSTATS"],
-                        },
-                    },
-                    indent=4,
+                        indent=4,
+                    )
                 )
+            return
+        case (OpticalPortRole.OLS_ADD_DROP, OpticalPipeType.PATCH | OpticalPipeType.LEASED_SPECTRUM):
+            remote_node_id = _get_remote_node_id(remote_port_block)
+            remote_port_id = _extract_remote_port_id(remote_port_name)
+            provowremptp = f"{remote_node_id}/{remote_port_id}"
+
+            scg = flex.rtrv_scg(aid=port_name).parsed_data[0]
+
+            checks = (
+                scg["INTFTYP"] == "MANUALMODE-2"
+                and scg["PROVOWREMPTP"] == provowremptp
+                and description in scg["LABEL"]
+                and "IS" in scg["OPERSTATE"]
+                and scg["HISTSTATS"] == "ENABLED"
             )
-        return
-
-    # Handle FlexILS connections to other platform types
-    remote_node_id = _get_remote_node_id(remote_port_block)
-    remote_port_id = _extract_remote_port_id(remote_port_name)
-    provowremptp = f"{remote_node_id}/{remote_port_id}"
-
-    scg = flex.rtrv_scg(aid=port_name).parsed_data[0]
-
-    checks = (
-        scg["INTFTYP"] == "MANUALMODE-2"
-        and scg["PROVOWREMPTP"] == provowremptp
-        and description in scg["LABEL"]
-        and "IS" in scg["OPERSTATE"]
-        and scg["HISTSTATS"] == "ENABLED"
-    )
-    if not checks:
-        raise ValueError(
-            json.dumps(
-                {
-                    "optical_device": _node_id(optical_port_block.optical_port_host_node),
-                    "port_name": port_name,
-                    "expected": {
-                        "intftyp": "MANUALMODE-2",
-                        "provowremptp": provowremptp,
-                        "label": description,
-                        "operstate": "IS",
-                        "histstats": "ENABLED",
-                    },
-                    "actual": {
-                        "intftyp": scg["INTFTYP"],
-                        "provowremptp": scg["PROVOWREMPTP"],
-                        "label": scg["LABEL"],
-                        "operstate": scg["OPERSTATE"],
-                        "histstats": scg["HISTSTATS"],
-                    },
-                },
-                indent=4,
+            if not checks:
+                raise ValueError(
+                    json.dumps(
+                        {
+                            "optical_device": _node_id(optical_port_block.optical_port_host_node),
+                            "port_name": port_name,
+                            "expected": {
+                                "intftyp": "MANUALMODE-2",
+                                "provowremptp": provowremptp,
+                                "label": description,
+                                "operstate": "IS",
+                                "histstats": "ENABLED",
+                            },
+                            "actual": {
+                                "intftyp": scg["INTFTYP"],
+                                "provowremptp": scg["PROVOWREMPTP"],
+                                "label": scg["LABEL"],
+                                "operstate": scg["OPERSTATE"],
+                                "histstats": scg["HISTSTATS"],
+                            },
+                        },
+                        indent=4,
+                    )
+                )
+            return
+        case _:
+            msg = (
+                f"Unsupported Nokia FlexILS fiber check for port role "
+                f"{optical_port_block.optical_port_role.value} and pipe type {pipe_type.value}"
             )
-        )
+            raise ValueError(msg)

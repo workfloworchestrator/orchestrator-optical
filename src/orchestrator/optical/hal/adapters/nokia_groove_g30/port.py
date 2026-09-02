@@ -4,15 +4,21 @@ import json
 from decimal import Decimal
 from typing import Any, Literal
 
-from orchestrator.optical.hal._common import _node_id, _port_name
+from orchestrator.optical.hal._common import (
+    UnsupportedPortRoleError,
+    _node_id,
+    _port_name,
+    _ports_by_role,
+    _same_node,
+)
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_ids_from_port_name,
     g30_port_navigator_node_from_port_name,
     get_g30_client,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
-from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia.g30.data_models.ne import (
     AdminStatusEnum,
@@ -24,6 +30,18 @@ from orchestrator.optical.services.nokia.g30.data_models.ne import (
     PortModeEnum,
     TiltControlModeEnum,
     YesNoEnum,
+)
+
+#: Port roles a Groove G30 node can enumerate. Its line and client (card) ports are hostable both as
+#: OLS ports (fiber spans) and as transponder ports (patches / leased spectrum / digital services),
+#: so each physical port is exposed under both its OLS and its transponder role.
+_G30_SUPPORTED_ROLES = frozenset(
+    {
+        OpticalPortRole.OLS_LINE,
+        OpticalPortRole.OLS_ADD_DROP,
+        OpticalPortRole.TRANSPONDER_LINE,
+        OpticalPortRole.TRANSPONDER_CLIENT,
+    }
 )
 
 
@@ -105,6 +123,35 @@ def get_device_line_ports_names(optical_node_block: NokiaGrooveG30BlockProvision
                     ports_name.append(port.alias_name)
 
     return ports_name
+
+
+def get_device_ports_by_role(
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
+    roles: list[OpticalPortRole] | None = None,
+) -> list[str]:
+    """Return the device port names of a Groove G30 node for the requested Optical Port roles.
+
+    The G30 line (card) ports are hostable both as OLS line and as transponder line ports, and the
+    client ports both as OLS add/drop and as transponder client ports; each physical port is
+    therefore reported under both of its roles.
+    """
+    line_ports: list[str] | None = None
+    client_ports: list[str] | None = None
+
+    def port_names_for_role(role: OpticalPortRole) -> list[str]:
+        nonlocal line_ports, client_ports
+        if role in (OpticalPortRole.OLS_LINE, OpticalPortRole.TRANSPONDER_LINE):
+            if line_ports is None:
+                line_ports = get_device_line_ports_names(optical_node_block)
+            return line_ports
+        if role in (OpticalPortRole.OLS_ADD_DROP, OpticalPortRole.TRANSPONDER_CLIENT):
+            if client_ports is None:
+                client_ports = get_device_client_ports_names(optical_node_block)
+            return client_ports
+        msg = f"Groove G30 does not support port role {role.value}"
+        raise UnsupportedPortRoleError(msg)
+
+    return _ports_by_role(_G30_SUPPORTED_ROLES, port_names_for_role, roles)
 
 
 def retrieve_transceiver_modes(optical_node_block: NokiaGrooveG30BlockProvisioning, port_name: str) -> list[str]:
@@ -387,15 +434,3 @@ def check_fiber(
                 indent=4,
             )
         )
-
-
-def _same_node(
-    node_a: AnyOpticalNodeBlockProvisioningUnion,
-    node_b: AnyOpticalNodeBlockProvisioningUnion,
-) -> bool:
-    """Return whether two Optical Node blocks refer to the same device."""
-    if node_a is node_b:
-        return True
-    fqdn_a = node_a.management.optical_module_node_fqdn
-    fqdn_b = node_b.management.optical_module_node_fqdn
-    return fqdn_a is not None and fqdn_a == fqdn_b

@@ -58,6 +58,7 @@ from orchestrator.core.workflow import ProcessStatus
 from orchestrator.core.workflows import LazyWorkflowInstance
 from orchestrator.optical.db import location_block_from_subscription
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_types.optical_packet_node import (
     OpticalModulePacketNodeSubscriptionInactive,
 )
@@ -314,21 +315,6 @@ def clean_database(request: pytest.FixtureRequest) -> None:
         core_db.db.session.commit()
 
 
-def _fake_get_device_line_ports_names(block: Any) -> list[str]:
-    """Return the faked line port names of a device."""
-    return list(FAKE_LINE_PORTS)
-
-
-def _fake_get_device_client_ports_names(block: Any) -> list[str]:
-    """Return the faked client port names of a device."""
-    return list(FAKE_CLIENT_PORTS)
-
-
-def _fake_get_device_ports_names(block: Any) -> list[str]:
-    """Return the faked port names of a device."""
-    return list(FAKE_ALL_PORTS)
-
-
 def _fake_retrieve_transceiver_modes(block: Any, port_name: str) -> list[str]:
     """Return the faked transceiver modes of a device port."""
     return list(FAKE_TRANSCEIVER_MODES)
@@ -339,17 +325,17 @@ def _fake_retrieve_ports_spectral_occupations(block: Any) -> dict[str, Any]:
     return {}
 
 
-def _fake_configure_termination_when_attaching_new_fiber(port: Any, remote: Any) -> dict[str, Any]:
+def _fake_configure_termination_when_attaching_new_fiber(*args: Any) -> dict[str, Any]:
     """Configure the faked fiber terminating port, returning the configuration state."""
     return {}
 
 
-def _fake_factory_reset_port_configuration(port: Any, remote: Any) -> dict[str, Any]:
+def _fake_factory_reset_port_configuration(*args: Any) -> dict[str, Any]:
     """Factory reset the faked fiber terminating port, returning the reset state."""
     return {}
 
 
-def _fake_check_fiber_terminating_port(port: Any, remote: Any) -> None:
+def _fake_check_fiber_terminating_port(*args: Any) -> None:
     """Accept the faked fiber terminating port as consistent."""
 
 
@@ -484,6 +470,18 @@ def install_device_stubs(
     def _get_device_ports_names(block: Any) -> list[str]:
         return list(all_ports)
 
+    def _get_device_ports_by_role(block: Any, roles: Any = None) -> list[str]:
+        # The seeded pipe test nodes are Nokia FlexILS: OLS line ports are the line
+        # ports, OLS add/drop (tributary) ports are the client ports.
+        requested = roles if roles is not None else [OpticalPortRole.OLS_LINE, OpticalPortRole.OLS_ADD_DROP]
+        names: list[str] = []
+        for role in requested:
+            if role is OpticalPortRole.OLS_LINE:
+                names.extend(line_ports)
+            elif role is OpticalPortRole.OLS_ADD_DROP:
+                names.extend(client_ports)
+        return list(dict.fromkeys(names))
+
     def _retrieve_transceiver_modes(block: Any, port_name: str) -> list[str]:
         return list(modes)
 
@@ -503,10 +501,8 @@ def install_device_stubs(
         "pipe": {
             "orchestrator.optical.workflows.optical_pipe.shared": {
                 "configure_termination_when_attaching_new_fiber": _fake_configure_termination_when_attaching_new_fiber,
+                "get_device_ports_by_role": _get_device_ports_by_role,
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
-            },
-            "orchestrator.optical.workflows.optical_pipe.fiber_span.create": {
-                "get_device_line_ports_names": _get_device_line_ports_names,
             },
             "orchestrator.optical.workflows.optical_pipe.fiber_span.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
@@ -514,19 +510,11 @@ def install_device_stubs(
             "orchestrator.optical.workflows.optical_pipe.fiber_span.validate": {
                 "check_fiber_terminating_port": _fake_check_fiber_terminating_port,
             },
-            "orchestrator.optical.workflows.optical_pipe.fiber_patch.create": {
-                "get_device_client_ports_names": _get_device_client_ports_names,
-                "get_device_ports_names": _get_device_ports_names,
-            },
             "orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
             },
             "orchestrator.optical.workflows.optical_pipe.fiber_patch.validate": {
                 "check_fiber_terminating_port": _fake_check_fiber_terminating_port,
-            },
-            "orchestrator.optical.workflows.optical_pipe.leased_spectrum.create": {
-                "get_device_line_ports_names": _get_device_line_ports_names,
-                "get_device_client_ports_names": _get_device_client_ports_names,
             },
             "orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,

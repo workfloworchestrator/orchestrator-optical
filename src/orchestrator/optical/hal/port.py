@@ -23,6 +23,8 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30 import port as groove_g3
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import port as gx_g42
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 
 __all__ = [
@@ -31,6 +33,7 @@ __all__ = [
     "factory_reset_port_configuration",
     "get_device_client_ports_names",
     "get_device_line_ports_names",
+    "get_device_ports_by_role",
     "get_device_ports_names",
     "retrieve_transceiver_modes",
     "set_channel_description",
@@ -108,6 +111,42 @@ def get_device_line_ports_names(optical_node_block: AnyOpticalNodeBlockProvision
             return gx_g42.get_device_line_ports_names(_as_g42_block(optical_node_block))
         case _:
             msg = f"get_device_line_ports_names: {type(optical_node_block).__name__}"
+            raise UnsupportedPlatformError(msg)
+
+
+def get_device_ports_by_role(
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
+    roles: list[OpticalPortRole] | None = None,
+) -> list[str]:
+    """Retrieve the device port names of an Optical Node for the requested Optical Port roles.
+
+    This is the role-specific counterpart of :func:`get_device_ports_names`/
+    :func:`get_device_client_ports_names`/:func:`get_device_line_ports_names`: it lets a caller
+    ask for only the ports of the roles a pipe can terminate on (e.g. only OLS line ports for a
+    fiber span). The vendor/platform of the hosting node selects the adapter, which enumerates the
+    requested roles and de-duplicates the result.
+
+    Args:
+        optical_node_block: Optical Node of which the optical ports are to be retrieved.
+        roles: The Optical Port roles to retrieve. ``None`` (the default) retrieves every role the
+            node's vendor/platform supports.
+
+    Returns:
+        The de-duplicated device port names of the requested roles.
+
+    Raises:
+        UnsupportedPortRoleError: If a requested role is not supported by the node's vendor/platform.
+        UnsupportedPlatformError: If the Optical Node is not supported by this operation.
+    """
+    match _vendor_platform(optical_node_block):
+        case (Vendor.NOKIA, Platform.FLEXILS):
+            return flexils.get_device_ports_by_role(_as_flexils_block(optical_node_block), roles)
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
+            return groove_g30.get_device_ports_by_role(_as_g30_block(optical_node_block), roles)
+        case (Vendor.NOKIA, Platform.GX_G42):
+            return gx_g42.get_device_ports_by_role(_as_g42_block(optical_node_block), roles)
+        case _:
+            msg = f"get_device_ports_by_role: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 
@@ -228,12 +267,18 @@ def set_port_admin_state(
 def configure_termination_when_attaching_new_fiber(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
+    pipe_type: OpticalPipeType,
 ) -> dict[str, Any]:
     """Configure an optical port when attaching a fiber to it.
+
+    The pipe type is forwarded to the adapters that key their decision on it
+    (a Nokia FlexILS port picks its OTS/SCG path from the local port role and
+    the pipe type).
 
     Args:
         optical_port_block: Optical Port to configure.
         remote_port_block: The remote Optical Port to connect to.
+        pipe_type: The type of the Optical Pipe being terminated on the port.
 
     Returns:
         The port configuration after the update.
@@ -245,7 +290,7 @@ def configure_termination_when_attaching_new_fiber(
     host_node = optical_port_block.optical_port_host_node
     match _vendor_platform(host_node):
         case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.configure_termination(optical_port_block, remote_port_block)
+            return flexils.configure_termination(optical_port_block, remote_port_block, pipe_type)
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             return groove_g30.configure_termination(optical_port_block, remote_port_block)
         case (Vendor.NOKIA, Platform.GX_G42):
@@ -258,12 +303,15 @@ def configure_termination_when_attaching_new_fiber(
 def factory_reset_port_configuration(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
+    pipe_type: OpticalPipeType,
 ) -> dict[str, Any]:
     """Prune the configuration of an optical port.
 
     Args:
         optical_port_block: Optical Port of which the configuration is to be pruned.
         remote_port_block: The remote Optical Port connected to the port.
+        pipe_type: The type of the Optical Pipe terminated on the port; forwarded to
+            the adapters that key their reset path on it (Nokia FlexILS).
 
     Returns:
         The port configuration after the reset.
@@ -275,7 +323,7 @@ def factory_reset_port_configuration(
     host_node = optical_port_block.optical_port_host_node
     match _vendor_platform(host_node):
         case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.factory_reset(optical_port_block, remote_port_block)
+            return flexils.factory_reset(optical_port_block, remote_port_block, pipe_type)
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             return groove_g30.factory_reset(optical_port_block)
         case (Vendor.NOKIA, Platform.GX_G42):
@@ -288,12 +336,15 @@ def factory_reset_port_configuration(
 def check_fiber_terminating_port(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
+    pipe_type: OpticalPipeType,
 ) -> None:
     """Check if an optical port attached to a fiber is correctly configured.
 
     Args:
         optical_port_block: Optical Port to check.
         remote_port_block: The remote Optical Port to verify the connection against.
+        pipe_type: The type of the Optical Pipe terminated on the port; forwarded to
+            the adapters that key their check path on it (Nokia FlexILS).
 
     Raises:
         ValueError: If the port configuration does not match the expected one.
@@ -302,7 +353,7 @@ def check_fiber_terminating_port(
     host_node = optical_port_block.optical_port_host_node
     match _vendor_platform(host_node):
         case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.check_fiber(optical_port_block, remote_port_block)
+            return flexils.check_fiber(optical_port_block, remote_port_block, pipe_type)
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             return groove_g30.check_fiber(optical_port_block, remote_port_block)
         case (Vendor.NOKIA, Platform.GX_G42):

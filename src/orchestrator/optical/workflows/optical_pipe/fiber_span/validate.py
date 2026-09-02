@@ -34,8 +34,9 @@ def load_initial_state_fiber_span(subscription: OpticalFiberSpanSubscription) ->
 def check_span_terminations(subscription: OpticalFiberSpanSubscription) -> State:
     """Verify that the terminating line ports of the fiber span are correctly configured."""
     port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
-    check_fiber_terminating_port(port_a, port_b)
-    check_fiber_terminating_port(port_b, port_a)
+    pipe_type = subscription.optical_pipe.optical_pipe_type
+    check_fiber_terminating_port(port_a, port_b, pipe_type)
+    check_fiber_terminating_port(port_b, port_a, pipe_type)
     return {}
 
 
