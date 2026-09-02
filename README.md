@@ -99,9 +99,9 @@ database exactly the way a consumer would.
 ## Consumption model
 
 The module ships **concrete product blocks** (e.g. `OpticalFiberSpanBlock`), the matching
-subscription product types, hardware abstraction layer `hal/` services, the **ready-to-use workflows of the shipped product types** (one
-create/modify/terminate/validate per product) and the **parts of the workflows** (the FormPages of the shipped forms,
-as page sequences, and the step lists).
+ subscription product types, hardware abstraction layer `hal/` services, the **ready-to-use workflows of the shipped product types** (one
+ create/modify/terminate/validate per product, plus a reconcile workflow for each optical pipe family) and the
+ **parts of the workflows** (the FormPages of the shipped forms, as page sequences, and the step lists).
 
 > The module expects you to use the shipped concrete blocks as a **shared interface** that you compose with your own model.
 
@@ -118,10 +118,11 @@ There are two consumption paths:
 
 ### 1. Use the shipped product types and their workflows as-is
 
-Keep the shipped subscription product types. The module ships one ready-to-use workflow per product type and
-lifecycle target (create / modify / terminate / validate), as plain `@create_workflow` / `@modify_workflow` /
-`@terminate_workflow` / `@validate_workflow`-decorated functions bound to the shipped subscription models. They are
-only valid when you keep the shipped product types.
+ Keep the shipped subscription product types. The module ships one ready-to-use workflow per product type and
+ lifecycle target (create / modify / terminate / validate), as plain `@create_workflow` / `@modify_workflow` /
+ `@terminate_workflow` / `@validate_workflow`-decorated functions bound to the shipped subscription models, plus a
+ `@reconcile_workflow` for each optical pipe family (it re-applies the pipe's terminations configuration to the
+ devices and re-verifies it, with no user input). They are only valid when you keep the shipped product types.
 
 Register them with the standard orchestrator-core mechanism: one `LazyWorkflowInstance` line per workflow in your own
 workflows package.
@@ -164,14 +165,17 @@ The full list of shipped workflows and their import paths:
 | `modify_fiber_span`                   | `orchestrator.optical.workflows.optical_pipe.fiber_span.modify`                                     |
 | `terminate_fiber_span`                | `orchestrator.optical.workflows.optical_pipe.fiber_span.terminate`                                  |
 | `validate_fiber_span`                 | `orchestrator.optical.workflows.optical_pipe.fiber_span.validate`                                   |
+| `reconcile_fiber_span`                | `orchestrator.optical.workflows.optical_pipe.fiber_span.reconcile`                                  |
 | `create_fiber_patch`                  | `orchestrator.optical.workflows.optical_pipe.fiber_patch.create`                                    |
 | `modify_fiber_patch`                  | `orchestrator.optical.workflows.optical_pipe.fiber_patch.modify`                                    |
 | `terminate_fiber_patch`               | `orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate`                                 |
 | `validate_fiber_patch`                | `orchestrator.optical.workflows.optical_pipe.fiber_patch.validate`                                  |
+| `reconcile_fiber_patch`               | `orchestrator.optical.workflows.optical_pipe.fiber_patch.reconcile`                                 |
 | `create_leased_spectrum`              | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.create`                                |
 | `modify_leased_spectrum`              | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.modify`                                |
 | `terminate_leased_spectrum`           | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate`                             |
 | `validate_leased_spectrum`            | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.validate`                              |
+| `reconcile_leased_spectrum`           | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.reconcile`                             |
 | `create_optical_spectrum`             | `orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum`                   |
 | `modify_optical_spectrum`             | `orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum`                   |
 | `terminate_optical_spectrum`          | `orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum`                |

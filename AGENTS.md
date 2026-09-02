@@ -135,6 +135,7 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
 
 - The module ships the **ready-to-use workflows of the shipped product types**: one module-level
   `@create_workflow`/`@modify_workflow`/`@terminate_workflow`/`@validate_workflow`-decorated function per product
+  (plus a `@reconcile_workflow` for each optical pipe family), where each is a plain function
   (decorators from `orchestrator.core.workflows.utils`, chains from `orchestrator.core.workflow`), named exactly as
   the shipped name (the translation keys in `translations/en-GB.json`). No factories, no hooks, no `**kwargs`; the
   workflow function name MUST keep the shipped name. The shipped workflows are bound to the shipped subscription

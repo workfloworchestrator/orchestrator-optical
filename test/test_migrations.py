@@ -23,8 +23,20 @@ from orchestrator.optical.migrations.generate import (
     workflow_product_type,
 )
 
-#: Expected size of the shipped workflow set (create/modify/terminate/validate per family).
-EXPECTED_SHIPPED_WORKFLOW_COUNT = 40
+#: Expected size of the shipped workflow set: create/modify/terminate/validate per family,
+#: plus a reconcile workflow for each of the three optical pipe families.
+EXPECTED_SHIPPED_WORKFLOW_COUNT = 43
+
+#: The optical pipe product types ship a reconcile workflow in addition to the
+#: standard create/modify/terminate/validate set.
+PIPE_PRODUCT_TYPES = {
+    "OpticalFiberSpanSubscription",
+    "OpticalFiberPatchSubscription",
+    "OpticalLeasedSpectrumSubscription",
+}
+
+STANDARD_TARGETS = {"CREATE", "MODIFY", "TERMINATE", "VALIDATE"}
+PIPE_TARGETS = STANDARD_TARGETS | {"RECONCILE"}
 
 
 def test_shipped_workflow_discovery_contract() -> None:
@@ -36,14 +48,15 @@ def test_shipped_workflow_discovery_contract() -> None:
     product_types = {model.__name__ for model in SUBSCRIPTION_MODEL_REGISTRY.values()}
     for workflow in workflows:
         assert workflow.product_type in product_types, workflow.product_type
-        assert workflow.target in {"CREATE", "MODIFY", "TERMINATE", "VALIDATE"}
+        assert workflow.target in PIPE_TARGETS
         assert workflow.description
 
     by_product_type: dict[str, set[str]] = {}
     for workflow in workflows:
         by_product_type.setdefault(workflow.product_type, set()).add(workflow.target)
     for product_type, targets in by_product_type.items():
-        assert targets == {"CREATE", "MODIFY", "TERMINATE", "VALIDATE"}, product_type
+        expected_targets = PIPE_TARGETS if product_type in PIPE_PRODUCT_TYPES else STANDARD_TARGETS
+        assert targets == expected_targets, product_type
 
 
 def test_workflow_product_type_rejects_unknown_family() -> None:

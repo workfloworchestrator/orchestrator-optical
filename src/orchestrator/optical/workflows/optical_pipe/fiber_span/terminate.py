@@ -7,7 +7,7 @@ the FormPage of the terminate confirmation form (as the
 steps.
 
 Consumers with their own model that has-a the shipped block declare their own
-``@terminate_workflow`` with :data:`FIBER_SPAN_TERMINATE_STEPS` and compose
+``@terminate_workflow`` with :data:`TERMINATE_FIBER_SPAN_BLOCK_STEPS` and compose
 their own terminate form generator by yielding from the shipped page sequence
 in one line.
 """
@@ -118,17 +118,17 @@ def factory_reset_span_ports(subscription: OpticalFiberSpanSubscription) -> Stat
 #: Termination steps of the Optical Fiber Span family. Consumers declare
 #: their own ``@terminate_workflow`` with this step list and the shipped
 #: :func:`terminate_initial_input_form_generator` form.
-FIBER_SPAN_TERMINATE_STEPS: StepList = begin >> factory_reset_span_ports
+TERMINATE_FIBER_SPAN_BLOCK_STEPS: StepList = begin >> factory_reset_span_ports
 
 
 @terminate_workflow(initial_input_form=terminate_initial_input_form_generator)
 def terminate_fiber_span() -> StepList:
     """Workflow to terminate an Optical Fiber Span subscription."""
-    return begin >> FIBER_SPAN_TERMINATE_STEPS
+    return begin >> TERMINATE_FIBER_SPAN_BLOCK_STEPS
 
 
 __all__ = [
-    "FIBER_SPAN_TERMINATE_STEPS",
+    "TERMINATE_FIBER_SPAN_BLOCK_STEPS",
     "terminate_fiber_span",
     "terminate_fiber_span_form_pages",
 ]

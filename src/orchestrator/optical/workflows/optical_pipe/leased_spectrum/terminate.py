@@ -7,7 +7,7 @@ importable parts: the FormPage of the terminate confirmation form (as the
 termination step that factory-resets the terminating ports.
 
 Consumers with their own model that has-a the shipped block declare their own
-``@terminate_workflow`` with :data:`LEASED_SPECTRUM_TERMINATE_STEPS` and
+``@terminate_workflow`` with :data:`TERMINATE_LEASED_SPECTRUM_BLOCK_STEPS` and
 compose their own terminate form generator by yielding from the shipped page
 sequence in one line.
 """
@@ -116,17 +116,17 @@ def factory_reset_leased_spectrum_ports(subscription: OpticalLeasedSpectrumSubsc
 #: Termination steps of the Optical Leased Spectrum family. Consumers declare
 #: their own ``@terminate_workflow`` with this step list and the shipped
 #: :func:`terminate_initial_input_form_generator` form.
-LEASED_SPECTRUM_TERMINATE_STEPS: StepList = begin >> factory_reset_leased_spectrum_ports
+TERMINATE_LEASED_SPECTRUM_BLOCK_STEPS: StepList = begin >> factory_reset_leased_spectrum_ports
 
 
 @terminate_workflow(initial_input_form=terminate_initial_input_form_generator)
 def terminate_leased_spectrum() -> StepList:
     """Workflow to terminate an Optical Leased Spectrum pipe."""
-    return begin >> LEASED_SPECTRUM_TERMINATE_STEPS
+    return begin >> TERMINATE_LEASED_SPECTRUM_BLOCK_STEPS
 
 
 __all__ = [
-    "LEASED_SPECTRUM_TERMINATE_STEPS",
+    "TERMINATE_LEASED_SPECTRUM_BLOCK_STEPS",
     "terminate_leased_spectrum",
     "terminate_leased_spectrum_form_pages",
 ]

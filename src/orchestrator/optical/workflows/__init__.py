@@ -3,8 +3,9 @@
 This package ships the **ready-to-use workflows of the shipped product types**:
 one module-level ``@create_workflow`` / ``@modify_workflow`` /
 ``@terminate_workflow`` / ``@validate_workflow``-decorated function per product
-and lifecycle target, named exactly as the shipped name (the translation keys
-in ``orchestrator/optical/translations/en-GB.json``). The workflows are bound
+and lifecycle target (plus a ``@reconcile_workflow`` for each optical pipe
+family), named exactly as the shipped name (the translation keys in
+``orchestrator/optical/translations/en-GB.json``). The workflows are bound
 to the shipped subscription models and are therefore only valid when the
 shipped product types are used as-is.
 

@@ -500,6 +500,7 @@ def install_device_stubs(
         },
         "pipe": {
             "orchestrator.optical.workflows.optical_pipe.shared": {
+                "check_fiber_terminating_port": _fake_check_fiber_terminating_port,
                 "configure_termination_when_attaching_new_fiber": _fake_configure_termination_when_attaching_new_fiber,
                 "get_device_ports_by_role": _get_device_ports_by_role,
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
@@ -507,20 +508,11 @@ def install_device_stubs(
             "orchestrator.optical.workflows.optical_pipe.fiber_span.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
             },
-            "orchestrator.optical.workflows.optical_pipe.fiber_span.validate": {
-                "check_fiber_terminating_port": _fake_check_fiber_terminating_port,
-            },
             "orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
             },
-            "orchestrator.optical.workflows.optical_pipe.fiber_patch.validate": {
-                "check_fiber_terminating_port": _fake_check_fiber_terminating_port,
-            },
             "orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
-            },
-            "orchestrator.optical.workflows.optical_pipe.leased_spectrum.validate": {
-                "check_fiber_terminating_port": _fake_check_fiber_terminating_port,
             },
         },
         "spectrum": {

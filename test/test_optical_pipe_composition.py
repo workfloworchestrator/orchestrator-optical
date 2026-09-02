@@ -48,11 +48,14 @@ from orchestrator.optical.workflows.optical_pipe.fiber_span.modify import (
     MODIFY_FIBER_SPAN_BLOCK_STEPS,
     modify_fiber_span_form_generator,
 )
-from orchestrator.optical.workflows.optical_pipe.fiber_span.terminate import FIBER_SPAN_TERMINATE_STEPS
+from orchestrator.optical.workflows.optical_pipe.fiber_span.terminate import TERMINATE_FIBER_SPAN_BLOCK_STEPS
 from orchestrator.optical.workflows.optical_pipe.fiber_span.terminate import (
     terminate_initial_input_form_generator as fiber_span_terminate_initial_input_form_generator,
 )
-from orchestrator.optical.workflows.optical_pipe.fiber_span.validate import FIBER_SPAN_VALIDATE_STEPS
+from orchestrator.optical.workflows.optical_pipe.fiber_span.validate import (
+    VALIDATE_FIBER_SPAN_BLOCK_STEPS,
+    load_initial_state_fiber_span,
+)
 from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create import create_leased_spectrum_form_generator
 from orchestrator.optical.workflows.optical_pipe.leased_spectrum.modify import (
     MODIFY_LEASED_SPECTRUM_BLOCK_STEPS,
@@ -301,16 +304,30 @@ def test_terminate_and_validate_shared_step_lists_compose() -> None:
 
     @terminate_workflow(initial_input_form=fiber_span_terminate_initial_input_form_generator)
     def terminate_fiber_span():
-        return begin >> FIBER_SPAN_TERMINATE_STEPS
+        return begin >> TERMINATE_FIBER_SPAN_BLOCK_STEPS
 
     @validate_workflow()
     def validate_fiber_span():
-        return begin >> FIBER_SPAN_VALIDATE_STEPS
+        return (
+            begin
+            >> load_initial_state_fiber_span
+            >> load_optical_pipe_block
+            >> VALIDATE_FIBER_SPAN_BLOCK_STEPS
+            >> set_optical_pipe_subscription_description
+        )
 
+    validate_step_names = [step.name for step in validate_fiber_span.steps]
     assert terminate_fiber_span.name == "terminate_fiber_span"
     assert validate_fiber_span.name == "validate_fiber_span"
     assert "Factory Reset Fiber Span Ports" in [step.name for step in terminate_fiber_span.steps]
-    assert "Load Initial State" in [step.name for step in validate_fiber_span.steps]
+    # The subscription-level wiring stays in the consumer workflow while the
+    # shipped block steps operate only on the block in the state.
+    assert "Load Initial State" in validate_step_names
+    assert "Load optical pipe block" in validate_step_names
+    assert validate_step_names.index("Check Optical Pipe Terminations") < validate_step_names.index(
+        "Persist optical pipe block"
+    )
+    assert "Set Optical Pipe subscription description" in validate_step_names
 
 
 def test_fiber_patch_and_leased_spectrum_step_lists_compose() -> None:

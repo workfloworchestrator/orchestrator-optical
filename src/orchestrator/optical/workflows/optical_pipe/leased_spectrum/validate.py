@@ -1,20 +1,24 @@
 """Validate Optical Leased Spectrum workflow.
 
 This module ships the ready-to-use ``validate_leased_spectrum`` workflow for
-the shipped Optical Leased Spectrum product type, together with the
-importable parts: the state loading step, the termination check step and the
-passband retrieval step. Consumers with their own model that has-a the
-shipped block declare their own ``@validate_workflow`` with
-:data:`LEASED_SPECTRUM_VALIDATE_STEPS`.
+the shipped Optical Leased Spectrum product type, together with the importable
+parts: the state loading step and the block-level validation step list
+(:data:`VALIDATE_LEASED_SPECTRUM_BLOCK_STEPS`). Consumers with their own model
+that has-a the shipped block declare their own ``@validate_workflow`` composing
+the state loading step, :func:`load_optical_pipe_block`,
+:data:`VALIDATE_LEASED_SPECTRUM_BLOCK_STEPS` and the shared description step;
+consumer models that compose the block under a different attribute name put the
+block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the description
+step.
 """
 
 from pydantic_forms.types import State
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from orchestrator.optical.hal.port import check_fiber_terminating_port
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
 from orchestrator.optical.workflows.optical_pipe.shared import (
+    check_pipe_terminations,
     load_optical_pipe_block,
     retrieve_optical_pipe_used_passbands,
     save_optical_pipe_block,
@@ -28,38 +32,40 @@ def load_initial_state_leased_spectrum(subscription: OpticalLeasedSpectrumSubscr
     return {"subscription": subscription}
 
 
-@step("Check Leased Spectrum Terminations")
-def check_leased_spectrum_terminations(subscription: OpticalLeasedSpectrumSubscription) -> State:
-    """Verify that the terminating ports of the leased spectrum pipe are correctly configured."""
-    port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
-    pipe_type = subscription.optical_pipe.optical_pipe_type
-    check_fiber_terminating_port(port_a, port_b, pipe_type)
-    check_fiber_terminating_port(port_b, port_a, pipe_type)
-    return {}
-
-
-#: Validation steps of the Optical Leased Spectrum family. The block is put in
-#: the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` and the refreshed
-#: passbands are persisted by the last step; the subscription description
-#: refresh is a shared step that reads the block from the state.
-LEASED_SPECTRUM_VALIDATE_STEPS: StepList = (
-    begin
-    >> load_initial_state_leased_spectrum
-    >> load_optical_pipe_block
-    >> set_optical_pipe_subscription_description
-    >> check_leased_spectrum_terminations
-    >> retrieve_optical_pipe_used_passbands
-    >> save_optical_pipe_block
+#: Block-level validation steps of the Optical Leased Spectrum family. Every
+#: step operates only on the Optical Pipe block found in the state under
+#: ``OPTICAL_MODULE_BLOCK_STATE_KEY`` (which the caller's
+#: :func:`load_optical_pipe_block` step puts there): the terminations are
+#: checked against their remote end, the passbands in use are refreshed from
+#: the devices and the block (with the refreshed passbands) is persisted by the
+#: last step. Consumers with their own model run this list after loading their
+#: block into the state and finalize the subscription with the shared
+#: description step.
+VALIDATE_LEASED_SPECTRUM_BLOCK_STEPS: StepList = (
+    begin >> check_pipe_terminations >> retrieve_optical_pipe_used_passbands >> save_optical_pipe_block
 )
 
 
 @validate_workflow()
 def validate_leased_spectrum() -> StepList:
-    """Workflow to validate an Optical Leased Spectrum subscription."""
-    return begin >> LEASED_SPECTRUM_VALIDATE_STEPS
+    """Workflow to validate an Optical Leased Spectrum subscription.
+
+    The subscription-level wiring (loading the subscription and its block into
+    the state, then recomputing the subscription description from the validated
+    block) is kept in the workflow, while the shipped
+    :data:`VALIDATE_LEASED_SPECTRUM_BLOCK_STEPS` operate only on the block
+    found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    return (
+        begin
+        >> load_initial_state_leased_spectrum
+        >> load_optical_pipe_block
+        >> VALIDATE_LEASED_SPECTRUM_BLOCK_STEPS
+        >> set_optical_pipe_subscription_description
+    )
 
 
 __all__ = [
-    "LEASED_SPECTRUM_VALIDATE_STEPS",
+    "VALIDATE_LEASED_SPECTRUM_BLOCK_STEPS",
     "validate_leased_spectrum",
 ]

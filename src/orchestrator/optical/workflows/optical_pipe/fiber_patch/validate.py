@@ -2,22 +2,26 @@
 
 This module ships the ready-to-use ``validate_fiber_patch`` workflow for the
 shipped Optical Fiber Patch product type, together with the importable parts:
-the state loading step, the shared subscription description step and the
-termination check step. Consumers with their own model that has-a the shipped
-block declare their own ``@validate_workflow`` with
-:data:`FIBER_PATCH_VALIDATE_STEPS`; consumer models that compose the block
-under a different attribute name can put the block in the state under
-``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the description step.
+the state loading step and the block-level validation step list
+(:data:`VALIDATE_FIBER_PATCH_BLOCK_STEPS`). Consumers with their own model that
+has-a the shipped block declare their own ``@validate_workflow`` composing the
+state loading step, :func:`load_optical_pipe_block`,
+:data:`VALIDATE_FIBER_PATCH_BLOCK_STEPS` and the shared description step;
+consumer models that compose the block under a different attribute name put the
+block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` for the description
+step.
 """
 
 from pydantic_forms.types import State
 
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
-from orchestrator.optical.hal.port import check_fiber_terminating_port
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.workflows.optical_pipe.shared import (
+    check_pipe_terminations,
     load_optical_pipe_block,
+    retrieve_optical_pipe_used_passbands,
+    save_optical_pipe_block,
     set_optical_pipe_subscription_description,
 )
 
@@ -28,35 +32,40 @@ def load_initial_state_fiber_patch(subscription: OpticalFiberPatchSubscription) 
     return {"subscription": subscription}
 
 
-@step("Check Fiber Patch Terminations")
-def check_patch_terminations(subscription: OpticalFiberPatchSubscription) -> State:
-    """Verify that the terminating ports of the fiber patch are correctly configured."""
-    port_a, port_b = subscription.optical_pipe.optical_pipe_terminations
-    pipe_type = subscription.optical_pipe.optical_pipe_type
-    check_fiber_terminating_port(port_a, port_b, pipe_type)
-    check_fiber_terminating_port(port_b, port_a, pipe_type)
-    return {}
-
-
-#: Validation steps of the Optical Fiber Patch family. The block is loaded
-#: into the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` so the shared
-#: subscription description refresh can read it.
-FIBER_PATCH_VALIDATE_STEPS: StepList = (
-    begin
-    >> load_initial_state_fiber_patch
-    >> load_optical_pipe_block
-    >> set_optical_pipe_subscription_description
-    >> check_patch_terminations
+#: Block-level validation steps of the Optical Fiber Patch family. Every step
+#: operates only on the Optical Pipe block found in the state under
+#: ``OPTICAL_MODULE_BLOCK_STATE_KEY`` (which the caller's
+#: :func:`load_optical_pipe_block` step puts there): the terminations are
+#: checked against their remote end, the passbands in use are refreshed from
+#: the devices and the block (with the refreshed passbands) is persisted by the
+#: last step. Consumers with their own model run this list after loading their
+#: block into the state and finalize the subscription with the shared
+#: description step.
+VALIDATE_FIBER_PATCH_BLOCK_STEPS: StepList = (
+    begin >> check_pipe_terminations >> retrieve_optical_pipe_used_passbands >> save_optical_pipe_block
 )
 
 
 @validate_workflow()
 def validate_fiber_patch() -> StepList:
-    """Workflow to validate an Optical Fiber Patch subscription."""
-    return begin >> FIBER_PATCH_VALIDATE_STEPS
+    """Workflow to validate an Optical Fiber Patch subscription.
+
+    The subscription-level wiring (loading the subscription and its block into
+    the state, then recomputing the subscription description from the validated
+    block) is kept in the workflow, while the shipped
+    :data:`VALIDATE_FIBER_PATCH_BLOCK_STEPS` operate only on the block found in
+    the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    return (
+        begin
+        >> load_initial_state_fiber_patch
+        >> load_optical_pipe_block
+        >> VALIDATE_FIBER_PATCH_BLOCK_STEPS
+        >> set_optical_pipe_subscription_description
+    )
 
 
 __all__ = [
-    "FIBER_PATCH_VALIDATE_STEPS",
+    "VALIDATE_FIBER_PATCH_BLOCK_STEPS",
     "validate_fiber_patch",
 ]

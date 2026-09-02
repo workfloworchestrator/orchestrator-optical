@@ -147,6 +147,10 @@ def test_fiber_span_full_lifecycle(
     validate_process_id = run_process("validate_fiber_span", [{"subscription_id": subscription_id}])
     assert_process_completed(validate_process_id)
 
+    reconcile_process_id = run_process("reconcile_fiber_span", [{"subscription_id": subscription_id}])
+    assert_process_completed(reconcile_process_id)
+    assert _subscription_table(subscription_id).insync is True
+
     terminate_process_id = run_process("terminate_fiber_span", _terminate_pipe_user_inputs(subscription_id))
     assert_process_completed(terminate_process_id)
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.TERMINATED
@@ -235,6 +239,10 @@ def test_fiber_patch_create_validate_terminate(
     validate_process_id = run_process("validate_fiber_patch", [{"subscription_id": subscription_id}])
     assert_process_completed(validate_process_id)
 
+    reconcile_process_id = run_process("reconcile_fiber_patch", [{"subscription_id": subscription_id}])
+    assert_process_completed(reconcile_process_id)
+    assert _subscription_table(subscription_id).insync is True
+
     terminate_process_id = run_process("terminate_fiber_patch", _terminate_pipe_user_inputs(subscription_id))
     assert_process_completed(terminate_process_id)
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.TERMINATED
@@ -282,6 +290,10 @@ def test_leased_spectrum_create_validate_terminate(
 
     validate_process_id = run_process("validate_leased_spectrum", [{"subscription_id": subscription_id}])
     assert_process_completed(validate_process_id)
+
+    reconcile_process_id = run_process("reconcile_leased_spectrum", [{"subscription_id": subscription_id}])
+    assert_process_completed(reconcile_process_id)
+    assert _subscription_table(subscription_id).insync is True
 
     terminate_process_id = run_process("terminate_leased_spectrum", _terminate_pipe_user_inputs(subscription_id))
     assert_process_completed(terminate_process_id)

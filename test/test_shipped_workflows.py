@@ -36,14 +36,17 @@ WORKFLOW_MODULES = {
     "modify_fiber_span": "orchestrator.optical.workflows.optical_pipe.fiber_span.modify",
     "terminate_fiber_span": "orchestrator.optical.workflows.optical_pipe.fiber_span.terminate",
     "validate_fiber_span": "orchestrator.optical.workflows.optical_pipe.fiber_span.validate",
+    "reconcile_fiber_span": "orchestrator.optical.workflows.optical_pipe.fiber_span.reconcile",
     "create_fiber_patch": "orchestrator.optical.workflows.optical_pipe.fiber_patch.create",
     "modify_fiber_patch": "orchestrator.optical.workflows.optical_pipe.fiber_patch.modify",
     "terminate_fiber_patch": "orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate",
     "validate_fiber_patch": "orchestrator.optical.workflows.optical_pipe.fiber_patch.validate",
+    "reconcile_fiber_patch": "orchestrator.optical.workflows.optical_pipe.fiber_patch.reconcile",
     "create_leased_spectrum": "orchestrator.optical.workflows.optical_pipe.leased_spectrum.create",
     "modify_leased_spectrum": "orchestrator.optical.workflows.optical_pipe.leased_spectrum.modify",
     "terminate_leased_spectrum": "orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate",
     "validate_leased_spectrum": "orchestrator.optical.workflows.optical_pipe.leased_spectrum.validate",
+    "reconcile_leased_spectrum": "orchestrator.optical.workflows.optical_pipe.leased_spectrum.reconcile",
     "create_optical_coherent_pluggable": "orchestrator.optical.workflows.optical_coherent_pluggable.create",
     "modify_optical_coherent_pluggable": "orchestrator.optical.workflows.optical_coherent_pluggable.modify",
     "terminate_optical_coherent_pluggable": "orchestrator.optical.workflows.optical_coherent_pluggable.terminate",
@@ -67,6 +70,7 @@ EXPECTED_TARGETS = {
     "modify_": Target.MODIFY,
     "terminate_": Target.TERMINATE,
     "validate_": Target.VALIDATE,
+    "reconcile_": Target.RECONCILE,
 }
 
 

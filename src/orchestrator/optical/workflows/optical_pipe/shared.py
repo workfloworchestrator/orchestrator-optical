@@ -29,7 +29,11 @@ from orchestrator.optical.db import (
     subscriptions_by_product_type,
 )
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
-from orchestrator.optical.hal.port import configure_termination_when_attaching_new_fiber, get_device_ports_by_role
+from orchestrator.optical.hal.port import (
+    check_fiber_terminating_port,
+    configure_termination_when_attaching_new_fiber,
+    get_device_ports_by_role,
+)
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
@@ -127,7 +131,7 @@ def pipe_port_roles(
             return [OpticalPortRole.TRANSPONDER_CLIENT, OpticalPortRole.TRANSPONDER_LINE]
         case OpticalPipeType.LEASED_SPECTRUM:
             if is_flexils:
-                return [OpticalPortRole.OLS_ADD_DROP]
+                return [OpticalPortRole.OLS_ADD_DROP, OpticalPortRole.OLS_LINE]
             return [OpticalPortRole.TRANSPONDER_LINE]
         case _:
             msg = f"Unsupported optical pipe type: {pipe_type.value}"
@@ -382,6 +386,33 @@ def configure_pipe_terminations(
         ),
     }
     return {"configuration_results": configuration_results, OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
+
+
+@step("Check Optical Pipe Terminations")
+def check_pipe_terminations(optical_module_block: AbstractOpticalPipeBlockProvisioning) -> State:
+    """Verify that the terminating ports of an optical pipe are correctly configured.
+
+    Operates only on the Optical Pipe block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY`` (the same block the rest of the shipped
+    block steps act on): it re-hydrates the block and checks both terminations
+    against their remote end. This is the read-only device check shared by the
+    shipped validate and reconcile workflows of every pipe family (fiber span,
+    fiber patch and leased spectrum).
+
+    Args:
+        optical_module_block: The Optical Pipe block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+
+    Raises:
+        ValueError: If a termination's configuration does not match the expected one.
+        UnsupportedPlatformError: If a host node is not supported by this operation.
+    """
+    pipe_block = optical_pipe_block_from_state(optical_module_block)
+    port_a, port_b = pipe_block.optical_pipe_terminations
+    pipe_type = pipe_block.optical_pipe_type
+    check_fiber_terminating_port(port_a, port_b, pipe_type)
+    check_fiber_terminating_port(port_b, port_a, pipe_type)
+    return {}
 
 
 @step("Updating Optical Pipe block")
@@ -956,6 +987,7 @@ __all__ = [
     "OPTICAL_MODULE_BLOCK_STATE_KEY",
     "PORT_BLOCK_CLASS_BY_ROLE",
     "SPAN_NODE_PRODUCT_TYPES",
+    "check_pipe_terminations",
     "configure_pipe_terminations",
     "create_optical_pipe_form_generator",
     "create_pipe_form_pages",
