@@ -200,6 +200,7 @@ def modify_consumer_router_location() -> StepList:
         >> set_status(SubscriptionLifecycle.PROVISIONING)
         >> load_consumer_router_location_block
         >> MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS
+        >> set_optical_module_location_subscription_description
         >> set_status(SubscriptionLifecycle.ACTIVE)
     )
 
@@ -404,9 +405,9 @@ def test_consumer_full_lifecycle_create_modify_terminate_validate(
         ],
     )
     assert_process_completed(modify_process_id)
-    # The shipped modify steps update the block and the lifecycle but do not refresh
-    # the subscription description (only the create workflow does): the description is unchanged.
-    assert _subscription_table(subscription_id).description == "Rome (rom-01)"
+    # The consumer modify workflow composes the shipped block steps with the shipped
+    # description step, so the subscription description is refreshed on modify.
+    assert _subscription_table(subscription_id).description == "Amsterdam (ams-01)"
     block = location_block_from_subscription(subscription_id)
     assert isinstance(block, OpticalModuleLocationBlock)
     assert block.location_code == "ams-01"

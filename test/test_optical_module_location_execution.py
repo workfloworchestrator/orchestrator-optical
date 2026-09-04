@@ -134,9 +134,8 @@ def test_full_lifecycle_create_modify_terminate_validate(
         ],
     )
     assert_process_completed(modify_process_id)
-    # The shipped modify workflow updates the block and the lifecycle but does not refresh
-    # the subscription description (only the create workflow does): the description is unchanged.
-    assert _subscription_table(subscription_id).description == "Rome (rom-01)"
+    # The shipped modify workflow updates the block and refreshes the subscription description.
+    assert _subscription_table(subscription_id).description == "Amsterdam (ams-01)"
     block = location_block_from_subscription(subscription_id)
     assert isinstance(block, OpticalModuleLocationBlock)
     assert block.location_code == "ams-01"
@@ -144,6 +143,27 @@ def test_full_lifecycle_create_modify_terminate_validate(
     assert block.longitude == "4.9041"
     assert block.latitude == "52.3676"
     assert _subscription_table(subscription_id).insync is True
+
+    # Clearing the optional location name makes the description fall back to the location code only.
+    clear_name_process_id = run_process(
+        "modify_optical_module_location",
+        [
+            {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
+            {
+                "longitude": "4.9041",
+                "latitude": "52.3676",
+                "location_code": "ams-01",
+                "location_name": "Amsterdam",
+                "clear_location_name": True,
+            },
+            {},
+        ],
+    )
+    assert_process_completed(clear_name_process_id)
+    block = location_block_from_subscription(subscription_id)
+    assert block.location_name is None
+    assert _subscription_table(subscription_id).description == "ams-01"
 
     validate_process_id = run_process("validate_optical_module_location", [{"subscription_id": subscription_id}])
     assert_process_completed(validate_process_id)

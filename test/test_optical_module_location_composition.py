@@ -604,6 +604,9 @@ def test_shipped_type_modify_workflow_composition() -> None:
     names = [step.name for step in workflow.steps]
     assert names.index("Load optical module location block") < names.index("Updating Optical Module Location block")
     assert names.index("Updating Optical Module Location block") < names.index("Persist optical module location block")
+    assert names.index("Persist optical module location block") < names.index(
+        "Set Optical Module Location subscription description"
+    )
 
 
 def test_consumer_model_modify_workflow_composition() -> None:
