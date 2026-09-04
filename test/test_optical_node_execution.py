@@ -271,3 +271,43 @@ def test_create_nokia_groove_g30_duplicate_fqdn_rejected(
                 "192.0.2.53",
             ),
         )
+
+
+def test_validate_refreshes_software_version_in_db(
+    run_process,
+    seed_optical_node,
+    assert_process_completed,
+    monkeypatch,
+) -> None:
+    """The shared validate step persists a *new* device software version to the database.
+
+    The device stub returns ``FAKE_SOFTWARE_VERSION`` (the same version the create
+    workflow writes), which would mask a refresh step that fails to persist: a stale
+    ``subscription`` returned by the refresh step would be re-saved by the framework
+    with the old in-memory version. Patch the device to report a different version
+    and assert the database ends up with it.
+    """
+    subscription_id = seed_optical_node(
+        GROOVE_G30_PRODUCT,
+        "g30-refresh.optical.test",
+        "192.0.2.61",
+        dcn_loopback_ip="192.0.2.62",
+    )
+    assert (
+        node_block_from_subscription(subscription_id).management.optical_module_node_software_version
+        == FAKE_SOFTWARE_VERSION
+    )
+
+    new_version = "9.9.9"
+    monkeypatch.setattr(
+        "orchestrator.optical.workflows.optical_node.shared.validate.retrieve_software_version",
+        lambda _block: new_version,
+    )
+
+    process_id = run_process(
+        "validate_optical_node_nokia_groove_g30",
+        [{"subscription_id": subscription_id}],
+    )
+    assert_process_completed(process_id)
+
+    assert node_block_from_subscription(subscription_id).management.optical_module_node_software_version == new_version

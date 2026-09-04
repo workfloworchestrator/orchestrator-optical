@@ -44,7 +44,7 @@ from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import MOD
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     OPTICAL_NODE_TERMINATE_STEPS,
-    OPTICAL_NODE_VALIDATE_STEPS,
+    VALIDATE_OPTICAL_NODE_BLOCK_STEPS,
     retrieve,
 )
 from orchestrator.optical.workflows.optical_node.shared import create as shared_create
@@ -138,14 +138,17 @@ def _step_functions(steps):
         CREATE_NOKIA_FLEXILS_BLOCK_STEPS,
         MODIFY_NOKIA_FLEXILS_BLOCK_STEPS,
         OPTICAL_NODE_TERMINATE_STEPS,
-        OPTICAL_NODE_VALIDATE_STEPS,
+        VALIDATE_OPTICAL_NODE_BLOCK_STEPS,
     ],
 )
 def test_shipped_block_step_lists_are_non_empty(steps) -> None:
     assert len(steps) > 0
 
 
-@pytest.mark.parametrize("steps", [CREATE_NOKIA_FLEXILS_BLOCK_STEPS, MODIFY_NOKIA_FLEXILS_BLOCK_STEPS])
+@pytest.mark.parametrize(
+    "steps",
+    [CREATE_NOKIA_FLEXILS_BLOCK_STEPS, MODIFY_NOKIA_FLEXILS_BLOCK_STEPS, VALIDATE_OPTICAL_NODE_BLOCK_STEPS],
+)
 def test_block_steps_consume_the_block_state_key(steps) -> None:
     for step_func in _step_functions(steps):
         signature = inspect.signature(step_func)
@@ -153,7 +156,7 @@ def test_block_steps_consume_the_block_state_key(steps) -> None:
 
 
 def test_shared_step_lists_are_block_agnostic() -> None:
-    for step_func in _step_functions(OPTICAL_NODE_TERMINATE_STEPS + OPTICAL_NODE_VALIDATE_STEPS):
+    for step_func in _step_functions(OPTICAL_NODE_TERMINATE_STEPS):
         signature = inspect.signature(step_func)
         assert OPTICAL_MODULE_BLOCK_STATE_KEY not in signature.parameters or (
             signature.parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].default is None

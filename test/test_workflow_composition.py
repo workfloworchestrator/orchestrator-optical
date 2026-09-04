@@ -51,7 +51,7 @@ from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import (
 )
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_NODE_TERMINATE_STEPS,
-    OPTICAL_NODE_VALIDATE_STEPS,
+    VALIDATE_OPTICAL_NODE_BLOCK_STEPS,
     load_optical_node_block,
     terminate_initial_input_form_generator,
     terminate_optical_node_form_pages,
@@ -130,12 +130,12 @@ def test_terminate_and_validate_shared_step_lists_compose() -> None:
 
     @validate_workflow()
     def validate_my_router():
-        return begin >> OPTICAL_NODE_VALIDATE_STEPS
+        return begin >> VALIDATE_OPTICAL_NODE_BLOCK_STEPS
 
     assert terminate_my_router.name == "terminate_my_router"
     assert validate_my_router.name == "validate_my_router"
     assert "Delete subscription from OSS/BSS" in [step.name for step in terminate_my_router.steps]
-    assert "Load initial state" in [step.name for step in validate_my_router.steps]
+    assert "Refresh Optical Node software version" in [step.name for step in validate_my_router.steps]
 
 
 def test_terminate_form_pages_yield_the_confirmation_page() -> None:

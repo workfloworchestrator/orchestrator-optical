@@ -8,7 +8,7 @@ from structlog import get_logger
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
-from orchestrator.optical.services.nokia.g30.data_models.ne import FwStateEnum
+from orchestrator.optical.services.nokia.g30.data_models.ne import SwloadStateEnum
 from orchestrator.optical.utils.datadiff import compare_pydantic_objects
 
 logger = get_logger(__name__)
@@ -27,25 +27,16 @@ def software_version(node: NokiaGrooveG30BlockProvisioning) -> str:
         ValueError: If no firmware version can be found on the node.
     """
     g30 = get_g30_client(node)
-    current_fw = g30.data.ne_ne.system.sw_management.current_fw_version.retrieve(content="all", depth=2)
+    current_fw = g30.data.ne_ne.system.sw_management.softwareload.retrieve(content="all", depth=2)
 
     version = next(
         (
-            item.system_fw_version or item.device_fw_version
+            item.swload_version
             for item in current_fw
-            if item.fw_state == FwStateEnum.CURRENT
+            if item.swload_state == SwloadStateEnum.ACTIVE
         ),
         None,
     )
-    if version is None:
-        version = next(
-            (
-                item.system_fw_version or item.device_fw_version
-                for item in current_fw
-                if item.system_fw_version is not None or item.device_fw_version is not None
-            ),
-            None,
-        )
     if version is None:
         msg = "No current firmware version found on the Groove G30 node"
         raise ValueError(msg)

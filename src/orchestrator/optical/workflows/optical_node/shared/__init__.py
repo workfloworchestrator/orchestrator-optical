@@ -40,7 +40,7 @@ from orchestrator.optical.workflows.optical_node.shared.terminate import (
     terminate_optical_node_form_pages,
 )
 from orchestrator.optical.workflows.optical_node.shared.validate import (
-    OPTICAL_NODE_VALIDATE_STEPS,
+    VALIDATE_OPTICAL_NODE_BLOCK_STEPS,
     load_initial_state_optical_node,
     refresh_optical_node_software_version,
 )
@@ -49,7 +49,7 @@ __all__ = [
     "OPTICAL_MODULE_BLOCK_STATE_KEY",
     "OPTICAL_NODE_PRODUCT_TYPES",
     "OPTICAL_NODE_TERMINATE_STEPS",
-    "OPTICAL_NODE_VALIDATE_STEPS",
+    "VALIDATE_OPTICAL_NODE_BLOCK_STEPS",
     "create_optical_node_location_form",
     "create_optical_node_management_form",
     "delete_optical_node_from_oss_bss",
