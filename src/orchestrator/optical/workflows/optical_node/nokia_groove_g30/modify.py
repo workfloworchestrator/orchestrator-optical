@@ -45,6 +45,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     save_optical_node_block,
     update_optical_node_block_fields,
 )
+from orchestrator.optical.workflows.optical_node.shared.retrieve import retrieve_optical_node_role_and_software_version
 from orchestrator.optical.workflows.shared import modify_summary_form
 
 
@@ -101,7 +102,7 @@ def modify_optical_node_nokia_groove_g30_form_generator(
     subscription = subscription_model.from_subscription(subscription_id)
     node = getattr(subscription, block_field_name)
 
-    user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
+    user_input_dict = yield from customer_choice_form_page(include=subscription.customer_id)
     user_input_dict.update((yield from modify_optical_node_nokia_groove_g30_form_pages(subscription, block_field_name)))
 
     summary_fields = [
@@ -114,7 +115,7 @@ def modify_optical_node_nokia_groove_g30_form_generator(
         user_input_dict,
         node.management,
         summary_fields,
-        extra_before={"customer_id": str(subscription.customer_id)},
+        extra_before={"customer_id": subscription.customer_id},
     )
 
     return user_input_dict | {"subscription": subscription}
@@ -155,7 +156,10 @@ def update_optical_node_nokia_groove_g30_block(
 #: block is persisted by the last step, because workflow steps reload the
 #: subscription from the database and would otherwise lose the mutations.
 MODIFY_NOKIA_GROOVE_G30_BLOCK_STEPS: StepList = (
-    begin >> update_optical_node_nokia_groove_g30_block >> save_optical_node_block
+    begin
+    >> update_optical_node_nokia_groove_g30_block
+    >> retrieve_optical_node_role_and_software_version
+    >> save_optical_node_block
 )
 
 

@@ -47,6 +47,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     validate_gmpls_id_uniqueness,
     validate_optical_flexils_target_id_uniqueness,
 )
+from orchestrator.optical.workflows.optical_node.shared.retrieve import retrieve_optical_node_role_and_software_version
 from orchestrator.optical.workflows.shared import modify_summary_form
 
 Instruction = Annotated[
@@ -167,7 +168,7 @@ def modify_optical_node_nokia_flexils_form_generator(
     subscription = subscription_model.from_subscription(subscription_id)
     node = getattr(subscription, block_field_name)
 
-    user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
+    user_input_dict = yield from customer_choice_form_page(include=subscription.customer_id)
     user_input_dict.update((yield from modify_optical_node_nokia_flexils_form_pages(subscription, block_field_name)))
 
     summary_fields = [
@@ -183,7 +184,7 @@ def modify_optical_node_nokia_flexils_form_generator(
         node.management,
         summary_fields,
         extra_before={
-            "customer_id": str(subscription.customer_id),
+            "customer_id": subscription.customer_id,
             "optical_flexils_gmpls_id": str(node.optical_flexils_gmpls_id) if node.optical_flexils_gmpls_id else "",
             "optical_flexils_target_id": str(node.optical_flexils_target_id) if node.optical_flexils_target_id else "",
         },
@@ -240,7 +241,12 @@ def update_optical_node_nokia_flexils_block(
 #: Modify steps operating on the Nokia FlexILS node block in the state. The
 #: block is persisted by the last step, because workflow steps reload the
 #: subscription from the database and would otherwise lose the mutations.
-MODIFY_NOKIA_FLEXILS_BLOCK_STEPS: StepList = begin >> update_optical_node_nokia_flexils_block >> save_optical_node_block
+MODIFY_NOKIA_FLEXILS_BLOCK_STEPS: StepList = (
+    begin
+    >> update_optical_node_nokia_flexils_block
+    >> retrieve_optical_node_role_and_software_version
+    >> save_optical_node_block
+)
 
 
 @modify_workflow(initial_input_form=modify_optical_node_nokia_flexils_form_generator)

@@ -42,7 +42,6 @@ from orchestrator.optical.workflows.optical_node.shared.terminate import (
 from orchestrator.optical.workflows.optical_node.shared.validate import (
     VALIDATE_OPTICAL_NODE_BLOCK_STEPS,
     load_initial_state_optical_node,
-    refresh_optical_node_software_version,
 )
 
 __all__ = [
@@ -59,7 +58,6 @@ __all__ = [
     "optical_node_block_from_state",
     "optical_node_subscription_description",
     "populate_abstract_optical_node_fields",
-    "refresh_optical_node_software_version",
     "retrieve_optical_node_role_and_software_version",
     "save_optical_node_block",
     "terminate_initial_input_form_generator",
