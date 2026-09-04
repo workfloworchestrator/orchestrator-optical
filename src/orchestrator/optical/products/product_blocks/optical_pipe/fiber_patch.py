@@ -1,7 +1,5 @@
 """Product Blocks of Fiber Patch Optical Pipes."""
 
-from typing import Literal
-
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
     AbstractOpticalPipeBlock,
@@ -20,7 +18,7 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import (
 class OpticalFiberPatchBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberPatchBlock"):
     """Inactive state of a Fiber Patch product block."""
 
-    optical_pipe_type: Literal[OpticalPipeType.PATCH] = OpticalPipeType.PATCH
+    optical_pipe_type: OpticalPipeType = OpticalPipeType.PATCH
     optical_pipe_name: str | None = None
     optical_pipe_terminations: FiberSides[PatchPortBlockInactive]
 
@@ -32,7 +30,7 @@ class OpticalFiberPatchBlockProvisioning(
 ):
     """Provisioning state of a Fiber Patch product block."""
 
-    optical_pipe_type: Literal[OpticalPipeType.PATCH] = OpticalPipeType.PATCH
+    optical_pipe_type: OpticalPipeType = OpticalPipeType.PATCH
     optical_pipe_name: str | None
     optical_pipe_terminations: FiberSides[PatchPortBlockProvisioning]
 
@@ -44,6 +42,6 @@ class OpticalFiberPatchBlock(
 ):
     """Active state of a Fiber Patch product block."""
 
-    optical_pipe_type: Literal[OpticalPipeType.PATCH] = OpticalPipeType.PATCH
+    optical_pipe_type: OpticalPipeType = OpticalPipeType.PATCH
     optical_pipe_name: str
     optical_pipe_terminations: FiberSides[PatchPortBlock]

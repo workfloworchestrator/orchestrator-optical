@@ -238,6 +238,7 @@ def populate_optical_coherent_pluggable_block(
     optical_module_block: OpticalCoherentPluggableBlockInactive,
     optical_port_host_node: OpticalModulePacketNodeBlockInactive,
     optical_port_name: str,
+    optical_coherent_pluggable_part_number: OpticalCoherentPluggablePartNumber,
     optical_port_description: str | None = None,
     optical_coherent_pluggable_firmware_version: str | None = None,
 ) -> None:
@@ -258,6 +259,8 @@ def populate_optical_coherent_pluggable_block(
         optical_module_block: The Optical Coherent Pluggable block to populate (the INACTIVE variant).
         optical_port_host_node: Optical Module Packet Node block hosting the pluggable.
         optical_port_name: Name of the port of the host node.
+        optical_coherent_pluggable_part_number: Part number of the pluggable. Stored on the
+            block, and the subscription-level fixed input is kept in sync with it.
         optical_port_description: Description of the port.
         optical_coherent_pluggable_firmware_version: Firmware version of the pluggable.
 
@@ -273,6 +276,7 @@ def populate_optical_coherent_pluggable_block(
     optical_module_block.optical_port_name = optical_port_name
     optical_module_block.optical_port_description = optical_port_description
     optical_module_block.optical_coherent_pluggable_firmware_version = optical_coherent_pluggable_firmware_version
+    optical_module_block.optical_coherent_pluggable_part_number = optical_coherent_pluggable_part_number
 
 
 @step("Construct Subscription model")
@@ -318,10 +322,12 @@ def construct_optical_coherent_pluggable_subscription(
         optical_port_name=optical_port_name,
         optical_port_description=optical_port_description,
         optical_coherent_pluggable_firmware_version=optical_coherent_pluggable_firmware_version,
+        optical_coherent_pluggable_part_number=optical_coherent_pluggable_part_number,
     )
-    # The block's computed part number field loads the owner subscription from
-    # the database, and the lifecycle transition below serializes the block:
-    # the subscription and its instances must be persisted first.
+    # The block carries the part number as a stored field, populated from the
+    # subscription fixed input above; the lifecycle transition below serializes
+    # the block and subscription, so persist the subscription (and its
+    # instances) first.
     subscription.save()
     subscription = OpticalCoherentPluggableProvisioning.from_other_lifecycle(
         subscription, SubscriptionLifecycle.PROVISIONING

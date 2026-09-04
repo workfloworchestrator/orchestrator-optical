@@ -116,8 +116,9 @@ def test_create_coherent_pluggable_end_to_end(
     assert block.optical_port_name == PORT_NAME
     assert block.optical_port_description == PORT_DESCRIPTION
     assert block.optical_coherent_pluggable_firmware_version == FIRMWARE_VERSION
-    # The block's computed part number resolves the owner subscription from the database.
-    assert block.optical_coherent_pluggable_part_number == PART_NUMBER.value
+    # The block stores the part number as a regular field, kept in sync with the
+    # subscription fixed input by the construct step.
+    assert block.optical_coherent_pluggable_part_number == PART_NUMBER
     host_node = block.optical_port_host_node
     assert isinstance(host_node, OpticalModulePacketNodeBlock)
     assert str(host_node.management.optical_module_node_fqdn) == HOST_NODE_FQDN

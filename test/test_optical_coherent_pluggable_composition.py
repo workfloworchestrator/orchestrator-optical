@@ -146,6 +146,7 @@ def _make_pluggable_block_provisioning() -> OpticalCoherentPluggableBlockProvisi
         optical_port_name="port-1",
         optical_port_description=None,
         optical_coherent_pluggable_firmware_version="1.0",
+        optical_coherent_pluggable_part_number=OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S,
         optical_port_host_node=OpticalModulePacketNodeBlockProvisioning(
             name="OpticalModulePacketNode",
             subscription_instance_id=uuid.uuid4(),
@@ -280,12 +281,14 @@ def test_populate_optical_coherent_pluggable_block() -> None:
         optical_port_name="port-1",
         optical_port_description="desc",
         optical_coherent_pluggable_firmware_version="1.0",
+        optical_coherent_pluggable_part_number=OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S,
     )
 
     assert block.optical_port_host_node is host_node
     assert block.optical_port_name == "port-1"
     assert block.optical_port_description == "desc"
     assert block.optical_coherent_pluggable_firmware_version == "1.0"
+    assert block.optical_coherent_pluggable_part_number == OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S
 
 
 def test_populate_block_rejects_duplicate_port(monkeypatch) -> None:
@@ -305,6 +308,7 @@ def test_populate_block_rejects_duplicate_port(monkeypatch) -> None:
             optical_port_name="port-1",
             optical_port_description="desc",
             optical_coherent_pluggable_firmware_version="1.0",
+            optical_coherent_pluggable_part_number=OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S,
         )
 
     assert block.optical_port_name is None
@@ -337,7 +341,7 @@ def test_optical_coherent_pluggable_block_from_state_rehydrates_a_round_tripped_
         optical_coherent_pluggable_block_from_state(None)
     assert optical_coherent_pluggable_block_from_state(block) is block
 
-    round_tripped = _round_tripped_block_state(block, monkeypatch)
+    round_tripped = _round_tripped_block_state(block)
     assert isinstance(round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY], dict)
     assert optical_coherent_pluggable_block_from_state(round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY]) is block
 
@@ -355,7 +359,7 @@ def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch)
     monkeypatch.setattr(shared_parts, "_optical_coherent_pluggable_block_from_state", fake_from_state)
 
     subscription_id = uuid.uuid4()
-    round_tripped = _round_tripped_block_state(block, monkeypatch)
+    round_tripped = _round_tripped_block_state(block)
 
     result = cast(Any, save_optical_coherent_pluggable_block).__wrapped__(
         subscription=SimpleNamespace(subscription_id=subscription_id, status=SubscriptionLifecycle.PROVISIONING),
@@ -438,19 +442,8 @@ def test_validate_optical_coherent_pluggable_state_validates_the_block_from_the_
     assert state == {}
 
 
-def _round_tripped_block_state(
-    block: OpticalCoherentPluggableBlockInactive, monkeypatch: pytest.MonkeyPatch
-) -> dict[str, Any]:
-    """Serialize a block the way the process engine does between steps.
-
-    The block's computed part number resolves the owner subscription from the
-    database, so ``model_dump`` needs a fake there (the tests are database-free).
-    """
-    monkeypatch.setattr(
-        SubscriptionModel,
-        "from_subscription",
-        staticmethod(lambda _sid: SimpleNamespace(optical_coherent_pluggable_part_number="CISCO QDD-400G-ZRP-S")),
-    )
+def _round_tripped_block_state(block: OpticalCoherentPluggableBlockInactive) -> dict[str, Any]:
+    """Serialize a block the way the process engine does between steps."""
     return cast(Any, json_loads(json_dumps({OPTICAL_MODULE_BLOCK_STATE_KEY: block})))
 
 

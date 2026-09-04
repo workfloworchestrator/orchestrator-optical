@@ -1,7 +1,5 @@
 """Product Blocks of Fiber Span Optical Pipes."""
 
-from typing import Literal
-
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
     AbstractOpticalPipeBlock,
@@ -20,7 +18,7 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import (
 class OpticalFiberSpanBlockInactive(AbstractOpticalPipeBlockInactive, product_block_name="FiberSpanBlock"):
     """Inactive state of a Fiber Span product block."""
 
-    optical_pipe_type: Literal[OpticalPipeType.SPAN] = OpticalPipeType.SPAN
+    optical_pipe_type: OpticalPipeType = OpticalPipeType.SPAN
     optical_pipe_name: str | None = None
     optical_pipe_terminations: FiberSides[SpanPortBlockInactive]
 
@@ -32,7 +30,7 @@ class OpticalFiberSpanBlockProvisioning(
 ):
     """Provisioning state of a Fiber Span product block."""
 
-    optical_pipe_type: Literal[OpticalPipeType.SPAN] = OpticalPipeType.SPAN
+    optical_pipe_type: OpticalPipeType = OpticalPipeType.SPAN
     optical_pipe_name: str | None
     optical_pipe_terminations: FiberSides[SpanPortBlockProvisioning]
 
@@ -44,6 +42,6 @@ class OpticalFiberSpanBlock(
 ):
     """Active state of a Fiber Span product block."""
 
-    optical_pipe_type: Literal[OpticalPipeType.SPAN] = OpticalPipeType.SPAN
+    optical_pipe_type: OpticalPipeType = OpticalPipeType.SPAN
     optical_pipe_name: str
     optical_pipe_terminations: FiberSides[SpanPortBlock]

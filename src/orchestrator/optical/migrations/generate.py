@@ -30,6 +30,7 @@ pipeline in ``--commit`` mode to write the baseline, and in CI to verify no drif
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import hashlib
 import inspect
 import json
@@ -308,10 +309,13 @@ def _sort_blocks_dependency_first(blocks: dict[str, type[ProductBlockModel]]) ->
 def _product_fixed_inputs(model: type[SubscriptionModel]) -> dict[str, str]:
     """Return the product's fixed inputs (its scalar fields) with a derived value.
 
-    The value is the field's declared default when it is a scalar, otherwise a readable
-    placeholder derived from the field name. Core's domain-model diff only compares fixed
-    input *names*, so any value keeps the catalog in sync; maintainers review the values
-    when the baseline is generated for a release.
+    The value is the field's declared default when it is a scalar, otherwise the
+    first member of an enum-typed field, otherwise a readable placeholder derived
+    from the field name. Core's domain-model diff only compares fixed input
+    *names*, so any value keeps the catalog in sync; using a real enum member
+    keeps the seed a valid input for the field (enum fields otherwise reject a
+    placeholder, breaking product indexing); maintainers review the values when
+    the baseline is generated for a release.
     """
     block_fields = model._get_depends_on_product_block_types()  # noqa: SLF001
     fixed_inputs: dict[str, str] = {}
@@ -319,7 +323,13 @@ def _product_fixed_inputs(model: type[SubscriptionModel]) -> dict[str, str]:
         if field_name in block_fields or field_name in BASE_SUBSCRIPTION_FIELDS or field_name.startswith("_"):
             continue
         default = field_info.default
-        value = default if isinstance(default, str | int | float | bool) else _humanize(field_name)
+        if isinstance(default, str | int | float | bool):
+            value = default
+        elif isinstance(field_info.annotation, type) and issubclass(field_info.annotation, enum.Enum):
+            members = list(field_info.annotation)  # type: ignore[arg-type]
+            value = members[0].value if members else ""
+        else:
+            value = _humanize(field_name)
         fixed_inputs[field_name] = str(value)
     return fixed_inputs
 

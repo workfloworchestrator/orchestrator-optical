@@ -234,8 +234,9 @@ def update_optical_coherent_pluggable_subscription_description(
     """Refresh the description of an Optical Coherent Pluggable subscription.
 
     This step is for the shipped product type only: the description includes
-    the subscription-level part number, so it cannot be computed from the
-    block alone. Consumers with their own product type refresh their own
+    the subscription-level part number, kept as the source of truth on the
+    subscription (the block also stores a copy, kept in sync by the construct
+    step). Consumers with their own product type refresh their own
     description with their own step.
 
     The block is re-hydrated from the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``:

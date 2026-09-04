@@ -1,7 +1,5 @@
 """Product Blocks of Nokia FlexILS Optical Nodes."""
 
-from typing import Literal
-
 from pydantic import model_validator
 
 from orchestrator.core.types import SubscriptionLifecycle
@@ -29,7 +27,7 @@ from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 class NokiaFlexIlsBlockInactive(AbstractOpticalNodeBlockInactive, product_block_name="NokiaFlexIlsBlock"):
     """Product Block of a Nokia FlexILS Optical Node that is inactive."""
 
-    optical_node_role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER] | None = None
+    optical_node_role: OpticalNodeRole | None = None
     optical_flexils_gmpls_id: IPAddress | None = None
     optical_flexils_target_id: str | None = None
 
@@ -53,7 +51,7 @@ class NokiaFlexIlsBlockProvisioning(
 ):
     """Product Block of a Nokia FlexILS Optical Node that is provisioning."""
 
-    optical_node_role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER] | None = None
+    optical_node_role: OpticalNodeRole | None = None
     optical_flexils_gmpls_id: IPAddress
     optical_flexils_target_id: str
 
@@ -66,7 +64,7 @@ class NokiaFlexIlsBlock(
 ):
     """Product Block of a Nokia FlexILS Optical Node that is active."""
 
-    optical_node_role: Literal[OpticalNodeRole.ROADM, OpticalNodeRole.AMPLIFIER]
+    optical_node_role: OpticalNodeRole
     optical_flexils_gmpls_id: IPAddress
     optical_flexils_target_id: str
 

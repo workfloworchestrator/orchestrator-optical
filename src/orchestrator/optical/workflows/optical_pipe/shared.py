@@ -445,7 +445,7 @@ def update_optical_pipe_block(
 
 @step("Set Optical Pipe subscription description")
 def set_optical_pipe_subscription_description(
-    subscription: SubscriptionModel,
+    subscription: AbstractOpticalPipeSubscriptionProvisioning,
     optical_module_block: AbstractOpticalPipeBlockProvisioning | None = None,
 ) -> State:
     """Set the description of the Optical Pipe subscription.

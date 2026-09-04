@@ -1,7 +1,5 @@
 """Product Blocks of Juniper MX204 Optical Nodes."""
 
-from typing import Literal
-
 from pydantic import model_validator
 
 from orchestrator.core.types import SubscriptionLifecycle
@@ -28,7 +26,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 class JuniperMx204BlockInactive(AbstractOpticalNodeBlockInactive, product_block_name="JuniperMx204Block"):
     """Product Block of a Juniper MX204 Optical Node that is inactive."""
 
-    optical_node_role: Literal[OpticalNodeRole.IPODWDM] = OpticalNodeRole.IPODWDM
+    optical_node_role: OpticalNodeRole = OpticalNodeRole.IPODWDM
 
     management: OpticalModuleNodeManagementBlockInactive
     location: OpticalModuleLocationBlockInactive
@@ -50,7 +48,7 @@ class JuniperMx204BlockProvisioning(
 ):
     """Product Block of a Juniper MX204 Optical Node that is provisioning."""
 
-    optical_node_role: Literal[OpticalNodeRole.IPODWDM]
+    optical_node_role: OpticalNodeRole
 
     management: OpticalModuleNodeManagementBlockProvisioning
     location: OpticalModuleLocationBlockProvisioning
@@ -61,7 +59,7 @@ class JuniperMx204Block(
 ):
     """Product Block of a Juniper MX204 Optical Node that is active."""
 
-    optical_node_role: Literal[OpticalNodeRole.IPODWDM]
+    optical_node_role: OpticalNodeRole
 
     management: OpticalModuleNodeManagementBlock
     location: OpticalModuleLocationBlock

@@ -5,8 +5,6 @@ i.e. it terminates coherent wavelengths carrying IP over the DWDM layer. It is m
 a first-class Optical Node whose role is fixed to ``IPODWDM``.
 """
 
-from typing import Literal
-
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlock,
@@ -31,7 +29,7 @@ class OpticalModulePacketNodeBlockInactive(
 ):
     """A packet layer Node that accepts Optical Coherent Pluggables that is inactive."""
 
-    optical_node_role: Literal[OpticalNodeRole.IPODWDM] = OpticalNodeRole.IPODWDM
+    optical_node_role: OpticalNodeRole = OpticalNodeRole.IPODWDM
 
     management: OpticalModuleNodeManagementBlockInactive
     location: OpticalModuleLocationBlockInactive
@@ -44,7 +42,7 @@ class OpticalModulePacketNodeBlockProvisioning(
 ):
     """A packet layer Node that accepts Optical Coherent Pluggables that is provisioning."""
 
-    optical_node_role: Literal[OpticalNodeRole.IPODWDM] = OpticalNodeRole.IPODWDM
+    optical_node_role: OpticalNodeRole = OpticalNodeRole.IPODWDM
 
     management: OpticalModuleNodeManagementBlockProvisioning
     location: OpticalModuleLocationBlockProvisioning
@@ -55,7 +53,7 @@ class OpticalModulePacketNodeBlock(
 ):
     """A packet layer Node that accepts Optical Coherent Pluggables."""
 
-    optical_node_role: Literal[OpticalNodeRole.IPODWDM] = OpticalNodeRole.IPODWDM
+    optical_node_role: OpticalNodeRole = OpticalNodeRole.IPODWDM
 
     management: OpticalModuleNodeManagementBlock
     location: OpticalModuleLocationBlock

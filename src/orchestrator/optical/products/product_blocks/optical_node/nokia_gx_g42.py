@@ -1,7 +1,5 @@
 """Product Blocks of Nokia GX G42 Optical Nodes."""
 
-from typing import Literal
-
 from pydantic import model_validator
 
 from orchestrator.core.types import SubscriptionLifecycle
@@ -28,7 +26,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 class NokiaGxG42BlockInactive(AbstractOpticalNodeBlockInactive, product_block_name="NokiaGxG42Block"):
     """Product Block of a Nokia GX G42 Optical Node that is inactive."""
 
-    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER] = OpticalNodeRole.TRANSPONDER
+    optical_node_role: OpticalNodeRole = OpticalNodeRole.TRANSPONDER
 
     management: OpticalModuleNodeManagementBlockInactive
     location: OpticalModuleLocationBlockInactive
@@ -50,7 +48,7 @@ class NokiaGxG42BlockProvisioning(
 ):
     """Product Block of a Nokia GX G42 Optical Node that is provisioning."""
 
-    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER]
+    optical_node_role: OpticalNodeRole
 
     management: OpticalModuleNodeManagementBlockProvisioning
     location: OpticalModuleLocationBlockProvisioning
@@ -59,7 +57,7 @@ class NokiaGxG42BlockProvisioning(
 class NokiaGxG42Block(NokiaGxG42BlockProvisioning, AbstractOpticalNodeBlock, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Product Block of a Nokia GX G42 Optical Node that is active."""
 
-    optical_node_role: Literal[OpticalNodeRole.TRANSPONDER]
+    optical_node_role: OpticalNodeRole
 
     management: OpticalModuleNodeManagementBlock
     location: OpticalModuleLocationBlock
