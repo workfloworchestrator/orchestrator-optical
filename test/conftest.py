@@ -686,8 +686,10 @@ def seed_optical_node(
         match product_name:
             case "Nokia FlexILS Optical Node":
                 workflow_name = "create_optical_node_nokia_flexils"
+                # The FlexILS TID (GMPLS NENAME) is distinct from the FQDN and is capped at 20
+                # chars.
                 vendor: dict[str, Any] = {
-                    "optical_flexils_target_id": fqdn,
+                    "optical_flexils_target_id": fqdn[:20],
                     "optical_flexils_gmpls_id": _flexils_gmpls_id(fqdn),
                 }
                 user_inputs: list[dict[str, Any]] = [

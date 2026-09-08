@@ -21,6 +21,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
     Platform,
     Vendor,
 )
+from orchestrator.optical.utils.custom_types.flexils import FlexIlsTargetId
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 
 
@@ -29,7 +30,7 @@ class NokiaFlexIlsBlockInactive(AbstractOpticalNodeBlockInactive, product_block_
 
     optical_node_role: OpticalNodeRole | None = None
     optical_flexils_gmpls_id: IPAddress | None = None
-    optical_flexils_target_id: str | None = None
+    optical_flexils_target_id: FlexIlsTargetId | None = None
 
     management: OpticalModuleNodeManagementBlockInactive
     location: OpticalModuleLocationBlockInactive
@@ -53,7 +54,7 @@ class NokiaFlexIlsBlockProvisioning(
 
     optical_node_role: OpticalNodeRole | None = None
     optical_flexils_gmpls_id: IPAddress
-    optical_flexils_target_id: str
+    optical_flexils_target_id: FlexIlsTargetId
 
     management: OpticalModuleNodeManagementBlockProvisioning
     location: OpticalModuleLocationBlockProvisioning
@@ -66,7 +67,7 @@ class NokiaFlexIlsBlock(
 
     optical_node_role: OpticalNodeRole
     optical_flexils_gmpls_id: IPAddress
-    optical_flexils_target_id: str
+    optical_flexils_target_id: FlexIlsTargetId
 
     management: OpticalModuleNodeManagementBlock
     location: OpticalModuleLocationBlock

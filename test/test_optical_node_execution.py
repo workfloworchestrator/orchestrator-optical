@@ -57,7 +57,7 @@ def _flexils_create_user_inputs(
         },
         {
             "optical_flexils_gmpls_id": _flexils_gmpls_id(fqdn),
-            "optical_flexils_target_id": fqdn,
+            "optical_flexils_target_id": fqdn[:20],
         },
         {},
     ]
@@ -119,7 +119,7 @@ def test_create_nokia_flexils_node(
     assert block.management.optical_module_node_vendor == Vendor.NOKIA
     assert block.management.optical_module_node_platform == Platform.FLEXILS
     assert block.optical_flexils_gmpls_id == _flexils_gmpls_id(fqdn)
-    assert block.optical_flexils_target_id == fqdn
+    assert block.optical_flexils_target_id == fqdn[:20]
 
 
 def test_create_nokia_groove_g30_node(
