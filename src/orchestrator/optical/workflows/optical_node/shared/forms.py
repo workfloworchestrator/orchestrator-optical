@@ -37,7 +37,8 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
 Instruction = Annotated[
     str,
     Field(
-        "Modify the Optical Node fields. Unchanged fields will remain intact.",
+        "Modify the Optical Node fields. Unchanged fields will remain intact. "
+        "Tick a 'Delete ...' checkbox to remove the corresponding DCN IP.",
         title="Instruction",
         json_schema_extra={"disabled": True},
     ),
@@ -121,16 +122,21 @@ def create_optical_node_management_form(product_name: str, *, require_dcn_ip: bo
 def modify_optical_node_management_form(
     subscription: SubscriptionModel,
     block_field_name: str = "optical_node",
+    *,
+    require_dcn_ip: bool = True,
 ) -> type[FormPage]:
     """Return the management FormPage of an Optical Node modify form.
 
     The page collects the fields of the ``OpticalModuleNodeManagementBlock``
     composition block: the node FQDN and the DCN loopback/interface IPs. It is
     prefilled with the current values of the subscription, so unchanged fields
-    remain intact, and validates that at least one DCN IP is provided and that
-    the FQDN and the management IPs are not already in use by another Optical
-    Node subscription, excluding the subscription being modified. It is a
-    building block shared by all the Optical Node vendor modify forms.
+    remain intact. Either DCN IP can be deleted by ticking its ``delete_*``
+    checkbox, which sets the IP to ``None`` in the emitted state. The page
+    validates that the FQDN and the (non-deleted) management IPs are not
+    already in use by another Optical Node subscription, excluding the
+    subscription being modified, and — when ``require_dcn_ip`` is set — that at
+    least one DCN IP remains after the requested deletions. It is a building
+    block shared by all the Optical Node vendor modify forms.
 
     Args:
         subscription: The ACTIVE subscription model of the Optical Node
@@ -138,6 +144,9 @@ def modify_optical_node_management_form(
             block works).
         block_field_name: Name of the attribute of the subscription model
             holding the Optical Node block.
+        require_dcn_ip: Require at least one of the two DCN IPs to remain after
+            the requested deletions. The FlexILS modify form does not require
+            one (mirroring its create form); Groove G30 and GX G42 do.
 
     Returns:
         The management FormPage of the shipped modify form.
@@ -152,11 +161,27 @@ def modify_optical_node_management_form(
         ] = node.management.optical_module_node_fqdn
         optical_module_node_dcn_loopback_ip: IPAddress | None = node.management.optical_module_node_dcn_loopback_ip
         optical_module_node_dcn_interface_ip: IPAddress | None = node.management.optical_module_node_dcn_interface_ip
+        delete_optical_module_node_dcn_loopback_ip: bool = Field(
+            default=False,
+            title="Delete DCN loopback IP",
+            description="Tick to remove the DCN loopback IP from the node.",
+        )
+        delete_optical_module_node_dcn_interface_ip: bool = Field(
+            default=False,
+            title="Delete DCN interface (management) IP",
+            description="Tick to remove the DCN interface (management) IP from the node.",
+        )
 
         @model_validator(mode="after")
         def validate_form(self) -> "ModifyOpticalNodeManagementForm":
-            """Raise if neither DCN IP is given or the FQDN/IPs are already in use."""
-            if not self.optical_module_node_dcn_loopback_ip and not self.optical_module_node_dcn_interface_ip:
+            """Apply the deletions, then require a remaining DCN IP and unique values."""
+            if self.delete_optical_module_node_dcn_loopback_ip:
+                self.optical_module_node_dcn_loopback_ip = None
+            if self.delete_optical_module_node_dcn_interface_ip:
+                self.optical_module_node_dcn_interface_ip = None
+            if require_dcn_ip and not (
+                self.optical_module_node_dcn_loopback_ip or self.optical_module_node_dcn_interface_ip
+            ):
                 msg = "At least one of DCN loopback IP or DCN interface IP must be provided."
                 raise ValueError(msg)
             validate_optical_node_fqdn_uniqueness(

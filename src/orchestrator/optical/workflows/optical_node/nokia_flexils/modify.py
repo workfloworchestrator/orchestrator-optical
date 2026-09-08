@@ -35,6 +35,7 @@ from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 from orchestrator.optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIls
 from orchestrator.optical.utils.custom_types.dns import Fqdn
+from orchestrator.optical.utils.custom_types.flexils import FlexIlsTargetId
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
@@ -91,7 +92,7 @@ def modify_optical_node_nokia_flexils_vendor_form(
             Field(title="GMPLS ID of the FlexILS node."),
         ] = node.optical_flexils_gmpls_id
         optical_flexils_target_id: Annotated[
-            str,
+            FlexIlsTargetId,
             Field(title="Target Identifier (TID) of this FlexILS node (unique NENAME in the GMPLS network)."),
         ] = node.optical_flexils_target_id
 
@@ -137,7 +138,9 @@ def modify_optical_node_nokia_flexils_form_pages(
         The collected user input of the shipped pages.
     """
     user_input_dict: dict[str, object] = {}
-    user_input_dict.update((yield modify_optical_node_management_form(subscription, block_field_name)).model_dump())
+    user_input_dict.update(
+        (yield modify_optical_node_management_form(subscription, block_field_name, require_dcn_ip=False)).model_dump()
+    )
     user_input_dict.update(
         (yield modify_optical_node_nokia_flexils_vendor_form(subscription, block_field_name)).model_dump()
     )
@@ -197,7 +200,7 @@ def modify_optical_node_nokia_flexils_form_generator(
 def update_optical_node_nokia_flexils_block(
     optical_module_block: NokiaFlexIlsBlockProvisioning | dict[str, Any] | None,
     optical_module_node_fqdn: Fqdn,
-    optical_flexils_target_id: str,
+    optical_flexils_target_id: FlexIlsTargetId,
     optical_flexils_gmpls_id: IPAddress,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
