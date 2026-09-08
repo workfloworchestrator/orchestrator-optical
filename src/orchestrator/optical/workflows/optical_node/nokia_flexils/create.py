@@ -43,6 +43,7 @@ from orchestrator.optical.products.product_types.optical_node.nokia_flexils impo
     OpticalNodeNokiaFlexIlsProvisioning,
 )
 from orchestrator.optical.utils.custom_types.dns import Fqdn
+from orchestrator.optical.utils.custom_types.flexils import FlexIlsTargetId
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
@@ -89,7 +90,7 @@ def create_optical_node_nokia_flexils_vendor_form(product_name: str) -> type[For
             Field(title="GMPLS ID of the FlexILS node."),
         ]
         optical_flexils_target_id: Annotated[
-            str,
+            FlexIlsTargetId,
             Field(title="Target Identifier (TID) of this FlexILS node (unique NENAME in the GMPLS network)."),
         ]
 
@@ -163,7 +164,7 @@ def populate_optical_node_nokia_flexils_block(
     location_id: UUIDstr,
     optical_module_node_fqdn: Fqdn,
     optical_flexils_gmpls_id: IPAddress,
-    optical_flexils_target_id: str,
+    optical_flexils_target_id: FlexIlsTargetId,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
 ) -> None:
@@ -206,7 +207,7 @@ def construct_optical_node_nokia_flexils_subscription(
     location_id: UUIDstr,
     optical_module_node_fqdn: Fqdn,
     optical_flexils_gmpls_id: IPAddress,
-    optical_flexils_target_id: str,
+    optical_flexils_target_id: FlexIlsTargetId,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
 ) -> State:
