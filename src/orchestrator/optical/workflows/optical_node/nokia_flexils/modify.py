@@ -45,6 +45,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     optical_node_block_from_state,
     save_optical_node_block,
     update_optical_node_block_fields,
+    update_optical_node_subscription_description,
     validate_gmpls_id_uniqueness,
     validate_optical_flexils_target_id_uniqueness,
 )
@@ -258,14 +259,17 @@ def modify_optical_node_nokia_flexils() -> StepList:
 
     The workflow is valid for the shipped :class:`OpticalNodeNokiaFlexIls`
     product type only: it loads the block from the ``optical_node`` attribute
-    of the shipped subscription models. Consumers with their own product type
-    compose their own modify workflow with the shipped parts.
+    of the shipped subscription models. The shipped description step refreshes
+    the subscription description from the updated node FQDN. Consumers with
+    their own product type compose their own modify workflow with the shipped
+    parts.
     """
     return (
         begin
         >> set_status(SubscriptionLifecycle.PROVISIONING)
         >> load_optical_node_block
         >> MODIFY_NOKIA_FLEXILS_BLOCK_STEPS
+        >> update_optical_node_subscription_description
         >> set_status(SubscriptionLifecycle.ACTIVE)
     )
 

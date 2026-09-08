@@ -430,11 +430,6 @@ def _fake_retrieve_optical_node_role_and_software_version(block: Any, *args: Any
     return ("Transponder", FAKE_SOFTWARE_VERSION)
 
 
-def _fake_retrieve_software_version(*args: Any, **kwargs: Any) -> str:
-    """Return the faked node software version (vendor-dispatching HAL entry point)."""
-    return FAKE_SOFTWARE_VERSION
-
-
 def _fake_sleep(seconds: float) -> None:
     """Skip the faked power stabilization wait."""
 
@@ -491,11 +486,6 @@ def install_device_stubs(
                 "_retrieve_optical_node_role_and_software_version": (
                     _fake_retrieve_optical_node_role_and_software_version
                 ),
-            },
-            # The node validate steps import the HAL dispatcher directly
-            # (retrieve_software_version), so the patch target is their namespace.
-            "orchestrator.optical.workflows.optical_node.shared.validate": {
-                "retrieve_software_version": _fake_retrieve_software_version,
             },
         },
         "pipe": {

@@ -228,6 +228,8 @@ def test_node_full_lifecycle_g30(
     assert block.management.optical_module_node_fqdn == "g30-life-02.optical.test"
     assert block.management.optical_module_node_dcn_interface_ip == "192.0.2.41"
     assert block.management.optical_module_node_dcn_loopback_ip == "192.0.2.42"
+    # The shipped description step refreshes the subscription description from the new FQDN.
+    assert _subscription_table(subscription_id).description == f"g30-life-02.optical.test ({GROOVE_G30_PRODUCT})"
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
 
     validate_process_id = run_process(
@@ -300,8 +302,8 @@ def test_validate_refreshes_software_version_in_db(
 
     new_version = "9.9.9"
     monkeypatch.setattr(
-        "orchestrator.optical.workflows.optical_node.shared.validate.retrieve_software_version",
-        lambda _block: new_version,
+        "orchestrator.optical.workflows.optical_node.shared.retrieve._retrieve_optical_node_role_and_software_version",
+        lambda _block: ("Transponder", new_version),
     )
 
     process_id = run_process(

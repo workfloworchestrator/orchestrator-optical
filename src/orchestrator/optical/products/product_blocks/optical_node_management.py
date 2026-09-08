@@ -24,8 +24,8 @@ class Platform(strEnum):
     NCS = "NCS"
     MX204 = "MX204"
     PTX = "PTX"
-    FLEXILS = "FLEXILS"
-    GROOVE_G30 = "GROOVE G30"
+    FLEXILS = "FlexILS"
+    GROOVE_G30 = "Groove G30"
     GX_G42 = "GX G42"
 
 
