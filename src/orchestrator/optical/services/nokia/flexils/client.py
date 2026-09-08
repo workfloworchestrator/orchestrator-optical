@@ -103,8 +103,6 @@ class FlexilsClient:
                 timeout=self.timeout,
                 allow_agent=False,  # Disable agent forwarding
                 look_for_keys=False,  # Disable looking for keys
-                gss_auth=False,  # Disable GSSAPI authentication
-                gss_kex=False,  # Disable GSSAPI Key Exchange
             )
 
             # Open a session channel
@@ -239,9 +237,22 @@ class FlexilsClient:
         return stdout.removesuffix("TL1>>")
 
     def _execute_command(self, command_cls: type[T], **kwargs: Any) -> TL1BaseResponse:
-        """Execute a TL1 command using its Pydantic model."""
-        # Note: 'tid' usually needs to be passed to the command model if strictly required
-        # or the command class handles it. Assuming device_tid logic maps to self.tid
+        """Execute a TL1 command using its Pydantic model.
+
+        The command always targets the client's own tid. Callers must not pass a
+        ``tid`` kwarg: to run the command against a different node, use a client
+        bound to that node's tid instead.
+
+        Raises:
+            ValueError: If the caller passes a ``tid`` kwarg.
+        """
+        if "tid" in kwargs:
+            msg = (
+                f"Passing 'tid' to a TL1 command is not allowed: the client already "
+                f"targets '{self.tid}'. To run the command against a different node, use a "
+                f"client bound to that node's tid instead of passing 'tid' here."
+            )
+            raise ValueError(msg)
         command = command_cls(tid=self.tid, **kwargs)
         return command.execute(self)
 

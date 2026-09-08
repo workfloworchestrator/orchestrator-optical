@@ -53,11 +53,7 @@ def role(node: NokiaFlexIlsBlockProvisioning) -> OpticalNodeRole:
         ValueError: If the node has no Target ID or cannot be reached.
     """
     flex = cast(Any, get_flex_client(node))
-    target_id = node.optical_flexils_target_id
-    if target_id is None:
-        msg = "Cannot retrieve the node role: the FlexILS node has no Target ID"
-        raise ValueError(msg)
-    role, _ = _retrieve_node_properties(flex, target_id)
+    role, _ = _retrieve_node_properties(flex)
     return role
 
 
@@ -74,11 +70,7 @@ def software_version(node: NokiaFlexIlsBlockProvisioning) -> str:
         ValueError: If the node has no Target ID or cannot be reached.
     """
     flex = cast(Any, get_flex_client(node))
-    target_id = node.optical_flexils_target_id
-    if target_id is None:
-        msg = "Cannot retrieve the software version: the FlexILS node has no Target ID"
-        raise ValueError(msg)
-    _, version = _retrieve_node_properties(flex, target_id)
+    _, version = _retrieve_node_properties(flex)
     return version
 
 

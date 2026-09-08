@@ -286,8 +286,8 @@ def _find_node_entry(
     raise ValueError(msg)
 
 
-def _retrieve_node_properties(flex: FlexilsClient, target_id: str) -> tuple[OpticalNodeRole, str]:
-    """Retrieve the node role and software version of the node with the given target id."""
+def _retrieve_node_properties(flex: FlexilsClient) -> tuple[OpticalNodeRole, str]:
+    """Retrieve the node role and software version of the node the client targets."""
     flex = cast(Any, flex)  # the TL1 command methods are bound dynamically by the client
     # NETYPE values reported by RTRV-SYS mapped to the OpticalNodeRole.
     netype_to_role: dict[str, OpticalNodeRole] = {
@@ -296,10 +296,10 @@ def _retrieve_node_properties(flex: FlexilsClient, target_id: str) -> tuple[Opti
         "OA": OpticalNodeRole.AMPLIFIER,
     }
 
-    response = flex.rtrv_sys(tid=target_id)
+    response = flex.rtrv_sys()
     records = response.parsed_data
     if not records:
-        msg = f"RTRV-SYS returned no data for node {target_id}"
+        msg = f"RTRV-SYS returned no data for node {flex.tid}"
         raise ValueError(msg)
 
     sys_record = records[0]
@@ -307,12 +307,12 @@ def _retrieve_node_properties(flex: FlexilsClient, target_id: str) -> tuple[Opti
     netype = _record_value(sys_record, "NETYPE")
     role = netype_to_role.get(netype or "")
     if role is None:
-        msg = f"RTRV-SYS returned unknown NETYPE {netype!r} for node {target_id}"
+        msg = f"RTRV-SYS returned unknown NETYPE {netype!r} for node {flex.tid}"
         raise ValueError(msg)
 
     software_version = _record_value(sys_record, "SWVERSION")
     if software_version is None:
-        msg = f"RTRV-SYS did not report a software version for node {target_id}"
+        msg = f"RTRV-SYS did not report a software version for node {flex.tid}"
         raise ValueError(msg)
 
     return role, software_version
@@ -331,7 +331,11 @@ def _discover_via_client(
         msg = f"RTRV-TOPONODE entry for node {optical_flexils_target_id} is missing the 'NENAME' field"
         raise ValueError(msg)
 
-    role, software_version = _retrieve_node_properties(flex, target_id)
+    # The probe client may be keyed on the GNE's tid (so RTRV-TOPONODE returns the
+    # GNE's topology). RTRV-SYS must target the node itself, so rebind to a client
+    # whose tid is the node's NENAME over the same session endpoint.
+    node_flex = FlexilsClient.get_instance(tid=target_id, gne_ip=flex.gne_ip)
+    role, software_version = _retrieve_node_properties(node_flex)
 
     logger.info(
         "Discovered FlexILS node properties",
