@@ -2,7 +2,7 @@
 
 import json
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from orchestrator.optical.hal._common import (
     UnsupportedPortRoleError,
@@ -14,7 +14,6 @@ from orchestrator.optical.hal._common import (
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_ids_from_port_name,
     g30_port_navigator_node_from_port_name,
-    g30_port_update,
     get_g30_client,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
@@ -211,9 +210,11 @@ def set_port_description(
     """
     host_node = port_block.optical_port_host_node
     port_name = _port_name(port_block)
-    endpoint, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
+    endpoint, *_ = g30_port_navigator_node_from_port_name(host_node, port_name)
     before = endpoint.retrieve(content="config", depth=2)
-    g30_port_update(endpoint, port_id=port_id, subport_id=subport_id, service_label=port_description)
+    updated = before.model_copy(deep=True)
+    updated.service_label = port_description
+    endpoint.update(cast(Any, updated))
     return compare_pydantic_objects(before, endpoint.retrieve(content="config", depth=2))
 
 
@@ -271,10 +272,12 @@ def set_port_admin_state(
     }
     status = mapping[admin_state]
 
-    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
+    port_uri, *_ = g30_port_navigator_node_from_port_name(host_node, port_name)
 
     before = port_uri.retrieve(depth=2, content="config")
-    g30_port_update(port_uri, port_id=port_id, subport_id=subport_id, admin_status=status)
+    updated = before.model_copy(deep=True)
+    updated.admin_status = status
+    port_uri.update(cast(Any, updated))
     return compare_pydantic_objects(before, port_uri.retrieve(depth=2, content="config"))
 
 
@@ -283,8 +286,6 @@ def _configure_g30_amplifier_port(
     shelf_id: int,
     slot_id: int,
     subslot_id: int | None,
-    port_id: int,
-    subport_id: int | None,
     endpoint: Any,
     remote_host_node: AnyOpticalNodeBlockProvisioningUnion,
     remote_port_name: str,
@@ -296,8 +297,6 @@ def _configure_g30_amplifier_port(
         shelf_id: The shelf id of the amplifier port.
         slot_id: The slot id of the amplifier port.
         subslot_id: The subslot id of the amplifier port.
-        port_id: The port id of the amplifier port.
-        subport_id: The subport id of the amplifier port, or None.
         endpoint: The RESTCONF endpoint of the amplifier port.
         remote_host_node: The remote Groove G30 node block the fiber leads to.
         remote_port_name: The name of the remote port the fiber leads to.
@@ -343,14 +342,11 @@ def _configure_g30_amplifier_port(
     preamp.tilt_control_mode = TiltControlModeEnum.AUTO
     preamp_uri.update(preamp)
 
-    g30_port_update(
-        endpoint,
-        port_id=port_id,
-        subport_id=subport_id,
-        external_connectivity=YesNoEnum.YES,
-        connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
-        admin_status=AdminStatusEnum.UP,
-    )
+    updated = port_before.model_copy(deep=True)
+    updated.external_connectivity = YesNoEnum.YES
+    updated.connected_to = f"{_node_id(remote_host_node)} {remote_port_name}"
+    updated.admin_status = AdminStatusEnum.UP
+    endpoint.update(updated)
 
     return {
         "port": compare_pydantic_objects(port_before, endpoint.retrieve(depth=2, content="config")),
@@ -369,9 +365,7 @@ def configure_termination(
     port_name = _port_name(optical_port_block)
     remote_port_name = _port_name(remote_port_block)
 
-    endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id = g30_port_navigator_node_from_port_name(
-        host_node, port_name
-    )
+    endpoint, shelf_id, slot_id, subslot_id, port_id, _ = g30_port_navigator_node_from_port_name(host_node, port_name)
 
     match (
         remote_host_node.management.optical_module_node_vendor,
@@ -379,14 +373,11 @@ def configure_termination(
     ):
         case (Vendor.NOKIA, Platform.FLEXILS):
             before = endpoint.retrieve(depth=2, content="config")
-            g30_port_update(
-                endpoint,
-                port_id=port_id,
-                subport_id=subport_id,
-                external_connectivity=YesNoEnum.YES,
-                connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
-                admin_status=AdminStatusEnum.UP,
-            )
+            updated = before.model_copy(deep=True)
+            updated.external_connectivity = YesNoEnum.YES
+            updated.connected_to = f"{_node_id(remote_host_node)} {remote_port_name}"
+            updated.admin_status = AdminStatusEnum.UP
+            endpoint.update(cast(Any, updated))
             return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             is_same_device = _same_node(host_node, remote_host_node)
@@ -394,26 +385,20 @@ def configure_termination(
 
             if is_same_device:
                 before = endpoint.retrieve(depth=2, content="config")
-                g30_port_update(
-                    endpoint,
-                    port_id=port_id,
-                    subport_id=subport_id,
-                    external_connectivity=YesNoEnum.NO,
-                    connected_to=f"patched to {remote_port_name}",
-                    admin_status=AdminStatusEnum.UP,
-                )
+                updated = before.model_copy(deep=True)
+                updated.external_connectivity = YesNoEnum.NO
+                updated.connected_to = f"patched to {remote_port_name}"
+                updated.admin_status = AdminStatusEnum.UP
+                endpoint.update(cast(Any, updated))
                 return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
 
             if not is_amplifier_port:
                 before = endpoint.retrieve(depth=2, content="config")
-                g30_port_update(
-                    endpoint,
-                    port_id=port_id,
-                    subport_id=subport_id,
-                    external_connectivity=YesNoEnum.YES,
-                    connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
-                    admin_status=AdminStatusEnum.UP,
-                )
+                updated = before.model_copy(deep=True)
+                updated.external_connectivity = YesNoEnum.YES
+                updated.connected_to = f"{_node_id(remote_host_node)} {remote_port_name}"
+                updated.admin_status = AdminStatusEnum.UP
+                endpoint.update(cast(Any, updated))
                 return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
 
             # link H4: the port is an amplifier port of a different Groove G30 device
@@ -422,8 +407,6 @@ def configure_termination(
                 shelf_id,
                 slot_id,
                 subslot_id,
-                port_id,
-                subport_id,
                 endpoint,
                 remote_host_node,
                 remote_port_name,
@@ -440,22 +423,19 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
     """Prune the configuration of a Groove G30 port."""
     host_node = optical_port_block.optical_port_host_node
     port_name = _port_name(optical_port_block)
-    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
+    port_uri, *_ = g30_port_navigator_node_from_port_name(host_node, port_name)
 
     before = port_uri.retrieve(content="config", depth=2)
+    updated = before.model_copy(deep=True)
     if "." in port_name:  # inside OCC2 card
-        g30_port_update(port_uri, port_id=port_id, subport_id=subport_id, connected_to="")
+        updated.connected_to = ""
     else:
-        g30_port_update(
-            port_uri,
-            port_id=port_id,
-            subport_id=subport_id,
-            external_connectivity=YesNoEnum.NO,
-            connected_to="",
-            admin_status=AdminStatusEnum.DOWN,
-            port_mode=PortModeEnum.NOT_APPLICABLE,
-            service_label="",
-        )
+        updated.external_connectivity = YesNoEnum.NO
+        updated.connected_to = ""
+        updated.admin_status = AdminStatusEnum.DOWN
+        updated.port_mode = PortModeEnum.NOT_APPLICABLE
+        updated.service_label = ""
+    port_uri.update(cast(Any, updated))
 
     return compare_pydantic_objects(before, port_uri.retrieve(content="config", depth=2))
 
