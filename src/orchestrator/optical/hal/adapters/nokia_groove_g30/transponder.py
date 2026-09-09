@@ -10,6 +10,7 @@ from orchestrator.optical.hal._common import _as_decimal, _node_id
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_ids_from_port_name,
     g30_port_navigator_node_from_port_name,
+    g30_port_update,
     get_g30_client,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
@@ -153,8 +154,10 @@ def configure_line_transceivers(
         shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
         uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
         before = uri.retrieve(depth=3, content="config")
-        uri.update(
+        g30_port_update(
+            uri,
             port_id=port_id,
+            subport_id=None,
             port_mode=mode,
             service_label=description,
             admin_status="up",
@@ -195,14 +198,16 @@ def configure_transceiver_client(
     Returns:
         A dictionary of configuration diffs, keyed by facility name.
     """
-    navigator, _, _, _, port_id, _ = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
+    navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
     port_mode, eth_name, fec_type = _client_speed_config(speed)
     eth = getattr(navigator, eth_name)
 
     before = navigator.retrieve(content="config", depth=3)
 
-    navigator.update(
+    g30_port_update(
+        navigator,
         port_id=port_id,
+        subport_id=subport_id,
         admin_status="up",
         service_label=description,
         port_mode=port_mode,
@@ -468,10 +473,12 @@ def factory_reset_transponder_client(
     Returns:
         The reset configuration.
     """
-    navigator, _, _, _, port_id, _ = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
+    navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
     before = navigator.retrieve(depth=3, content="config")
-    navigator.update(
+    g30_port_update(
+        navigator,
         port_id=port_id,
+        subport_id=subport_id,
         admin_status="down",
         service_label="",
         port_mode="not-applicable",
@@ -495,10 +502,12 @@ def factory_reset_transponder_lines(
     """
     result = []
     for port_name in line_port_names:
-        navigator, _, _, _, port_id, _ = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
+        navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
         before = navigator.retrieve(depth=3, content="config")
-        navigator.update(
+        g30_port_update(
+            navigator,
             port_id=port_id,
+            subport_id=subport_id,
             admin_status="down",
             service_label="",
             port_mode="not-applicable",
