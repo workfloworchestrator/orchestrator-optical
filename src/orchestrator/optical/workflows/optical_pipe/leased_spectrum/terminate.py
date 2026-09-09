@@ -24,7 +24,7 @@ from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.port import factory_reset_port_configuration
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
 
-WARNING_MSG = "To confirm termination of this Optical Leased Spectrum pipe, type 'TERMINATE' below."
+WARNING_MSG = "To confirm termination of this Optical Leased Spectrum pipe, replace with 'TERMINATE' this box."
 WarningField = Annotated[
     str,
     Field(

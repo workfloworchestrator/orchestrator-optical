@@ -24,7 +24,7 @@ from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.port import factory_reset_port_configuration
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 
-WARNING_MSG = "To confirm termination of this Optical Fiber Patch, type 'TERMINATE' below."
+WARNING_MSG = "To confirm termination of this Optical Fiber Patch, replace with 'TERMINATE' this box."
 WarningField = Annotated[
     str,
     Field(

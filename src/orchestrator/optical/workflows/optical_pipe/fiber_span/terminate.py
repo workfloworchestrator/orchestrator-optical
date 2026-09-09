@@ -26,7 +26,7 @@ from orchestrator.optical.products.product_types.optical_pipe.fiber_span import 
 
 WARNING_MSG = (
     "Terminating an Optical Fiber Span will disable line ports and remove path configurations. "
-    "To confirm termination, type 'TERMINATE' below."
+    "To confirm termination, replace with 'TERMINATE' this box."
 )
 WarningField = Annotated[
     str,
