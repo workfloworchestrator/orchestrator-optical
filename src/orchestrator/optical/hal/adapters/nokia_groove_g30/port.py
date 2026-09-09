@@ -14,6 +14,7 @@ from orchestrator.optical.hal._common import (
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_ids_from_port_name,
     g30_port_navigator_node_from_port_name,
+    g30_port_update,
     get_g30_client,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
@@ -208,8 +209,8 @@ def set_port_description(
     """
     host_node = port_block.optical_port_host_node
     port_name = _port_name(port_block)
-    endpoint, _, _, _, _, _ = g30_port_navigator_node_from_port_name(host_node, port_name)
-    endpoint.update(service_label=port_description)
+    endpoint, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
+    g30_port_update(endpoint, port_id=port_id, subport_id=subport_id, service_label=port_description)
     return endpoint.retrieve(content="config", depth=2).model_dump()
 
 
@@ -267,9 +268,9 @@ def set_port_admin_state(
     }
     status = mapping[admin_state]
 
-    port_uri = g30_port_navigator_node_from_port_name(host_node, port_name)[0]
+    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
 
-    port_uri.update(admin_status=status)
+    g30_port_update(port_uri, port_id=port_id, subport_id=subport_id, admin_status=status)
     return port_uri.retrieve(depth=2, content="config").model_dump()
 
 
@@ -283,14 +284,19 @@ def configure_termination(
     port_name = _port_name(optical_port_block)
     remote_port_name = _port_name(remote_port_block)
 
-    endpoint, shelf_id, slot_id, subslot_id, port_id, _ = g30_port_navigator_node_from_port_name(host_node, port_name)
+    endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id = g30_port_navigator_node_from_port_name(
+        host_node, port_name
+    )
 
     match (
         remote_host_node.management.optical_module_node_vendor,
         remote_host_node.management.optical_module_node_platform,
     ):
         case (Vendor.NOKIA, Platform.FLEXILS):
-            endpoint.update(
+            g30_port_update(
+                endpoint,
+                port_id=port_id,
+                subport_id=subport_id,
                 external_connectivity=YesNoEnum.YES,
                 connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
                 admin_status=AdminStatusEnum.UP,
@@ -301,7 +307,10 @@ def configure_termination(
             is_amplifier_port = slot_id == 3 and subslot_id == 3 and port_id == 1  # noqa: PLR2004
 
             if is_same_device:
-                endpoint.update(
+                g30_port_update(
+                    endpoint,
+                    port_id=port_id,
+                    subport_id=subport_id,
                     external_connectivity=YesNoEnum.NO,
                     connected_to=f"patched to {remote_port_name}",
                     admin_status=AdminStatusEnum.UP,
@@ -309,7 +318,10 @@ def configure_termination(
                 return endpoint.retrieve(depth=2, content="config").model_dump()
 
             if not is_amplifier_port:
-                endpoint.update(
+                g30_port_update(
+                    endpoint,
+                    port_id=port_id,
+                    subport_id=subport_id,
                     external_connectivity=YesNoEnum.YES,
                     connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
                     admin_status=AdminStatusEnum.UP,
@@ -348,7 +360,10 @@ def configure_termination(
             preamp.tilt_control_mode = TiltControlModeEnum.AUTO
             preamp_uri.update(preamp)
 
-            endpoint.update(
+            g30_port_update(
+                endpoint,
+                port_id=port_id,
+                subport_id=subport_id,
                 external_connectivity=YesNoEnum.YES,
                 connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
                 admin_status=AdminStatusEnum.UP,
@@ -371,12 +386,15 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
     """Prune the configuration of a Groove G30 port."""
     host_node = optical_port_block.optical_port_host_node
     port_name = _port_name(optical_port_block)
-    port_uri = g30_port_navigator_node_from_port_name(host_node, port_name)[0]
+    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
 
     if "." in port_name:  # inside OCC2 card
-        port_uri.update(connected_to="")
+        g30_port_update(port_uri, port_id=port_id, subport_id=subport_id, connected_to="")
     else:
-        port_uri.update(
+        g30_port_update(
+            port_uri,
+            port_id=port_id,
+            subport_id=subport_id,
             external_connectivity=YesNoEnum.NO,
             connected_to="",
             admin_status=AdminStatusEnum.DOWN,
