@@ -159,14 +159,14 @@ class FlexilsGneProvider:
     tried first when a node cannot be reached directly.
     """
 
-    _tid_ip_xyz_of_gnes: ClassVar[list[tuple[str, str, Vector]]] = []
+    _tid_ips_xyz_of_gnes: ClassVar[list[tuple[str, list[str], Vector]]] = []
 
     @classmethod
     def _initialize_cache(cls) -> None:
         """Populate the GNE cache from the NokiaFlexIlsBlock subscriptions in the database."""
         instances = subscription_instances_by_block_type("NokiaFlexIlsBlock", [SubscriptionLifecycle.ACTIVE])
 
-        gnes: list[tuple[str, str, Vector]] = []
+        gnes: list[tuple[str, list[str], Vector]] = []
         for instance in instances:
             try:
                 block = NokiaFlexIlsBlock.from_db(instance.subscription_instance_id)
@@ -180,8 +180,8 @@ class FlexilsGneProvider:
             management_ips = [
                 ip
                 for ip in (
-                    block.management.optical_module_node_dcn_loopback_ip,
                     block.management.optical_module_node_dcn_interface_ip,
+                    block.management.optical_module_node_dcn_loopback_ip,
                 )
                 if ip is not None
             ]
@@ -206,27 +206,27 @@ class FlexilsGneProvider:
 
             cos_lat = cos(lat)
             vector = (cos_lat * cos(lon), cos_lat * sin(lon), sin(lat))
-            gnes.append((block.optical_flexils_target_id, management_ips[0], vector))
+            gnes.append((block.optical_flexils_target_id, management_ips, vector))
 
-        cls._tid_ip_xyz_of_gnes = gnes
+        cls._tid_ips_xyz_of_gnes = gnes
         logger.debug("Initialized FlexilsGneProvider cache", gnes=[tid for tid, _, _ in gnes])
 
     @classmethod
-    def find_closest_gnes(cls, latitude: float, longitude: float) -> list[tuple[str, str]]:
-        """Return the (tid, management ip) pairs of the closest GNE nodes to the given coordinates.
+    def find_closest_gnes(cls, latitude: float, longitude: float) -> list[tuple[str, list[str]]]:
+        """Return the (tid, management ips) pairs of the closest GNE nodes to the given coordinates.
 
         Args:
             latitude: Latitude of the target location in degrees.
             longitude: Longitude of the target location in degrees.
 
         Returns:
-            List of (tid, management ip) tuples ordered from closest to farthest.
+            List of (tid, management ips) tuples ordered from closest to farthest.
             Empty list if no GNE nodes are known.
         """
-        if not cls._tid_ip_xyz_of_gnes:
+        if not cls._tid_ips_xyz_of_gnes:
             cls._initialize_cache()
 
-        if not cls._tid_ip_xyz_of_gnes:
+        if not cls._tid_ips_xyz_of_gnes:
             return []
 
         lat = radians(latitude)
@@ -237,7 +237,7 @@ class FlexilsGneProvider:
         def dot_product(candidate: Vector) -> float:
             return target_vector[0] * candidate[0] + target_vector[1] * candidate[1] + target_vector[2] * candidate[2]
 
-        ordered = sorted(cls._tid_ip_xyz_of_gnes, key=lambda item: dot_product(item[2]), reverse=True)
+        ordered = sorted(cls._tid_ips_xyz_of_gnes, key=lambda item: dot_product(item[2]), reverse=True)
         return [(tid, ip) for tid, ip, _ in ordered[:_MAX_GNE_CANDIDATES]]
 
 
@@ -394,13 +394,14 @@ def discover_flexils_node(
             raise ValueError(msg)
 
     errors: list[str] = []
-    for target_id, gne_ip in candidates:
-        try:
-            flex = FlexilsClient.get_instance(tid=target_id, gne_ip=gne_ip)
-            return _discover_via_client(flex, optical_flexils_target_id, optical_flexils_gmpls_id)
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"{gne_ip} (tid={target_id}): {exc}")
-            logger.warning("FlexILS discovery attempt failed", gne_ip=gne_ip, tid=target_id, error=str(exc))
+    for target_id, gne_ips in candidates:
+        for gne_ip in gne_ips:
+            try:
+                flex = FlexilsClient.get_instance(tid=target_id, gne_ip=gne_ip)
+                return _discover_via_client(flex, optical_flexils_target_id, optical_flexils_gmpls_id)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{gne_ip} (tid={target_id}): {exc}")
+                logger.warning("FlexILS discovery attempt failed", gne_ip=gne_ip, tid=target_id, error=str(exc))
 
     msg = f"Could not discover FlexILS node {optical_flexils_target_id}. Attempts: {'; '.join(errors)}"
     raise ValueError(msg)
@@ -429,15 +430,16 @@ def _find_closest_gne_ip(tid: str, latitude: float, longitude: float) -> str:
         raise ValueError(msg)
 
     errors: list[str] = []
-    for gne_tid, gne_ip in candidates:
-        try:
-            flex = FlexilsClient.get_instance(tid=gne_tid, gne_ip=gne_ip)
-            _find_node_entry(flex, tid, None)
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"{gne_ip} (tid={gne_tid}): {exc}")
-            logger.warning("FlexILS GNE probing failed", gne_ip=gne_ip, tid=gne_tid, error=str(exc))
-        else:
-            return gne_ip
+    for gne_tid, gne_ips in candidates:
+        for gne_ip in gne_ips:
+            try:
+                flex = FlexilsClient.get_instance(tid=gne_tid, gne_ip=gne_ip)
+                _find_node_entry(flex, tid, None)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{gne_ip} (tid={gne_tid}): {exc}")
+                logger.warning("FlexILS GNE probing failed", gne_ip=gne_ip, tid=gne_tid, error=str(exc))
+            else:
+                return gne_ip
 
     msg = f"Could not find a GNE for FlexILS node {tid}. Attempts: {'; '.join(errors)}"
     raise ValueError(msg)
