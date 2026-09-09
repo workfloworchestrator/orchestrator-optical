@@ -468,8 +468,8 @@ def get_flex_client(optical_node_block: NokiaFlexIlsBlockProvisioning) -> Flexil
     gne_ips = [
         ip
         for ip in [
-            optical_node_block.management.optical_module_node_dcn_loopback_ip,
             optical_node_block.management.optical_module_node_dcn_interface_ip,
+            optical_node_block.management.optical_module_node_dcn_loopback_ip,
         ]
         if ip is not None
     ]
