@@ -17,6 +17,7 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     get_g30_client,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
@@ -31,6 +32,7 @@ from orchestrator.optical.services.nokia.g30.data_models.ne import (
     TiltControlModeEnum,
     YesNoEnum,
 )
+from orchestrator.optical.utils.datadiff import compare_pydantic_objects
 
 #: Port roles a Groove G30 node can enumerate. Its line and client (card) ports are hostable both as
 #: OLS ports (fiber spans) and as transponder ports (patches / leased spectrum / digital services),
@@ -201,7 +203,7 @@ def set_port_description(
         port_description: The description to set on the port.
 
     Returns:
-        The port configuration after the update.
+        The difference between the port configuration before and after the update.
 
     Raises:
         ValueError: In case the configuration failed.
@@ -209,8 +211,9 @@ def set_port_description(
     host_node = port_block.optical_port_host_node
     port_name = _port_name(port_block)
     endpoint, _, _, _, _, _ = g30_port_navigator_node_from_port_name(host_node, port_name)
+    before = endpoint.retrieve(content="config", depth=2)
     endpoint.update(service_label=port_description)
-    return endpoint.retrieve(content="config", depth=2).model_dump()
+    return compare_pydantic_objects(before, endpoint.retrieve(content="config", depth=2))
 
 
 def set_channel_description(
@@ -253,7 +256,7 @@ def set_port_admin_state(
         admin_state: The administrative state to set on the port: ["up", "down", "maintenance"].
 
     Returns:
-        The port configuration after the update.
+        The difference between the port configuration before and after the update.
 
     Raises:
         ValueError: In case the configuration failed.
@@ -269,8 +272,83 @@ def set_port_admin_state(
 
     port_uri = g30_port_navigator_node_from_port_name(host_node, port_name)[0]
 
+    before = port_uri.retrieve(depth=2, content="config")
     port_uri.update(admin_status=status)
-    return port_uri.retrieve(depth=2, content="config").model_dump()
+    return compare_pydantic_objects(before, port_uri.retrieve(depth=2, content="config"))
+
+
+def _configure_g30_amplifier_port(
+    host_node: AnyOpticalNodeBlockProvisioningUnion,
+    shelf_id: int,
+    slot_id: int,
+    subslot_id: int | None,
+    endpoint: Any,
+    remote_host_node: AnyOpticalNodeBlockProvisioningUnion,
+    remote_port_name: str,
+) -> dict[str, Any]:
+    """Configure the booster/preamp of a Groove G30 amplifier port and the port itself.
+
+    Args:
+        host_node: The local Groove G30 node block.
+        shelf_id: The shelf id of the amplifier port.
+        slot_id: The slot id of the amplifier port.
+        subslot_id: The subslot id of the amplifier port.
+        endpoint: The RESTCONF endpoint of the amplifier port.
+        remote_host_node: The remote Groove G30 node block the fiber leads to.
+        remote_port_name: The name of the remote port the fiber leads to.
+
+    Returns:
+        The before/after configuration diffs, keyed by ``"port"``, ``"booster"`` and ``"preamp"``.
+
+    Raises:
+        ValueError: If no subslot id is available for the amplifier port.
+    """
+    if subslot_id is None:
+        msg = "Amplifier port configuration requires a subslot id"
+        raise ValueError(msg)
+
+    g30 = get_g30_client(host_node)
+
+    port_before = endpoint.retrieve(depth=2, content="config")
+
+    booster_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(2).subcard.amplifier("ba")
+    booster_before = booster_uri.retrieve(content="config", depth=2)
+    booster = booster_before.model_copy(deep=True)
+    booster.admin_status = AdminStatusEnum.UP
+    booster.amplifier_enable = EnableSwitchEnum.ENABLED
+    booster.input_los_shutdown = EnableSwitchEnum.DISABLED
+    booster.control_mode = ControlModeEnum.MANUAL
+    booster.gain_range_control = GainRangeControlEnum.MANUAL
+    booster.target_gain_range = GainRangeTypeEnum.STANDARD
+    booster.target_gain = Decimal("22.0")
+    booster.output_voa = Decimal("10.0")
+    booster.tilt_control_mode = TiltControlModeEnum.MANUAL
+    booster.gain_tilt = Decimal("0.0")
+    booster_uri.update(booster)
+
+    preamp_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(subslot_id).subcard.amplifier("pa")
+    preamp_before = preamp_uri.retrieve(content="config", depth=2)
+    preamp = preamp_before.model_copy(deep=True)
+    preamp.admin_status = AdminStatusEnum.UP
+    preamp.amplifier_enable = EnableSwitchEnum.ENABLED
+    preamp.input_los_shutdown = EnableSwitchEnum.DISABLED
+    preamp.control_mode = ControlModeEnum.AUTO
+    preamp.gain_range_control = GainRangeControlEnum.AUTO
+    preamp.target_gain_range = GainRangeTypeEnum.STANDARD
+    preamp.tilt_control_mode = TiltControlModeEnum.AUTO
+    preamp_uri.update(preamp)
+
+    endpoint.update(
+        external_connectivity=YesNoEnum.YES,
+        connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
+        admin_status=AdminStatusEnum.UP,
+    )
+
+    return {
+        "port": compare_pydantic_objects(port_before, endpoint.retrieve(depth=2, content="config")),
+        "booster": compare_pydantic_objects(booster_before, booster_uri.retrieve(depth=2, content="config")),
+        "preamp": compare_pydantic_objects(preamp_before, preamp_uri.retrieve(depth=2, content="config")),
+    }
 
 
 def configure_termination(
@@ -290,75 +368,45 @@ def configure_termination(
         remote_host_node.management.optical_module_node_platform,
     ):
         case (Vendor.NOKIA, Platform.FLEXILS):
+            before = endpoint.retrieve(depth=2, content="config")
             endpoint.update(
                 external_connectivity=YesNoEnum.YES,
                 connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
                 admin_status=AdminStatusEnum.UP,
             )
-            return endpoint.retrieve(depth=2, content="config").model_dump()
+            return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             is_same_device = _same_node(host_node, remote_host_node)
             is_amplifier_port = slot_id == 3 and subslot_id == 3 and port_id == 1  # noqa: PLR2004
 
             if is_same_device:
+                before = endpoint.retrieve(depth=2, content="config")
                 endpoint.update(
                     external_connectivity=YesNoEnum.NO,
                     connected_to=f"patched to {remote_port_name}",
                     admin_status=AdminStatusEnum.UP,
                 )
-                return endpoint.retrieve(depth=2, content="config").model_dump()
+                return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
 
             if not is_amplifier_port:
+                before = endpoint.retrieve(depth=2, content="config")
                 endpoint.update(
                     external_connectivity=YesNoEnum.YES,
                     connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
                     admin_status=AdminStatusEnum.UP,
                 )
-                return endpoint.retrieve(depth=2, content="config").model_dump()
+                return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
 
             # link H4: the port is an amplifier port of a different Groove G30 device
-            if subslot_id is None:
-                msg = "Amplifier port configuration requires a subslot id"
-                raise ValueError(msg)
-
-            g30 = get_g30_client(host_node)
-
-            booster_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(2).subcard.amplifier("ba")
-            booster = booster_uri.retrieve(content="config", depth=2)
-            booster.admin_status = AdminStatusEnum.UP
-            booster.amplifier_enable = EnableSwitchEnum.ENABLED
-            booster.input_los_shutdown = EnableSwitchEnum.DISABLED
-            booster.control_mode = ControlModeEnum.MANUAL
-            booster.gain_range_control = GainRangeControlEnum.MANUAL
-            booster.target_gain_range = GainRangeTypeEnum.STANDARD
-            booster.target_gain = Decimal("22.0")
-            booster.output_voa = Decimal("10.0")
-            booster.tilt_control_mode = TiltControlModeEnum.MANUAL
-            booster.gain_tilt = Decimal("0.0")
-            booster_uri.update(booster)
-
-            preamp_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(subslot_id).subcard.amplifier("pa")
-            preamp = preamp_uri.retrieve(content="config", depth=2)
-            preamp.admin_status = AdminStatusEnum.UP
-            preamp.amplifier_enable = EnableSwitchEnum.ENABLED
-            preamp.input_los_shutdown = EnableSwitchEnum.DISABLED
-            preamp.control_mode = ControlModeEnum.AUTO
-            preamp.gain_range_control = GainRangeControlEnum.AUTO
-            preamp.target_gain_range = GainRangeTypeEnum.STANDARD
-            preamp.tilt_control_mode = TiltControlModeEnum.AUTO
-            preamp_uri.update(preamp)
-
-            endpoint.update(
-                external_connectivity=YesNoEnum.YES,
-                connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
-                admin_status=AdminStatusEnum.UP,
+            return _configure_g30_amplifier_port(
+                host_node,
+                shelf_id,
+                slot_id,
+                subslot_id,
+                endpoint,
+                remote_host_node,
+                remote_port_name,
             )
-
-            return {
-                "port": endpoint.retrieve(depth=2, content="config").model_dump(),
-                "booster": booster_uri.retrieve(depth=2, content="config").model_dump(),
-                "preamp": preamp_uri.retrieve(depth=2, content="config").model_dump(),
-            }
         case _:
             msg = (
                 "Unsupported remote optical device platform when configuring Groove G30 remote port: "
@@ -373,6 +421,7 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
     port_name = _port_name(optical_port_block)
     port_uri = g30_port_navigator_node_from_port_name(host_node, port_name)[0]
 
+    before = port_uri.retrieve(content="config", depth=2)
     if "." in port_name:  # inside OCC2 card
         port_uri.update(connected_to="")
     else:
@@ -384,7 +433,7 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
             service_label="",
         )
 
-    return port_uri.retrieve(content="config", depth=2).model_dump()
+    return compare_pydantic_objects(before, port_uri.retrieve(content="config", depth=2))
 
 
 def check_fiber(

@@ -20,6 +20,7 @@ from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import 
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 from orchestrator.optical.services.nokia import TL1CommandDeniedError
+from orchestrator.optical.utils.datadiff import compare_jsons
 
 #: Port roles a Nokia FlexILS node can enumerate: OTS line ports and SCG add/drop (tributary) ports.
 _FLEXILS_SUPPORTED_ROLES = frozenset({OpticalPortRole.OLS_LINE, OpticalPortRole.OLS_ADD_DROP})
@@ -88,7 +89,7 @@ def set_port_description(
         port_description: The description to set on the port.
 
     Returns:
-        The port configuration after the update.
+        The difference between the port configuration before and after the update.
 
     Raises:
         ValueError: In case the configuration failed.
@@ -97,10 +98,14 @@ def set_port_description(
     port_name = _port_name(port_block)
     flex = cast(Any, get_flex_client(_as_flexils_block(host_node)))  # TL1 methods are bound dynamically
     if "L" in port_name:
+        before = flex.rtrv_ots(aid=port_name).parsed_data
         flex.ed_ots(aid=port_name, label=rf'"{port_description}"')
-        return flex.rtrv_ots(aid=port_name).model_dump()
+        after = flex.rtrv_ots(aid=port_name).parsed_data
+        return compare_jsons(before, after)
+    before = flex.rtrv_scg(aid=port_name).parsed_data
     flex.ed_scg(aid=port_name, label=rf'"{port_description}"')
-    return flex.rtrv_scg(aid=port_name).model_dump()
+    after = flex.rtrv_scg(aid=port_name).parsed_data
+    return compare_jsons(before, after)
 
 
 def set_port_admin_state(
@@ -113,6 +118,9 @@ def set_port_admin_state(
     service), and MT (maintenance). Line ports (OTS) can only be in IS or MT state.
     It works as a finite state machine with the following transitions:
     OOS <-edit---edit-> IS <-rst---put-> MT.
+
+    Returns:
+        The difference between the port configuration before and after the update.
     """
     flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
     port_name = _port_name(optical_port_block)
@@ -122,15 +130,18 @@ def set_port_admin_state(
         if admin_state == "down":
             msg = "Line ports (OTS) can only be in service (IS) or maintenance (MT) state"
             raise ValueError(msg)
+        before = flex.rtrv_ots(aid=port_name).parsed_data
         if admin_state == "maintenance":
             flex.put_maintenance(aidtype="OTS", aid=port_name)
         elif admin_state == "up":
             flex.rst_maintenance(aidtype="OTS", aid=port_name)
-        return flex.rtrv_ots(aid=port_name).model_dump()
+        after = flex.rtrv_ots(aid=port_name).parsed_data
+        return compare_jsons(before, after)
 
     # Tributary ports (SCG)
     # from any state to in-service state (we must know the current state of the
     # finite state machine to move between states)
+    before = flex.rtrv_scg(aid=port_name).parsed_data
     try:
         flex.ed_scg(aid=port_name, is_oos="IS")
     except TL1CommandDeniedError as e:
@@ -145,7 +156,8 @@ def set_port_admin_state(
     elif admin_state == "maintenance":
         flex.put_maintenance(aidtype="SCG", aid=port_name)
 
-    return flex.rtrv_scg(aid=port_name).model_dump()
+    after = flex.rtrv_scg(aid=port_name).parsed_data
+    return compare_jsons(before, after)
 
 
 def _ensure_manualmode2(optical_port_block: AnyOpticalPortBlockProvisioning) -> None:
@@ -196,10 +208,13 @@ def configure_termination(
 
     match (optical_port_block.optical_port_role, pipe_type):
         case (OpticalPortRole.OLS_LINE, OpticalPipeType.SPAN):
+            before = flex.rtrv_ots(aid=port_name).parsed_data
             flex.ed_ots(aid=port_name, label=rf'"{description}"')
             flex.rst_maintenance(aidtype="OTS", aid=port_name)
-            return flex.rtrv_ots(aid=port_name).model_dump()
+            after = flex.rtrv_ots(aid=port_name).parsed_data
+            return compare_jsons(before, after)
         case (OpticalPortRole.OLS_ADD_DROP, OpticalPipeType.PATCH | OpticalPipeType.LEASED_SPECTRUM):
+            before = flex.rtrv_scg(aid=port_name).parsed_data
             _ensure_manualmode2(optical_port_block)
             remote_node_id = _get_remote_node_id(remote_port_block)
             remote_port_id = _extract_remote_port_id(_port_name(remote_port_block))
@@ -209,7 +224,8 @@ def configure_termination(
                 provowremptp=provowremptp,
                 label=rf'"{description}"',
             )
-            return flex.rtrv_scg(aid=port_name).model_dump()
+            after = flex.rtrv_scg(aid=port_name).parsed_data
+            return compare_jsons(before, after)
         case _:
             msg = (
                 f"Unsupported Nokia FlexILS termination for port role "
@@ -234,9 +250,12 @@ def factory_reset(
 
     match (optical_port_block.optical_port_role, pipe_type):
         case (OpticalPortRole.OLS_LINE, OpticalPipeType.SPAN):
+            before = flex.rtrv_ots(aid=port_name).parsed_data
             flex.ed_ots(aid=port_name, label=r'""')
-            return flex.rtrv_ots(aid=port_name).model_dump()
+            after = flex.rtrv_ots(aid=port_name).parsed_data
+            return compare_jsons(before, after)
         case (OpticalPortRole.OLS_ADD_DROP, OpticalPipeType.PATCH | OpticalPipeType.LEASED_SPECTRUM):
+            before = flex.rtrv_scg(aid=port_name).parsed_data
             set_port_admin_state(optical_port_block, "maintenance")
             flex.ed_scg(
                 aid=port_name,
@@ -245,7 +264,8 @@ def factory_reset(
                 label=r'""',
             )
             set_port_admin_state(optical_port_block, "down")
-            return flex.rtrv_scg(aid=port_name).model_dump()
+            after = flex.rtrv_scg(aid=port_name).parsed_data
+            return compare_jsons(before, after)
         case _:
             msg = (
                 f"Unsupported Nokia FlexILS factory reset for port role "

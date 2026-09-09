@@ -19,6 +19,7 @@ from orchestrator.optical.services.nokia.g42.data_models.ioa_network_element imp
     ExternalConnectivityEnum,
     PortTypeEnum,
 )
+from orchestrator.optical.utils.datadiff import compare_pydantic_objects
 
 #: Port roles a GX G42 node can enumerate: transponder line and client ports (no OLS ports).
 _G42_SUPPORTED_ROLES = frozenset({OpticalPortRole.TRANSPONDER_LINE, OpticalPortRole.TRANSPONDER_CLIENT})
@@ -186,7 +187,7 @@ def set_port_description(port_block: AnyOpticalPortBlockProvisioning, port_descr
         port_description: The description to set on the port.
 
     Returns:
-        The port configuration after the update.
+        The difference between the port configuration before and after the update.
     """
     host_node = port_block.optical_port_host_node
     port_name = _port_name(port_block)
@@ -194,12 +195,13 @@ def set_port_description(port_block: AnyOpticalPortBlockProvisioning, port_descr
     g42 = get_g42_client(host_node)
     port_uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
 
-    port_config = port_uri.retrieve(content="config", depth=2)
+    before = port_uri.retrieve(content="config", depth=2)
+    port_config = before.model_copy(deep=True)
     port_config.label = port_description
 
     port_uri.update(port_config)
 
-    return port_uri.retrieve(content="config", depth=2).model_dump()
+    return compare_pydantic_objects(before, port_uri.retrieve(content="config", depth=2))
 
 
 def set_channel_description(
@@ -249,7 +251,7 @@ def set_port_admin_state(
         admin_state: The administrative state to set on the port: ["up", "down", "maintenance"].
 
     Returns:
-        The port configuration after the update.
+        The difference between the port configuration before and after the update.
     """
     host_node = port_block.optical_port_host_node
     port_name = _port_name(port_block)
@@ -265,11 +267,12 @@ def set_port_admin_state(
     g42 = get_g42_client(host_node)
     uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
 
-    conf = uri.retrieve(content="config", depth=2)
+    before = uri.retrieve(content="config", depth=2)
+    conf = before.model_copy(deep=True)
     conf.admin_state = status
     uri.update(conf)
 
-    return uri.retrieve(depth=2).model_dump()
+    return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
 
 
 def configure_termination(
@@ -287,6 +290,7 @@ def configure_termination(
     shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
     g42 = get_g42_client(host_node)
     uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+    before = uri.retrieve(content="config", depth=2)
     if _same_node(host_node, remote_host_node):
         uri.update(
             name=port_id,
@@ -301,7 +305,7 @@ def configure_termination(
             connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
             admin_state=AdminStateEnum.UNLOCK,
         )
-    return uri.retrieve(content="config", depth=2).model_dump()
+    return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
 
 
 def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[str, Any]:
@@ -310,13 +314,14 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
     g42 = get_g42_client(host_node)
     shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
     uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    conf = uri.retrieve(content="config", depth=2)
+    before = uri.retrieve(content="config", depth=2)
+    conf = before.model_copy(deep=True)
     conf.external_connectivity = ExternalConnectivityEnum.NO
     conf.connected_to = ""
     conf.admin_state = AdminStateEnum.LOCK
     conf.label = ""
     uri.update(conf)
-    return uri.retrieve(content="config", depth=2).model_dump()
+    return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
 
 
 def check_fiber(
