@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 from re import search
-from typing import Any
+from typing import Any, cast
 
 from requests.exceptions import HTTPError
 
@@ -10,11 +10,11 @@ from orchestrator.optical.hal._common import _as_decimal, _node_id
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_ids_from_port_name,
     g30_port_navigator_node_from_port_name,
-    g30_port_update,
     get_g30_client,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
+from orchestrator.optical.services.nokia.g30.data_models.ne import AdminStatusEnum, PortModeEnum
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
 from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects
 
@@ -154,14 +154,11 @@ def configure_line_transceivers(
         shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
         uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
         before = uri.retrieve(depth=3, content="config")
-        g30_port_update(
-            uri,
-            port_id=port_id,
-            subport_id=None,
-            port_mode=mode,
-            service_label=description,
-            admin_status="up",
-        )
+        updated = before.model_copy(deep=True)
+        updated.port_mode = PortModeEnum(mode)
+        updated.service_label = description
+        updated.admin_status = AdminStatusEnum.UP
+        uri.update(updated)
         modulation, rate = _get_modulation_and_rate_from_mode(mode)
         uri.och_os.update(
             modulation_format=modulation,
@@ -198,20 +195,17 @@ def configure_transceiver_client(
     Returns:
         A dictionary of configuration diffs, keyed by facility name.
     """
-    navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
+    navigator, *_ = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
     port_mode, eth_name, fec_type = _client_speed_config(speed)
     eth = getattr(navigator, eth_name)
 
     before = navigator.retrieve(content="config", depth=3)
 
-    g30_port_update(
-        navigator,
-        port_id=port_id,
-        subport_id=subport_id,
-        admin_status="up",
-        service_label=description,
-        port_mode=port_mode,
-    )
+    updated = before.model_copy(deep=True)
+    updated.admin_status = AdminStatusEnum.UP
+    updated.service_label = description
+    updated.port_mode = PortModeEnum(port_mode)
+    navigator.update(cast(Any, updated))
 
     eth.update(
         admin_status="up",
@@ -473,16 +467,13 @@ def factory_reset_transponder_client(
     Returns:
         The reset configuration.
     """
-    navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
+    navigator, *_ = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
     before = navigator.retrieve(depth=3, content="config")
-    g30_port_update(
-        navigator,
-        port_id=port_id,
-        subport_id=subport_id,
-        admin_status="down",
-        service_label="",
-        port_mode="not-applicable",
-    )
+    updated = before.model_copy(deep=True)
+    updated.admin_status = AdminStatusEnum.DOWN
+    updated.service_label = ""
+    updated.port_mode = PortModeEnum.NOT_APPLICABLE
+    navigator.update(cast(Any, updated))
     after = navigator.retrieve(depth=3, content="config")
     return compare_pydantic_objects(before, after)
 
@@ -502,16 +493,13 @@ def factory_reset_transponder_lines(
     """
     result = []
     for port_name in line_port_names:
-        navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
+        navigator, *_ = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
         before = navigator.retrieve(depth=3, content="config")
-        g30_port_update(
-            navigator,
-            port_id=port_id,
-            subport_id=subport_id,
-            admin_status="down",
-            service_label="",
-            port_mode="not-applicable",
-        )
+        updated = before.model_copy(deep=True)
+        updated.admin_status = AdminStatusEnum.DOWN
+        updated.service_label = ""
+        updated.port_mode = PortModeEnum.NOT_APPLICABLE
+        navigator.update(cast(Any, updated))
         after = navigator.retrieve(depth=3, content="config")
         result.append(compare_pydantic_objects(before, after))
     return result
