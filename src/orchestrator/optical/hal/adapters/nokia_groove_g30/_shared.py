@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.services.nokia import G30Client
@@ -98,3 +98,33 @@ def g30_port_navigator_node_from_port_name(
         endpoint = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
 
     return endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id
+
+
+class PortEndpoint(Protocol):
+    """A Groove G30 port/subport RESTCONF endpoint supporting keyword-argument ``update``."""
+
+    def update(self, **kwargs: Any) -> None: ...
+
+
+def g30_port_update(
+    endpoint: PortEndpoint,
+    *,
+    port_id: int,
+    subport_id: int | None,
+    **fields: Any,
+) -> None:
+    """Patch a Groove G30 port or subport, supplying the list key its auto-generated ``update()`` requires.
+
+    The auto-generated ``ItemNode.update()`` validates the payload against the full ``PortItem``/``SubportItem``
+    YANG model, whose list key (``port-id``/``subport-id``) is a required field; it is therefore supplied here.
+    ``subport_id`` takes precedence over ``port_id`` when present (a subport endpoint is keyed by ``subport-id``).
+
+    Args:
+        endpoint: The RESTCONF endpoint of the port or subport to patch.
+        port_id: The port id of the endpoint.
+        subport_id: The subport id of the endpoint, or ``None`` for a non-subport endpoint.
+        **fields: The configuration leaves to set on the port or subport.
+    """
+    if subport_id is not None:
+        return endpoint.update(subport_id=subport_id, **fields)
+    return endpoint.update(port_id=port_id, **fields)

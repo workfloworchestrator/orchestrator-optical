@@ -14,6 +14,7 @@ from orchestrator.optical.hal._common import (
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_ids_from_port_name,
     g30_port_navigator_node_from_port_name,
+    g30_port_update,
     get_g30_client,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
@@ -210,9 +211,9 @@ def set_port_description(
     """
     host_node = port_block.optical_port_host_node
     port_name = _port_name(port_block)
-    endpoint, _, _, _, _, _ = g30_port_navigator_node_from_port_name(host_node, port_name)
+    endpoint, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
     before = endpoint.retrieve(content="config", depth=2)
-    endpoint.update(service_label=port_description)
+    g30_port_update(endpoint, port_id=port_id, subport_id=subport_id, service_label=port_description)
     return compare_pydantic_objects(before, endpoint.retrieve(content="config", depth=2))
 
 
@@ -270,10 +271,10 @@ def set_port_admin_state(
     }
     status = mapping[admin_state]
 
-    port_uri = g30_port_navigator_node_from_port_name(host_node, port_name)[0]
+    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
 
     before = port_uri.retrieve(depth=2, content="config")
-    port_uri.update(admin_status=status)
+    g30_port_update(port_uri, port_id=port_id, subport_id=subport_id, admin_status=status)
     return compare_pydantic_objects(before, port_uri.retrieve(depth=2, content="config"))
 
 
@@ -282,6 +283,8 @@ def _configure_g30_amplifier_port(
     shelf_id: int,
     slot_id: int,
     subslot_id: int | None,
+    port_id: int,
+    subport_id: int | None,
     endpoint: Any,
     remote_host_node: AnyOpticalNodeBlockProvisioningUnion,
     remote_port_name: str,
@@ -293,6 +296,8 @@ def _configure_g30_amplifier_port(
         shelf_id: The shelf id of the amplifier port.
         slot_id: The slot id of the amplifier port.
         subslot_id: The subslot id of the amplifier port.
+        port_id: The port id of the amplifier port.
+        subport_id: The subport id of the amplifier port, or None.
         endpoint: The RESTCONF endpoint of the amplifier port.
         remote_host_node: The remote Groove G30 node block the fiber leads to.
         remote_port_name: The name of the remote port the fiber leads to.
@@ -338,7 +343,10 @@ def _configure_g30_amplifier_port(
     preamp.tilt_control_mode = TiltControlModeEnum.AUTO
     preamp_uri.update(preamp)
 
-    endpoint.update(
+    g30_port_update(
+        endpoint,
+        port_id=port_id,
+        subport_id=subport_id,
         external_connectivity=YesNoEnum.YES,
         connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
         admin_status=AdminStatusEnum.UP,
@@ -361,7 +369,9 @@ def configure_termination(
     port_name = _port_name(optical_port_block)
     remote_port_name = _port_name(remote_port_block)
 
-    endpoint, shelf_id, slot_id, subslot_id, port_id, _ = g30_port_navigator_node_from_port_name(host_node, port_name)
+    endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id = g30_port_navigator_node_from_port_name(
+        host_node, port_name
+    )
 
     match (
         remote_host_node.management.optical_module_node_vendor,
@@ -369,7 +379,10 @@ def configure_termination(
     ):
         case (Vendor.NOKIA, Platform.FLEXILS):
             before = endpoint.retrieve(depth=2, content="config")
-            endpoint.update(
+            g30_port_update(
+                endpoint,
+                port_id=port_id,
+                subport_id=subport_id,
                 external_connectivity=YesNoEnum.YES,
                 connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
                 admin_status=AdminStatusEnum.UP,
@@ -381,7 +394,10 @@ def configure_termination(
 
             if is_same_device:
                 before = endpoint.retrieve(depth=2, content="config")
-                endpoint.update(
+                g30_port_update(
+                    endpoint,
+                    port_id=port_id,
+                    subport_id=subport_id,
                     external_connectivity=YesNoEnum.NO,
                     connected_to=f"patched to {remote_port_name}",
                     admin_status=AdminStatusEnum.UP,
@@ -390,7 +406,10 @@ def configure_termination(
 
             if not is_amplifier_port:
                 before = endpoint.retrieve(depth=2, content="config")
-                endpoint.update(
+                g30_port_update(
+                    endpoint,
+                    port_id=port_id,
+                    subport_id=subport_id,
                     external_connectivity=YesNoEnum.YES,
                     connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
                     admin_status=AdminStatusEnum.UP,
@@ -403,6 +422,8 @@ def configure_termination(
                 shelf_id,
                 slot_id,
                 subslot_id,
+                port_id,
+                subport_id,
                 endpoint,
                 remote_host_node,
                 remote_port_name,
@@ -419,13 +440,16 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
     """Prune the configuration of a Groove G30 port."""
     host_node = optical_port_block.optical_port_host_node
     port_name = _port_name(optical_port_block)
-    port_uri = g30_port_navigator_node_from_port_name(host_node, port_name)[0]
+    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
 
     before = port_uri.retrieve(content="config", depth=2)
     if "." in port_name:  # inside OCC2 card
-        port_uri.update(connected_to="")
+        g30_port_update(port_uri, port_id=port_id, subport_id=subport_id, connected_to="")
     else:
-        port_uri.update(
+        g30_port_update(
+            port_uri,
+            port_id=port_id,
+            subport_id=subport_id,
             external_connectivity=YesNoEnum.NO,
             connected_to="",
             admin_status=AdminStatusEnum.DOWN,

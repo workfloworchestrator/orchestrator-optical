@@ -151,7 +151,7 @@ def validate_management_ips_uniqueness(ips: list[IPAddress], exclude_subscriptio
             instances = subscription_instances_by_block_type_and_resource_value(
                 cast(str, OpticalModuleNodeManagementBlock.name),
                 resource_type,
-                str(ip),
+                ip,
                 [
                     SubscriptionLifecycle.INITIAL,
                     SubscriptionLifecycle.PROVISIONING,
@@ -162,6 +162,41 @@ def validate_management_ips_uniqueness(ips: list[IPAddress], exclude_subscriptio
             if conflicting:
                 msg = f"Management IP '{ip}' is already in use by subscription {conflicting[0].subscription_id}"
                 raise ValueError(msg)
+
+
+def validate_optical_node_management_fields_uniqueness(
+    optical_module_node_fqdn: Fqdn,
+    *,
+    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
+    optical_module_node_dcn_interface_ip: IPAddress | None = None,
+    exclude_subscription_id: UUIDstr | None = None,
+) -> None:
+    """Re-check the uniqueness of the node FQDN and DCN IPs at execution time.
+
+    Composes :func:`validate_optical_node_fqdn_uniqueness` and
+    :func:`validate_management_ips_uniqueness`. The node create populates call
+    it before setting the block fields, mirroring the location family's
+    populate-time guard, so a consumer that composes its own construct step and
+    bypasses the create form is still protected against duplicates and the
+    check-to-save window is shrunk.
+
+    Args:
+        optical_module_node_fqdn: Fully qualified domain name of the node.
+        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
+        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
+        exclude_subscription_id: Subscription ID to exclude (the owning subscription).
+
+    Raises:
+        ValueError: If another subscription already uses the FQDN or one of the IPs.
+    """
+    validate_optical_node_fqdn_uniqueness(
+        optical_module_node_fqdn,
+        exclude_subscription_id=exclude_subscription_id,
+    )
+    validate_management_ips_uniqueness(
+        [ip for ip in (optical_module_node_dcn_loopback_ip, optical_module_node_dcn_interface_ip) if ip is not None],
+        exclude_subscription_id=exclude_subscription_id,
+    )
 
 
 def validate_gmpls_id_uniqueness(gmpls_id: IPAddress, exclude_subscription_id: UUIDstr | None = None) -> None:
@@ -184,7 +219,7 @@ def validate_gmpls_id_uniqueness(gmpls_id: IPAddress, exclude_subscription_id: U
     instances = subscription_instances_by_block_type_and_resource_value(
         cast(str, NokiaFlexIlsBlock.name),
         "optical_flexils_gmpls_id",
-        str(gmpls_id),
+        gmpls_id,
         [
             SubscriptionLifecycle.INITIAL,
             SubscriptionLifecycle.PROVISIONING,

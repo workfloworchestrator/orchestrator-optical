@@ -53,6 +53,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     update_optical_node_subscription_description,
     validate_gmpls_id_uniqueness,
     validate_optical_flexils_target_id_uniqueness,
+    validate_optical_node_management_fields_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.forms import (
     create_optical_node_location_form,
@@ -176,7 +177,9 @@ def populate_optical_node_nokia_flexils_block(
     This is the anti-corruption point for consumers that keep their own model:
     call it from their own construct step on the shipped block they compose,
     before their subscription model is transitioned to the PROVISIONING
-    lifecycle.
+    lifecycle. It re-checks the uniqueness of the FQDN, the DCN IPs, the GMPLS
+    ID and the Target Identifier at execution time, so consumers bypassing the
+    create form are still guarded against duplicates.
 
     Args:
         optical_module_block: The Nokia FlexILS node block to populate (any lifecycle variant).
@@ -186,7 +189,23 @@ def populate_optical_node_nokia_flexils_block(
         optical_flexils_target_id: Target Identifier (TID) of the node.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
         optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
+
+    Raises:
+        ValueError: If the FQDN, a DCN IP, the GMPLS ID or the Target Identifier
+            is already in use by another subscription.
     """
+    exclude_subscription_id = str(optical_module_block.owner_subscription_id)
+    validate_optical_node_management_fields_uniqueness(
+        optical_module_node_fqdn,
+        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        exclude_subscription_id=exclude_subscription_id,
+    )
+    validate_gmpls_id_uniqueness(optical_flexils_gmpls_id, exclude_subscription_id=exclude_subscription_id)
+    validate_optical_flexils_target_id_uniqueness(
+        optical_flexils_target_id,
+        exclude_subscription_id=exclude_subscription_id,
+    )
     populate_abstract_optical_node_fields(
         optical_module_block=optical_module_block,
         location_id=location_id,
@@ -216,7 +235,8 @@ def construct_optical_node_nokia_flexils_subscription(
     This step builds the shipped ``OpticalNodeNokiaFlexIls`` model, populates
     its block with the create-form values through
     :func:`populate_optical_node_nokia_flexils_block` (the anti-corruption
-    point) and transitions the subscription to PROVISIONING in memory, so the
+    point, which re-checks the field uniqueness at execution time) and
+    transitions the subscription to PROVISIONING in memory, so the
     block found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` is the
     PROVISIONING variant with its mandatory fields already set — the contract
     of the shipped block steps of :data:`CREATE_NOKIA_FLEXILS_BLOCK_STEPS`

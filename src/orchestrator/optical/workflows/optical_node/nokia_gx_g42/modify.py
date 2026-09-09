@@ -43,6 +43,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     save_optical_node_block,
     update_optical_node_block_fields,
     update_optical_node_subscription_description,
+    validate_optical_node_management_fields_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.retrieve import retrieve_optical_node_role_and_software_version
 from orchestrator.optical.workflows.shared import modify_summary_form
@@ -130,7 +131,10 @@ def update_optical_node_nokia_gx_g42_block(
     """Update the Nokia GX G42 node block in the state from the modify-form keys.
 
     Workflow steps execute with the state serialized between steps, so the
-    block is re-hydrated from its serialized form before it is updated.
+    block is re-hydrated from its serialized form before it is updated. It
+    re-checks the uniqueness of the FQDN and the DCN IPs at execution time,
+    excluding the subscription being modified, so consumers bypassing the form
+    validation are still guarded against duplicates.
 
     Args:
         optical_module_block: The Nokia GX G42 node block in the state under
@@ -141,9 +145,17 @@ def update_optical_node_nokia_gx_g42_block(
         optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
 
     Raises:
-        ValueError: If there is no Nokia GX G42 node block in the state.
+        ValueError: If there is no Nokia GX G42 node block in the state, or if
+            the FQDN or a DCN IP is already in use by another subscription.
     """
     node_block = optical_node_block_from_state(optical_module_block)
+    exclude_subscription_id = str(node_block.owner_subscription_id)
+    validate_optical_node_management_fields_uniqueness(
+        optical_module_node_fqdn,
+        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        exclude_subscription_id=exclude_subscription_id,
+    )
     update_optical_node_block_fields(
         optical_module_block=node_block,
         optical_module_node_fqdn=optical_module_node_fqdn,
