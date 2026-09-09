@@ -30,11 +30,7 @@ def software_version(node: NokiaGrooveG30BlockProvisioning) -> str:
     current_fw = g30.data.ne_ne.system.sw_management.softwareload.retrieve(content="all", depth=2)
 
     version = next(
-        (
-            item.swload_version
-            for item in current_fw
-            if item.swload_state == SwloadStateEnum.ACTIVE
-        ),
+        (item.swload_version for item in current_fw if item.swload_state == SwloadStateEnum.ACTIVE),
         None,
     )
     if version is None:

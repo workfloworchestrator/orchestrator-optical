@@ -23,12 +23,14 @@ class OpticalPipeType(strEnum):
     SPAN = "Span"
     LEASED_SPECTRUM = "Leased Spectrum"
 
+
 class AbstractOpticalPipeBlockInactive(ProductBlockModel):
     """Abstract base class for all optical pipe blocks in the INACTIVE state."""
+
     # this is needed because the orchestrator-core source code does not fully support Pydantic Discriminated Unions
     # that is Annotated[X | Y, discriminator=] is serialized to str repr because of the Annotated type. Thus, we have to
     # use strEnum to ensure the correct Block is loaded from the DB
-    optical_pipe_type: OpticalPipeType 
+    optical_pipe_type: OpticalPipeType
     optical_pipe_name: str | None = None
     optical_pipe_terminations: FiberSides[AnyOpticalPortBlockInactive] | None = None
 

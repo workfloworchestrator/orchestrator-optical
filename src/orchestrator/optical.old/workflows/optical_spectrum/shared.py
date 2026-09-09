@@ -342,8 +342,7 @@ def find_add_drop_ports(
     src_trx_port_block_id: UUIDstr,
     dst_trx_port_block_id: UUIDstr,
 ) -> tuple[OpticalDevicePortBlock, OpticalDevicePortBlock]:
-    """Retrieve the add/drop ports connected to the transponder/transceiver ports.
-    """
+    """Retrieve the add/drop ports connected to the transponder/transceiver ports."""
     src_trx_port = OpticalDevicePortBlock.from_db(src_trx_port_block_id)
     dst_trx_port = OpticalDevicePortBlock.from_db(dst_trx_port_block_id)
 

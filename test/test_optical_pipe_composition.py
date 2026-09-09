@@ -409,7 +409,7 @@ def test_pipe_port_roles_by_pipe_type_and_vendor() -> None:
 
     assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, flexils) == [ols_line]
     assert pipe_shared.pipe_port_roles(OpticalPipeType.PATCH, flexils) == [ols_add_drop]
-    assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, flexils) == [ols_add_drop]
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, flexils) == [ols_line, ols_add_drop]
 
     assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, g30) == [ols_line]
     assert pipe_shared.pipe_port_roles(OpticalPipeType.PATCH, g30) == [tp_client, tp_line]

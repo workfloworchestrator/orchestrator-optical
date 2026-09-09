@@ -30,7 +30,9 @@ class OpticalLeasedSpectrumSubscriptionProvisioning(
 
 
 class OpticalLeasedSpectrumSubscription(
-    OpticalLeasedSpectrumSubscriptionProvisioning, AbstractOpticalPipeSubscription, lifecycle=[SubscriptionLifecycle.ACTIVE]
+    OpticalLeasedSpectrumSubscriptionProvisioning,
+    AbstractOpticalPipeSubscription,
+    lifecycle=[SubscriptionLifecycle.ACTIVE],
 ):
     """Base model for a leased spectrum subscription in the ACTIVE state."""
 
