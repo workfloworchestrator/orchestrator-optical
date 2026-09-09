@@ -17,6 +17,7 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
     validate_management_ips_uniqueness,
     validate_optical_flexils_target_id_uniqueness,
     validate_optical_node_fqdn_uniqueness,
+    validate_optical_node_management_fields_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.forms import (
     create_optical_node_location_form,
@@ -69,4 +70,5 @@ __all__ = [
     "validate_management_ips_uniqueness",
     "validate_optical_flexils_target_id_uniqueness",
     "validate_optical_node_fqdn_uniqueness",
+    "validate_optical_node_management_fields_uniqueness",
 ]

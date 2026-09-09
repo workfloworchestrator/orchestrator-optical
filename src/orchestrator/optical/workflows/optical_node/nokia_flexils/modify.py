@@ -48,6 +48,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     update_optical_node_subscription_description,
     validate_gmpls_id_uniqueness,
     validate_optical_flexils_target_id_uniqueness,
+    validate_optical_node_management_fields_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.retrieve import retrieve_optical_node_role_and_software_version
 from orchestrator.optical.workflows.shared import modify_summary_form
@@ -212,7 +213,10 @@ def update_optical_node_nokia_flexils_block(
     block is re-hydrated from the database by its ``subscription_instance_id``
     before it is updated. The common fields are updated through
     :func:`orchestrator.optical.workflows.optical_node.shared.update_optical_node_block_fields`
-    and the FlexILS-specific fields are set directly.
+    and the FlexILS-specific fields are set directly. It re-checks the uniqueness
+    of the FQDN, the DCN IPs, the GMPLS ID and the Target Identifier at execution
+    time, excluding the subscription being modified, so consumers bypassing the
+    form validation are still guarded against duplicates.
 
     Args:
         optical_module_block: The Nokia FlexILS node block in the state under
@@ -226,9 +230,23 @@ def update_optical_node_nokia_flexils_block(
 
     Raises:
         ValueError: If there is no Nokia FlexILS node block in the state under
-            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``, or if the FQDN, a DCN IP, the
+            GMPLS ID or the Target Identifier is already in use by another
+            subscription.
     """
     node_block = optical_node_block_from_state(optical_module_block)
+    exclude_subscription_id = str(node_block.owner_subscription_id)
+    validate_optical_node_management_fields_uniqueness(
+        optical_module_node_fqdn,
+        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        exclude_subscription_id=exclude_subscription_id,
+    )
+    validate_gmpls_id_uniqueness(optical_flexils_gmpls_id, exclude_subscription_id=exclude_subscription_id)
+    validate_optical_flexils_target_id_uniqueness(
+        optical_flexils_target_id,
+        exclude_subscription_id=exclude_subscription_id,
+    )
     update_optical_node_block_fields(
         node_block,
         optical_module_node_fqdn=optical_module_node_fqdn,

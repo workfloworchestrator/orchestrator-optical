@@ -48,6 +48,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     populate_abstract_optical_node_fields,
     save_optical_node_block,
     update_optical_node_subscription_description,
+    validate_optical_node_management_fields_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.forms import (
     create_optical_node_location_form,
@@ -128,7 +129,9 @@ def populate_optical_node_nokia_groove_g30_block(
     This is the anti-corruption point for consumers that keep their own model:
     call it from their own construct step on the shipped block they compose,
     before their subscription model is transitioned to the PROVISIONING
-    lifecycle.
+    lifecycle. It re-checks the uniqueness of the FQDN and the DCN IPs at
+    execution time, so consumers bypassing the create form are still guarded
+    against duplicates.
 
     Args:
         optical_module_block: The Nokia Groove G30 node block to populate (any lifecycle variant).
@@ -136,7 +139,17 @@ def populate_optical_node_nokia_groove_g30_block(
         optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
         optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
+
+    Raises:
+        ValueError: If the FQDN or a DCN IP is already in use by another subscription.
     """
+    exclude_subscription_id = str(optical_module_block.owner_subscription_id)
+    validate_optical_node_management_fields_uniqueness(
+        optical_module_node_fqdn,
+        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
+        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        exclude_subscription_id=exclude_subscription_id,
+    )
     populate_abstract_optical_node_fields(
         optical_module_block=optical_module_block,
         location_id=location_id,
@@ -162,7 +175,8 @@ def construct_optical_node_nokia_groove_g30_subscription(
     This step builds the shipped ``OpticalNodeNokiaGrooveG30`` model,
     populates its block with the create-form values through
     :func:`populate_optical_node_nokia_groove_g30_block` (the anti-corruption
-    point) and transitions the subscription to PROVISIONING in memory, so the
+    point, which re-checks the field uniqueness at execution time) and
+    transitions the subscription to PROVISIONING in memory, so the
     block found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` is the
     PROVISIONING variant with its mandatory fields already set — the contract
     of the shipped block steps of :data:`CREATE_NOKIA_GROOVE_G30_BLOCK_STEPS`
