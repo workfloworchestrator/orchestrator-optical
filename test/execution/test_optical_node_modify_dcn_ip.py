@@ -25,11 +25,9 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import node_block_from_subscription
 from orchestrator.optical.products import ProductName
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
-from test.conftest import (
-    CUSTOMER_ID,
-    _fake_retrieve_optical_node_role_and_software_version,
-    _flexils_gmpls_id,
-)
+from test.support.db import CUSTOMER_ID
+from test.support.devices import _fake_retrieve_optical_node_role_and_software_version
+from test.support.topology import _flexils_gmpls_id
 
 pytestmark = pytest.mark.db
 

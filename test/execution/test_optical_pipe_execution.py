@@ -27,7 +27,8 @@ from orchestrator.optical.products.product_blocks.optical_port.ols_line import O
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
-from test.conftest import CUSTOMER_ID, FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
+from test.support.db import CUSTOMER_ID
+from test.support.devices import FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
 
 pytestmark = pytest.mark.db
 

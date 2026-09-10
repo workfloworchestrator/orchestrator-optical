@@ -25,7 +25,9 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils imp
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30Block
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42Block
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from test.conftest import CUSTOMER_ID, FAKE_SOFTWARE_VERSION, _flexils_gmpls_id
+from test.support.db import CUSTOMER_ID
+from test.support.devices import FAKE_SOFTWARE_VERSION
+from test.support.topology import _flexils_gmpls_id
 
 pytestmark = pytest.mark.db
 

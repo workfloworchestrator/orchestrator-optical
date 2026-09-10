@@ -21,7 +21,8 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import ProcessStatus
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
-from test.conftest import CUSTOMER_ID, FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
+from test.support.db import CUSTOMER_ID
+from test.support.devices import FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
 
 pytestmark = pytest.mark.db
 
@@ -37,7 +38,7 @@ CLIENT_PORT = FAKE_CLIENT_PORTS[0]
 SPECTRUM_NAME = "spec-svc-01"
 PASSBAND = (196_000_000, 196_100_000)
 MODIFIED_SPECTRUM_NAME = "spec-svc-01-renamed"
-MODIFIED_PASSBAND = (196_050_000, 196_150_000)
+MODIFIED_PASSBAND = (196_050_000, 196_125_000)
 
 
 def _product_id(product_name: str) -> str:
@@ -83,7 +84,8 @@ def _seed_topology(run_process, seed_optical_node) -> tuple[str, str, str]:
         "create_fiber_span",
         [
             {"product": _product_id(FIBER_SPAN_PRODUCT_NAME)},
-            {"customer_id": CUSTOMER_ID, "node_a_id": node_a_id, "node_b_id": node_b_id},
+            {"customer_id": CUSTOMER_ID},
+            {"node_a_id": node_a_id, "node_b_id": node_b_id},
             {
                 "optical_pipe_name": f"{NODE_A[0]} {LINE_PORT} --- {NODE_B[0]} {LINE_PORT}",
                 "port_a_name": LINE_PORT,

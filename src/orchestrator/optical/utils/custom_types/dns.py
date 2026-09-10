@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""DNS-related pydantic custom types (FQDN, PQDN, subdomain, subdomain prefix)."""
+
 import re
 from typing import Annotated
 
@@ -23,6 +25,9 @@ LABEL_REGEX = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE)
 # Optional: SRV and internal records sometimes require underscores.
 LABEL_WITH_UNDERSCORE_REGEX = re.compile(r"^[a-z0-9_]([a-z0-9-_]{0,61}[a-z0-9_])?$", re.IGNORECASE)
 
+# RFC 1035 total length limit for a domain name, in characters.
+MAX_DOMAIN_LENGTH = 253
+
 
 def validate_domain_syntax(
     value: str,
@@ -32,6 +37,22 @@ def validate_domain_syntax(
     allow_wildcard: bool = False,
     allow_underscore: bool = False,
 ) -> str:
+    """Validate a domain name and return its lowercase normalized representation.
+
+    Args:
+        value: the domain name to validate.
+        min_labels: minimum number of labels the domain must have.
+        allow_numeric_tld: whether a purely numeric top-level domain is allowed.
+        allow_wildcard: whether a leading ``*`` wildcard label is allowed.
+        allow_underscore: whether underscores are allowed in non-TLD labels.
+
+    Returns:
+        The normalized, lowercase domain name.
+
+    Raises:
+        TypeError: if ``value`` is not a string.
+        ValueError: if the domain name is not syntactically valid.
+    """
     if not isinstance(value, str):
         msg = "Domain name must be a string"
         raise TypeError(msg)
@@ -54,8 +75,8 @@ def validate_domain_syntax(
         raise ValueError(msg_1) from e
 
     # 4. Enforce RFC 1035 total length limit (253 characters)
-    if len(ascii_value) > 253:
-        msg_2 = "Domain name exceeds maximum length of 253 characters"
+    if len(ascii_value) > MAX_DOMAIN_LENGTH:
+        msg_2 = f"Domain name exceeds maximum length of {MAX_DOMAIN_LENGTH} characters"
         raise ValueError(msg_2)
 
     labels = ascii_value.split(".")

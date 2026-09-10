@@ -258,8 +258,8 @@ def get_ip_address(**kwargs):
 
 def delete_from_netbox(endpoint, **kwargs) -> None:
     """Try to delete object with given kwargs from endpoint, raise an exception when object was not found."""
-    if object := endpoint.get(**kwargs):
-        object.delete()
+    if obj := endpoint.get(**kwargs):
+        obj.delete()
     else:
         msg = f"object not found on {endpoint.name} endpoint"
         raise ValueError(msg)
@@ -411,13 +411,13 @@ def _create_object(payload: NetboxPayload, endpoint: Endpoint) -> int:
         RequestError: the pynetbox exception that was raised.
     """
     try:
-        object = endpoint.create(payload.dict())
+        obj = endpoint.create(payload.dict())
     except RequestError as exc:
         logger.warning("Netbox create failed", payload=payload, exc=str(exc))
         msg = f"invalid NetboxPayload: {exc.message}"
         raise ValueError(msg) from exc
     else:
-        return object.id
+        return obj.id
 
 
 @create.register
@@ -496,12 +496,12 @@ def update(payload: NetboxPayload, **kwargs: Any) -> bool:  # noqa: ARG001
     return single_dispatch_base(update, payload)
 
 
-def _update_object(payload: NetboxPayload, id: int, endpoint: Endpoint) -> bool:
+def _update_object(payload: NetboxPayload, object_id: int, endpoint: Endpoint) -> bool:
     """Create or update an object in Netbox.
 
     Args:
         payload: values to create or update object
-        id: ID of object to be updated
+        object_id: ID of object to be updated
         endpoint: a Netbox Endpoint
 
     Returns:
@@ -510,11 +510,11 @@ def _update_object(payload: NetboxPayload, id: int, endpoint: Endpoint) -> bool:
     Raises:
         ValueError: If the object with the given ID does not exist in Netbox.
     """
-    if not (object := endpoint.get(id)):
-        msg = f"Netbox object with id {id} on netbox {endpoint.name} endpoint not found"
+    if not (obj := endpoint.get(object_id)):
+        msg = f"Netbox object with id {object_id} on netbox {endpoint.name} endpoint not found"
         raise ValueError(msg)
-    object.update(payload.dict())
-    return object.save()
+    obj.update(payload.dict())
+    return obj.save()
 
 
 @update.register

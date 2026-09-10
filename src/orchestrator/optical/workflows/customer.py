@@ -103,7 +103,10 @@ def customer_choice_selector(include: UUIDstr | None = None) -> type[Choice]:
         raise TypeError(msg)
 
     if include is not None:
-        options = [(member.value, (member.value, member.label)) for member in choice.__members__.values()]
+        # ``__members__`` is present on the dynamically-created Enum subclass but not visible
+        # through ``type[Choice]`` to the type checker.
+        members = choice.__members__  # pyrefly: ignore[missing-attribute]
+        options = [(member.value, (member.value, member.label)) for member in members.values()]
         if include not in {value for value, _ in options}:
             options.append((include, (include, "current customer")))
             choice = cast(type[Choice], Choice(choice.__name__, options))

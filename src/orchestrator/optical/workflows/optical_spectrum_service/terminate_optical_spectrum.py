@@ -1,6 +1,7 @@
 """Terminate Optical Spectrum Service Workflow."""
 
 from collections.abc import Sequence
+from typing import cast
 
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
@@ -10,9 +11,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.spectrum import delete_optical_circuit
 from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
-from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
-    update_used_passbands_step,
-)
+from orchestrator.optical.workflows.optical_spectrum_service.shared import update_used_passbands
 
 
 def terminate_initial_input_form_generator(
@@ -27,9 +26,11 @@ def terminate_initial_input_form_generator(
         customer_id: The identifier of the subscription customer (kept for the WFO form signature).
         extra_form_pages: Additional form pages shown after the shipped confirmation page.
     """
+    # Alias is required: a class body cannot reference a same-named enclosing parameter.
+    temp_subscription_id = subscription_id
 
     class TerminateOpticalSpectrumForm(FormPage):
-        subscription_id: DisplaySubscription = subscription_id  # type: ignore[valid-type]
+        subscription_id: DisplaySubscription = cast(DisplaySubscription, temp_subscription_id)
 
     user_input = yield TerminateOpticalSpectrumForm
     user_input_dict = user_input.model_dump()
@@ -50,19 +51,25 @@ def delete_optical_sections(subscription: OpticalSpectrum) -> State:
     results = {}
     for section in spectrum.optical_spectrum_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[(src_node.management.optical_module_node_vendor, src_node.management.optical_module_node_platform)] = (
-            delete_optical_circuit(
-                src_node,
-                section,
-                spectrum_name,
-                passband,
-                circuit_identifier=circuit_identifier,
-            )
+        results[src_node.management.optical_module_node_fqdn] = delete_optical_circuit(
+            src_node,
+            section,
+            spectrum_name,
+            passband,
+            circuit_identifier=circuit_identifier,
         )
 
     return {
         "configuration_results": results,
     }
+
+
+@step("Updating the available passbands of any Open Line System port in the path")
+def update_used_passbands_step(subscription: OpticalSpectrum) -> State:
+    """Refresh the used passbands of the Open Line System ports in the path from the devices."""
+    update_used_passbands(subscription.optical_spectrum_service)
+
+    return {"subscription": subscription}
 
 
 @terminate_workflow(initial_input_form=terminate_initial_input_form_generator)

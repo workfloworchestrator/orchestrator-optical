@@ -43,11 +43,13 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
 )
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalOlsPortBlockInactive,
     AbstractOpticalPortBlockInactive,
 )
+from orchestrator.optical.products.product_blocks.optical_port.unions import SpanPortBlock
 from orchestrator.optical.products.product_blocks.optical_spectrum import (
     OpticalSpectrumBlockInactive,
     OpticalSpectrumBlockProvisioning,
@@ -75,6 +77,9 @@ Port = UUIDstr
 Edge = tuple[Port, Port]
 NeighborConnection = tuple[Node, Edge]
 Graph = dict[Node, list[NeighborConnection]]  # {node_id: [(neighbor_id, (port_a_id, port_b_id)), ...]}
+# Same as ``NeighborConnection`` but for graphs whose edges carry the loaded port blocks
+# rather than their subscription instance ids (see ``find_constrained_shortest_path``).
+BlockNeighborConnection = tuple[Node, tuple[SpanPortBlock, SpanPortBlock]]
 Path = list[Port]  # list of ``AbstractOpticalOlsPortBlockInactive.subscription_instance_id``
 
 
@@ -175,7 +180,7 @@ def find_constrained_shortest_path(
     sifted_fibers = list(filter(does_fiber_pass_exclusion, active_fibers))
 
     # convert the fibers into an adjacency list
-    graph: dict[Node, list[NeighborConnection]] = {}
+    graph: dict[Node, list[BlockNeighborConnection]] = {}
     for fiber in sifted_fibers:
         a_port = fiber.optical_pipe_terminations[0]
         z_port = fiber.optical_pipe_terminations[1]
@@ -542,7 +547,7 @@ def compute_all_shortest_paths(graph: Graph, src: Node, dst: Node) -> list[Path]
 def human_readable_optical_spectrum_path_selector(
     paths: list[Path],
     prompt: str = "Select an optical path.",
-) -> Choice:
+) -> type[Choice]:
     """Convert paths to string representations for the choice options."""
     paths_dict = {}
     for path in paths:
@@ -567,13 +572,13 @@ def human_readable_optical_spectrum_path_selector(
         path_subscription_ids = ";".join(str(port_id) for port_id in path)
         paths_dict[path_subscription_ids] = human_readable_path
 
-    return Choice(prompt, zip(paths_dict.keys(), paths_dict.items(), strict=False))
+    return cast(type[Choice], Choice(prompt, zip(paths_dict.keys(), paths_dict.items(), strict=False)))
 
 
 def human_readable_transport_channel_path_selector(
     paths: list[Path],
     prompt: str = "Select an optical path.",
-) -> Choice:
+) -> type[Choice]:
     """Convert paths to string representations for the choice options."""
     paths_dict = {}
     for path in paths:
@@ -596,7 +601,7 @@ def human_readable_transport_channel_path_selector(
         path_subscription_ids = ";".join(str(port_id) for port_id in path)
         paths_dict[path_subscription_ids] = human_readable_path
 
-    return Choice(prompt, zip(paths_dict.keys(), paths_dict.items(), strict=False))
+    return cast(type[Choice], Choice(prompt, zip(paths_dict.keys(), paths_dict.items(), strict=False)))
 
 
 def transport_channel_path_selector(
@@ -606,7 +611,7 @@ def transport_channel_path_selector(
     exclude_node_sub_ids: list[UUIDstr] | None = None,
     exclude_span_sub_ids: list[UUIDstr] | None = None,
     prompt: str = "Select an optical path.",
-) -> Choice:
+) -> type[Choice]:
     """Select an optical path between two transceiver port blocks based on the given parameters.
 
     The selected path MUST then be parsed using ``path.split(";")`` to obtain the sequence
@@ -641,7 +646,7 @@ def optical_spectrum_path_selector(
     exclude_node_sub_ids: list[UUIDstr] | None = None,
     exclude_span_sub_ids: list[UUIDstr] | None = None,
     prompt: str = "Select an optical path.",
-) -> Choice:
+) -> type[Choice]:
     """Select an optical path between two optical devices based on the given parameters.
 
     The selected path MUST then be parsed using ``path.split(";")`` to obtain the sequence
@@ -829,10 +834,13 @@ def multiple_optical_node_selector(
     dynamic_class: type[list[Choice]] = choice_list(
         base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items
     )
-    return Annotated[
-        dynamic_class,
-        Field(title=prompt),
-    ]  # type: ignore[valid-type]
+    return cast(
+        type[list[Choice]],
+        Annotated[
+            dynamic_class,
+            Field(title=prompt),
+        ],
+    )
 
 
 def transceiver_mode_selector(
@@ -852,7 +860,8 @@ def transceiver_mode_selector(
         A Choice class containing the prompt and a list of available transceiver modes.
     """
     subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
-    modulations = retrieve_transceiver_modes(subscription.optical_node, port_name)
+    node_block = cast(AnyOpticalNodeBlockProvisioningUnion, subscription.optical_node)
+    modulations = retrieve_transceiver_modes(node_block, port_name)
     if not prompt:
         prompt = "Select a modulation"
     dynamic_class = Choice(prompt, zip(modulations, modulations, strict=False))

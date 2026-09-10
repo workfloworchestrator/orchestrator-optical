@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Helpers for custom singledispatch-based generic functions."""
 
 from collections.abc import Callable
 from itertools import filterfalse
@@ -18,11 +19,19 @@ from typing import Any, NoReturn
 
 
 def single_dispatch_base(func: Callable, value: Any) -> NoReturn:
-    registry = func.registry  # type: ignore
+    """Raise a TypeError describing the unsupported value type for a generic function.
+
+    Args:
+        func: the singledispatch generic function that was called.
+        value: the value whose type is not registered.
+
+    Raises:
+        TypeError: always, listing the registered model types.
+    """
+    registry = func.registry  # type: ignore  # noqa: PGH003
 
     supported_models = ", ".join(map(str, filterfalse(lambda t: t is object, registry.keys())))
     model_type = type(value)
-    raise TypeError(
-        f"`{func.__name__}` called for unsupported model type {model_type}. "
-        f"Supported model types are: {supported_models}"
-    )
+    func_name = getattr(func, "__name__", repr(func))
+    msg = f"`{func_name}` called for unsupported model type {model_type}. Supported model types are: {supported_models}"
+    raise TypeError(msg)

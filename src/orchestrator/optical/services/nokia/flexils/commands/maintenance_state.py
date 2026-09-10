@@ -236,20 +236,20 @@ class IntoAdminMaintenance(TL1BaseCommand):
         result = [f"{self.actual_verb}-{self.aidtype}"]
 
         # Process each parameter section
-        for section in sections[1:]:
-            if not section.strip():
+        for raw_section in sections[1:]:
+            if not raw_section.strip():
                 result.append("")
                 continue
 
-            section = section.replace(",]", "],")
+            section = raw_section.replace(",]", "],")
             section = section.replace("[,", ",[")
 
             params = []
             section_parts = section.split(",")
 
-            for part in section_parts:
-                is_optional = part.startswith("[") and part.endswith("]")
-                part = part.strip("[]<>")
+            for raw_part in section_parts:
+                is_optional = raw_part.startswith("[") and raw_part.endswith("]")
+                part = raw_part.strip("[]<>")
                 if not part:
                     continue
 
@@ -486,20 +486,20 @@ class OutofAdminMaintenance(TL1BaseCommand):
         result = [f"{self.verb}-{self.aidtype}"]
 
         # Process each parameter section
-        for section in sections[1:]:
-            if not section.strip():
+        for raw_section in sections[1:]:
+            if not raw_section.strip():
                 result.append("")
                 continue
 
-            section = section.replace(",]", "],")
+            section = raw_section.replace(",]", "],")
             section = section.replace("[,", ",[")
 
             params = []
             section_parts = section.split(",")
 
-            for part in section_parts:
-                is_optional = part.startswith("[") and part.endswith("]")
-                part = part.strip("[]<>")
+            for raw_part in section_parts:
+                is_optional = raw_part.startswith("[") and raw_part.endswith("]")
+                part = raw_part.strip("[]<>")
                 if not part:
                     continue
 

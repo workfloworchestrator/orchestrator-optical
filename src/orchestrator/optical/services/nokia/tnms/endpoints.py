@@ -13,7 +13,7 @@
 
 from copy import deepcopy
 from time import sleep
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from orchestrator.optical.services.nokia.tnms.exceptions import ApiError
 
@@ -37,7 +37,7 @@ class Endpoint:
 
     def _resolve_path(self) -> str:
         """Resolve the actual RESTCONF path"""
-        return "/".join([self._parent_path, self._current_path])
+        return f"{self._parent_path}/{self._current_path}"
 
     def __call__(self, uuid: str | None = None) -> "Endpoint":
         """Allow for resource instance access like .devices(uuid)"""
@@ -83,7 +83,7 @@ class Endpoint:
 
 
 class Data(Endpoint):
-    RESOURCES = {
+    RESOURCES: ClassVar[dict[str, str]] = {
         "equipment": "tapi-equipment:physical-context",
         "topology": "tapi-topology:topology-context",
         "connectivity": "tapi-connectivity:connectivity-context",

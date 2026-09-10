@@ -140,7 +140,10 @@ def trx_line_port_patched_but_not_used_multiple_selector(
         A Choice list type for selecting multiple line ports.
     """
     base_choice = trx_line_port_patched_but_not_used_selector(optical_node_subscription_id, client_port_name, prompt)
-    return Annotated[
-        choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items),
-        Field(title=prompt),
-    ]  # type: ignore[valid-type]
+    return cast(
+        type[list[Choice]],
+        Annotated[
+            choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items),
+            Field(title=prompt),
+        ],
+    )

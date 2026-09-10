@@ -42,7 +42,7 @@ def terminate_initial_input_form_generator(
     temp_subscription_id = subscription_id
 
     class TerminateOpticalDigitalServiceForm(FormPage):
-        subscription_id: DisplaySubscription = temp_subscription_id  # type: ignore[valid-type]
+        subscription_id: DisplaySubscription = cast(DisplaySubscription, temp_subscription_id)
 
     user_input = yield TerminateOpticalDigitalServiceForm
     user_input_dict = user_input.model_dump()

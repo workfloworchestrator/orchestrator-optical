@@ -7,3 +7,5 @@ env/
 *.pyc
 dist/
 .coverage
+coverage.json
+coverage.xml

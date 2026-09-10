@@ -22,7 +22,7 @@ class FlexilsClient:
     _cache: ClassVar[dict[tuple[str, str], "FlexilsClient"]] = {}
 
     @classmethod
-    def get_instance(  # noqa: D102
+    def get_instance(
         cls,
         tid: str,
         gne_ip: str,
@@ -37,7 +37,7 @@ class FlexilsClient:
         return cls._cache[key]
 
     @classmethod
-    def close_all(cls):  # noqa: D102
+    def close_all(cls):
         for client in list(cls._cache.values()):
             client.close()
         cls._cache.clear()
@@ -199,7 +199,8 @@ class FlexilsClient:
             chunk = self._channel.recv(4096)
             if not chunk:
                 # Connection closed remotely
-                raise EOFError("Socket closed during read")
+                msg = "Socket closed during read"
+                raise EOFError(msg)
 
             buffer += chunk
 
@@ -283,5 +284,5 @@ class FlexilsClient:
         """Context manager exit, ensures connection closure."""
         self.close()
 
-    def __del__(self):  # noqa: D105
+    def __del__(self):
         self.close()

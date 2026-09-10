@@ -1,7 +1,7 @@
 """Create Optical Spectrum Service Workflow."""
 
 from collections.abc import Sequence
-from typing import Annotated
+from typing import Annotated, cast
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -195,11 +195,14 @@ def initial_input_form_generator(
             exclude_fibers_list=user_input_dict["exclude_fibers_list"],
         )
 
-        PathChoice = Choice(  # noqa: N806
-            no_path_found_msg,
-            [
-                (no_path_found_msg, no_path_found_msg),
-            ],
+        PathChoice = cast(  # noqa: N806
+            type[Choice],
+            Choice(
+                no_path_found_msg,
+                [
+                    (no_path_found_msg, no_path_found_msg),
+                ],
+            ),
         )
 
     class OpticalSpectrumPathForm(FormPage):
@@ -363,16 +366,14 @@ def provision_optical_sections(subscription: OpticalSpectrumProvisioning) -> Sta
     results = {}
     for section in spectrum.optical_spectrum_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[(src_node.management.optical_module_node_vendor, src_node.management.optical_module_node_platform)] = (
-            deploy_optical_circuit(
-                src_node,
-                section,
-                spectrum_name,
-                passband,
-                carrier,
-                label=spectrum_name,
-                circuit_identifier=circuit_identifier,
-            )
+        results[src_node.management.optical_module_node_fqdn] = deploy_optical_circuit(
+            src_node,
+            section,
+            spectrum_name,
+            passband,
+            carrier,
+            label=spectrum_name,
+            circuit_identifier=circuit_identifier,
         )
 
     return {

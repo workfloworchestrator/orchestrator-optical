@@ -18,8 +18,6 @@ from orchestrator.optical.services.nokia.flexils.commands.base import TL1BaseCom
 
 class ToponodeResponse(TL1BaseResponse):
     def rename_positional_params(self, parsed_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        for record in parsed_data:
-            pass
         return parsed_data
 
 

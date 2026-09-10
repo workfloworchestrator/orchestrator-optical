@@ -69,10 +69,8 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,
     set_optical_pipe_subscription_description,
 )
-
-
-def _step_functions(steps):
-    return [cast(Any, step).__wrapped__ for step in steps]
+from test.support.core_api import step_functions
+from test.support.forms import finish_form
 
 
 def _fake_customer_choice(include: str | None = None) -> type[Choice]:
@@ -133,13 +131,6 @@ def _make_span_block(optical_pipe_name: str | None = None) -> OpticalFiberSpanBl
     )
 
 
-def _finish_form(generator, page_instance: FormPage) -> dict[str, Any]:
-    """Send the last user input and return the return value of the form generator."""
-    with pytest.raises(StopIteration) as exc_info:
-        generator.send(page_instance)
-    return exc_info.value.value
-
-
 def test_pipe_block_state_key_matches_the_documented_contract() -> None:
     """The state key literal matches the value documented in the README state-contract table."""
     assert OPTICAL_MODULE_BLOCK_STATE_KEY == "optical_module_block"
@@ -168,7 +159,7 @@ def test_form_generators_are_hook_free(form_generator) -> None:
 
 def test_block_steps_consume_the_block_state_key() -> None:
     """The shared save/update block steps take the pipe block under the state key."""
-    for step_func in _step_functions(CREATE_FIBER_SPAN_BLOCK_STEPS + MODIFY_FIBER_SPAN_BLOCK_STEPS):
+    for step_func in step_functions(CREATE_FIBER_SPAN_BLOCK_STEPS + MODIFY_FIBER_SPAN_BLOCK_STEPS):
         signature = inspect.signature(step_func)
         assert OPTICAL_MODULE_BLOCK_STATE_KEY in signature.parameters
 
@@ -187,7 +178,7 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None
     assert issubclass(page_2, FormPage)
     assert set(page_2.model_fields) == {"optical_pipe_name", "port_a_name", "port_b_name"}
 
-    user_input = _finish_form(
+    user_input = finish_form(
         generator,
         page_2(optical_pipe_name="span-01", port_a_name="port-a-1", port_b_name="port-b-1"),
     )
@@ -214,7 +205,7 @@ def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) ->
     customer_page = next(generator)
     page_1 = generator.send(customer_page(customer_id="cust-1"))
     page_2 = generator.send(page_1(node_a_id="node-a", node_b_id="node-b"))
-    user_input = _finish_form(
+    user_input = finish_form(
         generator,
         page_2(optical_pipe_name="span-01", port_a_name="port-a-1", port_b_name="port-b-1"),
     )
@@ -241,7 +232,7 @@ def test_modify_form_pages_yield_the_prefilled_page() -> None:
     assert set(page.model_fields) == {"optical_pipe_name"}
     assert page.model_fields["optical_pipe_name"].default == "span-01"
 
-    user_input = _finish_form(generator, page(optical_pipe_name="span-02"))
+    user_input = finish_form(generator, page(optical_pipe_name="span-02"))
     assert user_input["optical_pipe_name"] == "span-02"
 
 

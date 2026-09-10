@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from time import sleep
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field, model_validator
@@ -147,7 +147,7 @@ def initial_input_form_generator(
         optical_digital_service_name: Annotated[str, Field(title="Optical Digital Service name")]
         optical_digital_service_speed: speed_choice = OpticalDigitalServiceSpeed._100  # noqa: SLF001
         optical_digital_service_type: service_type_choice = OpticalDigitalServiceType.ETHERNET
-        num_carriers: num_carrier_choice = 1
+        num_carriers: num_carrier_choice = cast(Any, 1)
         id_node_a: node_a_choice
         id_node_b: node_b_choice
 
@@ -303,11 +303,14 @@ def initial_input_form_generator(
             exclude_fibers_list=user_input_dict["exclude_fibers_list"],
         )
 
-        PathChoice = Choice(  # noqa: N806
-            no_path_found_msg,
-            [
-                (no_path_found_msg, no_path_found_msg),
-            ],
+        PathChoice = cast(  # noqa: N806
+            type[Choice],
+            Choice(
+                no_path_found_msg,
+                [
+                    (no_path_found_msg, no_path_found_msg),
+                ],
+            ),
         )
 
     class OdsForm3(FormPage):
@@ -671,7 +674,7 @@ def set_trx_transmitted_power(
 ) -> State:
     """Align the transmitted optical power of the transceivers to the line system target."""
     ods = subscription.optical_digital_service
-    results = {}
+    results: dict[str, Any] = {}
 
     for channel in ods.optical_digital_service_transport_channels:
         line_ports = channel.optical_transport_line_ports

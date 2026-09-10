@@ -12,7 +12,7 @@ their own terminate form generator by yielding from the shipped page sequence
 in one line.
 """
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -52,7 +52,7 @@ def terminate_fiber_span_form(subscription_id: UUIDstr) -> type[FormPage]:
 
     class TerminateFiberSpanForm(FormPage):
         warning: WarningField
-        subscription_id: DisplaySubscription = temp_subscription_id  # type: ignore[assignment]
+        subscription_id: DisplaySubscription = cast(DisplaySubscription, temp_subscription_id)
 
         @model_validator(mode="after")
         def validate_confirmation(self) -> "TerminateFiberSpanForm":

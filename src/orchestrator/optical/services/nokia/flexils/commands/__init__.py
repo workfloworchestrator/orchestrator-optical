@@ -44,7 +44,7 @@ __all__ = []
 for module in modules:
     imported = importlib.import_module(f".{module}", __package__)
     if hasattr(imported, "__all__"):
-        __all__.extend(imported.__all__)
+        __all__ += imported.__all__
     else:
         # If module doesn't define __all__, add all non-underscore names
-        __all__.extend([name for name in dir(imported) if not name.startswith("_")])
+        __all__ += [name for name in dir(imported) if not name.startswith("_")]

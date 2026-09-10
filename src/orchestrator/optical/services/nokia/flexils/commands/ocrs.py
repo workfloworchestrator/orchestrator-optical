@@ -10,7 +10,6 @@ class OcrsResponse(TL1BaseResponse):
             record["TOAID"] = record.pop("positional_param_0_1")
             record["CrossConnectType"] = record.pop("positional_param_1_0")
             record["OPERSTATE"] = record.pop("positional_param_3_0")
-            # record["SUBOPERSTATE"] = record.pop("positional_param_3_1")
         return parsed_data
 
 

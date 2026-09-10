@@ -156,10 +156,10 @@ def _retrieve_payload_type(g42: G42Client, client_port_name: str) -> Literal["10
         msg = f"Unable to retrieve payload type for {g42.url} {client_port_name}"
         raise ValueError(msg)
 
-    match payload_type:
-        case ServiceTypeEnum("100GBE"):
+    match payload_type.value:
+        case "100GBE":
             return "100GBE"
-        case ServiceTypeEnum("400GBE"):
+        case "400GBE":
             return "400GBE"
     msg = f"Invalid payload type '{payload_type}' for {g42.url} {client_port_name}. Expected '100GBE' or '400GBE'."
     raise ValueError(msg)

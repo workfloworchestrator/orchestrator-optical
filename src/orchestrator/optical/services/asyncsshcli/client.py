@@ -202,10 +202,12 @@ class AsyncSshTerminal:
                 value was supplied.
         """
         if not self.process:
-            raise RuntimeError("Session not started. Use 'async with' context.")
+            msg = "Session not started. Use 'async with' context."
+            raise RuntimeError(msg)
 
         if password_prompt is not None and password is None:
-            raise ValueError("If password_prompt is provided, password must also be provided.")
+            msg = "If password_prompt is provided, password must also be provided."
+            raise ValueError(msg)
 
         logger.info("Executing command: %s", command)
         self.process.stdin.write(f"{command}\n")
@@ -258,10 +260,12 @@ class AsyncSshTerminal:
                         ``prompt_answer`` is supplied.
         """
         if not self.process:
-            raise RuntimeError("Session not started. Use 'async with' context.")
+            msg = "Session not started. Use 'async with' context."
+            raise RuntimeError(msg)
 
         if interactive_prompt is not None and prompt_answer is None:
-            raise ValueError("If interactive_prompt is provided, prompt_answer must also be provided.")
+            msg = "If interactive_prompt is provided, prompt_answer must also be provided."
+            raise ValueError(msg)
 
         marker = str(uuid4())
         marker_end_messages = [template.substitute(command=marker) for template in self.end_markers]

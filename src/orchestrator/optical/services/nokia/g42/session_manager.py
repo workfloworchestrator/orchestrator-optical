@@ -15,13 +15,13 @@ log.addHandler(logging.NullHandler())
 
 
 class TCPKeepAliveAdapter(HTTPAdapter):
-    def __init__(self, idle=60, interval=60, count=6, **kwargs):  # noqa: D107
+    def __init__(self, idle=60, interval=60, count=6, **kwargs):
         self._idle = idle
         self._interval = interval
         self._count = count
         super().__init__(**kwargs)
 
-    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):  # noqa: D102, FBT002
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):  # noqa: FBT002
         pool_kwargs["socket_options"] = self._socket_options()
         self.poolmanager = PoolManager(
             num_pools=connections,
@@ -30,7 +30,7 @@ class TCPKeepAliveAdapter(HTTPAdapter):
             **pool_kwargs,
         )
 
-    def proxy_manager_for(self, proxy, **proxy_kwargs):  # noqa: D102
+    def proxy_manager_for(self, proxy, **proxy_kwargs):
         proxy_kwargs["socket_options"] = self._socket_options()
         return super().proxy_manager_for(proxy, **proxy_kwargs)
 
@@ -52,7 +52,7 @@ class TCPKeepAliveAdapter(HTTPAdapter):
 class RestconfClient:
     """Restconf API client."""
 
-    def __init__(  # noqa: D107
+    def __init__(
         self,
         loopback_ip: str | None = None,
         management_ip: str | None = None,
@@ -70,7 +70,8 @@ class RestconfClient:
             self.urls.append(f"https://{management_ip}:{port}/restconf")
 
         if not self.urls:
-            raise ValueError("Either loopback_ip or management_ip must be provided")
+            msg = "Either loopback_ip or management_ip must be provided"
+            raise ValueError(msg)
 
         self._session = requests.Session()
 
@@ -86,7 +87,8 @@ class RestconfClient:
         user = username or settings.g42_user
         pw = password or settings.g42_password
         if not user or not pw:
-            raise UserWarning("Authentication credentials missing. Set OPTICAL_G42_USER and OPTICAL_G42_PASSWORD.")
+            msg = "Authentication credentials missing. Set OPTICAL_G42_USER and OPTICAL_G42_PASSWORD."
+            raise UserWarning(msg)
         self._session.auth = (user, pw)
 
         from .data_navigators import Data, Operations  # noqa: PLC0415, TID252

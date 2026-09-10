@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - "**.md"
+      - "todo/**"
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "todo/**"
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-groups
+      - run: make lint
+      - run: make typecheck
+
+  test-fast:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --all-groups
+      - run: uv run pytest -m "not db" --cov=orchestrator.optical --cov-report=json:coverage.json
+      - run: uv run python scripts/coverage_ratchet.py
+
+  test-integration:
+    needs: test-fast
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: orchestrator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-groups
+      - run: uv run pytest -m "db or not db" --cov=orchestrator.optical --cov-report=xml:coverage.xml
+        env:
+          OPTICAL_TEST_PG_URL: postgresql+psycopg://postgres:postgres@localhost:5432/orchestrator
+      # Ratchet: raise this threshold as patch coverage improves, never lower it.
+      # Kept as a real gate (not continue-on-error): measured patch coverage on this
+      # in-progress branch is ~56-67%, so 50 passes now with headroom.
+      - run: uv run diff-cover coverage.xml --compare-branch=origin/main --fail-under=50
+
+  core-latest:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-groups
+      - run: uv pip install -U orchestrator-core
+      - run: uv run pytest -m "not db"

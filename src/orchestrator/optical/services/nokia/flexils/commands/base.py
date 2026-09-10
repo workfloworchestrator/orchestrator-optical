@@ -27,7 +27,7 @@ T = TypeVar("T", bound="TL1BaseResponse")
 
 
 class TL1CommandRegistry:
-    commands: dict[str, type["TL1BaseCommand"]] = {}
+    commands: ClassVar[dict[str, type["TL1BaseCommand"]]] = {}
 
     @classmethod
     def register(cls, command_class: type["TL1BaseCommand"]) -> None:
@@ -69,7 +69,8 @@ class TL1BaseResponse(BaseModel):
         """Parse a raw TL1 response into a structured response object."""
         index = message.rfind(tag)
         if index == -1:
-            raise ValueError(f"Could not find tag {tag} in message: {message}")
+            msg = f"Could not find tag {tag} in message: {message}"
+            raise ValueError(msg)
         match = re.match(r"\s*(\w+)", message[index + len(tag) :])
         status = match.group(1)
 
@@ -99,8 +100,8 @@ class TL1BaseResponse(BaseModel):
             parts.append("".join(current))
             return parts
 
-        for line in lines[1:]:
-            line = line.strip(" ;")
+        for raw_line in lines[1:]:
+            line = raw_line.strip(" ;")
             if not line or line[0] != '"':  # Skip lines that don't start with a quote
                 continue
             line = line.strip('"')
@@ -168,20 +169,20 @@ class TL1BaseCommand(BaseModel, metaclass=TL1CommandMeta):
         result = [f"{self.verb}-{self.modifier}"]
 
         # Process each parameter section
-        for section in sections[1:]:
-            if not section.strip():
+        for raw_section in sections[1:]:
+            if not raw_section.strip():
                 result.append("")
                 continue
 
-            section = section.replace(",]", "],")
+            section = raw_section.replace(",]", "],")
             section = section.replace("[,", ",[")
 
             params = []
             section_parts = section.split(",")
 
-            for part in section_parts:
-                is_optional = part.startswith("[") and part.endswith("]")
-                part = part.strip("[]<>")
+            for raw_part in section_parts:
+                is_optional = raw_part.startswith("[") and raw_part.endswith("]")
+                part = raw_part.strip("[]<>")
                 if not part:
                     continue
 
@@ -191,8 +192,8 @@ class TL1BaseCommand(BaseModel, metaclass=TL1CommandMeta):
                     key = name.lower().replace("-", "_")
                     value = getattr(self, key, None)
                     if value is not None:
-                        if isinstance(value, (list, tuple)):
-                            if isinstance(value[0], (list, tuple)):
+                        if isinstance(value, list | tuple):
+                            if isinstance(value[0], list | tuple):
                                 # Handle list of tuples/lists - join tuples with '&-'
                                 value = "&-".join(["&".join(str(item) for item in v) for v in value])
                             else:

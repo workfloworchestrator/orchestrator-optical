@@ -496,7 +496,7 @@ def multiple_optical_pipe_selector(
     """Selector for multiple optical pipe subscriptions."""
     base_choice = optical_pipe_selector(product_type, prompt)
     dynamic_class = choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items)
-    return Annotated[dynamic_class, Field(title=prompt)]  # type: ignore[valid-type]
+    return cast(type[list[Choice]], Annotated[dynamic_class, Field(title=prompt)])
 
 
 def optical_node_selector(

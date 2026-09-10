@@ -106,6 +106,7 @@ def compare_jsons(
 
 
 def anydump(model):
+    """Dump a pydantic model (or list of models) to a dict, excluding unset fields."""
     if model is None:
         return {}
     if isinstance(model, list):
@@ -116,6 +117,7 @@ def anydump(model):
 def compare_pydantic_objects(
     expected: Any, actual: Any, unique_id_keys: list[str] | Literal["default"] | None = "default"
 ) -> DiffResult:
+    """Compare two pydantic objects by dumping them and delegating to :func:`compare_jsons`."""
     return compare_jsons(
         anydump(expected),
         anydump(actual),

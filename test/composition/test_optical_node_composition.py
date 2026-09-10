@@ -13,8 +13,6 @@ from typing import Any, cast, get_args
 
 import pytest
 
-from orchestrator.core.domain.base import ProductBlockModel, SubscriptionModel
-from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.utils.state import inject_args
 from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
@@ -52,47 +50,15 @@ from orchestrator.optical.workflows.optical_node.shared.modify import load_optic
 from orchestrator.optical.workflows.optical_node.shared.retrieve import (
     retrieve_optical_node_role_and_software_version,
 )
-
-
-class RouterBlockInactive(ProductBlockModel, product_block_name="TestRouterBlock"):
-    """Consumer-style product block with a has-a relation to the shipped Nokia FlexILS block."""
-
-    for_the_optical_module: NokiaFlexIlsBlockInactive
-
-
-class RouterBlockProvisioning(RouterBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    """The provisioning variant of the consumer-style block."""
-
-    # pyrefly: ignore [bad-override-mutable-attribute]  # noqa: ERA001
-    for_the_optical_module: NokiaFlexIlsBlockProvisioning
-
-
-class RouterBlock(RouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    """The active variant of the consumer-style block."""
-
-    # pyrefly: ignore [bad-override-mutable-attribute]  # noqa: ERA001
-    for_the_optical_module: NokiaFlexIlsBlock
-
-
-class AbstractRouterInactive(SubscriptionModel):
-    """Abstract consumer-style subscription model composing the block."""
-
-    router: RouterBlockInactive
-
-
-class AbstractRouterProvisioning(AbstractRouterInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    """The provisioning variant of the consumer-style subscription model."""
-
-    # pyrefly: ignore [bad-override-mutable-attribute]  # noqa: ERA001
-    router: RouterBlockProvisioning
-
-
-class AbstractRouter(AbstractRouterProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    """The active variant of the consumer-style subscription model."""
-
-    # pyrefly: ignore [bad-override-mutable-attribute]  # noqa: ERA001
-    router: RouterBlock
-
+from test.support.core_api import non_product_block_fields, product_block_fields, step_functions, unwrap_step
+from test.support.models import (
+    AbstractNodeRouter,
+    AbstractNodeRouterInactive,
+    AbstractNodeRouterProvisioning,
+    NodeRouterBlock,
+    NodeRouterBlockInactive,
+    NodeRouterBlockProvisioning,
+)
 
 BASE_BLOCK_FIELDS = {"name", "label", "subscription_instance_id", "owner_subscription_id"}
 
@@ -100,17 +66,17 @@ BASE_BLOCK_FIELDS = {"name", "label", "subscription_instance_id", "owner_subscri
 @pytest.mark.parametrize(
     ("chain_class", "expected_field_type"),
     [
-        (RouterBlockInactive, NokiaFlexIlsBlockInactive),
-        (RouterBlockProvisioning, NokiaFlexIlsBlockProvisioning),
-        (RouterBlock, NokiaFlexIlsBlock),
+        (NodeRouterBlockInactive, NokiaFlexIlsBlockInactive),
+        (NodeRouterBlockProvisioning, NokiaFlexIlsBlockProvisioning),
+        (NodeRouterBlock, NokiaFlexIlsBlock),
     ],
 )
 def test_composed_block_is_classified_as_product_block_field(chain_class, expected_field_type) -> None:
-    assert chain_class._product_block_fields_ == {"for_the_optical_module": expected_field_type}
-    assert "for_the_optical_module" not in chain_class._non_product_block_fields_
+    assert product_block_fields(chain_class) == {"for_the_optical_module": expected_field_type}
+    assert "for_the_optical_module" not in non_product_block_fields(chain_class)
 
 
-@pytest.mark.parametrize("chain_class", [RouterBlockInactive, RouterBlockProvisioning, RouterBlock])
+@pytest.mark.parametrize("chain_class", [NodeRouterBlockInactive, NodeRouterBlockProvisioning, NodeRouterBlock])
 def test_composed_block_redeclares_every_inherited_field(chain_class) -> None:
     annotations = inspect.get_annotations(chain_class)
     assert set(chain_class.model_fields) - BASE_BLOCK_FIELDS <= set(annotations)
@@ -119,17 +85,13 @@ def test_composed_block_redeclares_every_inherited_field(chain_class) -> None:
 @pytest.mark.parametrize(
     ("chain_class", "expected_field_type"),
     [
-        (AbstractRouterInactive, RouterBlockInactive),
-        (AbstractRouterProvisioning, RouterBlockProvisioning),
-        (AbstractRouter, RouterBlock),
+        (AbstractNodeRouterInactive, NodeRouterBlockInactive),
+        (AbstractNodeRouterProvisioning, NodeRouterBlockProvisioning),
+        (AbstractNodeRouter, NodeRouterBlock),
     ],
 )
 def test_composed_subscription_model_is_classified(chain_class, expected_field_type) -> None:
-    assert chain_class._product_block_fields_ == {"router": expected_field_type}
-
-
-def _step_functions(steps):
-    return [step.__wrapped__ for step in steps]
+    assert product_block_fields(chain_class) == {"router": expected_field_type}
 
 
 @pytest.mark.parametrize(
@@ -150,13 +112,13 @@ def test_shipped_block_step_lists_are_non_empty(steps) -> None:
     [CREATE_NOKIA_FLEXILS_BLOCK_STEPS, MODIFY_NOKIA_FLEXILS_BLOCK_STEPS, VALIDATE_OPTICAL_NODE_BLOCK_STEPS],
 )
 def test_block_steps_consume_the_block_state_key(steps) -> None:
-    for step_func in _step_functions(steps):
+    for step_func in step_functions(steps):
         signature = inspect.signature(step_func)
         assert OPTICAL_MODULE_BLOCK_STATE_KEY in signature.parameters
 
 
 def test_shared_step_lists_are_block_agnostic() -> None:
-    for step_func in _step_functions(OPTICAL_NODE_TERMINATE_STEPS):
+    for step_func in step_functions(OPTICAL_NODE_TERMINATE_STEPS):
         signature = inspect.signature(step_func)
         assert OPTICAL_MODULE_BLOCK_STATE_KEY not in signature.parameters or (
             signature.parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].default is None
@@ -230,6 +192,11 @@ def _make_flexils_block_provisioning() -> NokiaFlexIlsBlockProvisioning:
 
 def test_populate_optical_node_nokia_flexils_block(monkeypatch) -> None:
     monkeypatch.setattr(shared_create, "location_block_from_subscription", _stub_location)
+    monkeypatch.setattr(
+        shared_create,
+        "subscription_instances_by_block_type_and_resource_value",
+        lambda *_args, **_kwargs: [],
+    )
     block = _make_flexils_block()
 
     # Role and software version are written by the block-level discovery step,
@@ -260,7 +227,7 @@ def test_block_steps_take_the_lifecycle_matching_block_variant() -> None:
     """Every shipped node block step consumes the PROVISIONING variant of the block, never the Inactive one."""
     steps = (*CREATE_NOKIA_FLEXILS_BLOCK_STEPS, *MODIFY_NOKIA_FLEXILS_BLOCK_STEPS)
     for step_obj in steps:
-        step_func = _step_functions([step_obj])[0]
+        step_func = step_functions([step_obj])[0]
         annotation = inspect.signature(step_func).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation
         members = get_args(annotation) or (annotation,)
         for member in members:
@@ -279,7 +246,7 @@ def test_retrieve_optical_node_role_and_software_version_writes_to_block(monkeyp
     block = _make_flexils_block_provisioning()
     state = {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
-    wrapped = inject_args(retrieve_optical_node_role_and_software_version.__wrapped__)  # type: ignore[unresolved-attribute]
+    wrapped = inject_args(unwrap_step(retrieve_optical_node_role_and_software_version))
     result = wrapped(dict(state))
 
     assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
@@ -296,7 +263,7 @@ def test_retrieve_optical_node_role_and_software_version_writes_to_block(monkeyp
 )
 def test_load_optical_node_block_fails_fast_when_subscription_has_no_block(subscription) -> None:
     with pytest.raises(ValueError, match="under attribute 'optical_node'") as exc_info:
-        cast(Any, load_optical_node_block).__wrapped__(subscription)
+        unwrap_step(load_optical_node_block)(subscription)
 
     assert "must have-a" in str(exc_info.value)
 
@@ -305,7 +272,7 @@ def test_load_optical_node_block_returns_block_in_state() -> None:
     block = _make_flexils_block()
     subscription = cast(Any, SimpleNamespace(optical_node=block))
 
-    state = cast(Any, load_optical_node_block).__wrapped__(subscription)
+    state = unwrap_step(load_optical_node_block)(subscription)
 
     assert state == {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 

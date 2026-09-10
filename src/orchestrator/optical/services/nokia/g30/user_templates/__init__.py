@@ -35,9 +35,9 @@ from pathlib import Path
 
 # Automatically import all modules in the current directory.
 # This triggers the @TemplateRegistry.register decorators in each file.
-for loader, module_name, is_pkg in pkgutil.iter_modules(__path__):
+for _, module_name, _ in pkgutil.iter_modules(__path__):
     if module_name != "__init__":
         importlib.import_module(f".{module_name}", package=__name__)
 
 # Clean up namespace so only the modules/registry remain if desired
-del pkgutil, importlib, Path, loader, module_name, is_pkg
+del pkgutil, importlib, Path, module_name

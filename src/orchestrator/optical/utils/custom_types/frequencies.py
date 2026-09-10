@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Frequency, bandwidth and passband types plus passband arithmetic helpers."""
+
 import ast
 from typing import Annotated
 
@@ -31,12 +33,14 @@ Bandwidth = Annotated[
 
 
 def parse_if_string(value):
+    """Parse a string value with :func:`ast.literal_eval`, returning other types unchanged."""
     if isinstance(value, str):
         return ast.literal_eval(value)
     return value
 
 
 def validate_passband_order(value: list[Frequency]) -> list[Frequency]:
+    """Validate that the start frequency is lower than the end frequency."""
     if value[0] >= value[1]:
         msg = "Start frequency must be less than end frequency"
         raise ValueError(msg)
@@ -56,10 +60,12 @@ def disjoint_intervals_overlap_search(
     target_interval: tuple[int, int],
 ) -> tuple[int, int] | None:
     """Searches for an overlapping interval in a sorted list of *disjoint* intervals using binary search.
+
     Intervals include the start and do NOT include the end.
 
     Args:
-        intervals (List[Tuple[int, int]]): A sorted list of disjoint intervals, where each interval is a tuple/list (start, end).
+        intervals (List[Tuple[int, int]]): A sorted list of disjoint intervals, where each interval is a tuple/list
+            (start, end).
         target_interval (Tuple[int, int]): The interval to search for overlaps with (start, end).
 
     Returns:
@@ -90,8 +96,9 @@ def available_to_used_passbands(
     absolute_min_freq: Frequency = 191_325_000,
     absolute_max_freq: Frequency = 196_125_000,
 ) -> list[Passband]:
-    """Calculates used frequency passbands within an absolute frequency range,
-    given a list of available (unused) frequency passbands.
+    """Calculate used frequency passbands within an absolute frequency range.
+
+    Given a list of available (unused) frequency passbands, returns the used gaps.
 
     Args:
         available_passbands: A list of Passbands. Assumed to be

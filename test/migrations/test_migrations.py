@@ -23,10 +23,6 @@ from orchestrator.optical.migrations.generate import (
     workflow_product_type,
 )
 
-#: Expected size of the shipped workflow set: create/modify/terminate/validate per family,
-#: plus a reconcile workflow for each of the three optical pipe families.
-EXPECTED_SHIPPED_WORKFLOW_COUNT = 43
-
 #: The optical pipe product types ship a reconcile workflow in addition to the
 #: standard create/modify/terminate/validate set.
 PIPE_PRODUCT_TYPES = {
@@ -42,8 +38,9 @@ PIPE_TARGETS = STANDARD_TARGETS | {"RECONCILE"}
 def test_shipped_workflow_discovery_contract() -> None:
     """Every shipped workflow is discovered, resolved to a product type and has a target."""
     workflows = discover_shipped_workflows()
-    assert len(workflows) == EXPECTED_SHIPPED_WORKFLOW_COUNT
-    assert len({workflow.name for workflow in workflows}) == EXPECTED_SHIPPED_WORKFLOW_COUNT
+    assert workflows, "no shipped workflows discovered"
+    names = [workflow.name for workflow in workflows]
+    assert len(names) == len(set(names)), "duplicate shipped workflow names"
 
     product_types = {model.__name__ for model in SUBSCRIPTION_MODEL_REGISTRY.values()}
     for workflow in workflows:

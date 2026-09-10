@@ -105,12 +105,12 @@ def test_shipped_type_modify_workflow_composition() -> None:
 
 
 def test_consumer_model_modify_workflow_composition() -> None:
-    from test.test_optical_node_composition import AbstractRouter
+    from test.support.models import AbstractNodeRouter
 
     @modify_workflow(
         initial_input_form=partial(
             modify_optical_node_nokia_flexils_form_generator,
-            subscription_model=AbstractRouter,
+            subscription_model=AbstractNodeRouter,
             block_field_name="router",
         )
     )
@@ -135,7 +135,8 @@ def test_terminate_and_validate_shared_step_lists_compose() -> None:
     assert terminate_my_router.name == "terminate_my_router"
     assert validate_my_router.name == "validate_my_router"
     assert "Delete subscription from OSS/BSS" in [step.name for step in terminate_my_router.steps]
-    assert "Refresh Optical Node software version" in [step.name for step in validate_my_router.steps]
+    assert "Retrieve node role and software version" in [step.name for step in validate_my_router.steps]
+    assert "Persist optical module block" in [step.name for step in validate_my_router.steps]
 
 
 def test_terminate_form_pages_yield_the_confirmation_page() -> None:
@@ -200,12 +201,12 @@ def test_shipped_type_coherent_pluggable_modify_workflow_composition() -> None:
 
 
 def test_consumer_model_coherent_pluggable_modify_workflow_composition() -> None:
-    from test.test_optical_coherent_pluggable_composition import AbstractRouter
+    from test.support.models import AbstractCoherentPluggableRouter
 
     @modify_workflow(
         initial_input_form=partial(
             modify_optical_coherent_pluggable_form_generator,
-            subscription_model=AbstractRouter,
+            subscription_model=AbstractCoherentPluggableRouter,
             block_field_name="router",
         )
     )

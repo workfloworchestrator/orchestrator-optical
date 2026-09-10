@@ -16,10 +16,13 @@ function body; dotted field paths express nested writes (``a.b`` means the
 These tests are database-free and fast.
 """
 
+import importlib
 import inspect
+import pkgutil
 
 import pytest
 
+import orchestrator.optical.workflows as optical_workflows
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
     OpticalCoherentPluggableBlockInactive,
     OpticalCoherentPluggableBlockProvisioning,
@@ -341,6 +344,74 @@ WRITERS = [
         ),
     ),
 ]
+
+#: Writer-name prefixes that mark a module-level function as a block writer: the
+#: shipped anti-corruption populate/update functions and the pipe ``build_*`` block
+#: builders. ``construct_*``/``create_*`` functions are deliberately out of the set
+#: (they build subscriptions, not blocks).
+WRITER_PREFIXES = ("populate_", "update_", "build_")
+
+#: Qualified names of prefix-matching functions that are intentionally NOT block
+#: writers, each with the reason. Anything else discovered by ``walk_packages`` must
+#: have a ``WRITERS`` entry. Keys are ``f"{module}.{name}"`` so that local import
+#: aliases cannot hide a function.
+EXCLUDED_WRITERS: dict[str, str] = {
+    # Subscription-level description refreshers: they set ``subscription.description``
+    # and never a block field.
+    "orchestrator.optical.workflows.optical_coherent_pluggable.shared."
+    "update_optical_coherent_pluggable_subscription_description": "sets subscription.description, not a block field",
+    "orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service."
+    "update_subscription_description": "sets subscription.description, not a block field",
+    "orchestrator.optical.workflows.optical_digital_service.validate_optical_digital_service."
+    "update_subscription_description": "sets subscription.description, not a block field",
+    "orchestrator.optical.workflows.optical_node.shared.modify."
+    "update_optical_node_subscription_description": "sets subscription.description, not a block field",
+    "orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum."
+    "update_subscription_description": "sets subscription.description, not a block field",
+    "orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum."
+    "update_subscription_description": "sets subscription.description, not a block field",
+    "orchestrator.optical.workflows.optical_spectrum_service.validate_optical_spectrum."
+    "update_subscription_description": "sets subscription.description, not a block field",
+    # Step wrappers around the covered ``update_used_passbands`` block writer.
+    "orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service."
+    "update_used_passbands_step": "step wrapper delegating to the covered update_used_passbands",
+    "orchestrator.optical.workflows.optical_digital_service.terminate_optical_digital_service."
+    "update_used_passbands_step": "step wrapper delegating to the covered update_used_passbands",
+    "orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum."
+    "update_used_passbands_step": "step wrapper delegating to the covered update_used_passbands",
+    "orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum."
+    "update_used_passbands_step": "step wrapper delegating to the covered update_used_passbands",
+    # Builds the path-finding graph, never a block.
+    "orchestrator.optical.workflows.optical_spectrum_service.shared."
+    "build_constrained_graph_from_active_fibers": "builds the path-finding graph, writes no block field",
+}
+
+
+def _qualified_name(function: object) -> str:
+    """Return ``module.name`` for a function (stable across local import aliases)."""
+    return f"{function.__module__}.{function.__name__}"
+
+
+def _discover_writer_functions() -> set[str]:
+    """Import every workflows module and collect the qualified names of prefix-matching functions."""
+    discovered: set[str] = set()
+    for module_info in pkgutil.walk_packages(optical_workflows.__path__, optical_workflows.__name__ + "."):
+        module = importlib.import_module(module_info.name)
+        for value in vars(module).values():
+            if inspect.isfunction(value) and value.__name__.startswith(WRITER_PREFIXES):
+                discovered.add(_qualified_name(value))
+    return discovered
+
+
+def test_writer_table_covers_every_discovered_block_writer() -> None:
+    """Assert every discoverable block writer is in ``WRITERS`` or explicitly excluded."""
+    discovered = _discover_writer_functions()
+    covered = {_qualified_name(param.values[0]) for param in WRITERS}
+    uncovered = discovered - covered - set(EXCLUDED_WRITERS)
+    assert not uncovered, (
+        "discovered block writers missing from WRITERS (add an entry, or EXCLUDED_WRITERS with a reason): "
+        f"{sorted(uncovered)}"
+    )
 
 
 def _assert_field_declared(writer, block_class, field_path: str) -> None:

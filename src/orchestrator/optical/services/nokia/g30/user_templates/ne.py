@@ -63,7 +63,9 @@ def interface_list_template(
                         "duplex-mode": "full",
                         "ethernet-rate": "max-rate",
                         "flow-control": "tx-rx",
-                        "eth-resource-ref": "/ne:ne/shelf[shelf-id='1']/slot[slot-id='12']/card/port[port-id='1']/eth1g",
+                        "eth-resource-ref": (
+                            "/ne:ne/shelf[shelf-id='1']/slot[slot-id='12']/card/port[port-id='1']/eth1g"
+                        ),
                         "alias-name": "ethernet-eth1",
                     },
                     "ipv6": {"enabled": False, "mtu": 1500, "ipv6-address-assignment-method": "autoconfig"},

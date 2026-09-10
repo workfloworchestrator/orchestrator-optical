@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from time import sleep
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -96,8 +96,8 @@ def initial_input_form_generator(
         customer_id: customer_choice
         optical_digital_service_name: str = old_name
         frequencies: FrequenciesChoice = old_frequencies
-        bandwidths: BandwidthsChoice = old_bandwidths
-        mode: ModeChoice = old_mode
+        bandwidths: BandwidthsChoice = cast(Any, old_bandwidths)
+        mode: ModeChoice = cast(Any, old_mode)
 
         @model_validator(mode="after")
         def validate_data(self) -> "ModifyOpticalDigitalServiceForm":

@@ -83,11 +83,11 @@ def parse_tl1_help(help_text: str) -> str:
         f"    response_class: ClassVar[Type[TL1BaseResponse]] = {modifier.capitalize()}Response",
     ]
 
-    for part in parts[1:]:
-        if not part.strip():
+    for raw_part in parts[1:]:
+        if not raw_part.strip():
             continue
 
-        part = part.replace(",]", "],")
+        part = raw_part.replace(",]", "],")
         part = part.replace("[,", ",[")
 
         params = part.split(",")

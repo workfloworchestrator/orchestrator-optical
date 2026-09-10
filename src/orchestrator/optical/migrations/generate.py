@@ -439,13 +439,14 @@ def discover_shipped_workflows() -> tuple[WorkflowMigration, ...]:
             # raises when no database is configured.
             if attribute_name.startswith("_") or not inspect.isfunction(attribute):
                 continue
-            if not isinstance(getattr(attribute, "target", None), Target):
+            target = getattr(attribute, "target", None)
+            if not isinstance(target, Target):
                 continue
             workflows.append(
                 WorkflowMigration(
-                    name=attribute.name,
-                    target=attribute.target.value,
-                    description=descriptions.get(attribute.name, attribute.name),
+                    name=attribute.__name__,
+                    target=target.value,
+                    description=descriptions.get(attribute.__name__, attribute.__name__),
                     product_type=workflow_product_type(module_info.name),
                 )
             )
