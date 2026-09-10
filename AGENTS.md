@@ -154,8 +154,8 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
   the prefilled pages
   (e.g. `modify_optical_module_location_form(subscription, block_field_name)`) are also exported for consumers that
   pick pages individually. The `optical_location` family is the reference implementation of this model; the
-  `optical_node`, `optical_pipe` and `optical_coherent_pluggable` families follow it. Only `optical_spectrum_service`
-  and `optical_digital_service` still carry the legacy hook-style generators (`extra_form_pages`), mid-port. Consumers
+  `optical_node`, `optical_pipe`, `optical_coherent_pluggable` and `optical_spectrum_service` families follow it. Only
+  `optical_digital_service` still carries the legacy hook-style generators (`extra_form_pages`), mid-port. Consumers
   with their own model compose their own workflows with these parts and their own construct/store steps. Shipped create
   workflows pass the raw form generator (no `partial`): core injects `product_name`/`subscription_id` from the database
   at runtime.
@@ -209,4 +209,7 @@ uv build                        # package build
   changes instead (e.g. field renames must be propagated to `hal/` and `workflows/`).
 - workflows: done create,modify,validate,terminate for `optical_location`; create,modify,validate,terminate for the 3
   optical nodes (FlexILS, G30, G42); create,modify,validate,terminate + reconcile for the 3 optical pipes
-  (`fiber_span`, `fiber_patch`, `leased_spectrum`). The rest are defined but still WIP.
+  (`fiber_span`, `fiber_patch`, `leased_spectrum`); create,modify,validate,terminate for `optical_spectrum_service`
+  (the path engine builds the constrained graph from fiber spans + patches + leased spectra but only OLS
+  `OLS_LINE`/`OLS_ADD_DROP` ports, supports ordered waypoints, and splits the chosen path into single-platform
+  sections at the add/drop ports). The rest are defined but still WIP.

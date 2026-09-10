@@ -59,7 +59,6 @@ from orchestrator.optical.products.product_blocks.optical_port.abstracts import 
     AbstractOpticalOlsPortBlockProvisioning,
     AbstractOpticalPortBlockInactive,
 )
-from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.transponder_client import (
     OpticalTransponderClientPortBlockInactive,
 )
@@ -118,14 +117,14 @@ from orchestrator.optical.workflows.optical_pipe.fiber_span.create import build_
 from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create import build_leased_spectrum_block
 from orchestrator.optical.workflows.optical_pipe.shared import new_pipe_port_block, update_optical_pipe_block
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
-    create_optical_spectrum_model,
-    divide_path_into_sections,
+    populate_optical_spectrum_block,
 )
 from orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum import (
-    update_subscription as update_optical_spectrum_subscription,
+    update_optical_spectrum_block,
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     store_list_of_ports_into_spectrum_sections,
+    store_loaded_sections_into_spectrum_block,
     update_used_passbands,
 )
 
@@ -277,14 +276,9 @@ WRITERS = [
     ),
     # --- Optical Spectrum Service family ---
     _entry(
-        create_optical_spectrum_model,
+        populate_optical_spectrum_block,
         OpticalSpectrumBlockInactive,
         ("optical_spectrum_name", "optical_spectrum_passband"),
-    ),
-    _entry(
-        divide_path_into_sections,
-        OlsAddDropPortBlockInactive,
-        ("optical_port_name", "optical_port_host_node", "optical_port_description"),
     ),
     _entry(store_list_of_ports_into_spectrum_sections, OpticalSpectrumBlockInactive, ("optical_spectrum_sections",)),
     _entry(
@@ -292,9 +286,19 @@ WRITERS = [
         OpticalSpectrumSectionBlockInactive,
         ("optical_spectrum_section_add_drop_ports", "optical_spectrum_section_express_ports"),
     ),
+    _entry(
+        store_loaded_sections_into_spectrum_block,
+        OpticalSpectrumBlockInactive,
+        ("optical_spectrum_sections",),
+    ),
+    _entry(
+        store_loaded_sections_into_spectrum_block,
+        OpticalSpectrumSectionBlockInactive,
+        ("optical_spectrum_section_add_drop_ports", "optical_spectrum_section_express_ports"),
+    ),
     _entry(update_used_passbands, AbstractOpticalOlsPortBlockProvisioning, ("optical_passbands",)),
     _entry(
-        update_optical_spectrum_subscription,
+        update_optical_spectrum_block,
         OpticalSpectrumBlockProvisioning,
         ("optical_spectrum_name", "optical_spectrum_passband"),
     ),
@@ -366,12 +370,6 @@ EXCLUDED_WRITERS: dict[str, str] = {
     "update_subscription_description": "sets subscription.description, not a block field",
     "orchestrator.optical.workflows.optical_node.shared.modify."
     "update_optical_node_subscription_description": "sets subscription.description, not a block field",
-    "orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum."
-    "update_subscription_description": "sets subscription.description, not a block field",
-    "orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum."
-    "update_subscription_description": "sets subscription.description, not a block field",
-    "orchestrator.optical.workflows.optical_spectrum_service.validate_optical_spectrum."
-    "update_subscription_description": "sets subscription.description, not a block field",
     # Step wrappers around the covered ``update_used_passbands`` block writer.
     "orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service."
     "update_used_passbands_step": "step wrapper delegating to the covered update_used_passbands",
@@ -379,11 +377,13 @@ EXCLUDED_WRITERS: dict[str, str] = {
     "update_used_passbands_step": "step wrapper delegating to the covered update_used_passbands",
     "orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum."
     "update_used_passbands_step": "step wrapper delegating to the covered update_used_passbands",
-    "orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum."
-    "update_used_passbands_step": "step wrapper delegating to the covered update_used_passbands",
     # Builds the path-finding graph, never a block.
     "orchestrator.optical.workflows.optical_spectrum_service.shared."
     "build_constrained_graph_from_active_fibers": "builds the path-finding graph, writes no block field",
+    "orchestrator.optical.workflows.optical_spectrum_service.shared."
+    "build_graph_from_pipes": "builds the path-finding graph, writes no block field",
+    "orchestrator.optical.workflows.optical_spectrum_service.shared."
+    "build_constrained_graph": "builds the path-finding graph, writes no block field",
 }
 
 

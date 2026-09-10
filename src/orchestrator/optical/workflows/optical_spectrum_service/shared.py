@@ -3,10 +3,10 @@
 This module ports the legacy optical spectrum path engine and the optical
 device selectors to the generalized Optical Node/Port model:
 
-- the path engine works on the ``OpticalFiberSpan`` subscriptions (product
-  type ``ProductType.OPTICAL_FIBER_SPAN``) whose ``optical_pipe_terminations``
-  are the two ``OlsLinePortBlock`` instances connecting two Optical Nodes;
-  only fiber spans are considered, fiber patches are not part of the graph;
+- the path engine works on the active optical pipes (Fiber Span, Fiber Patch and
+  Leased Spectrum subscriptions) whose ``optical_pipe_terminations`` are both Open
+  Line System ports (``AbstractOpticalOlsPortBlockInactive``) connecting two Optical
+  Nodes; pipes terminated on transponder or coherent pluggable ports are skipped;
 - optical devices are the ``AbstractOpticalNodeBlock`` instances (any vendor
   block), and device types are replaced by the ``OpticalNodeRole`` of the
   hosting node (``OpticalNodeRole.ROADM``, ``OpticalNodeRole.AMPLIFIER``,
@@ -21,17 +21,21 @@ device selectors to the generalized Optical Node/Port model:
 """
 
 from collections import deque
-from typing import Annotated, cast
+from collections.abc import Iterable
+from itertools import pairwise, product
+from typing import Annotated, Any, cast
 from uuid import UUID
 
 from pydantic import Field
-from pydantic_forms.types import UUIDstr
+from pydantic_forms.types import State, UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 from structlog import get_logger
 
 from orchestrator.core.db import SubscriptionTable
+from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import step
 from orchestrator.optical.db import (
     subscriptions_by_product_type,
     subscriptions_by_product_type_and_instance_value,
@@ -45,11 +49,12 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
 )
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import AbstractOpticalPipeBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalOlsPortBlockInactive,
     AbstractOpticalPortBlockInactive,
+    OpticalPortRole,
 )
-from orchestrator.optical.products.product_blocks.optical_port.unions import SpanPortBlock
 from orchestrator.optical.products.product_blocks.optical_spectrum import (
     OpticalSpectrumBlockInactive,
     OpticalSpectrumBlockProvisioning,
@@ -59,8 +64,12 @@ from orchestrator.optical.products.product_blocks.optical_spectrum_section impor
     OpticalSpectrumSectionBlockProvisioning,
 )
 from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
+from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
+from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
 from orchestrator.optical.utils.custom_types.frequencies import Passband, disjoint_intervals_overlap_search
+from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
+from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 
 logger = get_logger(__name__)
 
@@ -70,6 +79,12 @@ OPTICAL_NODE_PRODUCT_TYPES = [
     ProductType.OPTICAL_NODE_NOKIA_GX_G42.value,
 ]
 
+OPTICAL_PIPE_PRODUCT_TYPES = [
+    ProductType.OPTICAL_FIBER_SPAN.value,
+    ProductType.OPTICAL_FIBER_PATCH.value,
+    ProductType.OPTICAL_LEASED_SPECTRUM.value,
+]
+
 # ``AbstractOpticalNodeBlockInactive.subscription_instance_id``
 Node = UUIDstr
 # ``AbstractOpticalOlsPortBlockInactive.subscription_instance_id``
@@ -77,9 +92,6 @@ Port = UUIDstr
 Edge = tuple[Port, Port]
 NeighborConnection = tuple[Node, Edge]
 Graph = dict[Node, list[NeighborConnection]]  # {node_id: [(neighbor_id, (port_a_id, port_b_id)), ...]}
-# Same as ``NeighborConnection`` but for graphs whose edges carry the loaded port blocks
-# rather than their subscription instance ids (see ``find_constrained_shortest_path``).
-BlockNeighborConnection = tuple[Node, tuple[SpanPortBlock, SpanPortBlock]]
 Path = list[Port]  # list of ``AbstractOpticalOlsPortBlockInactive.subscription_instance_id``
 
 
@@ -106,126 +118,168 @@ def _load_ols_port(port_id: UUIDstr) -> AbstractOpticalOlsPortBlockInactive:
     return cast(AbstractOpticalOlsPortBlockInactive, ProductBlockModel.from_db(UUID(str(port_id))))
 
 
+def load_ols_port(port_id: UUIDstr) -> AbstractOpticalOlsPortBlockInactive:
+    """Load an OLS Optical Port block from its subscription instance id.
+
+    This is the public wrapper over :func:`_load_ols_port`, shipped for
+    consumers that need to resolve the port blocks of a path chosen in a form
+    to their domain models (e.g. in their own construct step).
+
+    Args:
+        port_id: Subscription instance id of the OLS Optical Port block.
+
+    Returns:
+        The loaded OLS Optical Port block.
+    """
+    return _load_ols_port(port_id)
+
+
 def _load_port(port_id: UUIDstr) -> AbstractOpticalPortBlockInactive:
     """Load an Optical Port block from its subscription instance id."""
     return cast(AbstractOpticalPortBlockInactive, ProductBlockModel.from_db(UUID(str(port_id))))
 
 
-def find_constrained_shortest_path(
-    src_device: AbstractOpticalNodeBlockInactive,
-    dst_device: AbstractOpticalNodeBlockInactive,
-    passband: Passband,
-    exclude_node_sub_ids: list[UUIDstr] | None = None,
-    exclude_span_sub_ids: list[UUIDstr] | None = None,
-) -> list[tuple[AbstractOpticalOlsPortBlockInactive, AbstractOpticalOlsPortBlockInactive]]:
-    """Find shortest path between optical devices respecting given constraints.
+def optical_spectrum_block_from_state(
+    optical_module_block: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning | dict[str, Any] | None,
+) -> OpticalSpectrumBlockProvisioning:
+    """Return the Optical Spectrum block of the workflow state as a domain model.
+
+    Workflow steps execute with the state serialized between steps, so a block
+    passed under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` arrives as a plain dict
+    (its serialized form, carrying the full block data) rather than as a domain
+    model. This helper returns the value unchanged when it is already a domain
+    model (in-process usage, e.g. in tests) and reconstructs the block from the
+    serialized data otherwise. The lifecycle variant of the block is resolved
+    from the status of its owner subscription, so blocks of any lifecycle are
+    loaded as their matching variant (INITIAL, PROVISIONING or ACTIVE). The
+    shipped block steps always operate on the PROVISIONING variant: their
+    callers construct the block with the mandatory fields set and transition
+    the subscription to PROVISIONING before running them.
 
     Args:
-        src_device: Source optical node
-        dst_device: Destination optical node
-        passband: Passband to fit in the fiber spans
-        exclude_node_sub_ids: Subscription ids of the nodes to exclude from the path
-        exclude_span_sub_ids: Subscription ids of the fiber spans to exclude from the path
+        optical_module_block: The block value from the workflow state, or None.
 
     Returns:
-        List of port pairs forming the shortest path
+        The Optical Spectrum block as a domain model.
 
     Raises:
-        ValueError: If source or destination devices are invalid
-        RuntimeError: If no valid path exists between devices
+        ValueError: If there is no Optical Spectrum block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
-    if not src_device or not dst_device:
-        msg = "Source and destination devices must be specified"
+    if optical_module_block is None:
+        msg = "No Optical Spectrum block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
         raise ValueError(msg)
-
-    exclude_node_sub_ids = exclude_node_sub_ids or []
-    exclude_span_sub_ids = exclude_span_sub_ids or []
-
-    # retrieve all active fiber subscriptions
-    fiber_subscriptions = subscriptions_by_product_type(
-        ProductType.OPTICAL_FIBER_SPAN.value, [SubscriptionLifecycle.ACTIVE]
+    if isinstance(optical_module_block, OpticalSpectrumBlockInactive):
+        return cast(OpticalSpectrumBlockProvisioning, optical_module_block)
+    return cast(
+        OpticalSpectrumBlockProvisioning,
+        rehydrate_optical_module_block(optical_module_block, block_description="Optical Spectrum"),
     )
-    active_fibers = [
-        OpticalFiberSpanSubscription.from_subscription(sub.subscription_id).optical_pipe for sub in fiber_subscriptions
-    ]
 
-    # filter out fibers that are excluded by the constraints
-    exclude_node_sub_id_set = set(exclude_node_sub_ids)
-    exclude_span_sub_id_set = set(exclude_span_sub_ids)
 
-    def does_fiber_pass_exclusion(fiber):
-        if str(fiber.owner_subscription_id) in exclude_span_sub_id_set:
-            return False
-        for port in fiber.optical_pipe_terminations:
-            node = port.optical_port_host_node
-            if str(node.owner_subscription_id) in exclude_node_sub_id_set:
-                return False
-            if (
-                node.management.optical_module_node_vendor,
-                node.management.optical_module_node_platform,
-            ) == (Vendor.NOKIA, Platform.GX_G42):
-                # GX G42 ports are not supported in this path computation
-                return False
-            if (
-                node.management.optical_module_node_vendor,
-                node.management.optical_module_node_platform,
-            ) == (Vendor.NOKIA, Platform.GROOVE_G30) and "." not in (port.optical_port_name or ""):
-                # all ports with a dot are on OLS cards
-                # all ports without a dot are on transponder cards and must be excluded
-                return False
-            if disjoint_intervals_overlap_search(port.optical_passbands, passband):
-                return False
-        return True
+def _optical_spectrum_block_of_subscription(subscription: SubscriptionModel) -> OpticalSpectrumBlockInactive:
+    """Return the Optical Spectrum block under the ``optical_spectrum_service`` attribute.
 
-    sifted_fibers = list(filter(does_fiber_pass_exclusion, active_fibers))
+    This is the shipped-model fallback of the family: it reads the block from
+    the ``optical_spectrum_service`` attribute of the subscription, which the
+    shipped subscription models always have.
 
-    # convert the fibers into an adjacency list
-    graph: dict[Node, list[BlockNeighborConnection]] = {}
-    for fiber in sifted_fibers:
-        a_port = fiber.optical_pipe_terminations[0]
-        z_port = fiber.optical_pipe_terminations[1]
-        a_node_sub_id = str(a_port.optical_port_host_node.owner_subscription_id)
-        z_node_sub_id = str(z_port.optical_port_host_node.owner_subscription_id)
-        if a_node_sub_id not in graph:
-            graph[a_node_sub_id] = []
-        if z_node_sub_id not in graph:
-            graph[z_node_sub_id] = []
-        graph[a_node_sub_id].append((z_node_sub_id, (a_port, z_port)))
-        graph[z_node_sub_id].append((a_node_sub_id, (z_port, a_port)))
+    Args:
+        subscription: The Optical Spectrum subscription.
 
-    # find the shortest path between the two devices with breadth-first search
-    def bfs():
-        src = str(src_device.owner_subscription_id)
-        dst = str(dst_device.owner_subscription_id)
-        visited_nodes = set()
-        node_path_tuple = (src, [])
-        queue = deque([node_path_tuple])
-        while queue:
-            current_node, current_path = queue.popleft()
+    Returns:
+        The Optical Spectrum block of the subscription.
 
-            if current_node in visited_nodes:
-                continue
-
-            visited_nodes.add(current_node)
-
-            if current_node == dst:
-                return current_path
-
-            for adjacent_node, fiber_ports in graph.get(current_node, []):
-                new_path = current_path.copy()
-                new_path.extend(fiber_ports)
-                queue.append((adjacent_node, new_path))
-        return None
-
-    list_of_ports = bfs()
-    if list_of_ports is None:
+    Raises:
+        ValueError: If the subscription has no block under the attribute.
+    """
+    spectrum = getattr(subscription, "optical_spectrum_service", None)
+    if spectrum is None:
         msg = (
-            f"No valid path exists between devices {src_device.owner_subscription_id} "
-            f"and {dst_device.owner_subscription_id}"
+            "Optical Spectrum subscription has no Optical Spectrum block under attribute "
+            "'optical_spectrum_service': the subscription model must have-a the Optical Spectrum block, "
+            "e.g. under 'optical_spectrum_service'"
         )
-        raise RuntimeError(msg)
+        raise ValueError(msg)
+    return cast(OpticalSpectrumBlockInactive, spectrum)
 
-    return list_of_ports
+
+def optical_spectrum_subscription_description(
+    subscription: SubscriptionModel,
+    optical_module_block: OpticalSpectrumBlockInactive | None = None,
+) -> str:
+    """Generate the human-readable description of an Optical Spectrum subscription.
+
+    The description is derived from the spectrum name and the product name, so
+    the same function can be reused by consumers that compose the shipped block
+    under their own attribute: pass the shipped block explicitly, otherwise it
+    falls back to the ``optical_spectrum_service`` attribute of the shipped
+    subscription models.
+
+    Args:
+        subscription: The Optical Spectrum subscription.
+        optical_module_block: The Optical Spectrum block of the subscription.
+            When given, it is used instead of the ``optical_spectrum_service``
+            attribute of the shipped subscription models.
+
+    Returns:
+        The subscription description, e.g. ``"spec-01 (Optical Spectrum)"`` or
+        the product name when the spectrum has no name yet.
+
+    Raises:
+        ValueError: If the subscription has no Optical Spectrum block under the
+            ``optical_spectrum_service`` attribute and no block was passed.
+    """
+    spectrum = optical_module_block or _optical_spectrum_block_of_subscription(subscription)
+    if spectrum.optical_spectrum_name:
+        return f"{spectrum.optical_spectrum_name} ({subscription.product.name})"
+    return subscription.product.name
+
+
+@step("Set Optical Spectrum subscription description")
+def set_optical_spectrum_subscription_description(
+    subscription: SubscriptionModel,
+    optical_module_block: OpticalSpectrumBlockInactive | None = None,
+) -> State:
+    """Set the description of the Optical Spectrum subscription.
+
+    The block is read from the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``
+    (put there by the construct step of the shipped create workflow or by
+    :func:`load_optical_spectrum_block` in the other shipped workflows); a step
+    chain must always load the block into the state before this step runs.
+
+    Args:
+        subscription: The Optical Spectrum subscription.
+        optical_module_block: The Optical Spectrum block of the subscription, as
+            available in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    block = optical_spectrum_block_from_state(optical_module_block)
+    subscription.description = optical_spectrum_subscription_description(subscription, block)
+    return {"subscription": subscription, "subscription_description": subscription.description}
+
+
+@step("Load optical spectrum block")
+def load_optical_spectrum_block(subscription: SubscriptionModel) -> State:
+    """Put the Optical Spectrum block of the subscription in the state.
+
+    This is the thin wiring step for the shipped subscription product types,
+    whose block lives under the ``optical_spectrum_service`` attribute: it makes
+    the block available to the shipped block steps under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. Consumers that compose the shipped
+    block under a different attribute name write their own one-step wiring
+    instead.
+
+    Args:
+        subscription: The Optical Spectrum subscription.
+
+    Returns:
+        The state with the block under the ``optical_module_block`` key.
+
+    Raises:
+        ValueError: If the subscription has no Optical Spectrum block under the
+            ``optical_spectrum_service`` attribute.
+    """
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: _optical_spectrum_block_of_subscription(subscription)}
 
 
 def build_constrained_graph_from_active_fibers(
@@ -318,6 +372,99 @@ def build_constrained_graph_from_active_fibers(
         graph[id_node_b].append((id_node_a, (id_port_b, id_port_a)))
 
     return graph
+
+
+def build_graph_from_pipes(
+    pipes: Iterable[AbstractOpticalPipeBlockInactive],
+    passband: Passband,
+    exclude_node_sub_ids: list[UUIDstr] | None = None,
+    exclude_span_sub_ids: list[UUIDstr] | None = None,
+) -> Graph:
+    """Build a constrained graph representation from the given optical pipes.
+
+    A pipe is included only when both of its ``optical_pipe_terminations`` are Open
+    Line System ports (``AbstractOpticalOlsPortBlockInactive``, i.e. role ``OLS_LINE``
+    or ``OLS_ADD_DROP``). Any pipe terminated on a transponder line/client port or on
+    a coherent pluggable is skipped entirely.
+
+    Args:
+        pipes: The optical pipe blocks to build the graph from.
+        passband: The passband used to filter pipes based on overlapping intervals.
+        exclude_node_sub_ids: A list of subscription ids of nodes to exclude.
+        exclude_span_sub_ids: A list of subscription ids of pipes to exclude.
+
+    Returns:
+        An adjacency list representation of the graph where keys are the
+        ``subscription_instance_id`` of the Optical Nodes and values are lists
+        of tuples containing a connected node id and the pair of port ids of
+        the pipe, e.g. ``{node_A: [(node_B, (port_A2B, port_B2A)), ...]}``.
+
+    Raises:
+        ValueError: If a pipe does not have exactly two terminations.
+    """
+    exclude_node_sub_id_set = set(exclude_node_sub_ids or [])
+    exclude_span_sub_id_set = set(exclude_span_sub_ids or [])
+
+    graph: dict[Node, list[NeighborConnection]] = {}
+    for pipe in pipes:
+        if str(pipe.owner_subscription_id) in exclude_span_sub_id_set:
+            continue
+        terminations = pipe.optical_pipe_terminations
+        if terminations is None or len(terminations) != 2:  # noqa: PLR2004
+            msg = f"Optical pipe {pipe.optical_pipe_name!r} must have exactly two terminations"
+            raise ValueError(msg)
+        if not all(isinstance(port, AbstractOpticalOlsPortBlockInactive) for port in terminations):
+            continue
+        port_a = cast(AbstractOpticalOlsPortBlockInactive, terminations[0])
+        port_b = cast(AbstractOpticalOlsPortBlockInactive, terminations[1])
+        if any(
+            str(port.optical_port_host_node.owner_subscription_id) in exclude_node_sub_id_set
+            for port in (port_a, port_b)
+        ):
+            continue
+        if any(disjoint_intervals_overlap_search(port.optical_passbands, passband) for port in (port_a, port_b)):
+            continue
+
+        id_port_a = str(port_a.subscription_instance_id)
+        id_port_b = str(port_b.subscription_instance_id)
+        id_node_a = str(port_a.optical_port_host_node.subscription_instance_id)
+        id_node_b = str(port_b.optical_port_host_node.subscription_instance_id)
+        graph.setdefault(id_node_a, []).append((id_node_b, (id_port_a, id_port_b)))
+        graph.setdefault(id_node_b, []).append((id_node_a, (id_port_b, id_port_a)))
+
+    return graph
+
+
+def build_constrained_graph(
+    passband: Passband,
+    exclude_node_sub_ids: list[UUIDstr] | None = None,
+    exclude_span_sub_ids: list[UUIDstr] | None = None,
+) -> Graph:
+    """Build a constrained graph from all active optical pipes.
+
+    The active Fiber Span, Fiber Patch and Leased Spectrum subscriptions are loaded
+    from the database and delegated to :func:`build_graph_from_pipes`.
+
+    Args:
+        passband: The passband used to filter pipes based on overlapping intervals.
+        exclude_node_sub_ids: A list of subscription ids of nodes to exclude.
+        exclude_span_sub_ids: A list of subscription ids of pipes to exclude.
+
+    Returns:
+        An adjacency list representation of the constrained graph (see
+        :func:`build_graph_from_pipes`).
+    """
+    pipes: list[AbstractOpticalPipeBlockInactive] = []
+    for product_type, subscription_model in (
+        (ProductType.OPTICAL_FIBER_SPAN.value, OpticalFiberSpanSubscription),
+        (ProductType.OPTICAL_FIBER_PATCH.value, OpticalFiberPatchSubscription),
+        (ProductType.OPTICAL_LEASED_SPECTRUM.value, OpticalLeasedSpectrumSubscription),
+    ):
+        pipes.extend(
+            subscription_model.from_subscription(sub.subscription_id).optical_pipe
+            for sub in subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE])
+        )
+    return build_graph_from_pipes(pipes, passband, exclude_node_sub_ids, exclude_span_sub_ids)
 
 
 def all_valid_shortest_paths_between_oadms(
@@ -544,6 +691,58 @@ def compute_all_shortest_paths(graph: Graph, src: Node, dst: Node) -> list[Path]
     return all_shortest_paths
 
 
+def all_shortest_paths_through_waypoints(
+    src_node_sub_id: UUIDstr,
+    dst_node_sub_id: UUIDstr,
+    waypoint_node_sub_ids: list[UUIDstr] | None,
+    passband: Passband,
+    exclude_node_sub_ids: list[UUIDstr] | None = None,
+    exclude_span_sub_ids: list[UUIDstr] | None = None,
+) -> list[Path]:
+    """Find all shortest paths from source to destination through the ordered waypoints.
+
+    The graph is built once from the active optical pipes; the path is then computed
+    segment by segment between consecutive stops (source, the ordered waypoints and
+    destination). Consecutive duplicate stops are collapsed.
+
+    Args:
+        src_node_sub_id: Subscription instance id of the source Optical Node block.
+        dst_node_sub_id: Subscription instance id of the destination Optical Node block.
+        waypoint_node_sub_ids: Ordered subscription instance ids of the intermediate
+            nodes the path must traverse.
+        passband: The passband configuration for the optical path.
+        exclude_node_sub_ids: A list of node subscription ids to exclude from the path.
+        exclude_span_sub_ids: A list of pipe subscription ids to exclude from the path.
+
+    Returns:
+        A list of all shortest paths as lists of Optical Port subscription instance ids.
+
+    Raises:
+        NoOpticalPathFoundError: If any segment between two consecutive stops has no path.
+    """
+    graph = build_constrained_graph(passband, exclude_node_sub_ids, exclude_span_sub_ids)
+    if not waypoint_node_sub_ids:
+        return compute_all_shortest_paths(graph, src_node_sub_id, dst_node_sub_id)
+
+    stops = [src_node_sub_id]
+    for stop in [*waypoint_node_sub_ids, dst_node_sub_id]:
+        if stop != stops[-1]:
+            stops.append(stop)
+
+    segments: list[list[Path]] = []
+    for segment_src, segment_dst in pairwise(stops):
+        try:
+            segments.append(compute_all_shortest_paths(graph, segment_src, segment_dst))
+        except NoOpticalPathFoundError as exc:
+            raise NoOpticalPathFoundError(src=src_node_sub_id, dst=dst_node_sub_id) from exc
+
+    unique_paths: dict[tuple[Port, ...], Path] = {}
+    for segment_combination in product(*segments):
+        path: Path = [port for segment in segment_combination for port in segment]
+        unique_paths.setdefault(tuple(path), path)
+    return list(unique_paths.values())
+
+
 def human_readable_optical_spectrum_path_selector(
     paths: list[Path],
     prompt: str = "Select an optical path.",
@@ -640,8 +839,9 @@ def transport_channel_path_selector(
 
 
 def optical_spectrum_path_selector(
-    src_optical_device_block_id: UUIDstr,
-    dst_optical_device_block_id: UUIDstr,
+    src_node_sub_id: UUIDstr,
+    dst_node_sub_id: UUIDstr,
+    waypoint_node_sub_ids: list[UUIDstr] | None,
     passband: Passband,
     exclude_node_sub_ids: list[UUIDstr] | None = None,
     exclude_span_sub_ids: list[UUIDstr] | None = None,
@@ -653,20 +853,22 @@ def optical_spectrum_path_selector(
     of subscription instance ids of the Optical Port blocks.
 
     Args:
-        src_optical_device_block_id: The UUID of the source optical device block.
-        dst_optical_device_block_id: The UUID of the destination optical device block.
+        src_node_sub_id: The subscription instance id of the source Optical Node block.
+        dst_node_sub_id: The subscription instance id of the destination Optical Node block.
+        waypoint_node_sub_ids: Ordered subscription instance ids of the nodes the path must traverse.
         passband: The passband configuration for the optical path.
         exclude_node_sub_ids: A list of node subscription ids to exclude from the path. Defaults to an empty list.
-        exclude_span_sub_ids: A list of span subscription ids to exclude from the path. Defaults to an empty list.
+        exclude_span_sub_ids: A list of pipe subscription ids to exclude from the path. Defaults to an empty list.
         prompt: A prompt message for the user to select an optical path. Defaults to "Select an optical path.".
 
     Returns:
         A Choice object containing the prompt and a list of valid optical paths represented as
         subscription ids and human-readable strings.
     """
-    paths = all_valid_shortest_paths_between_oadms(
-        src_optical_device_block_id,
-        dst_optical_device_block_id,
+    paths = all_shortest_paths_through_waypoints(
+        src_node_sub_id,
+        dst_node_sub_id,
+        waypoint_node_sub_ids,
         passband,
         exclude_node_sub_ids,
         exclude_span_sub_ids,
@@ -718,11 +920,121 @@ def store_list_of_ports_into_spectrum_sections(
     if current_section:
         sections.append(current_section)
 
-    subscription = optical_spectrum.subscription
-    if subscription is None:
-        msg = "Optical spectrum block is not associated with a subscription"
+    store_loaded_sections_into_spectrum_block(sections, optical_spectrum)
+
+
+def split_loaded_path_into_loaded_sections(
+    ports: list[AbstractOpticalOlsPortBlockInactive],
+) -> list[list[AbstractOpticalOlsPortBlockInactive]]:
+    """Split a loaded optical path into single-platform sections at the add/drop ports.
+
+    The path is split at the OLS add/drop ports: the path must start and end with an
+    add/drop port and contain an even number of them. Consecutive add/drop ports are
+    paired and the ports between each pair form a section, which must contain only OLS
+    line ports and share a single (vendor, platform) pair.
+
+    Args:
+        ports: The loaded OLS port blocks of the path, ordered from source to destination.
+
+    Returns:
+        The sections as lists of loaded OLS port blocks.
+
+    Raises:
+        ValueError: If the path does not start and end with add/drop ports, if the
+            number of add/drop ports is not even, if a middle port is not an OLS line
+            port, or if a section mixes vendors or platforms.
+    """
+    add_drop_indices = [
+        index for index, port in enumerate(ports) if port.optical_port_role is OpticalPortRole.OLS_ADD_DROP
+    ]
+    if len(add_drop_indices) < 2 or len(add_drop_indices) % 2 != 0:  # noqa: PLR2004
+        msg = "The optical path must contain an even number of add/drop ports"
         raise ValueError(msg)
-    subscription_id = subscription.subscription_id
+    if add_drop_indices[0] != 0 or add_drop_indices[-1] != len(ports) - 1:
+        msg = "The optical path must start and end with an add/drop port"
+        raise ValueError(msg)
+
+    sections: list[list[AbstractOpticalOlsPortBlockInactive]] = []
+    for start, end in zip(add_drop_indices[::2], add_drop_indices[1::2], strict=True):
+        section = ports[start : end + 1]
+        if any(port.optical_port_role is not OpticalPortRole.OLS_LINE for port in section[1:-1]):
+            msg = "Every middle port of a section must be an OLS line port"
+            raise ValueError(msg)
+        platforms = {
+            (
+                port.optical_port_host_node.management.optical_module_node_vendor,
+                port.optical_port_host_node.management.optical_module_node_platform,
+            )
+            for port in section
+        }
+        if len(platforms) != 1:
+            msg = "Every port of a section must belong to the same vendor and platform"
+            raise ValueError(msg)
+        sections.append(section)
+    return sections
+
+
+def split_loaded_path_into_platform_sections(
+    ports: list[AbstractOpticalOlsPortBlockInactive],
+) -> list[list[UUIDstr]]:
+    """Split a loaded optical path into single-platform sections at the add/drop ports.
+
+    Thin wrapper over :func:`split_loaded_path_into_loaded_sections` that returns the
+    sections as lists of port subscription instance ids.
+
+    Args:
+        ports: The loaded OLS port blocks of the path, ordered from source to destination.
+
+    Returns:
+        The sections as lists of port subscription instance ids.
+
+    Raises:
+        ValueError: If the path cannot be split into valid single-platform sections.
+    """
+    return [
+        [str(port.subscription_instance_id) for port in section]
+        for section in split_loaded_path_into_loaded_sections(ports)
+    ]
+
+
+def split_path_into_platform_sections(optical_path: list[UUIDstr]) -> list[list[UUIDstr]]:
+    """Split an optical path given as port subscription instance ids into platform sections.
+
+    Args:
+        optical_path: The ordered port subscription instance ids of the path.
+
+    Returns:
+        The sections as lists of port subscription instance ids.
+
+    Raises:
+        ValueError: If the path cannot be split into valid single-platform sections.
+    """
+    ports = [_load_ols_port(port_id) for port_id in optical_path]
+    return split_loaded_path_into_platform_sections(ports)
+
+
+def store_loaded_sections_into_spectrum_block(
+    sections: list[list[AbstractOpticalOlsPortBlockInactive]],
+    optical_spectrum: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning,
+) -> None:
+    """Store the given single-platform sections into the spectrum block.
+
+    For each section the first and last ports become the
+    ``optical_spectrum_section_add_drop_ports`` and the ports in between become the
+    ``optical_spectrum_section_express_ports``. The section blocks are created in the
+    lifecycle variant matching the spectrum block (PROVISIONING sections for a
+    PROVISIONING spectrum, INITIAL sections otherwise) and are owned by the spectrum's
+    owner subscription (``owner_subscription_id``), so the function also works before
+    the owner subscription row is persisted.
+
+    Args:
+        sections: The sections as lists of loaded OLS port blocks.
+        optical_spectrum: The spectrum block where the resulting sections will be stored.
+
+    Returns:
+        None: The function modifies the ``optical_spectrum`` object in place.
+    """
+    subscription_id = optical_spectrum.owner_subscription_id
     if isinstance(optical_spectrum, OpticalSpectrumBlockProvisioning):
         optical_spectrum.optical_spectrum_sections = [
             OpticalSpectrumSectionBlockProvisioning.new(
@@ -741,6 +1053,26 @@ def store_list_of_ports_into_spectrum_sections(
             )
             for section in sections
         ]
+
+
+def store_sections_into_spectrum_block(
+    sections: list[list[UUIDstr]],
+    optical_spectrum: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning,
+) -> None:
+    """Store the given single-platform sections into the spectrum block.
+
+    Thin wrapper over :func:`store_loaded_sections_into_spectrum_block` that loads the
+    section ports from their subscription instance ids first.
+
+    Args:
+        sections: The sections as lists of port subscription instance ids.
+        optical_spectrum: The spectrum block where the resulting sections will be stored.
+
+    Returns:
+        None: The function modifies the ``optical_spectrum`` object in place.
+    """
+    loaded_sections = [[_load_ols_port(port_id) for port_id in section] for section in sections]
+    store_loaded_sections_into_spectrum_block(loaded_sections, optical_spectrum)
 
 
 def update_used_passbands(optical_spectrum: OpticalSpectrumBlockProvisioning) -> None:

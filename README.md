@@ -338,9 +338,9 @@ def my_create_form_generator(product_name):
 
 ## Status of the port
 
-The `optical_location`, `optical_node`, `optical_pipe` and `optical_coherent_pluggable` families are the reference
-implementations of the page-sequence model. The remaining workflows (`optical_spectrum_service`,
-`optical_digital_service`) are mid-port and will change.
+The `optical_location`, `optical_node`, `optical_pipe`, `optical_coherent_pluggable` and `optical_spectrum_service`
+families are the reference implementations of the page-sequence model. The remaining workflows
+(`optical_digital_service`) are mid-port and will change.
 
 
 ## Development

@@ -1,13 +1,37 @@
-"""Modify Optical Spectrum Service Workflow."""
+"""Modify Optical Spectrum Service workflow.
 
-from collections.abc import Sequence
-from typing import Annotated, cast
+This module ships the ready-to-use ``modify_optical_spectrum`` workflow for the
+shipped Optical Spectrum Service product type, together with the importable
+parts: the FormPages of the modify form (as the
+:func:`modify_optical_spectrum_form_pages` page sequence, prefilled with the
+current subscription values) and the step list that updates and persists the
+Optical Spectrum block found in the state under
+``OPTICAL_MODULE_BLOCK_STATE_KEY``. The source and destination add/drop port
+blocks are reused from the existing sections, so the form only collects the
+identity, the ordered waypoints, the routing constraints and the new optical
+path; the path is recomputed between the existing source and destination nodes.
 
-from pydantic import Field, model_validator
+Consumers that keep the shipped product type register the shipped workflow;
+consumers with their own model that has-a the shipped block compose their own
+``@modify_workflow`` with the parts. The shipped form generator is a thin
+composition of the shipped pages and the summary form, without hooks: consumers
+build their own form generator by yielding from the shipped page sequence in
+one line and adding their own pages::
+
+    user_input_dict = yield from modify_optical_spectrum_form_pages(
+        subscription, block_field_name="optical_spectrum_service"
+    )
+    user_input_dict.update((yield my_own_page).model_dump())
+"""
+
+from typing import Annotated, Any, cast
+
+from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
 from structlog import get_logger
 
+from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import Divider
 from orchestrator.core.types import SubscriptionLifecycle
@@ -17,22 +41,27 @@ from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.hal.spectrum import modify_optical_circuit
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
-from orchestrator.optical.products.product_types.optical_spectrum_service import (
-    OpticalSpectrum,
-    OpticalSpectrumProvisioning,
-)
+from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumBlockProvisioning
+from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
 from orchestrator.optical.utils.custom_types.frequencies import Frequency, Passband
-from orchestrator.optical.workflows.customer import customer_choice_selector
+from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
+from orchestrator.optical.workflows.block import save_optical_module_block
+from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
-    subscription_description,
+    NO_OPTICAL_PATH_FOUND_MSG,
     update_used_passbands_step,
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     NoOpticalPathFoundError,
+    load_ols_port,
+    load_optical_spectrum_block,
     multiple_optical_node_selector,
+    optical_spectrum_block_from_state,
     optical_spectrum_path_selector,
-    store_list_of_ports_into_spectrum_sections,
+    set_optical_spectrum_subscription_description,
+    split_loaded_path_into_loaded_sections,
+    store_loaded_sections_into_spectrum_block,
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
 
@@ -45,76 +74,198 @@ LINE_SYSTEM_ROLES = [
 ]
 
 
-def initial_input_form_generator(
-    subscription_id: UUIDstr,
-    extra_form_pages: Sequence[type[FormPage]] = (),
-    extra_summary_fields: Sequence[str] = (),
-) -> FormGenerator:
-    """Generate the initial input form for modifying an Optical Spectrum service.
+def modify_optical_spectrum_identity_form(
+    product_name: str,
+    old_name: str,
+    old_passband: Passband,
+) -> type[FormPage]:
+    """Return the identity FormPage of the Optical Spectrum modify form.
+
+    This is the first page of the shipped modify form: the spectrum name and the
+    frequency range (passband) of the service, prefilled with the current values
+    so unchanged fields remain intact.
 
     Args:
-        subscription_id: Subscription id of the service being modified.
-        extra_form_pages: Additional form pages shown before the summary form.
-        extra_summary_fields: Extra field names to append to the summary.
+        product_name: Name of the product being modified, used as the page title.
+        old_name: The current name of the optical spectrum.
+        old_passband: The current passband of the optical spectrum.
+
+    Returns:
+        The identity FormPage of the shipped modify form.
     """
-    subscription = OpticalSpectrum.from_subscription(subscription_id)
-    optical_spectrum = subscription.optical_spectrum_service
-    old_passband = optical_spectrum.optical_spectrum_passband
-    old_spectrum_name = optical_spectrum.optical_spectrum_name
 
-    sections = optical_spectrum.optical_spectrum_sections
-    optical_device_a = sections[0].optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-    optical_device_b = sections[-1].optical_spectrum_section_add_drop_ports[-1].optical_port_host_node
-    customer_choice = customer_choice_selector(include=str(subscription.customer_id))
+    class ModifyOpticalSpectrumIdentityForm(FormPage):
+        model_config = ConfigDict(title=product_name)
 
-    class ModifyOpticalSpectrumForm(FormPage):
-        """Form for modifying the service name and the min and max frequencies."""
-
-        customer_id: customer_choice
-        optical_spectrum_name: str = old_spectrum_name
-        frequency_min: Annotated[Frequency, Field(title="Start frequency (THz)", multiple_of=6250)] = old_passband[0]
-        frequency_max: Annotated[Frequency, Field(title="End frequency (THz)", multiple_of=6250)] = old_passband[1]
+        optical_spectrum_name: str = old_name
+        frequency_min: Annotated[Frequency, Field(title="Start frequency (THz)")] = old_passband[0]
+        frequency_max: Annotated[Frequency, Field(title="End frequency (THz)")] = old_passband[1]
 
         @model_validator(mode="after")
-        def validate_frequencies(self) -> "ModifyOpticalSpectrumForm":
+        def validate_frequencies(self) -> "ModifyOpticalSpectrumIdentityForm":
             if self.frequency_min > self.frequency_max:
                 msg = "Max frequency must be greater than min frequency. Did you make a typo?"
                 raise ValueError(msg)
             return self
 
-    user_input = yield ModifyOpticalSpectrumForm
-    user_input_dict = user_input.model_dump()
+    return ModifyOpticalSpectrumIdentityForm
 
-    ExcludeOpticalDeviceChoiceList = multiple_optical_node_selector(  # noqa: N806
+
+def modify_optical_spectrum_waypoints_form(
+    product_name: str,
+    waypoints_choice: type[list[Choice]],
+) -> type[FormPage]:
+    """Return the waypoints FormPage of the Optical Spectrum modify form.
+
+    This is the second page of the shipped modify form: the Optical Nodes the
+    new path must traverse, in order.
+
+    Args:
+        product_name: Name of the product being modified, used as the page title.
+        waypoints_choice: The multiple ``Choice`` selector of the waypoint nodes.
+
+    Returns:
+        The waypoints FormPage of the shipped modify form.
+    """
+
+    class ModifyOpticalSpectrumWaypointsForm(FormPage):
+        model_config = ConfigDict(title=product_name)
+
+        intermediate_node_ids: waypoints_choice
+
+    return ModifyOpticalSpectrumWaypointsForm
+
+
+def modify_optical_spectrum_constraints_form(
+    product_name: str,
+    exclude_nodes_choice: type[list[Choice]],
+    exclude_spans_choice: type[list[Choice]],
+) -> type[FormPage]:
+    """Return the constraints FormPage of the Optical Spectrum modify form.
+
+    This is the third page of the shipped modify form: the Optical Nodes and the
+    fiber spans the new path must not traverse.
+
+    Args:
+        product_name: Name of the product being modified, used as the page title.
+        exclude_nodes_choice: The multiple ``Choice`` selector of the nodes to exclude.
+        exclude_spans_choice: The multiple ``Choice`` selector of the spans to exclude.
+
+    Returns:
+        The constraints FormPage of the shipped modify form.
+    """
+
+    class ModifyOpticalSpectrumConstraintsForm(FormPage):
+        model_config = ConfigDict(title=product_name)
+
+        exclude_devices_list: exclude_nodes_choice
+        divider1: Divider
+        exclude_fibers_list: exclude_spans_choice
+
+    return ModifyOpticalSpectrumConstraintsForm
+
+
+def modify_optical_spectrum_path_form(path_choice: type[Choice]) -> type[FormPage]:
+    """Return the path FormPage of the Optical Spectrum modify form.
+
+    This is the last page of the shipped modify form: the optical path chosen
+    among the ones computed by the path engine. The page rejects the placeholder
+    option used when no path was found.
+
+    Args:
+        path_choice: The ``Choice`` selector of the available optical paths.
+
+    Returns:
+        The path FormPage of the shipped modify form.
+    """
+
+    class ModifyOpticalSpectrumPathForm(FormPage):
+        model_config = ConfigDict(title="Optical Path")
+
+        optical_path: path_choice
+
+        @model_validator(mode="after")
+        def validate_data(self) -> "ModifyOpticalSpectrumPathForm":
+            if self.optical_path == NO_OPTICAL_PATH_FOUND_MSG:
+                msg = (
+                    "No optical path found, please adjust the routing constraints "
+                    "in the previous step or update fibers in the path."
+                )
+                raise ValueError(msg)
+            return self
+
+    return ModifyOpticalSpectrumPathForm
+
+
+def modify_optical_spectrum_form_pages(
+    subscription: SubscriptionModel,
+    block_field_name: str = "optical_spectrum_service",
+) -> FormGenerator:
+    """Yield the FormPages of the Optical Spectrum modify form, in order.
+
+    This is the shipped modify form as a page sequence: it yields the identity
+    page, the waypoints page, the constraints page and the path page, and returns
+    the collected user input as a flat dict of the ``optical_*`` state keys,
+    consumed by the shipped block steps of
+    :data:`MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS`. The source and destination
+    add/drop port blocks are reused from the existing sections: the path is
+    recomputed between the existing source and destination nodes, with the
+    ordered waypoints and the exclusions collected by the form. Consumers yield
+    from it in one line inside their own modify form generator, optionally
+    interleaving their own pages. The customer of the subscription is collected
+    separately by the consumer (see
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
+
+    Args:
+        subscription: The ACTIVE subscription model of the Optical Spectrum
+            product being modified (any consumer model that has-a the shipped
+            block works).
+        block_field_name: Name of the attribute of the subscription model holding
+            the Optical Spectrum block.
+
+    Returns:
+        The collected user input of the shipped pages.
+    """
+    block = getattr(subscription, block_field_name)
+    product_name = subscription.product.name
+    old_name = block.optical_spectrum_name
+    old_passband = block.optical_spectrum_passband
+
+    sections = block.optical_spectrum_sections
+    src_node = sections[0].optical_spectrum_section_add_drop_ports[0].optical_port_host_node
+    dst_node = sections[-1].optical_spectrum_section_add_drop_ports[-1].optical_port_host_node
+
+    user_input_dict: dict[str, Any] = {}
+    user_input_dict.update(
+        (yield modify_optical_spectrum_identity_form(product_name, old_name, old_passband)).model_dump()
+    )
+
+    waypoints_choice = multiple_optical_node_selector(
+        roles=LINE_SYSTEM_ROLES,
+        prompt="Which Optical Nodes must the path pass through?",
+    )
+    user_input_dict.update((yield modify_optical_spectrum_waypoints_form(product_name, waypoints_choice)).model_dump())
+
+    exclude_nodes_choice = multiple_optical_node_selector(
         roles=LINE_SYSTEM_ROLES,
         prompt="Do *not* pass through these Optical Nodes",
     )
-
-    ExcludeSpanChoiceList = multiple_optical_pipe_selector(  # noqa: N806
+    exclude_spans_choice = multiple_optical_pipe_selector(
         ProductType.OPTICAL_FIBER_SPAN.value,
         prompt="Do *not* pass through these Optical Fiber Spans",
     )
-
-    class OpticalSpectrumConstraintsForm(FormPage):
-        """Form for specifying which optical devices or spans MUST NOT be traversed by the optical spectrum."""
-
-        exclude_devices_list: ExcludeOpticalDeviceChoiceList
-        divider1: Divider
-        exclude_fibers_list: ExcludeSpanChoiceList
-
-    user_input = yield OpticalSpectrumConstraintsForm
-    user_input_dict.update(user_input.model_dump())
+    user_input_dict.update(
+        (
+            yield modify_optical_spectrum_constraints_form(product_name, exclude_nodes_choice, exclude_spans_choice)
+        ).model_dump()
+    )
 
     passband = (user_input_dict["frequency_min"], user_input_dict["frequency_max"])
-
-    no_path_found_msg = (
-        "No optical path found, please adjust the routing constraints"
-        " in the previous step or validate fibers in the path."
-    )
     try:
-        PathChoice = optical_spectrum_path_selector(  # noqa: N806
-            str(optical_device_a.subscription_instance_id),
-            str(optical_device_b.subscription_instance_id),
+        path_choice = optical_spectrum_path_selector(
+            str(src_node.subscription_instance_id),
+            str(dst_node.subscription_instance_id),
+            user_input_dict["intermediate_node_ids"],
             passband,
             user_input_dict["exclude_devices_list"],
             user_input_dict["exclude_fibers_list"],
@@ -126,139 +277,160 @@ def initial_input_form_generator(
     except NoOpticalPathFoundError:
         logger.exception(
             "No optical path found",
-            optical_device_a=optical_device_a.subscription_instance_id,
-            optical_device_b=optical_device_b.subscription_instance_id,
+            src_optical_device_id=str(src_node.subscription_instance_id),
+            dst_optical_device_id=str(dst_node.subscription_instance_id),
             passband=passband,
             exclude_devices_list=user_input_dict["exclude_devices_list"],
             exclude_fibers_list=user_input_dict["exclude_fibers_list"],
         )
-
-        PathChoice = cast(  # noqa: N806
+        path_choice = cast(
             type[Choice],
             Choice(
-                no_path_found_msg,
+                NO_OPTICAL_PATH_FOUND_MSG,
                 [
-                    (no_path_found_msg, no_path_found_msg),
+                    (NO_OPTICAL_PATH_FOUND_MSG, NO_OPTICAL_PATH_FOUND_MSG),
                 ],
             ),
         )
 
-    class OpticalSpectrumPathForm(FormPage):
-        """Form for selecting the optical path."""
-
-        optical_path: PathChoice
-
-        @model_validator(mode="after")
-        def validate_data(self) -> "OpticalSpectrumPathForm":
-            if self.optical_path == no_path_found_msg:
-                msg = (
-                    "No optical path found, please adjust the routing constraints "
-                    "in the previous step or update fibers in the path."
-                )
-                raise ValueError(msg)
-            return self
-
-    user_input = yield OpticalSpectrumPathForm
-    user_input_dict.update(user_input.model_dump())
-
+    user_input_dict.update((yield modify_optical_spectrum_path_form(path_choice)).model_dump())
     user_input_dict["optical_path"] = user_input_dict["optical_path"].split(";")
+    return user_input_dict
 
-    user_input_dict["optical_spectrum_passband"] = (
-        user_input_dict["frequency_min"],
-        user_input_dict["frequency_max"],
-    )
-    summary_fields = [
-        "customer_id",
-        "optical_spectrum_name",
-        "optical_spectrum_passband",
-    ]
-    for page in extra_form_pages:
-        user_input_dict.update((yield page).model_dump())
+
+def modify_optical_spectrum_form_generator(
+    subscription_id: UUIDstr,
+    subscription_model: type[SubscriptionModel] = OpticalSpectrum,
+    block_field_name: str = "optical_spectrum_service",
+) -> FormGenerator:
+    """Generate the initial input form for modifying an Optical Spectrum subscription.
+
+    The form is prefilled with the current values of the subscription, so
+    unchanged fields remain intact. It is a thin composition of the customer
+    page, the shipped page sequence (:func:`modify_optical_spectrum_form_pages`)
+    and the summary form.
+
+    Args:
+        subscription_id: The identifier of the subscription being modified.
+        subscription_model: The ACTIVE subscription model class of the Optical
+            Spectrum product. Consumers that compose the shipped block under a
+            different attribute name pass their own model class here.
+        block_field_name: Name of the attribute of the subscription model holding
+            the Optical Spectrum block.
+    """
+    subscription = subscription_model.from_subscription(subscription_id)
+    user_input_dict = yield from customer_choice_form_page(include=subscription.customer_id)
+    user_input_dict.update((yield from modify_optical_spectrum_form_pages(subscription, block_field_name)))
+
+    block = getattr(subscription, block_field_name)
+    summary_fields = ["customer_id", "optical_spectrum_name", "frequency_min", "frequency_max"]
     yield from modify_summary_form(
         user_input_dict,
-        subscription.optical_spectrum_service,
+        block,
         summary_fields,
-        extra_before={"customer_id": str(subscription.customer_id)},
-        extra_summary_fields=extra_summary_fields,
+        extra_before={"customer_id": subscription.customer_id},
     )
 
     return user_input_dict | {"subscription": subscription}
 
 
-@step("Update subscription")
-def update_subscription(
-    subscription: OpticalSpectrumProvisioning,
-    customer_id: UUIDstr,
+@step("Updating Optical Spectrum block")
+def update_optical_spectrum_block(
+    optical_module_block: OpticalSpectrumBlockProvisioning,
     optical_spectrum_name: str,
     frequency_min: Frequency,
     frequency_max: Frequency,
 ) -> State:
-    """Update the spectrum name and passband on the subscription."""
-    spectrum = subscription.optical_spectrum_service
-    old_passband = spectrum.optical_spectrum_passband
+    """Update the Optical Spectrum block in the state from the modify-form keys.
 
-    # set attributes: name
-    spectrum.optical_spectrum_name = optical_spectrum_name
+    The spectrum name and passband are overwritten with the form values; the old
+    passband is returned in the state so the following circuit modification step
+    can compare it with the new one. The shipped modify block steps never persist
+    a changed ``customer_id`` (the form still emits it; add your own step if your
+    product tracks it). Workflow steps execute with the state serialized between
+    steps, so the block is re-hydrated from its serialized form before it is
+    updated.
 
-    # set attributes: passband
-    passband: Passband = (frequency_min, frequency_max)
-    spectrum.optical_spectrum_passband = passband
-
-    subscription.customer_id = customer_id
-
-    return {
-        "subscription": subscription,
-        "subscription_id": subscription.subscription_id,  # necessary to be able to use older generic step functions
-        "old_passband": old_passband,
-    }
-
-
-@step("Update subscription description")
-def update_subscription_description(subscription: OpticalSpectrumProvisioning) -> State:
-    """Update the subscription description with the spectrum name and the product name."""
-    subscription.description = subscription_description(subscription)
-    return {"subscription": subscription}
+    Args:
+        optical_module_block: The Optical Spectrum block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY`` (the provisioning variant, while
+            the subscription is being modified).
+        optical_spectrum_name: The new name of the spectrum.
+        frequency_min: The new start frequency of the passband.
+        frequency_max: The new end frequency of the passband.
+    """
+    block = optical_spectrum_block_from_state(optical_module_block)
+    old_passband = block.optical_spectrum_passband
+    block.optical_spectrum_name = optical_spectrum_name
+    block.optical_spectrum_passband = (frequency_min, frequency_max)
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: block, "old_passband": old_passband}
 
 
-@step("Dividing the optical path into single-device-family sections")
+@step("Dividing the optical path into single-platform sections")
 def divide_path_into_sections(
-    subscription: OpticalSpectrumProvisioning,
+    optical_module_block: OpticalSpectrumBlockProvisioning,
     optical_path: list[UUIDstr],
 ) -> State:
-    """Split the optical path into vendor-specific sections, reusing the existing add/drop ports."""
-    sections = subscription.optical_spectrum_service.optical_spectrum_sections
+    """Split the chosen optical path into single-platform sections.
+
+    The source and destination add/drop port blocks are reused from the existing
+    sections; the interior ports chosen by the form are loaded and the resulting
+    sections are stored back into the block in the state.
+
+    Args:
+        optical_module_block: The Optical Spectrum block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+        optical_path: The interior port subscription instance ids of the chosen path.
+    """
+    block = optical_spectrum_block_from_state(optical_module_block)
+    sections = block.optical_spectrum_sections
     src_port = sections[0].optical_spectrum_section_add_drop_ports[0]
     dst_port = sections[-1].optical_spectrum_section_add_drop_ports[-1]
 
-    optical_path.insert(0, str(src_port.subscription_instance_id))
-    optical_path.append(str(dst_port.subscription_instance_id))
+    interior = [load_ols_port(port_id) for port_id in optical_path]
+    new_sections = split_loaded_path_into_loaded_sections([src_port, *interior, dst_port])
+    store_loaded_sections_into_spectrum_block(new_sections, block)
 
-    store_list_of_ports_into_spectrum_sections(optical_path, subscription.optical_spectrum_service)
+    # The new section blocks are not in the database yet and workflow steps execute with
+    # the state serialized between steps, which drops their in-memory ``db_model``. Persist
+    # them here, while the step still owns the in-memory instances, so the following steps
+    # can re-hydrate them from the database (mirrors the create workflow, where
+    # ``set_status`` persists the sections built by the construct step).
+    block.save(subscription_id=block.owner_subscription_id, status=SubscriptionLifecycle.PROVISIONING)
 
-    return {
-        "subscription": subscription,
-    }
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
 
 @step("Modifying optical spectrum sections")
 def modify_optical_sections(
-    subscription: OpticalSpectrumProvisioning,
+    optical_module_block: OpticalSpectrumBlockProvisioning,
     old_passband: Passband,
 ) -> State:
-    """Modify the optical circuit of every spectrum section on the devices."""
-    optical_spectrum = subscription.optical_spectrum_service
-    passband = optical_spectrum.optical_spectrum_passband
-    spectrum_name = optical_spectrum.optical_spectrum_name
+    """Modify the optical circuit of every spectrum section on the devices.
+
+    Operates only on the Optical Spectrum block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``, the same block the rest of the shipped
+    block steps act on. The new passband drives the carrier; the old passband is
+    used to find the existing circuit on the devices.
+
+    Args:
+        optical_module_block: The Optical Spectrum block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+        old_passband: The passband the circuits had before the modification.
+    """
+    block = optical_spectrum_block_from_state(optical_module_block)
+    passband = block.optical_spectrum_passband
+    spectrum_name = block.optical_spectrum_name
     if spectrum_name is None:
         msg = "Optical spectrum name is not set"
         raise ValueError(msg)
     carrier_width = passband[1] - passband[0]
     central_frequency = int((passband[0] + passband[1]) / 2)
     carrier = (central_frequency, carrier_width)
-    circuit_identifier = str(optical_spectrum.subscription_instance_id)
+    circuit_identifier = str(block.subscription_instance_id)
 
     results = {}
-    for section in optical_spectrum.optical_spectrum_sections:
+    for section in block.optical_spectrum_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
         results[src_node.management.optical_module_node_fqdn] = modify_optical_circuit(
             src_node,
@@ -271,22 +443,47 @@ def modify_optical_sections(
             circuit_identifier=circuit_identifier,
         )
 
-    return {
-        "configuration_results": results,
-        "subscription": subscription,
-    }
+    return {"configuration_results": results}
 
 
-@modify_workflow(initial_input_form=initial_input_form_generator)
+#: Modify steps operating on the Optical Spectrum block in the state. The block
+#: is persisted by the last step, because workflow steps reload the subscription
+#: from the database and would otherwise lose the mutations.
+MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS: StepList = (
+    begin
+    >> update_optical_spectrum_block
+    >> divide_path_into_sections
+    >> modify_optical_sections
+    >> update_used_passbands_step
+    >> save_optical_module_block
+)
+
+
+@modify_workflow(initial_input_form=modify_optical_spectrum_form_generator)
 def modify_optical_spectrum() -> StepList:
-    """Workflow to modify an existing Optical Spectrum service."""
+    """Workflow to modify an existing Optical Spectrum service subscription.
+
+    The workflow is valid for the shipped :class:`OpticalSpectrum` product type
+    only: it loads the block from the ``optical_spectrum_service`` attribute of
+    the shipped subscription models. The source and destination add/drop port
+    blocks are reused from the existing sections, so the form recomputes the path
+    between the existing source and destination nodes. Consumers with their own
+    product type compose their own modify workflow with the shipped parts.
+    """
     return (
         begin
         >> set_status(SubscriptionLifecycle.PROVISIONING)
-        >> update_subscription
-        >> update_subscription_description
-        >> divide_path_into_sections
-        >> modify_optical_sections
-        >> update_used_passbands_step
+        >> load_optical_spectrum_block
+        >> MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS
+        >> set_optical_spectrum_subscription_description
         >> set_status(SubscriptionLifecycle.ACTIVE)
     )
+
+
+__all__ = [
+    "MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS",
+    "modify_optical_spectrum",
+    "modify_optical_spectrum_form_generator",
+    "modify_optical_spectrum_form_pages",
+    "update_optical_spectrum_block",
+]
