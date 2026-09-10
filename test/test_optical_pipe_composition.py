@@ -277,7 +277,7 @@ def test_shipped_type_create_workflow_composition() -> None:
     set_provisioning = names.index("Set subscription to 'provisioning'")
     configure = names.index("Configure Optical Pipe Terminations")
     retrieve = names.index("Retrieve Used Passbands")
-    persist = names.index("Persist optical pipe block")
+    persist = names.index("Persist optical module block")
     set_description = names.index("Set Optical Pipe subscription description")
     create_relation = names.index("Create Process Subscription relation")
     assert construct < set_provisioning < configure < retrieve < persist < set_description < create_relation
@@ -301,7 +301,7 @@ def test_shipped_type_modify_workflow_composition() -> None:
     assert workflow.name == "modify_fiber_span"
     names = [step.name for step in workflow.steps]
     assert names.index("Load optical pipe block") < names.index("Updating Optical Pipe block")
-    assert names.index("Updating Optical Pipe block") < names.index("Persist optical pipe block")
+    assert names.index("Updating Optical Pipe block") < names.index("Persist optical module block")
 
 
 def test_terminate_and_validate_shared_step_lists_compose() -> None:
@@ -330,7 +330,7 @@ def test_terminate_and_validate_shared_step_lists_compose() -> None:
     assert "Load Initial State" in validate_step_names
     assert "Load optical pipe block" in validate_step_names
     assert validate_step_names.index("Check Optical Pipe Terminations") < validate_step_names.index(
-        "Persist optical pipe block"
+        "Persist optical module block"
     )
     assert "Set Optical Pipe subscription description" in validate_step_names
 
@@ -350,11 +350,11 @@ def test_fiber_patch_and_leased_spectrum_step_lists_compose() -> None:
     names = [step.name for step in patch_workflow.steps]
     assert names.index("Construct Fiber Patch Subscription") < names.index("Configure Optical Pipe Terminations")
     assert names.index("Configure Optical Pipe Terminations") < names.index("Retrieve Used Passbands")
-    assert names.index("Retrieve Used Passbands") < names.index("Persist optical pipe block")
+    assert names.index("Retrieve Used Passbands") < names.index("Persist optical module block")
 
     leased_workflow: Workflow = modify_leased_spectrum
     names = [step.name for step in leased_workflow.steps]
-    assert names.index("Updating Optical Pipe block") < names.index("Persist optical pipe block")
+    assert names.index("Updating Optical Pipe block") < names.index("Persist optical module block")
 
 
 def test_update_optical_pipe_block_writes_only_optical_pipe_name(monkeypatch) -> None:

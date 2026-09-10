@@ -12,9 +12,7 @@ from typing import Any, cast
 from pydantic_forms.types import State
 from pydantic_forms.validators import Choice
 
-from orchestrator.core.db import SubscriptionInstanceTable, db
 from orchestrator.core.domain import SubscriptionModel
-from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
 from orchestrator.optical.db import subscription_instances_by_block_type_and_resource_value
@@ -24,6 +22,7 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockProvisioning,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
+from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.shared import active_subscription_selector_by_block_type
 
 
@@ -133,15 +132,9 @@ def _optical_module_location_block_from_state(
 ) -> OpticalModuleLocationBlockProvisioning:
     """Reconstruct an Optical Module Location block from its serialized form.
 
-    The state dict carries the full block data (the block is serialized with
-    ``model_dump``), so the block is reconstructed from it rather than reloaded
-    from the database: reloading would discard the mutations made by the
-    preceding step, which workflow steps only persist when they explicitly save.
-    The lifecycle variant of the block is resolved from the status of its owner
-    subscription: the ACTIVE class cannot construct an INITIAL block (whose
-    required fields are unset) and the base class rejects non-INITIAL blocks, so
-    the specialized variant must be resolved explicitly, mirroring the
-    block-based resolution in ``orchestrator.optical.db``.
+    Thin wrapper around the family-agnostic re-hydration
+    (:func:`orchestrator.optical.workflows.block.rehydrate_optical_module_block`),
+    kept for the narrowed return type and the family-specific error message.
 
     Args:
         optical_module_block: The serialized block from the workflow state.
@@ -153,20 +146,10 @@ def _optical_module_location_block_from_state(
         ValueError: If the block in the state has no ``subscription_instance_id``,
             or if no subscription instance exists with the given id.
     """
-    subscription_instance_id = optical_module_block.get("subscription_instance_id")
-    if subscription_instance_id is None:
-        msg = "Optical Module Location block in the state has no subscription_instance_id"
-        raise ValueError(msg)
-    instance = db.session.get(SubscriptionInstanceTable, subscription_instance_id)
-    if instance is None:
-        msg = f"No subscription instance with id {subscription_instance_id}"
-        raise ValueError(msg)
-    status = SubscriptionLifecycle(instance.subscription.status)
-    block_class = cast(
-        type[OpticalModuleLocationBlockProvisioning],
-        lookup_specialized_type(OpticalModuleLocationBlockInactive, status),
+    return cast(
+        OpticalModuleLocationBlockProvisioning,
+        rehydrate_optical_module_block(optical_module_block, block_description="Optical Module Location"),
     )
-    return block_class.model_validate(optical_module_block)
 
 
 def _optical_module_location_block_of_subscription(
@@ -278,34 +261,6 @@ def load_optical_module_location_block(subscription: SubscriptionModel) -> State
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: _optical_module_location_block_of_subscription(subscription)}
 
 
-@step("Persist optical module location block")
-def save_optical_module_location_block(
-    subscription: SubscriptionModel,
-    optical_module_block: OpticalModuleLocationBlockProvisioning,
-) -> State:
-    """Persist the Optical Module Location block found in the state to the database.
-
-    Workflow steps execute with the state serialized between steps, so the
-    block is re-hydrated from the database by its ``subscription_instance_id``
-    before it is saved. This step saves the block tree of the loaded
-    subscription (any consumer subscription model that has-a the block)
-    and returns the block, so it can be composed by any consumer workflow.
-    The shipped block steps always operate on the PROVISIONING variant: their
-    callers provide the block with the mandatory fields set and the owner
-    subscription in the PROVISIONING status.
-
-    Args:
-        subscription: The subscription owning the block.
-        optical_module_block: The Optical Module Location block to persist.
-
-    Returns:
-        The state with the block under the ``optical_module_block`` key.
-    """
-    location_block = optical_location_block_from_state(optical_module_block)
-    location_block.save(subscription_id=subscription.subscription_id, status=subscription.status)
-    return {OPTICAL_MODULE_BLOCK_STATE_KEY: location_block}
-
-
 __all__ = [
     "OPTICAL_MODULE_BLOCK_STATE_KEY",
     "active_location_subscription_selector",
@@ -313,6 +268,5 @@ __all__ = [
     "load_optical_module_location_block",
     "optical_location_block_from_state",
     "optical_module_location_subscription_description",
-    "save_optical_module_location_block",
     "set_optical_module_location_subscription_description",
 ]

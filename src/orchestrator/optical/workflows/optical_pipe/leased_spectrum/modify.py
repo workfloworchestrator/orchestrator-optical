@@ -29,11 +29,11 @@ from orchestrator.core.workflow import StepList, begin
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_pipe.shared import (
     load_optical_pipe_block,
     modify_optical_pipe_form_generator,
     modify_optical_pipe_form_pages,
-    save_optical_pipe_block,
     set_optical_pipe_subscription_description,
     update_optical_pipe_block,
 )
@@ -94,7 +94,7 @@ def modify_leased_spectrum_form_generator(
 #: Only the ``optical_pipe_name`` is written to the block; the block is
 #: persisted by the last step, because workflow steps reload the subscription
 #: from the database and would otherwise lose the mutations.
-MODIFY_LEASED_SPECTRUM_BLOCK_STEPS: StepList = begin >> update_optical_pipe_block >> save_optical_pipe_block
+MODIFY_LEASED_SPECTRUM_BLOCK_STEPS: StepList = begin >> update_optical_pipe_block >> save_optical_module_block
 
 
 @modify_workflow(initial_input_form=modify_leased_spectrum_form_generator)

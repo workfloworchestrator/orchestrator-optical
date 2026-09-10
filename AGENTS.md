@@ -54,8 +54,8 @@ src/orchestrator/optical/
 │   ├── optical_spectrum_service/   #  path-finding engine (shared.py) + workflows
 │   ├── optical_digital_service/    #  4-form create + modify/terminate/validate
 │   ├── optical_coherent_pluggable/ #   create/modify/terminate/validate workflows + parts + shared helpers
-│   │                         #   (block-based, state key OPTICAL_COHERENT_PLUGGABLE_BLOCK_STATE_KEY)
-│   └── optical_location/     #   (WIP) location selectors/helpers
+│   │                         #   (block-based, state key OPTICAL_MODULE_BLOCK_STATE_KEY)
+│   └── optical_location/     #   reference family: workflows + parts (selectors/helpers)
 ├── settings.py               # pydantic-settings, env prefix OPTICAL_, lazy get_settings()
 ├── db.py                     # neutral DB query helpers + block resolution shared by hal/ and workflows/ (blocks as contracts)
 ├── translations/en-GB.json   # workflow display strings (1:1 with registered workflows)
@@ -153,10 +153,12 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
   `user_input_dict = yield from create_optical_module_location_form_pages(product_name)`. Page factories returning 
   the prefilled pages
   (e.g. `modify_optical_module_location_form(subscription, block_field_name)`) are also exported for consumers that
-  pick pages individually. The `optical_location` family is the reference implementation of this model; the other
-  families still carry the legacy hook-style generators, mid-port. Consumers with their own model compose their own
-  workflows with these parts and their own construct/store steps. Shipped create workflows pass the raw form
-  generator (no `partial`): core injects `product_name`/`subscription_id` from the database at runtime.
+  pick pages individually. The `optical_location` family is the reference implementation of this model; the
+  `optical_node`, `optical_pipe` and `optical_coherent_pluggable` families follow it. Only `optical_spectrum_service`
+  and `optical_digital_service` still carry the legacy hook-style generators (`extra_form_pages`), mid-port. Consumers
+  with their own model compose their own workflows with these parts and their own construct/store steps. Shipped create
+  workflows pass the raw form generator (no `partial`): core injects `product_name`/`subscription_id` from the database
+  at runtime.
 - **Composition, not inheritance**: consumers never subclass the shipped blocks; their model has-a the shipped block
   under an attribute of their choosing. The shipped block steps bind to the common state key
   (`optical_module_block`) and never to a consumer model. Shipped blocks always expect the block to be in the
@@ -205,5 +207,6 @@ uv build                        # package build
 - The legacy `optical.old/` and the GARR admin `tasks/` workflows are there for reference only (`/hal` corresponds to old `products/services`) — do not reintroduce.
 - Model files are actively being refined by maintainers: **ask before changing `products/`**; adapt code to their
   changes instead (e.g. field renames must be propagated to `hal/` and `workflows/`).
-- workflows: done create,modify,validate,terminate for `optical_location` and create,modify,validate,terminate for
-  the 3 optical nodes (FlexILS, G30, G42). All others are defined but still WIP.
+- workflows: done create,modify,validate,terminate for `optical_location`; create,modify,validate,terminate for the 3
+  optical nodes (FlexILS, G30, G42); create,modify,validate,terminate + reconcile for the 3 optical pipes
+  (`fiber_span`, `fiber_patch`, `leased_spectrum`). The rest are defined but still WIP.

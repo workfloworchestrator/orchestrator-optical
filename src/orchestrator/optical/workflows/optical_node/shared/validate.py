@@ -5,10 +5,10 @@ from pydantic_forms.types import State
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_node.shared.create import (
     _optical_node_block_of_subscription,
 )
-from orchestrator.optical.workflows.optical_node.shared.modify import save_optical_node_block
 from orchestrator.optical.workflows.optical_node.shared.retrieve import retrieve_optical_node_role_and_software_version
 
 
@@ -48,5 +48,5 @@ def load_initial_state_optical_node(subscription: SubscriptionModel) -> State:
 #: :func:`load_initial_state_optical_node` puts the ``subscription`` and its
 #: block in the state) before it runs.
 VALIDATE_OPTICAL_NODE_BLOCK_STEPS: StepList = (
-    begin >> retrieve_optical_node_role_and_software_version >> save_optical_node_block
+    begin >> retrieve_optical_node_role_and_software_version >> save_optical_module_block
 )

@@ -13,12 +13,12 @@ their own ``@reconcile_workflow`` with :data:`RECONCILE_FIBER_SPAN_BLOCK_STEPS`.
 
 from orchestrator.core.workflow import StepList, begin
 from orchestrator.core.workflows.utils import reconcile_workflow
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_pipe.shared import (
     check_pipe_terminations,
     configure_pipe_terminations,
     load_optical_pipe_block,
     retrieve_optical_pipe_used_passbands,
-    save_optical_pipe_block,
     set_optical_pipe_subscription_description,
 )
 
@@ -32,7 +32,7 @@ RECONCILE_FIBER_SPAN_BLOCK_STEPS: StepList = (
     begin
     >> configure_pipe_terminations
     >> retrieve_optical_pipe_used_passbands
-    >> save_optical_pipe_block
+    >> save_optical_module_block
     >> check_pipe_terminations
 )
 

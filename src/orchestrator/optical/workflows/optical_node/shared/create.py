@@ -4,10 +4,7 @@ from typing import Any, cast
 
 from pydantic_forms.types import UUIDstr
 
-from orchestrator.core.db import SubscriptionInstanceTable, db
 from orchestrator.core.domain import SubscriptionModel
-from orchestrator.core.domain.base import ProductBlockModel
-from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import (
     location_block_from_subscription,
@@ -26,6 +23,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 )
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 
 OPTICAL_NODE_PRODUCT_TYPES = [
     ProductType.OPTICAL_NODE_NOKIA_FLEXILS.value,
@@ -346,16 +344,9 @@ def _optical_node_block_from_state(
 ) -> AnyOpticalNodeBlockProvisioningUnion:
     """Reconstruct an Optical Node block from its serialized form.
 
-    The state dict carries the full block data (the block is serialized with
-    ``model_dump``), so the block is reconstructed from it rather than reloaded
-    from the database: reloading would discard the mutations made by the
-    preceding step, which workflow steps only persist when they explicitly save.
-    The concrete block class is resolved through the product block registry and
-    its lifecycle variant from the status of its owner subscription: the ACTIVE
-    class cannot construct an INITIAL block (whose required fields are unset)
-    and the base class rejects non-INITIAL blocks, so the specialized variant
-    must be resolved explicitly, mirroring the block-based resolution in
-    ``orchestrator.optical.db``.
+    Thin wrapper around the family-agnostic re-hydration
+    (:func:`orchestrator.optical.workflows.block.rehydrate_optical_module_block`),
+    kept for the narrowed return type and the family-specific error message.
 
     Args:
         optical_module_block: The serialized block from the workflow state.
@@ -367,19 +358,7 @@ def _optical_node_block_from_state(
         ValueError: If the block in the state has no ``subscription_instance_id``,
             or if no subscription instance exists with the given id.
     """
-    subscription_instance_id = optical_module_block.get("subscription_instance_id")
-    if subscription_instance_id is None:
-        msg = "Optical Node block in the state has no subscription_instance_id"
-        raise ValueError(msg)
-    instance = db.session.get(SubscriptionInstanceTable, subscription_instance_id)
-    if instance is None:
-        msg = f"No subscription instance with id {subscription_instance_id}"
-        raise ValueError(msg)
-    block_class = cast(
-        type[AnyOpticalNodeBlockProvisioningUnion],
-        lookup_specialized_type(
-            ProductBlockModel.registry[instance.product_block.name],
-            SubscriptionLifecycle(instance.subscription.status),
-        ),
+    return cast(
+        AnyOpticalNodeBlockProvisioningUnion,
+        rehydrate_optical_module_block(optical_module_block, block_description="Optical Node"),
     )
-    return block_class.model_validate(optical_module_block)

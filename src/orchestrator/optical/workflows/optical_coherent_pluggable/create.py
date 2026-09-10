@@ -49,11 +49,11 @@ from orchestrator.optical.products.product_types.optical_coherent_pluggable impo
     OpticalCoherentPluggablePartNumber,
     OpticalCoherentPluggableProvisioning,
 )
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     packet_node_block_from_subscription,
-    save_optical_coherent_pluggable_block,
     update_optical_coherent_pluggable_subscription_description,
 )
 from orchestrator.optical.workflows.shared import active_subscription_selector_by_block_type, create_summary_form
@@ -346,7 +346,7 @@ def construct_optical_coherent_pluggable_subscription(
 #: step provides it under ``OPTICAL_MODULE_BLOCK_STATE_KEY``, and the last
 #: step re-hydrates the block from the database and persists it, because
 #: workflow steps execute with the state serialized between steps.
-CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS: StepList = begin >> save_optical_coherent_pluggable_block
+CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS: StepList = begin >> save_optical_module_block
 
 
 @create_workflow(initial_input_form=create_optical_coherent_pluggable_form_generator)

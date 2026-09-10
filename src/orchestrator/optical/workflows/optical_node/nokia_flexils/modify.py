@@ -37,13 +37,13 @@ from orchestrator.optical.products.product_types.optical_node.nokia_flexils impo
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.flexils import FlexIlsTargetId
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_node_block,
     modify_optical_node_management_form,
     optical_node_block_from_state,
-    save_optical_node_block,
     update_optical_node_block_fields,
     update_optical_node_subscription_description,
     validate_gmpls_id_uniqueness,
@@ -267,7 +267,7 @@ MODIFY_NOKIA_FLEXILS_BLOCK_STEPS: StepList = (
     begin
     >> update_optical_node_nokia_flexils_block
     >> retrieve_optical_node_role_and_software_version
-    >> save_optical_node_block
+    >> save_optical_module_block
 )
 
 

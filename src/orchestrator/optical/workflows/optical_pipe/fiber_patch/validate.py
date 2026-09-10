@@ -17,11 +17,11 @@ from pydantic_forms.types import State
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import validate_workflow
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_pipe.shared import (
     check_pipe_terminations,
     load_optical_pipe_block,
     retrieve_optical_pipe_used_passbands,
-    save_optical_pipe_block,
     set_optical_pipe_subscription_description,
 )
 
@@ -42,7 +42,7 @@ def load_initial_state_fiber_patch(subscription: OpticalFiberPatchSubscription) 
 #: block into the state and finalize the subscription with the shared
 #: description step.
 VALIDATE_FIBER_PATCH_BLOCK_STEPS: StepList = (
-    begin >> check_pipe_terminations >> retrieve_optical_pipe_used_passbands >> save_optical_pipe_block
+    begin >> check_pipe_terminations >> retrieve_optical_pipe_used_passbands >> save_optical_module_block
 )
 
 

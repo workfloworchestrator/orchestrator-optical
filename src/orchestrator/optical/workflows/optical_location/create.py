@@ -44,11 +44,11 @@ from orchestrator.optical.products.product_types.optical_location import (
     OpticalModuleLocationSubscriptionProvisioning,
 )
 from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_location.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     check_location_code_uniqueness,
-    save_optical_module_location_block,
     set_optical_module_location_subscription_description,
 )
 from orchestrator.optical.workflows.shared import create_summary_form
@@ -230,7 +230,7 @@ def construct_optical_module_location_subscription(
     subscription to PROVISIONING in memory, so the block found in the state
     under ``OPTICAL_MODULE_BLOCK_STATE_KEY`` is the PROVISIONING variant with
     its mandatory fields already set — the contract of the shipped block step
-    :func:`orchestrator.optical.workflows.optical_location.shared.save_optical_module_location_block`.
+    :func:`orchestrator.optical.workflows.block.save_optical_module_block`.
 
     Consumers that define their own product type (composing the
     ``OpticalModuleLocationBlock`` under their own attribute name) write their
@@ -272,7 +272,7 @@ def construct_optical_module_location_subscription(
 #: their own model run this list after constructing their subscription the
 #: same way and putting their block in the state under
 #: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS: StepList = begin >> save_optical_module_location_block
+CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS: StepList = begin >> save_optical_module_block
 
 
 @create_workflow(initial_input_form=create_optical_module_location_form_generator)

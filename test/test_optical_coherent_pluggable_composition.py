@@ -40,7 +40,9 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
     Vendor,
 )
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import OpticalCoherentPluggablePartNumber
+from orchestrator.optical.workflows import block as block_parts
 from orchestrator.optical.workflows import customer as customer_parts
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_coherent_pluggable import create as create_parts
 from orchestrator.optical.workflows.optical_coherent_pluggable import modify as modify_parts
 from orchestrator.optical.workflows.optical_coherent_pluggable import shared as shared_parts
@@ -57,7 +59,6 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_coherent_pluggable_block,
     optical_coherent_pluggable_block_from_state,
-    save_optical_coherent_pluggable_block,
 )
 from orchestrator.optical.workflows.optical_coherent_pluggable.terminate import (
     OPTICAL_COHERENT_PLUGGABLE_TERMINATE_STEPS,
@@ -356,12 +357,12 @@ def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch)
         assert block_dict["subscription_instance_id"] == str(block.subscription_instance_id)
         return block
 
-    monkeypatch.setattr(shared_parts, "_optical_coherent_pluggable_block_from_state", fake_from_state)
+    monkeypatch.setattr(block_parts, "rehydrate_optical_module_block", fake_from_state)
 
     subscription_id = uuid.uuid4()
     round_tripped = _round_tripped_block_state(block)
 
-    result = cast(Any, save_optical_coherent_pluggable_block).__wrapped__(
+    result = cast(Any, save_optical_module_block).__wrapped__(
         subscription=SimpleNamespace(subscription_id=subscription_id, status=SubscriptionLifecycle.PROVISIONING),
         optical_module_block=round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY],
     )

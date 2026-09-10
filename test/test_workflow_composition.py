@@ -77,7 +77,7 @@ def test_shipped_type_create_workflow_composition() -> None:
     names = [step.name for step in workflow.steps]
     assert names.index("Construct Subscription model") < names.index("Set subscription to 'provisioning'")
     assert names.index("Set subscription to 'provisioning'") < names.index("Retrieve node role and software version")
-    assert names.index("Retrieve node role and software version") < names.index("Persist optical node block")
+    assert names.index("Retrieve node role and software version") < names.index("Persist optical module block")
     assert names.index("Construct Subscription model") < names.index("Create Process Subscription relation")
 
 
@@ -101,7 +101,7 @@ def test_shipped_type_modify_workflow_composition() -> None:
     assert workflow.name == "modify_optical_node_nokia_flexils"
     names = [step.name for step in workflow.steps]
     assert names.index("Load optical node block") < names.index("Updating Nokia FlexILS node block")
-    assert names.index("Updating Nokia FlexILS node block") < names.index("Persist optical node block")
+    assert names.index("Updating Nokia FlexILS node block") < names.index("Persist optical module block")
 
 
 def test_consumer_model_modify_workflow_composition() -> None:
@@ -120,7 +120,7 @@ def test_consumer_model_modify_workflow_composition() -> None:
     workflow: Workflow = modify_my_router
     assert workflow.name == "modify_my_router"
     names = [step.name for step in workflow.steps]
-    assert names.index("Updating Nokia FlexILS node block") < names.index("Persist optical node block")
+    assert names.index("Updating Nokia FlexILS node block") < names.index("Persist optical module block")
 
 
 def test_terminate_and_validate_shared_step_lists_compose() -> None:
@@ -169,8 +169,8 @@ def test_shipped_type_coherent_pluggable_create_workflow_composition() -> None:
     assert workflow.name == "create_optical_coherent_pluggable"
     names = [step.name for step in workflow.steps]
     assert names.index("Construct Subscription model") < names.index("Set subscription to 'provisioning'")
-    assert names.index("Set subscription to 'provisioning'") < names.index("Persist optical coherent pluggable block")
-    assert names.index("Persist optical coherent pluggable block") < names.index("Updating subscription description")
+    assert names.index("Set subscription to 'provisioning'") < names.index("Persist optical module block")
+    assert names.index("Persist optical module block") < names.index("Updating subscription description")
     assert names.index("Construct Subscription model") < names.index("Create Process Subscription relation")
 
 
@@ -196,9 +196,7 @@ def test_shipped_type_coherent_pluggable_modify_workflow_composition() -> None:
     assert names.index("Load optical coherent pluggable block") < names.index(
         "Updating Optical Coherent Pluggable block"
     )
-    assert names.index("Updating Optical Coherent Pluggable block") < names.index(
-        "Persist optical coherent pluggable block"
-    )
+    assert names.index("Updating Optical Coherent Pluggable block") < names.index("Persist optical module block")
 
 
 def test_consumer_model_coherent_pluggable_modify_workflow_composition() -> None:
@@ -217,9 +215,7 @@ def test_consumer_model_coherent_pluggable_modify_workflow_composition() -> None
     workflow: Workflow = modify_my_router
     assert workflow.name == "modify_my_router"
     names = [step.name for step in workflow.steps]
-    assert names.index("Updating Optical Coherent Pluggable block") < names.index(
-        "Persist optical coherent pluggable block"
-    )
+    assert names.index("Updating Optical Coherent Pluggable block") < names.index("Persist optical module block")
 
 
 def test_coherent_pluggable_terminate_and_validate_shared_step_lists_compose() -> None:

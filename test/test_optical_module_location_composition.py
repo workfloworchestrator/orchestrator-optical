@@ -29,6 +29,7 @@ from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockProvisioning,
 )
 from orchestrator.optical.workflows import customer as customer_parts
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_location import create as location_create
 from orchestrator.optical.workflows.optical_location import modify as location_modify
 from orchestrator.optical.workflows.optical_location import shared as location_shared
@@ -50,7 +51,6 @@ from orchestrator.optical.workflows.optical_location.shared import (
     load_optical_module_location_block,
     optical_location_block_from_state,
     optical_module_location_subscription_description,
-    save_optical_module_location_block,
     set_optical_module_location_subscription_description,
 )
 from orchestrator.optical.workflows.optical_location.terminate import (
@@ -284,8 +284,8 @@ def test_optical_location_block_from_state_rejects_unknown_subscription_instance
 def test_save_block_step_fails_fast_when_state_has_no_block() -> None:
     """The save step fails fast when the state holds no Optical Module Location block."""
     subscription = cast(Any, SimpleNamespace(subscription_id=uuid.uuid4(), status=SubscriptionLifecycle.PROVISIONING))
-    with pytest.raises(ValueError, match="No Optical Module Location block in the state"):
-        cast(Any, save_optical_module_location_block).__wrapped__(
+    with pytest.raises(ValueError, match="No Optical Module block in the state"):
+        cast(Any, save_optical_module_block).__wrapped__(
             subscription=subscription,
             optical_module_block=None,
         )
@@ -474,8 +474,8 @@ def test_shipped_type_create_workflow_composition() -> None:
     assert workflow.name == "create_optical_module_location"
     names = [step.name for step in workflow.steps]
     assert names.index("Construct Subscription model") < names.index("Set subscription to 'provisioning'")
-    assert names.index("Set subscription to 'provisioning'") < names.index("Persist optical module location block")
-    assert names.index("Persist optical module location block") < names.index(
+    assert names.index("Set subscription to 'provisioning'") < names.index("Persist optical module block")
+    assert names.index("Persist optical module block") < names.index(
         "Set Optical Module Location subscription description"
     )
     assert names.index("Set Optical Module Location subscription description") < names.index(
@@ -603,8 +603,8 @@ def test_shipped_type_modify_workflow_composition() -> None:
     assert workflow.name == "modify_optical_module_location"
     names = [step.name for step in workflow.steps]
     assert names.index("Load optical module location block") < names.index("Updating Optical Module Location block")
-    assert names.index("Updating Optical Module Location block") < names.index("Persist optical module location block")
-    assert names.index("Persist optical module location block") < names.index(
+    assert names.index("Updating Optical Module Location block") < names.index("Persist optical module block")
+    assert names.index("Persist optical module block") < names.index(
         "Set Optical Module Location subscription description"
     )
 
@@ -630,7 +630,7 @@ def test_consumer_model_modify_workflow_composition() -> None:
     workflow: Workflow = modify_my_router
     assert workflow.name == "modify_my_router"
     names = [step.name for step in workflow.steps]
-    assert names.index("Updating Optical Module Location block") < names.index("Persist optical module location block")
+    assert names.index("Updating Optical Module Location block") < names.index("Persist optical module block")
 
 
 def test_terminate_and_validate_shared_step_lists_compose() -> None:

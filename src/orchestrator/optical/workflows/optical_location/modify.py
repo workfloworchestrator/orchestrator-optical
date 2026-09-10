@@ -44,13 +44,13 @@ from orchestrator.optical.products.product_blocks.optical_location import (
 )
 from orchestrator.optical.products.product_types.optical_location import OpticalModuleLocationSubscription
 from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_location.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     check_location_code_uniqueness,
     load_optical_module_location_block,
     optical_location_block_from_state,
-    save_optical_module_location_block,
     set_optical_module_location_subscription_description,
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
@@ -261,7 +261,7 @@ def update_optical_module_location_block(
 #: The block is persisted by the last step, because workflow steps reload the
 #: subscription from the database and would otherwise lose the mutations.
 MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS: StepList = (
-    begin >> update_optical_module_location_block >> save_optical_module_location_block
+    begin >> update_optical_module_location_block >> save_optical_module_block
 )
 
 

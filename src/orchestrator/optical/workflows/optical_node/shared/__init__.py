@@ -26,7 +26,6 @@ from orchestrator.optical.workflows.optical_node.shared.forms import (
 )
 from orchestrator.optical.workflows.optical_node.shared.modify import (
     load_optical_node_block,
-    save_optical_node_block,
     update_optical_node_block_fields,
     update_optical_node_subscription_description,
 )
@@ -60,7 +59,6 @@ __all__ = [
     "optical_node_subscription_description",
     "populate_abstract_optical_node_fields",
     "retrieve_optical_node_role_and_software_version",
-    "save_optical_node_block",
     "terminate_initial_input_form_generator",
     "terminate_optical_node_form",
     "terminate_optical_node_form_pages",

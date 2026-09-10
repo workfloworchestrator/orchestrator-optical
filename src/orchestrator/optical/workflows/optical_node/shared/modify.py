@@ -90,35 +90,3 @@ def update_optical_node_subscription_description(
     node_block = optical_node_block_from_state(optical_module_block)
     subscription.description = optical_node_subscription_description(subscription, node_block)
     return {"subscription": subscription, "subscription_description": subscription.description}
-
-
-@step("Persist optical node block")
-def save_optical_node_block(
-    subscription: SubscriptionModel,
-    optical_module_block: AnyOpticalNodeBlockProvisioningUnion,
-) -> State:
-    """Persist the Optical Node block found in the state to the database.
-
-    Workflow steps execute with the state serialized between steps, so the
-    block is re-hydrated from its serialized form (see
-    :func:`optical_node_block_from_state`) before it is saved. This step saves
-    the block tree of the loaded subscription (any consumer subscription model
-    that has-a the block works) and returns the block, so it can be composed
-    by any consumer workflow. The shipped block steps always operate on the
-    PROVISIONING variant: their callers provide the block with the mandatory
-    fields set and the owner subscription in the PROVISIONING status.
-
-    Args:
-        subscription: The subscription owning the block.
-        optical_module_block: The Optical Node block to persist.
-
-    Returns:
-        The state with the block under the ``optical_module_block`` key.
-
-    Raises:
-        ValueError: If there is no Optical Node block in the state under
-            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-    """
-    node_block = optical_node_block_from_state(optical_module_block)
-    node_block.save(subscription_id=subscription.subscription_id, status=subscription.status)
-    return {OPTICAL_MODULE_BLOCK_STATE_KEY: node_block}

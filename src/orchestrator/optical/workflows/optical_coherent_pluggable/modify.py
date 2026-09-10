@@ -38,12 +38,12 @@ from orchestrator.optical.products.product_blocks.optical_coherent_pluggable imp
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
     OpticalCoherentPluggable,
 )
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_coherent_pluggable_block,
     optical_coherent_pluggable_block_from_state,
-    save_optical_coherent_pluggable_block,
     update_optical_coherent_pluggable_subscription_description,
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
@@ -196,7 +196,7 @@ def update_optical_coherent_pluggable_block(
 #: The block is persisted by the last step, because workflow steps reload the
 #: subscription from the database and would otherwise lose the mutations.
 MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS: StepList = (
-    begin >> update_optical_coherent_pluggable_block >> save_optical_coherent_pluggable_block
+    begin >> update_optical_coherent_pluggable_block >> save_optical_module_block
 )
 
 

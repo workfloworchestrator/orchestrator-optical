@@ -44,6 +44,7 @@ from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import
     OpticalFiberPatchSubscriptionInactive,
     OpticalFiberPatchSubscriptionProvisioning,
 )
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     PORT_BLOCK_CLASS_BY_ROLE,
@@ -55,7 +56,6 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     pipe_port_roles,
     resolve_port_role,
     retrieve_optical_pipe_used_passbands,
-    save_optical_pipe_block,
     set_optical_pipe_subscription_description,
 )
 
@@ -220,7 +220,7 @@ def construct_fiber_patch_subscription(
 #: putting their block in the state under
 #: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 CREATE_FIBER_PATCH_BLOCK_STEPS: StepList = (
-    begin >> configure_pipe_terminations >> retrieve_optical_pipe_used_passbands >> save_optical_pipe_block
+    begin >> configure_pipe_terminations >> retrieve_optical_pipe_used_passbands >> save_optical_module_block
 )
 
 

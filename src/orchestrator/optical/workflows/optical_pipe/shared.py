@@ -16,10 +16,9 @@ from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 
-from orchestrator.core.db import ProductTable, SubscriptionInstanceTable, SubscriptionTable, db
+from orchestrator.core.db import ProductTable, SubscriptionTable, db
 from orchestrator.core.domain import SubscriptionModel
-from orchestrator.core.domain.base import ProductBlockModel, ProductModel
-from orchestrator.core.domain.lifecycle import lookup_specialized_type
+from orchestrator.core.domain.base import ProductModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
@@ -62,6 +61,7 @@ from orchestrator.optical.products.product_types.optical_pipe.abstracts import (
     AbstractOpticalPipeSubscriptionProvisioning,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
+from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import OPTICAL_NODE_PRODUCT_TYPES
 from orchestrator.optical.workflows.shared import create_summary_form, modify_summary_form, optical_port_selector
@@ -266,15 +266,9 @@ def optical_pipe_block_from_state(
 def _optical_pipe_block_from_state(optical_module_block: dict[str, Any]) -> AbstractOpticalPipeBlockProvisioning:
     """Reconstruct an Optical Pipe block from its serialized form.
 
-    The state dict carries the full block data (the block is serialized with
-    ``model_dump``), so the block is reconstructed from it rather than reloaded
-    from the database: reloading would discard the mutations made by the
-    preceding step, which workflow steps only persist when they explicitly save.
-    The concrete block class is resolved through the product block registry (the
-    abstract Optical Pipe block has multiple concrete chains: fiber span, fiber
-    patch and leased spectrum) and its lifecycle variant from the status of its
-    owner subscription, mirroring the block-based resolution in
-    ``orchestrator.optical.db``.
+    Thin wrapper around the family-agnostic re-hydration
+    (:func:`orchestrator.optical.workflows.block.rehydrate_optical_module_block`),
+    kept for the narrowed return type and the family-specific error message.
 
     Args:
         optical_module_block: The serialized block from the workflow state.
@@ -286,22 +280,10 @@ def _optical_pipe_block_from_state(optical_module_block: dict[str, Any]) -> Abst
         ValueError: If the block in the state has no ``subscription_instance_id``,
             or if no subscription instance exists with the given id.
     """
-    subscription_instance_id = optical_module_block.get("subscription_instance_id")
-    if subscription_instance_id is None:
-        msg = "Optical Pipe block in the state has no subscription_instance_id"
-        raise ValueError(msg)
-    instance = db.session.get(SubscriptionInstanceTable, subscription_instance_id)
-    if instance is None:
-        msg = f"No subscription instance with id {subscription_instance_id}"
-        raise ValueError(msg)
-    block_class = cast(
-        type[AbstractOpticalPipeBlockProvisioning],
-        lookup_specialized_type(
-            ProductBlockModel.registry[instance.product_block.name],
-            SubscriptionLifecycle(instance.subscription.status),
-        ),
+    return cast(
+        AbstractOpticalPipeBlockProvisioning,
+        rehydrate_optical_module_block(optical_module_block, block_description="Optical Pipe"),
     )
-    return block_class.model_validate(optical_module_block)
 
 
 @step("Load optical pipe block")
@@ -325,35 +307,6 @@ def load_optical_pipe_block(subscription: AbstractOpticalPipeSubscriptionProvisi
             ``optical_pipe`` attribute.
     """
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: subscription.optical_pipe}
-
-
-@step("Persist optical pipe block")
-def save_optical_pipe_block(
-    subscription: SubscriptionModel,
-    optical_module_block: AbstractOpticalPipeBlockProvisioning,
-) -> State:
-    """Persist the Optical Pipe block found in the state to the database.
-
-    Workflow steps execute with the state serialized between steps, so the
-    block is re-hydrated from the database by its ``subscription_instance_id``
-    before it is saved. This step saves the block tree of the loaded
-    subscription (any consumer subscription model that has-a the block)
-    and returns the block, so it can be composed by any consumer workflow.
-
-    Args:
-        subscription: The subscription owning the block.
-        optical_module_block: The Optical Pipe block to persist.
-
-    Returns:
-        The state with the block under the ``optical_module_block`` key.
-
-    Raises:
-        ValueError: If there is no Optical Pipe block in the state under
-            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-    """
-    pipe_block = optical_pipe_block_from_state(optical_module_block)
-    pipe_block.save(subscription_id=subscription.subscription_id, status=subscription.status)
-    return {OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
 
 
 @step("Configure Optical Pipe Terminations")
@@ -499,7 +452,7 @@ def retrieve_optical_pipe_used_passbands(
     nodes are refreshed from the devices; every other termination (e.g.
     transponder ports) is left untouched, so the step is a no-op for pipes
     whose terminations are all transponder ports. Callers persist the refreshed
-    passbands with :func:`save_optical_pipe_block`.
+    passbands with :func:`orchestrator.optical.workflows.block.save_optical_module_block`.
     """
     pipe_block = optical_pipe_block_from_state(optical_module_block)
     terminations = pipe_block.optical_pipe_terminations
@@ -976,7 +929,6 @@ __all__ = [
     "pipe_port_roles",
     "pipe_terminations_form",
     "resolve_port_role",
-    "save_optical_pipe_block",
     "set_optical_pipe_subscription_description",
     "update_optical_pipe_block",
 ]

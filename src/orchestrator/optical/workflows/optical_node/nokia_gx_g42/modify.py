@@ -34,13 +34,13 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
 from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_node_block,
     modify_optical_node_management_form,
     optical_node_block_from_state,
-    save_optical_node_block,
     update_optical_node_block_fields,
     update_optical_node_subscription_description,
     validate_optical_node_management_fields_uniqueness,
@@ -173,7 +173,7 @@ MODIFY_NOKIA_GX_G42_BLOCK_STEPS: StepList = (
     begin
     >> update_optical_node_nokia_gx_g42_block
     >> retrieve_optical_node_role_and_software_version
-    >> save_optical_node_block
+    >> save_optical_module_block
 )
 
 

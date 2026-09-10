@@ -242,7 +242,7 @@ Notes:
   persisting the block. The block is assumed to always be in the `PROVISIONING` status. Therefore your construct step builds
   your subscription and puts the composed block in the state, and you run the list. The
   `*_BLOCK_STEPS` lists are the same steps used for path 1; they read the block from the state and end
-  with a step that persists it, because workflow steps reload the subscription from the database and would
+  with `save_optical_module_block`, which persists it, because workflow steps reload the subscription from the database and would
   otherwise lose the mutations.
 - The shipped form pages are reusable as-is: they emit the flat `optical_*` keys the shipped steps consume. If you
   write your own form, you must either emit the same keys or write your own steps.
@@ -276,7 +276,7 @@ Notes:
 
 The shipped block steps take the shipped block from the workflow state always under the same key: `optical_module_block`. Consumers put their
 composed block in the state under this key (one small step); the block steps read and write it, and the shipped
-persistence step saves it back into the owner subscription.
+persistence step (`save_optical_module_block`) saves it back into the owner subscription.
 
 ## Configuring the customer selection
 
@@ -338,8 +338,9 @@ def my_create_form_generator(product_name):
 
 ## Status of the port
 
-The `optical_location` and `optical_node` families are the reference implementations. Other workflows are mid-port
-and will change.
+The `optical_location`, `optical_node`, `optical_pipe` and `optical_coherent_pluggable` families are the reference
+implementations of the page-sequence model. The remaining workflows (`optical_spectrum_service`,
+`optical_digital_service`) are mid-port and will change.
 
 
 ## Development
