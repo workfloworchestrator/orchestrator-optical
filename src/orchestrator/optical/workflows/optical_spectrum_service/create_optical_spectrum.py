@@ -19,6 +19,7 @@ from orchestrator.optical.hal.port import set_port_description
 from orchestrator.optical.hal.spectrum import deploy_optical_circuit
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
 from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
 from orchestrator.optical.products.product_types.optical_spectrum_service import (
@@ -31,13 +32,12 @@ from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     NoOpticalPathFoundError,
     multiple_optical_node_selector,
-    optical_client_port_selector,
     optical_node_selector_of_roles,
     optical_spectrum_path_selector,
     store_list_of_ports_into_spectrum_sections,
     update_used_passbands,
 )
-from orchestrator.optical.workflows.shared import create_summary_form
+from orchestrator.optical.workflows.shared import create_summary_form, optical_port_selector
 
 logger = get_logger(__name__)
 
@@ -117,15 +117,17 @@ def initial_input_form_generator(
     sub_node_b = AbstractOpticalNode.from_subscription(user_input_dict["dst_optical_device_id"])
     optical_node_b = sub_node_b.optical_node
 
-    SrcOpticalPortSelector = optical_client_port_selector(  # noqa: N806
-        user_input_dict["src_optical_device_id"],
+    SrcOpticalPortSelector = optical_port_selector(  # noqa: N806
+        optical_node_a,
+        roles=[OpticalPortRole.OLS_ADD_DROP],
         prompt=(
             f"Select the Add/Drop Port on {optical_node_a.management.optical_module_node_fqdn}."
             " Please be careful to select the correct port."
         ),
     )
-    DstOpticalPortSelector = optical_client_port_selector(  # noqa: N806
-        user_input_dict["dst_optical_device_id"],
+    DstOpticalPortSelector = optical_port_selector(  # noqa: N806
+        optical_node_b,
+        roles=[OpticalPortRole.OLS_ADD_DROP],
         prompt=(
             f"Select the Add/Drop Port on {optical_node_b.management.optical_module_node_fqdn}."
             " Please be careful to select the correct port."

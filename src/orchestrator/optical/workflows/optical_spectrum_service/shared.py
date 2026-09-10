@@ -15,11 +15,9 @@ device selectors to the generalized Optical Node/Port model:
   ``OpticalModuleNodeManagementBlock``;
 - the old ``used_passbands`` of the optical ports is the
   ``optical_passbands`` of the ``AbstractOpticalOlsPortBlock`` instances;
-- the old device-specific port selectors are ported to selectors that work on
-  the Optical Node subscriptions (``optical_node_selector_of_roles``,
-  ``optical_client_port_selector``, ``optical_line_port_selector``,
-  ``unused_optical_client_port_selector``, ``unused_optical_line_port_selector``,
-  ``transceiver_mode_selector``).
+- the old device-specific port selectors are replaced by the generic
+  role-based ``optical_port_selector`` of ``orchestrator.optical.workflows.shared``
+  and by ``optical_node_selector_of_roles`` / ``transceiver_mode_selector``.
 """
 
 from collections import deque
@@ -32,21 +30,14 @@ from pydantic_forms.validators import Choice, choice_list
 from structlog import get_logger
 
 from orchestrator.core.db import SubscriptionTable
-from orchestrator.core.db.models import SubscriptionInstanceValueTable
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import (
-    subscription_instance_values_by_block_type_depending_on_instance_id,
     subscriptions_by_product_type,
     subscriptions_by_product_type_and_instance_value,
 )
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
-from orchestrator.optical.hal.port import (
-    get_device_client_ports_names,
-    get_device_line_ports_names,
-    get_device_ports_names,
-    retrieve_transceiver_modes,
-)
+from orchestrator.optical.hal.port import retrieve_transceiver_modes
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
@@ -842,160 +833,6 @@ def multiple_optical_node_selector(
         dynamic_class,
         Field(title=prompt),
     ]  # type: ignore[valid-type]
-
-
-def optical_port_selector(optical_node_subscription_id: UUIDstr, prompt: str = "") -> type[Choice]:
-    """Return a Choice object for selecting an optical port of an Optical Node."""
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
-    node = subscription.optical_node
-    ports = get_device_ports_names(node)
-    if not prompt:
-        prompt = f"Select optical port on {_node_fqdn(node)}"
-    dynamic_class = Choice(prompt, zip(ports, ports, strict=False))
-    return cast(type[Choice], dynamic_class)
-
-
-def unused_optical_port_selector(
-    optical_node_subscription_id: UUIDstr,
-    prompt: str = "",
-    product_block_type: str = "OlsAddDropPortBlock",
-) -> type[Choice]:
-    """Return a Choice object for selecting an unused optical port of an Optical Node.
-
-    Args:
-        optical_node_subscription_id: Subscription id of the Optical Node.
-        prompt: A custom prompt message for the selection.
-        product_block_type: The product block type whose ``optical_port_name`` values mark
-            ports as already in use (e.g. "OlsAddDropPortBlock", "OlsLinePortBlock").
-    """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
-    node = subscription.optical_node
-    ports = get_device_ports_names(node)
-
-    ports_siv_list: list[SubscriptionInstanceValueTable] = (
-        subscription_instance_values_by_block_type_depending_on_instance_id(
-            product_block_type=product_block_type,
-            resource_type="optical_port_name",
-            depending_on_instance_id=str(node.subscription_instance_id),
-            states=[SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING],
-        )
-    )
-    ports_in_db_list: list[str] = [str(p.value) for p in ports_siv_list]
-    ports_in_db: set[str] = set(ports_in_db_list)
-
-    unused_ports = [port for port in ports if port not in ports_in_db]
-    if not prompt:
-        prompt = f"Select optical port on {_node_fqdn(node)}"
-    dynamic_class = Choice(prompt, zip(unused_ports, unused_ports, strict=False))
-    return cast(type[Choice], dynamic_class)
-
-
-def optical_client_port_selector(
-    optical_node_subscription_id: UUIDstr,
-    prompt: str = "",
-) -> type[Choice]:
-    """Return a Choice object for selecting a client optical port of an Optical Node.
-
-    Args:
-        optical_node_subscription_id: Subscription id of the Optical Node.
-        prompt: A custom prompt message for the selection.
-    """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
-    node = subscription.optical_node
-    ports = get_device_client_ports_names(node)
-    if not prompt:
-        prompt = f"Select client optical port on {_node_fqdn(node)}"
-    dynamic_class = Choice(prompt, zip(ports, ports, strict=False))
-    return cast(type[Choice], dynamic_class)
-
-
-def unused_optical_client_port_selector(
-    optical_node_subscription_id: UUIDstr,
-    prompt: str = "",
-    product_block_type: str = "OlsAddDropPortBlock",
-) -> type[Choice]:
-    """Return a Choice object for selecting an unused client optical port of an Optical Node.
-
-    Args:
-        optical_node_subscription_id: Subscription id of the Optical Node.
-        prompt: A custom prompt message for the selection.
-        product_block_type: The product block type whose ``optical_port_name`` values mark
-            ports as already in use (e.g. "OlsAddDropPortBlock", "OpticalTransponderClientPortBlock").
-    """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
-    node = subscription.optical_node
-    ports = get_device_client_ports_names(node)
-
-    ports_siv_list: list[SubscriptionInstanceValueTable] = (
-        subscription_instance_values_by_block_type_depending_on_instance_id(
-            product_block_type=product_block_type,
-            resource_type="optical_port_name",
-            depending_on_instance_id=str(node.subscription_instance_id),
-            states=[SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING],
-        )
-    )
-    ports_in_db_list: list[str] = [str(p.value) for p in ports_siv_list]
-    ports_in_db: set[str] = set(ports_in_db_list)
-
-    unused_ports = [port for port in ports if port not in ports_in_db]
-    if not prompt:
-        prompt = f"Select client optical port on {_node_fqdn(node)}"
-    dynamic_class = Choice(prompt, zip(unused_ports, unused_ports, strict=False))
-    return cast(type[Choice], dynamic_class)
-
-
-def optical_line_port_selector(
-    optical_node_subscription_id: UUIDstr,
-    prompt: str = "",
-) -> type[Choice]:
-    """Return a Choice object for selecting a line optical port of an Optical Node.
-
-    Args:
-        optical_node_subscription_id: Subscription id of the Optical Node.
-        prompt: A custom prompt message for the selection.
-    """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
-    node = subscription.optical_node
-    ports = get_device_line_ports_names(node)
-    if not prompt:
-        prompt = f"Select line optical port on {_node_fqdn(node)}"
-    dynamic_class = Choice(prompt, zip(ports, ports, strict=False))
-    return cast(type[Choice], dynamic_class)
-
-
-def unused_optical_line_port_selector(
-    optical_node_subscription_id: UUIDstr,
-    prompt: str = "",
-    product_block_type: str = "OlsLinePortBlock",
-) -> type[Choice]:
-    """Return a Choice object for selecting an unused line optical port of an Optical Node.
-
-    Args:
-        optical_node_subscription_id: Subscription id of the Optical Node.
-        prompt: A custom prompt message for the selection.
-        product_block_type: The product block type whose ``optical_port_name`` values mark
-            ports as already in use (e.g. "OlsLinePortBlock", "OpticalTransponderLinePortBlock").
-    """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
-    node = subscription.optical_node
-    ports = get_device_line_ports_names(node)
-
-    ports_siv_list: list[SubscriptionInstanceValueTable] = (
-        subscription_instance_values_by_block_type_depending_on_instance_id(
-            product_block_type=product_block_type,
-            resource_type="optical_port_name",
-            depending_on_instance_id=str(node.subscription_instance_id),
-            states=[SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING],
-        )
-    )
-    ports_in_db_list: list[str] = [str(p.value) for p in ports_siv_list]
-    ports_in_db: set[str] = set(ports_in_db_list)
-
-    unused_ports = [port for port in ports if port not in ports_in_db]
-    if not prompt:
-        prompt = f"Select line optical port on {_node_fqdn(node)}"
-    dynamic_class = Choice(prompt, zip(unused_ports, unused_ports, strict=False))
-    return cast(type[Choice], dynamic_class)
 
 
 def transceiver_mode_selector(

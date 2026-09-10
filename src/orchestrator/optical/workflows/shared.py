@@ -25,6 +25,10 @@ from orchestrator.optical.db import (
     subscriptions_by_product_type,
     subscriptions_by_product_type_and_instance_value,
 )
+from orchestrator.optical.hal.port import get_device_ports_by_role
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 
 
 def merge_summary_fields(
@@ -285,3 +289,77 @@ def active_blocks_of_type_depending_on_other_block_multiple_selector(
         depending_on_product_block,
         prompt=prompt,
     )
+
+
+#: Optical Port block types whose ``optical_port_name`` marks a device port as in
+#: use by a pipe, spectrum or transport channel subscription.
+PORT_BLOCK_TYPES = [
+    "OlsLinePortBlock",
+    "OlsAddDropPortBlock",
+    "OpticalTransponderClientPortBlock",
+    "OpticalTransponderLinePortBlock",
+]
+
+
+def used_port_names_on_node(node_block: AbstractOpticalNodeBlockInactive) -> set[str]:
+    """Return the names of the ports of a node that are already used by other subscriptions.
+
+    The port blocks of all pipe, spectrum and transport channel subscriptions are
+    stored in the database as instances that depend on the Optical Node block of the
+    node that hosts them; this function collects the ``optical_port_name`` of all of
+    them.
+
+    Args:
+        node_block: Optical Node block of the node to check.
+
+    Returns:
+        The set of port names of the node that are in use by other subscriptions.
+    """
+    used_ports: set[str] = set()
+    for block_type in PORT_BLOCK_TYPES:
+        instance_values = subscription_instance_values_by_block_type_depending_on_instance_id(
+            product_block_type=block_type,
+            resource_type="optical_port_name",
+            depending_on_instance_id=str(node_block.subscription_instance_id),
+            states=[SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING],
+        )
+        used_ports.update(str(instance_value.value) for instance_value in instance_values)
+    return used_ports
+
+
+def optical_port_selector(
+    optical_node_block: AbstractOpticalNodeBlockInactive,
+    roles: list[OpticalPortRole] | None = None,
+    prompt: str | None = None,
+    *,
+    exclude_in_use: bool = True,
+) -> type[Choice]:
+    """Create a ``Choice`` selector for the ports of an Optical Node of the given roles.
+
+    This is the single port selector of the module: the ports are enumerated from
+    the device by their Optical Port role (``None`` selects every role the node's
+    vendor/platform supports) and, by default, the ports already in use by another
+    subscription are excluded.
+
+    Args:
+        optical_node_block: Optical Node block hosting the ports.
+        roles: The Optical Port roles to offer. ``None`` (the default) offers every
+            role the node's vendor/platform supports.
+        prompt: Prompt of the selector. When omitted, a default prompt is generated.
+        exclude_in_use: When True (the default), ports already used by another
+            subscription are not offered.
+
+    Returns:
+        A ``Choice`` class whose value and label are the device port name.
+
+    Raises:
+        UnsupportedPortRoleError: If a requested role is not supported by the node's vendor/platform.
+        UnsupportedPlatformError: If the Optical Node is not supported by this operation.
+    """
+    ports = get_device_ports_by_role(cast(AnyOpticalNodeBlockProvisioningUnion, optical_node_block), roles)
+    if exclude_in_use:
+        used_ports = used_port_names_on_node(optical_node_block)
+        ports = [port for port in ports if port not in used_ports]
+    if not prompt:
+        prompt = f"Select a port on {optical_node_block.management.optical_module_node_fqdn}"
+    return cast(type[Choice], Choice(prompt, zip(ports, ports, strict=False)))

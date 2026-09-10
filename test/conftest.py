@@ -82,8 +82,6 @@ CUSTOMER_ID = "cust-1"
 FAKE_CLIENT_PORTS = ("port-1/2/1",)
 #: Port names offered by the faked line ports.
 FAKE_LINE_PORTS = ("port-1/3.1/1.1",)  # G30 OLS-card port: contains a dot, so the spectrum path engine keeps it
-#: All port names offered by the faked devices.
-FAKE_ALL_PORTS = (*FAKE_CLIENT_PORTS, *FAKE_LINE_PORTS)
 #: Transceiver modes offered by the faked devices.
 FAKE_TRANSCEIVER_MODES = ("DP16QAM",)
 #: Software version reported by the faked devices.
@@ -440,7 +438,6 @@ def install_device_stubs(
     families: Sequence[str],
     client_ports: Sequence[str] = FAKE_CLIENT_PORTS,
     line_ports: Sequence[str] = FAKE_LINE_PORTS,
-    all_ports: Sequence[str] = FAKE_ALL_PORTS,
     modes: Sequence[str] = FAKE_TRANSCEIVER_MODES,
 ) -> None:
     """Monkeypatch the HAL device functions used by the given workflow families.
@@ -452,28 +449,30 @@ def install_device_stubs(
     Args:
         monkeypatch: The pytest monkeypatch fixture.
         families: Which family tables to apply: any of ``"node"``, ``"pipe"``, ``"spectrum"``, ``"ods"``.
-        client_ports/line_ports/all_ports/modes: Port and mode names offered by the faked devices.
+        client_ports/line_ports/modes: Port and mode names offered by the faked devices.
     """
 
     # Port-list fakes bound to the per-test overrides.
-    def _get_device_line_ports_names(block: Any) -> list[str]:
-        return list(line_ports)
-
-    def _get_device_client_ports_names(block: Any) -> list[str]:
-        return list(client_ports)
-
-    def _get_device_ports_names(block: Any) -> list[str]:
-        return list(all_ports)
-
     def _get_device_ports_by_role(block: Any, roles: Any = None) -> list[str]:
-        # The seeded pipe test nodes are Nokia FlexILS: OLS line ports are the line
-        # ports, OLS add/drop (tributary) ports are the client ports.
-        requested = roles if roles is not None else [OpticalPortRole.OLS_LINE, OpticalPortRole.OLS_ADD_DROP]
+        # The seeded test nodes are Nokia FlexILS: OLS line ports are the line
+        # ports, OLS add/drop (tributary) ports are the client ports. The transponder
+        # roles are mapped the same way so the fake also serves the transponder
+        # selectors (digital service).
+        requested = (
+            roles
+            if roles is not None
+            else [
+                OpticalPortRole.OLS_LINE,
+                OpticalPortRole.OLS_ADD_DROP,
+                OpticalPortRole.TRANSPONDER_CLIENT,
+                OpticalPortRole.TRANSPONDER_LINE,
+            ]
+        )
         names: list[str] = []
         for role in requested:
-            if role is OpticalPortRole.OLS_LINE:
+            if role in (OpticalPortRole.OLS_LINE, OpticalPortRole.TRANSPONDER_LINE):
                 names.extend(line_ports)
-            elif role is OpticalPortRole.OLS_ADD_DROP:
+            elif role in (OpticalPortRole.OLS_ADD_DROP, OpticalPortRole.TRANSPONDER_CLIENT):
                 names.extend(client_ports)
         return list(dict.fromkeys(names))
 
@@ -489,6 +488,9 @@ def install_device_stubs(
             },
         },
         "pipe": {
+            "orchestrator.optical.workflows.shared": {
+                "get_device_ports_by_role": _get_device_ports_by_role,
+            },
             "orchestrator.optical.workflows.optical_pipe.shared": {
                 "check_fiber_terminating_port": _fake_check_fiber_terminating_port,
                 "configure_termination_when_attaching_new_fiber": _fake_configure_termination_when_attaching_new_fiber,
@@ -506,8 +508,10 @@ def install_device_stubs(
             },
         },
         "spectrum": {
+            "orchestrator.optical.workflows.shared": {
+                "get_device_ports_by_role": _get_device_ports_by_role,
+            },
             "orchestrator.optical.workflows.optical_spectrum_service.shared": {
-                "get_device_client_ports_names": _get_device_client_ports_names,
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
             },
             "orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum": {
@@ -525,8 +529,10 @@ def install_device_stubs(
             },
         },
         "ods": {
+            "orchestrator.optical.workflows.shared": {
+                "get_device_ports_by_role": _get_device_ports_by_role,
+            },
             "orchestrator.optical.workflows.optical_spectrum_service.shared": {
-                "get_device_client_ports_names": _get_device_client_ports_names,
                 "retrieve_transceiver_modes": _retrieve_transceiver_modes,
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
             },

@@ -36,26 +36,6 @@ def _scg_aids(flex: Any) -> list[str]:
         return []
 
 
-def get_device_ports_names(optical_node_block: NokiaFlexIlsBlockProvisioning) -> list[str]:
-    """Return the SCG and OTS AIDs of a Nokia FlexILS node."""
-    flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
-    scg_aids = _scg_aids(flex)
-    ots_aids = [str(x["AID"]) for x in flex.rtrv_ots().parsed_data]
-    return scg_aids + ots_aids
-
-
-def get_device_client_ports_names(optical_node_block: NokiaFlexIlsBlockProvisioning) -> list[str]:
-    """Return the SCG AIDs of a Nokia FlexILS node."""
-    flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
-    return _scg_aids(flex)
-
-
-def get_device_line_ports_names(optical_node_block: NokiaFlexIlsBlockProvisioning) -> list[str]:
-    """Return the OTS AIDs of a Nokia FlexILS node."""
-    flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
-    return [str(x["AID"]) for x in flex.rtrv_ots().parsed_data]
-
-
 def get_device_ports_by_role(
     optical_node_block: NokiaFlexIlsBlockProvisioning,
     roles: list[OpticalPortRole] | None = None,
@@ -290,7 +270,7 @@ def check_fiber(
             ots = flex.rtrv_ots(aid=port_name).parsed_data[0]
             checks = (
                 description in ots["LABEL"]
-                and "IS" in ots["OPERSTATE"]
+                and not ots["OPERSTATE"].endswith("MA")
                 and remote_port_name in ots["PROVNBROTS"]
                 and ots["PROVNBROTS"] == ots["DISCNBROTS"]
                 and ots["HISTSTATS"] == "ENABLED"
@@ -331,7 +311,7 @@ def check_fiber(
                 scg["INTFTYP"] == "MANUALMODE-2"
                 and scg["PROVOWREMPTP"] == provowremptp
                 and description in scg["LABEL"]
-                and "IS" in scg["OPERSTATE"]
+                and not scg["OPERSTATE"].endswith("MA")
                 and scg["HISTSTATS"] == "ENABLED"
             )
             if not checks:

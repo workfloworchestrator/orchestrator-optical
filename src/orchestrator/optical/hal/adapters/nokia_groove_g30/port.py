@@ -5,7 +5,6 @@ from decimal import Decimal
 from typing import Any, Literal, cast
 
 from orchestrator.optical.hal._common import (
-    UnsupportedPortRoleError,
     _node_id,
     _port_name,
     _ports_by_role,
@@ -34,9 +33,11 @@ from orchestrator.optical.services.nokia.g30.data_models.ne import (
 )
 from orchestrator.optical.utils.datadiff import compare_pydantic_objects
 
-#: Port roles a Groove G30 node can enumerate. Its line and client (card) ports are hostable both as
-#: OLS ports (fiber spans) and as transponder ports (patches / leased spectrum / digital services),
-#: so each physical port is exposed under both its OLS and its transponder role.
+#: Port roles a Groove G30 node can enumerate. The role of each physical port is
+#: determined from the device: an OCC2 card exposes OLS line ports (when an OTS
+#: with the same id exists) or OLS add/drop ports (otherwise), while every other
+#: card exposes transponder line ports (card ports 1 and 2) or transponder client
+#: ports (every other port, subports included).
 _G30_SUPPORTED_ROLES = frozenset(
     {
         OpticalPortRole.OLS_LINE,
@@ -47,84 +48,75 @@ _G30_SUPPORTED_ROLES = frozenset(
 )
 
 
-def get_device_ports_names(optical_node_block: NokiaGrooveG30BlockProvisioning) -> list[str]:
-    """Return the aliases of all the ports of a Groove G30 node."""
+def _g30_aid_id(port_name: str) -> str:
+    """Return the id shared by a port and its OTS (e.g. ``1/3.3/1`` for ``port-1/3.3/1``)."""
+    return port_name.split("-", 1)[-1]
+
+
+def _g30_port_role(
+    *,
+    is_occ2: bool,
+    is_card_port: bool,
+    port_id: int,
+    port_name: str,
+    ots_ids: set[str],
+) -> OpticalPortRole:
+    """Return the Optical Port role of a Groove G30 port from its device configuration."""
+    if is_occ2:
+        return OpticalPortRole.OLS_LINE if _g30_aid_id(port_name) in ots_ids else OpticalPortRole.OLS_ADD_DROP
+    if is_card_port and port_id in (1, 2):
+        return OpticalPortRole.TRANSPONDER_LINE
+    return OpticalPortRole.TRANSPONDER_CLIENT
+
+
+def _g30_port_roles(optical_node_block: NokiaGrooveG30BlockProvisioning) -> dict[str, OpticalPortRole]:
+    """Return the role of every port of a Groove G30 node, keyed by the device port name."""
     g30 = get_g30_client(optical_node_block)
     shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
+    optical_interfaces = g30.data.ne_ne.services.optical_interfaces.retrieve(content="config", depth=4)
+    ots_ids = {_g30_aid_id(ots.ots_name) for ots in (optical_interfaces.ots or [])}
 
-    ports_name: list[str] = []
+    port_roles: dict[str, OpticalPortRole] = {}
     max_slot_id_with_useful_ports = 4
     for shelf in shelves or []:
         for slot in shelf.slot or []:
             if slot.slot_id > max_slot_id_with_useful_ports or not slot.card:
                 continue
+            is_occ2 = slot.card.required_type == CardTypeEnum.OCC2
 
-            ports_name.extend(p.alias_name for p in (slot.card.port or []) if p.alias_name is not None)
+            for port in slot.card.port or []:
+                if port.alias_name is not None:
+                    port_roles[port.alias_name] = _g30_port_role(
+                        is_occ2=is_occ2,
+                        is_card_port=True,
+                        port_id=port.port_id,
+                        port_name=port.alias_name,
+                        ots_ids=ots_ids,
+                    )
 
             for subslot in slot.card.subslot or []:
                 if not subslot.subcard:
                     continue
                 for port in subslot.subcard.port or []:
                     if port.alias_name is not None:
-                        ports_name.append(port.alias_name)
-                    if port.subport:
-                        ports_name.extend(sp.alias_name for sp in port.subport if sp.alias_name is not None)
+                        port_roles[port.alias_name] = _g30_port_role(
+                            is_occ2=is_occ2,
+                            is_card_port=False,
+                            port_id=port.port_id,
+                            port_name=port.alias_name,
+                            ots_ids=ots_ids,
+                        )
+                    for subport in port.subport or []:
+                        if subport.alias_name is not None:
+                            port_roles[subport.alias_name] = _g30_port_role(
+                                is_occ2=is_occ2,
+                                is_card_port=False,
+                                port_id=subport.subport_id,
+                                port_name=subport.alias_name,
+                                ots_ids=ots_ids,
+                            )
 
-    return ports_name
-
-
-def get_device_client_ports_names(optical_node_block: NokiaGrooveG30BlockProvisioning) -> list[str]:
-    """Return the aliases of the client ports of a Groove G30 node."""
-    g30 = get_g30_client(optical_node_block)
-    shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
-
-    ports_name: list[str] = []
-    max_slot_id_with_useful_ports = 4
-
-    for shelf in shelves or []:
-        for slot in shelf.slot or []:
-            if slot.slot_id > max_slot_id_with_useful_ports or not slot.card:
-                continue
-
-            for port in slot.card.port or []:
-                is_sub_interface = "." in (port.alias_name or "")
-                is_in_client_range = 3 <= port.port_id <= 12  # noqa: PLR2004
-
-                if (is_sub_interface or is_in_client_range) and port.alias_name is not None:
-                    ports_name.append(port.alias_name)
-
-            for subslot in slot.card.subslot or []:
-                if not subslot.subcard:
-                    continue
-                for port in subslot.subcard.port or []:
-                    if port.alias_name is not None:
-                        ports_name.append(port.alias_name)
-                    if port.subport:
-                        ports_name.extend(sp.alias_name for sp in port.subport if sp.alias_name is not None)
-
-    return ports_name
-
-
-def get_device_line_ports_names(optical_node_block: NokiaGrooveG30BlockProvisioning) -> list[str]:
-    """Return the aliases of the line ports of a Groove G30 node."""
-    g30 = get_g30_client(optical_node_block)
-    shelves = g30.data.ne_ne.shelf.retrieve(depth=5, content="config")
-
-    ports_name: list[str] = []
-    max_slot_id_with_useful_ports = 4
-
-    for shelf in shelves or []:
-        for slot in shelf.slot or []:
-            if slot.slot_id > max_slot_id_with_useful_ports or not slot.card:
-                continue
-
-            for port in slot.card.port or []:
-                is_in_line_range = 1 <= (port.port_id or 999) <= 2  # noqa: PLR2004
-
-                if is_in_line_range and port.alias_name is not None:
-                    ports_name.append(port.alias_name)
-
-    return ports_name
+    return port_roles
 
 
 def get_device_ports_by_role(
@@ -133,25 +125,15 @@ def get_device_ports_by_role(
 ) -> list[str]:
     """Return the device port names of a Groove G30 node for the requested Optical Port roles.
 
-    The G30 line (card) ports are hostable both as OLS line and as transponder line ports, and the
-    client ports both as OLS add/drop and as transponder client ports; each physical port is
-    therefore reported under both of its roles.
+    Each physical port has exactly one role, determined from the device (see
+    :func:`_g30_port_roles`): OCC2 card ports are OLS line ports when an OTS with the
+    same id exists and OLS add/drop ports otherwise, while every other card exposes
+    transponder line ports (card ports 1 and 2) or transponder client ports.
     """
-    line_ports: list[str] | None = None
-    client_ports: list[str] | None = None
+    port_roles = _g30_port_roles(optical_node_block)
 
     def port_names_for_role(role: OpticalPortRole) -> list[str]:
-        nonlocal line_ports, client_ports
-        if role in (OpticalPortRole.OLS_LINE, OpticalPortRole.TRANSPONDER_LINE):
-            if line_ports is None:
-                line_ports = get_device_line_ports_names(optical_node_block)
-            return line_ports
-        if role in (OpticalPortRole.OLS_ADD_DROP, OpticalPortRole.TRANSPONDER_CLIENT):
-            if client_ports is None:
-                client_ports = get_device_client_ports_names(optical_node_block)
-            return client_ports
-        msg = f"Groove G30 does not support port role {role.value}"
-        raise UnsupportedPortRoleError(msg)
+        return [name for name, port_role in port_roles.items() if port_role is role]
 
     return _ports_by_role(_G30_SUPPORTED_ROLES, port_names_for_role, roles)
 

@@ -37,6 +37,7 @@ from orchestrator.optical.products.product_blocks.optical_digital_service import
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_port.transponder_client import (
     OpticalTransponderClientPortBlockInactive,
@@ -69,9 +70,9 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     store_list_of_ports_into_spectrum_sections,
     transceiver_mode_selector,
     transport_channel_path_selector,
-    unused_optical_client_port_selector,
     update_used_passbands,
 )
+from orchestrator.optical.workflows.shared import optical_port_selector
 
 logger = get_logger(__name__)
 
@@ -180,15 +181,15 @@ def initial_input_form_generator(
     sub_node_b = AbstractOpticalNode.from_subscription(user_input_dict["id_node_b"])
     optical_node_b = sub_node_b.optical_node
 
-    ClientAChoice = unused_optical_client_port_selector(  # noqa: N806
-        user_input_dict["id_node_a"],
+    ClientAChoice = optical_port_selector(  # noqa: N806
+        optical_node_a,
+        roles=[OpticalPortRole.TRANSPONDER_CLIENT],
         prompt=f"Select the client port on {optical_node_a.management.optical_module_node_fqdn}",
-        product_block_type="OpticalTransponderClientPortBlock",
     )
-    ClientBChoice = unused_optical_client_port_selector(  # noqa: N806
-        user_input_dict["id_node_b"],
+    ClientBChoice = optical_port_selector(  # noqa: N806
+        optical_node_b,
+        roles=[OpticalPortRole.TRANSPONDER_CLIENT],
         prompt=f"Select the client port on {optical_node_b.management.optical_module_node_fqdn}",
-        product_block_type="OpticalTransponderClientPortBlock",
     )
 
     class OdsForm1(FormPage):

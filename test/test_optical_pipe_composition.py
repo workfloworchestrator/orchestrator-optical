@@ -83,8 +83,14 @@ def _fake_node_choice(*args: Any, **kwargs: Any) -> type[Choice]:
     return cast(type[Choice], Choice.__call__("FakeNodeChoice", {"node-a": "node-a", "node-b": "node-b"}))
 
 
-def _fake_port_choice(node_subscription_id: str, ports: list[str], prompt: str | None = None) -> type[Choice]:
-    options = {port: f"{node_subscription_id} {port}" for port in ports}
+def _fake_port_choice(
+    node_block: Any,
+    roles: list[OpticalPortRole] | None = None,
+    prompt: str | None = None,
+    *,
+    exclude_in_use: bool = True,
+) -> type[Choice]:
+    options = {"port-a-1": "port-a-1", "port-b-1": "port-b-1"}
     return cast(type[Choice], Choice(prompt, zip(options.keys(), options.items(), strict=False)))
 
 
@@ -106,11 +112,10 @@ def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr(pipe_shared, "optical_node_selector", _fake_node_choice)
     monkeypatch.setattr(pipe_shared, "node_block_from_subscription", _fake_node_block_from_subscription)
-    monkeypatch.setattr(pipe_shared, "unused_node_port_selector", _fake_port_choice)
-    monkeypatch.setattr(pipe_shared, "get_pipe_ports", Mock(return_value=["port-a-1", "port-b-1"]))
+    monkeypatch.setattr(pipe_shared, "optical_port_selector", _fake_port_choice)
 
 
-def _node_block_with(fqdn: str, vendor: Vendor, platform: Platform) -> SimpleNamespace:
+def _node_block_with(fqdn: str, vendor: Vendor, platform: Platform) -> Any:
     return SimpleNamespace(
         management=SimpleNamespace(
             optical_module_node_fqdn=fqdn,
@@ -409,10 +414,11 @@ def test_pipe_port_roles_by_pipe_type_and_vendor() -> None:
 
     assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, flexils) == [ols_line]
     assert pipe_shared.pipe_port_roles(OpticalPipeType.PATCH, flexils) == [ols_add_drop]
-    assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, flexils) == [ols_line, ols_add_drop]
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, flexils) == [ols_add_drop, ols_line]
 
-    assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, g30) == [ols_line]
-    assert pipe_shared.pipe_port_roles(OpticalPipeType.PATCH, g30) == [tp_client, tp_line]
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, g30) == [ols_line, tp_line]
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.PATCH, g30) == [ols_add_drop, tp_client, tp_line]
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, g30) == [ols_add_drop, ols_line, tp_line]
     assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, g42) == [tp_line]
 
 

@@ -25,50 +25,32 @@ from orchestrator.optical.utils.datadiff import compare_pydantic_objects
 _G42_SUPPORTED_ROLES = frozenset({OpticalPortRole.TRANSPONDER_LINE, OpticalPortRole.TRANSPONDER_CLIENT})
 
 
-def get_device_ports_names(optical_node_block: NokiaGxG42BlockProvisioning) -> list[str]:
-    """Return the AIDs of all the ports of a GX G42 node."""
+def _g42_chm6_cards(optical_node_block: NokiaGxG42BlockProvisioning) -> list[Any]:
+    """Return the CHM6 cards of a GX G42 node."""
     g42 = get_g42_client(optical_node_block)
-
-    cards = g42.data.ne.equipment.card.retrieve(depth=3, content="all")
-
-    ports: list[str] = []
-    for card in cards:
-        if card.required_type == "gx:CHM6":
-            ports.extend(
-                p.AID
-                for p in (card.port or [])
-                if p.AID is not None and (p.port_type == PortTypeEnum.LINE or p.installed_type)
-            )
-
-    return ports
+    return [
+        card for card in g42.data.ne.equipment.card.retrieve(depth=3, content="all") if card.required_type == "gx:CHM6"
+    ]
 
 
-def get_device_client_ports_names(optical_node_block: NokiaGxG42BlockProvisioning) -> list[str]:
+def _g42_client_ports_names(optical_node_block: NokiaGxG42BlockProvisioning) -> list[str]:
     """Return the AIDs of the client ports of a GX G42 node."""
-    g42 = get_g42_client(optical_node_block)
-
-    cards = g42.data.ne.equipment.card.retrieve(depth=3, content="all")
-
-    ports: list[str] = []
-    for card in cards:
-        if card.required_type == "gx:CHM6":
-            ports.extend(p.AID for p in (card.port or []) if p.AID is not None and p.installed_type)
-
-    return ports
+    return [
+        p.AID
+        for card in _g42_chm6_cards(optical_node_block)
+        for p in (card.port or [])
+        if p.AID is not None and p.installed_type
+    ]
 
 
-def get_device_line_ports_names(optical_node_block: NokiaGxG42BlockProvisioning) -> list[str]:
+def _g42_line_ports_names(optical_node_block: NokiaGxG42BlockProvisioning) -> list[str]:
     """Return the AIDs of the line ports of a GX G42 node."""
-    g42 = get_g42_client(optical_node_block)
-
-    cards = g42.data.ne.equipment.card.retrieve(depth=3, content="all")
-
-    ports: list[str] = []
-    for card in cards:
-        if card.required_type == "gx:CHM6":
-            ports.extend(p.AID for p in (card.port or []) if p.AID is not None and p.port_type == PortTypeEnum.LINE)
-
-    return ports
+    return [
+        p.AID
+        for card in _g42_chm6_cards(optical_node_block)
+        for p in (card.port or [])
+        if p.AID is not None and p.port_type == PortTypeEnum.LINE
+    ]
 
 
 def get_device_ports_by_role(
@@ -87,11 +69,11 @@ def get_device_ports_by_role(
         nonlocal line_ports, client_ports
         if role is OpticalPortRole.TRANSPONDER_LINE:
             if line_ports is None:
-                line_ports = get_device_line_ports_names(optical_node_block)
+                line_ports = _g42_line_ports_names(optical_node_block)
             return line_ports
         if role is OpticalPortRole.TRANSPONDER_CLIENT:
             if client_ports is None:
-                client_ports = get_device_client_ports_names(optical_node_block)
+                client_ports = _g42_client_ports_names(optical_node_block)
             return client_ports
         msg = f"GX G42 does not support port role {role.value}"
         raise UnsupportedPortRoleError(msg)

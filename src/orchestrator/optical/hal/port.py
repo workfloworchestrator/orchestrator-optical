@@ -31,87 +31,12 @@ __all__ = [
     "check_fiber_terminating_port",
     "configure_termination_when_attaching_new_fiber",
     "factory_reset_port_configuration",
-    "get_device_client_ports_names",
-    "get_device_line_ports_names",
     "get_device_ports_by_role",
-    "get_device_ports_names",
     "retrieve_transceiver_modes",
     "set_channel_description",
     "set_port_admin_state",
     "set_port_description",
 ]
-
-
-def get_device_ports_names(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[str]:
-    """Retrieve the list of optical port names of an Optical Node.
-
-    Args:
-        optical_node_block: Optical Node of which the optical ports are to be retrieved.
-
-    Returns:
-        A list of optical port names of the optical node.
-
-    Raises:
-        UnsupportedPlatformError: If the Optical Node is not supported by this operation.
-    """
-    match _vendor_platform(optical_node_block):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.get_device_ports_names(_as_flexils_block(optical_node_block))
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.get_device_ports_names(_as_g30_block(optical_node_block))
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.get_device_ports_names(_as_g42_block(optical_node_block))
-        case _:
-            msg = f"get_device_ports_names: {type(optical_node_block).__name__}"
-            raise UnsupportedPlatformError(msg)
-
-
-def get_device_client_ports_names(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[str]:
-    """Retrieve the list of client optical port names of an Optical Node.
-
-    Args:
-        optical_node_block: Optical Node of which the client optical ports are to be retrieved.
-
-    Returns:
-        A list of client optical port names of the optical node.
-
-    Raises:
-        UnsupportedPlatformError: If the Optical Node is not supported by this operation.
-    """
-    match _vendor_platform(optical_node_block):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.get_device_client_ports_names(_as_flexils_block(optical_node_block))
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.get_device_client_ports_names(_as_g30_block(optical_node_block))
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.get_device_client_ports_names(_as_g42_block(optical_node_block))
-        case _:
-            msg = f"get_device_client_ports_names: {type(optical_node_block).__name__}"
-            raise UnsupportedPlatformError(msg)
-
-
-def get_device_line_ports_names(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[str]:
-    """Retrieve the list of line optical port names of an Optical Node.
-
-    Args:
-        optical_node_block: Optical Node of which the line optical ports are to be retrieved.
-
-    Returns:
-        A list of line optical port names of the optical node.
-
-    Raises:
-        UnsupportedPlatformError: If the Optical Node is not supported by this operation.
-    """
-    match _vendor_platform(optical_node_block):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.get_device_line_ports_names(_as_flexils_block(optical_node_block))
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.get_device_line_ports_names(_as_g30_block(optical_node_block))
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.get_device_line_ports_names(_as_g42_block(optical_node_block))
-        case _:
-            msg = f"get_device_line_ports_names: {type(optical_node_block).__name__}"
-            raise UnsupportedPlatformError(msg)
 
 
 def get_device_ports_by_role(
@@ -120,11 +45,11 @@ def get_device_ports_by_role(
 ) -> list[str]:
     """Retrieve the device port names of an Optical Node for the requested Optical Port roles.
 
-    This is the role-specific counterpart of :func:`get_device_ports_names`/
-    :func:`get_device_client_ports_names`/:func:`get_device_line_ports_names`: it lets a caller
-    ask for only the ports of the roles a pipe can terminate on (e.g. only OLS line ports for a
-    fiber span). The vendor/platform of the hosting node selects the adapter, which enumerates the
-    requested roles and de-duplicates the result.
+    This is the single port-enumeration operation of the HAL: a caller asks for the
+    ports of the roles it can terminate on (e.g. only OLS line ports for a fiber
+    span, every role when ``roles`` is ``None``). The vendor/platform of the hosting
+    node selects the adapter, which enumerates the requested roles and de-duplicates
+    the result.
 
     Args:
         optical_node_block: Optical Node of which the optical ports are to be retrieved.
