@@ -68,6 +68,9 @@ class FlexilsClientProtocol(Protocol):
     def rtrv_oel(self, aid: str | None = None) -> TL1BaseResponse:
         """Retrieve the OEL entries of the node."""
 
+    def dlt_oel(self, aid: str) -> TL1BaseResponse:
+        """Delete the given OEL."""
+
     def rtrv_osnc(self, aid: str | None = None, oelaid: str | None = None) -> TL1BaseResponse:
         """Retrieve the OSNC entries of the node."""
 

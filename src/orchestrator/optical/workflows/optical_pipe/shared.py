@@ -499,6 +499,42 @@ def multiple_optical_pipe_selector(
     return cast(type[list[Choice]], Annotated[dynamic_class, Field(title=prompt)])
 
 
+def multiple_optical_pipe_selector_of_types(
+    product_types: list[str],
+    prompt: str = "Select optical pipes",
+    min_items: int = 0,
+    max_items: int | None = None,
+    *,
+    unique_items: bool = True,
+) -> type[list[Choice]]:
+    """Selector for multiple optical pipe subscriptions across several product types.
+
+    Args:
+        product_types: The product type names of the pipes to offer (e.g. fiber
+            span, fiber patch and leased spectrum).
+        prompt: Prompt of the selector.
+        min_items: Minimum number of selections required.
+        max_items: Maximum number of selections allowed.
+        unique_items: Whether duplicate selections are allowed.
+
+    Returns:
+        A ``Choice`` list type for selecting multiple pipes of any of the given
+        product types.
+    """
+    subscriptions = [
+        subscription
+        for product_type in product_types
+        for subscription in subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE])
+    ]
+    products = {
+        str(subscription.subscription_id): subscription.description
+        for subscription in sorted(subscriptions, key=lambda x: x.description)
+    }
+    base_choice = cast(type[Choice], Choice(prompt, zip(products.keys(), products.items(), strict=False)))
+    dynamic_class = choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items)
+    return cast(type[list[Choice]], Annotated[dynamic_class, Field(title=prompt)])
+
+
 def optical_node_selector(
     prompt: str = "Select an Optical Node",
     product_types: list[str] | None = None,
@@ -919,6 +955,7 @@ __all__ = [
     "modify_optical_pipe_form_generator",
     "modify_optical_pipe_form_pages",
     "multiple_optical_pipe_selector",
+    "multiple_optical_pipe_selector_of_types",
     "new_optical_pipe_subscription",
     "new_pipe_port_block",
     "optical_node_selector",

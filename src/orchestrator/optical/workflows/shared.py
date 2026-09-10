@@ -17,7 +17,7 @@ from pydantic_forms.validators import (
     migration_summary,
 )
 
-from orchestrator.core.db import ProductBlockTable, SubscriptionInstanceTable, SubscriptionTable
+from orchestrator.core.db import ProductBlockTable, SubscriptionInstanceTable, SubscriptionTable, db
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import (
@@ -301,7 +301,11 @@ PORT_BLOCK_TYPES = [
 ]
 
 
-def used_port_names_on_node(node_block: AbstractOpticalNodeBlockInactive) -> set[str]:
+def used_port_names_on_node(
+    node_block: AbstractOpticalNodeBlockInactive,
+    *,
+    exclude_subscription_id: str | None = None,
+) -> set[str]:
     """Return the names of the ports of a node that are already used by other subscriptions.
 
     The port blocks of all pipe, spectrum and transport channel subscriptions are
@@ -311,6 +315,8 @@ def used_port_names_on_node(node_block: AbstractOpticalNodeBlockInactive) -> set
 
     Args:
         node_block: Optical Node block of the node to check.
+        exclude_subscription_id: Subscription id whose own port blocks are not
+            considered in use (e.g. the subscription being modified).
 
     Returns:
         The set of port names of the node that are in use by other subscriptions.
@@ -323,7 +329,12 @@ def used_port_names_on_node(node_block: AbstractOpticalNodeBlockInactive) -> set
             depending_on_instance_id=str(node_block.subscription_instance_id),
             states=[SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING],
         )
-        used_ports.update(str(instance_value.value) for instance_value in instance_values)
+        for instance_value in instance_values:
+            if exclude_subscription_id is not None:
+                instance = db.session.get(SubscriptionInstanceTable, instance_value.subscription_instance_id)
+                if instance is not None and str(instance.subscription_id) == exclude_subscription_id:
+                    continue
+            used_ports.add(str(instance_value.value))
     return used_ports
 
 

@@ -25,6 +25,7 @@ from orchestrator.optical.services.nokia.flexils.commands.ocrs import (
     RetrieveOcrs,
 )
 from orchestrator.optical.services.nokia.flexils.commands.oel import (
+    DeleteOel,
     EditOel,
     EnterOel,
     OelResponse,
@@ -50,6 +51,7 @@ REGISTERED_COMMANDS: dict[str, type[TL1BaseCommand]] = {
     "rtrv_oel": RetrieveOel,
     "ent_oel": EnterOel,
     "ed_oel": EditOel,
+    "dlt_oel": DeleteOel,
     "rtrv_osnc": RetrieveOsnc,
     "ent_osnc": EnterOsnc,
     "ed_osnc": EditOsnc,
@@ -169,6 +171,11 @@ def test_to_string_renders_action_command() -> None:
 def test_to_string_renders_osnc_delete() -> None:
     command = DeleteOsnc(tid="flex.bo01", aid="1-A-1-L1-1", ctag=TAG)
     assert command.to_string() == f"DLT-OSNC:flex.bo01:1-A-1-L1-1:{TAG}::::;"
+
+
+def test_to_string_renders_oel_delete() -> None:
+    command = DeleteOel(tid="flex.bo01", aid="1-A-1-L1", ctag=TAG)
+    assert command.to_string() == f"DLT-OEL:flex.bo01:1-A-1-L1:{TAG}::::;"
 
 
 def test_to_string_renders_ocrs_comma_separated_positional() -> None:

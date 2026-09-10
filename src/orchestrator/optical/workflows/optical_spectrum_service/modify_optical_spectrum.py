@@ -38,30 +38,41 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from orchestrator.optical.hal.spectrum import modify_optical_circuit
-from orchestrator.optical.products import ProductType
+from orchestrator.optical.hal.spectrum import (
+    delete_optical_circuit,
+    delete_optical_circuit_oel,
+    deploy_optical_circuit,
+    modify_optical_circuit,
+)
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalOlsPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
+    OpticalSpectrumSectionBlockProvisioning,
+)
 from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
 from orchestrator.optical.utils.custom_types.frequencies import Frequency, Passband
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
-from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
+from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
     NO_OPTICAL_PATH_FOUND_MSG,
     update_used_passbands_step,
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
+    OPTICAL_PIPE_PRODUCT_TYPES,
     NoOpticalPathFoundError,
     load_ols_port,
     load_optical_spectrum_block,
+    load_spectrum_section,
     multiple_optical_node_selector,
     optical_spectrum_block_from_state,
     optical_spectrum_path_selector,
     set_optical_spectrum_subscription_description,
     split_loaded_path_into_loaded_sections,
     store_loaded_sections_into_spectrum_block,
+    validate_optical_spectrum_path,
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
 
@@ -165,15 +176,26 @@ def modify_optical_spectrum_constraints_form(
     return ModifyOpticalSpectrumConstraintsForm
 
 
-def modify_optical_spectrum_path_form(path_choice: type[Choice]) -> type[FormPage]:
+def modify_optical_spectrum_path_form(
+    path_choice: type[Choice],
+    src_endpoint: AbstractOpticalOlsPortBlockInactive,
+    dst_endpoint: AbstractOpticalOlsPortBlockInactive,
+) -> type[FormPage]:
     """Return the path FormPage of the Optical Spectrum modify form.
 
     This is the last page of the shipped modify form: the optical path chosen
     among the ones computed by the path engine. The page rejects the placeholder
-    option used when no path was found.
+    option used when no path was found and validates that the chosen path can be
+    split into single-platform sections, so an unsplittable path is rejected
+    while the form is filled in (the divide step re-runs the same validation as a
+    backstop).
 
     Args:
         path_choice: The ``Choice`` selector of the available optical paths.
+        src_endpoint: The existing source add/drop port block, reused by the
+            modify workflow.
+        dst_endpoint: The existing destination add/drop port block, reused by the
+            modify workflow.
 
     Returns:
         The path FormPage of the shipped modify form.
@@ -192,6 +214,15 @@ def modify_optical_spectrum_path_form(path_choice: type[Choice]) -> type[FormPag
                     "in the previous step or update fibers in the path."
                 )
                 raise ValueError(msg)
+            try:
+                validate_optical_spectrum_path(
+                    self.optical_path.split(";"),
+                    src_endpoint,
+                    dst_endpoint,
+                )
+            except ValueError as exc:
+                msg = f"The selected optical path cannot be split into single-platform sections: {exc}"
+                raise ValueError(msg) from exc
             return self
 
     return ModifyOpticalSpectrumPathForm
@@ -232,8 +263,10 @@ def modify_optical_spectrum_form_pages(
     old_passband = block.optical_spectrum_passband
 
     sections = block.optical_spectrum_sections
-    src_node = sections[0].optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-    dst_node = sections[-1].optical_spectrum_section_add_drop_ports[-1].optical_port_host_node
+    src_endpoint = sections[0].optical_spectrum_section_add_drop_ports[0]
+    dst_endpoint = sections[-1].optical_spectrum_section_add_drop_ports[-1]
+    src_node = src_endpoint.optical_port_host_node
+    dst_node = dst_endpoint.optical_port_host_node
 
     user_input_dict: dict[str, Any] = {}
     user_input_dict.update(
@@ -250,9 +283,9 @@ def modify_optical_spectrum_form_pages(
         roles=LINE_SYSTEM_ROLES,
         prompt="Do *not* pass through these Optical Nodes",
     )
-    exclude_spans_choice = multiple_optical_pipe_selector(
-        ProductType.OPTICAL_FIBER_SPAN.value,
-        prompt="Do *not* pass through these Optical Fiber Spans",
+    exclude_spans_choice = multiple_optical_pipe_selector_of_types(
+        OPTICAL_PIPE_PRODUCT_TYPES,
+        prompt="Do *not* pass through these Optical Pipes",
     )
     user_input_dict.update(
         (
@@ -293,7 +326,9 @@ def modify_optical_spectrum_form_pages(
             ),
         )
 
-    user_input_dict.update((yield modify_optical_spectrum_path_form(path_choice)).model_dump())
+    user_input_dict.update(
+        (yield modify_optical_spectrum_path_form(path_choice, src_endpoint, dst_endpoint)).model_dump()
+    )
     user_input_dict["optical_path"] = user_input_dict["optical_path"].split(";")
     return user_input_dict
 
@@ -361,9 +396,14 @@ def update_optical_spectrum_block(
     """
     block = optical_spectrum_block_from_state(optical_module_block)
     old_passband = block.optical_spectrum_passband
+    old_section_ids = [str(section.subscription_instance_id) for section in block.optical_spectrum_sections]
     block.optical_spectrum_name = optical_spectrum_name
     block.optical_spectrum_passband = (frequency_min, frequency_max)
-    return {OPTICAL_MODULE_BLOCK_STATE_KEY: block, "old_passband": old_passband}
+    return {
+        OPTICAL_MODULE_BLOCK_STATE_KEY: block,
+        "old_passband": old_passband,
+        "old_section_ids": old_section_ids,
+    }
 
 
 @step("Dividing the optical path into single-platform sections")
@@ -376,6 +416,19 @@ def divide_path_into_sections(
     The source and destination add/drop port blocks are reused from the existing
     sections; the interior ports chosen by the form are loaded and the resulting
     sections are stored back into the block in the state.
+
+    The replaced section instances are pruned by the subscription save at the end
+    of the shipped modify workflow (``set_status(ACTIVE)``), not by this step:
+    ``ProductBlockModel.save`` only writes the block tree and rewrites the
+    ``depends_on`` relations, it does not delete instances that are no longer
+    referenced. A failed modify therefore leaves the old section instances as
+    unreachable orphan rows until the next successful subscription save; this is
+    safe (they are no longer reachable through the block relations) but they are
+    not visible in the domain model. The explicit save below is required because
+    the new section blocks are not in the database yet and workflow steps execute
+    with the state serialized between steps, which drops their in-memory
+    ``db_model`` (mirrors the create workflow, where ``set_status`` persists the
+    sections built by the construct step).
 
     Args:
         optical_module_block: The Optical Spectrum block in the state under
@@ -401,10 +454,26 @@ def divide_path_into_sections(
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
 
+def _section_port_sequence(section: OpticalSpectrumSectionBlockProvisioning) -> tuple[str, ...]:
+    """Return the ordered port subscription instance ids of a section."""
+    add_drop_ports = section.optical_spectrum_section_add_drop_ports
+    return (
+        str(add_drop_ports[0].subscription_instance_id),
+        *(str(port.subscription_instance_id) for port in section.optical_spectrum_section_express_ports),
+        str(add_drop_ports[-1].subscription_instance_id),
+    )
+
+
+def _sections_signature(sections: list[OpticalSpectrumSectionBlockProvisioning]) -> tuple[tuple[str, ...], ...]:
+    """Return the port sequences of the sections, used to detect a path change."""
+    return tuple(_section_port_sequence(section) for section in sections)
+
+
 @step("Modifying optical spectrum sections")
 def modify_optical_sections(
     optical_module_block: OpticalSpectrumBlockProvisioning,
     old_passband: Passband,
+    old_section_ids: list[UUIDstr],
 ) -> State:
     """Modify the optical circuit of every spectrum section on the devices.
 
@@ -413,10 +482,19 @@ def modify_optical_sections(
     block steps act on. The new passband drives the carrier; the old passband is
     used to find the existing circuit on the devices.
 
+    When the chosen path differs from the previous one, the OEL explicit route
+    cannot be updated in place (ED-OEL has no ``EXPLICITROUTE``), so the old
+    circuits are deleted and the new ones deployed. Each source node's OEL is
+    deleted only after all of its OSNCs are gone and only when no other OSNC on
+    the node still uses it (see
+    :func:`orchestrator.optical.hal.spectrum.delete_optical_circuit_oel`).
+
     Args:
         optical_module_block: The Optical Spectrum block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
         old_passband: The passband the circuits had before the modification.
+        old_section_ids: Subscription instance ids of the sections before the
+            modification, used to delete the old circuits when the path changed.
     """
     block = optical_spectrum_block_from_state(optical_module_block)
     passband = block.optical_spectrum_passband
@@ -429,17 +507,58 @@ def modify_optical_sections(
     carrier = (central_frequency, carrier_width)
     circuit_identifier = str(block.subscription_instance_id)
 
-    results = {}
-    for section in block.optical_spectrum_sections:
+    old_sections = [load_spectrum_section(section_id) for section_id in old_section_ids]
+    new_sections = list(block.optical_spectrum_sections)
+
+    results: dict[str, Any] = {}
+    if _sections_signature(old_sections) == _sections_signature(new_sections):
+        for section in new_sections:
+            src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
+            results[src_node.management.optical_module_node_fqdn] = modify_optical_circuit(
+                src_node,
+                section,
+                optical_spectrum_name=spectrum_name,
+                passband=passband,
+                carrier=carrier,
+                label=spectrum_name,
+                old_passband=old_passband,
+                circuit_identifier=circuit_identifier,
+            )
+        return {"configuration_results": results}
+
+    # The path changed: tear down the old circuits (OSNCs) and redeploy the new ones.
+    for old_section in old_sections:
+        src_node = old_section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
+        results[src_node.management.optical_module_node_fqdn] = delete_optical_circuit(
+            src_node,
+            old_section,
+            spectrum_name,
+            old_passband,
+            circuit_identifier=circuit_identifier,
+        )
+
+    # Delete each source node's OEL once, after all of its OSNCs are gone.
+    seen_oel_nodes: set[str] = set()
+    for old_section in old_sections:
+        src_node = old_section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
+        node_id = str(src_node.subscription_instance_id)
+        if node_id in seen_oel_nodes:
+            continue
+        seen_oel_nodes.add(node_id)
+        results[f"{src_node.management.optical_module_node_fqdn}:OEL"] = delete_optical_circuit_oel(
+            src_node,
+            circuit_identifier,
+        )
+
+    for section in new_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[src_node.management.optical_module_node_fqdn] = modify_optical_circuit(
+        results[src_node.management.optical_module_node_fqdn] = deploy_optical_circuit(
             src_node,
             section,
-            optical_spectrum_name=spectrum_name,
-            passband=passband,
-            carrier=carrier,
+            spectrum_name,
+            passband,
+            carrier,
             label=spectrum_name,
-            old_passband=old_passband,
             circuit_identifier=circuit_identifier,
         )
 

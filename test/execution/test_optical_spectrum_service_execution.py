@@ -16,7 +16,14 @@ import pytest
 from sqlalchemy import select
 
 import orchestrator.core.db as core_db
-from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable
+from orchestrator.core.db import (
+    ProcessSubscriptionTable,
+    ProcessTable,
+    ProductBlockTable,
+    ProductTable,
+    SubscriptionInstanceTable,
+    SubscriptionTable,
+)
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import ProcessStatus
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform
@@ -29,6 +36,10 @@ from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum im
     OpticalLeasedSpectrumSubscription,
 )
 from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
+from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
+    construct_optical_spectrum_subscription,
+)
+from test.support.core_api import unwrap_step
 from test.support.db import CUSTOMER_ID
 from test.support.devices import FAKE_CLIENT_PORTS, FAKE_LINE_PORTS, install_device_stubs
 
@@ -84,6 +95,32 @@ def _subscription_table(subscription_id: str) -> SubscriptionTable:
         subscription = core_db.db.session.get(SubscriptionTable, UUID(subscription_id))
         assert subscription is not None
         return subscription
+
+
+def _orphan_section_instance_count(subscription_id: str) -> int:
+    """Count OpticalSpectrumSectionBlock instances not reachable from the spectrum block tree.
+
+    A successful modify must leave no orphaned section instance behind: the replaced
+    sections are pruned by the subscription save at the end of the workflow (see
+    ``divide_path_into_sections``). This guards the documented orphan window.
+    """
+    with core_db.db.database_scope():
+        instances = set(
+            core_db.db.session.scalars(
+                select(SubscriptionInstanceTable.subscription_instance_id)
+                .join(
+                    ProductBlockTable,
+                    SubscriptionInstanceTable.product_block_id == ProductBlockTable.product_block_id,
+                )
+                .where(
+                    SubscriptionInstanceTable.subscription_id == UUID(subscription_id),
+                    ProductBlockTable.name == "OpticalSpectrumSectionBlock",
+                )
+            ).all()
+        )
+        spectrum = OpticalSpectrum.from_subscription(subscription_id).optical_spectrum_service
+        reachable = {section.subscription_instance_id for section in spectrum.optical_spectrum_sections}
+    return len(instances - reachable)
 
 
 def _seed_topology(run_process, seed_optical_node) -> tuple[str, str, str]:
@@ -220,6 +257,59 @@ def test_create_optical_spectrum_service_end_to_end(
     assert [port.optical_passbands for port in express_ports] == [[], []]
 
 
+def test_create_persists_used_passbands_on_owning_pipe(
+    run_process, seed_optical_node, stub_pipe_device, stub_spectrum_device, monkeypatch
+) -> None:
+    """The refreshed express-port passbands are persisted under the owning pipe subscription.
+
+    The express ports of a spectrum section are owned by the fiber span (they are its
+    OLS line terminations), so ``save_optical_module_block`` skips them as foreign. The
+    passband step must persist them under the span subscription, otherwise the path
+    engine keeps seeing stale occupations.
+    """
+    node_a_id, node_b_id, span_id = _seed_topology(run_process, seed_optical_node)
+    occupied = [PASSBAND]
+    monkeypatch.setattr(
+        "orchestrator.optical.workflows.optical_spectrum_service.shared.retrieve_ports_spectral_occupations",
+        lambda _block: {LINE_PORT: occupied},
+    )
+
+    _run_create(run_process, node_a_id, node_b_id, _optical_path_value(span_id, node_a_id))
+
+    # Reload the fiber span from the database: its termination carries the passbands
+    # refreshed by the spectrum workflow.
+    pipe = OpticalFiberSpanSubscription.from_subscription(span_id).optical_pipe
+    assert any(list(port.optical_passbands) == occupied for port in pipe.optical_pipe_terminations)
+
+
+def test_construct_rejects_add_drop_port_already_in_use(
+    run_process, seed_optical_node, stub_pipe_device, stub_spectrum_device
+) -> None:
+    """The construct step refuses an add/drop port already owned by another subscription.
+
+    The form selector already excludes the ports in use; this calls the construct step
+    directly (bypassing the form) to exercise the execution-time guard.
+    """
+    node_a_id, node_b_id, span_id = _seed_topology(run_process, seed_optical_node)
+    optical_path = _optical_path_value(span_id, node_a_id)
+    _run_create(run_process, node_a_id, node_b_id, optical_path, name="spec-1")
+
+    product_id = _product_id(SPECTRUM_PRODUCT_NAME)
+    with core_db.db.database_scope(), pytest.raises(ValueError, match="already in use"):
+        unwrap_step(construct_optical_spectrum_subscription)(
+            product=product_id,
+            customer_id=CUSTOMER_ID,
+            optical_spectrum_name="spec-2",
+            frequency_min=PASSBAND[0],
+            frequency_max=PASSBAND[1],
+            src_optical_device_id=node_a_id,
+            dst_optical_device_id=node_b_id,
+            src_optical_port_name=CLIENT_PORT,
+            dst_optical_port_name=CLIENT_PORT,
+            optical_path=[],
+        )
+
+
 def test_full_lifecycle_create_modify_validate_terminate(
     run_process,
     seed_optical_node,
@@ -254,6 +344,9 @@ def test_full_lifecycle_create_modify_validate_terminate(
     assert tuple(spectrum.optical_spectrum_passband) == MODIFIED_PASSBAND
     assert len(spectrum.optical_spectrum_sections) == 1
     assert _subscription_table(subscription_id).insync is True
+    # The replaced sections are pruned by the final subscription save: no orphan
+    # OpticalSpectrumSectionBlock instance must be left behind by a successful modify.
+    assert _orphan_section_instance_count(subscription_id) == 0
 
     validate_process_id = run_process("validate_optical_spectrum", [{"subscription_id": subscription_id}])
     _assert_process_completed(validate_process_id)

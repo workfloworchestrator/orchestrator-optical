@@ -96,3 +96,10 @@ class EditOel(TL1BaseCommand):
     oelsource: Literal["manual", "NPS"] | None = None
     compcardtypelist: list[str] | None = None
     is_oos_ains: str | None = None
+
+
+class DeleteOel(TL1BaseCommand):
+    help_text: ClassVar[str] = "DLT-OEL:[<TID>]:<AID>:<CTAG>::::"
+    verb: ClassVar[str] = "DLT"
+    modifier: ClassVar[str] = "OEL"
+    aid: str

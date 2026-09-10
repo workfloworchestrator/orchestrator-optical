@@ -70,6 +70,7 @@ from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum im
 from orchestrator.optical.utils.custom_types.frequencies import Passband, disjoint_intervals_overlap_search
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
+from orchestrator.optical.workflows.shared import used_port_names_on_node
 
 logger = get_logger(__name__)
 
@@ -137,6 +138,14 @@ def load_ols_port(port_id: UUIDstr) -> AbstractOpticalOlsPortBlockInactive:
 def _load_port(port_id: UUIDstr) -> AbstractOpticalPortBlockInactive:
     """Load an Optical Port block from its subscription instance id."""
     return cast(AbstractOpticalPortBlockInactive, ProductBlockModel.from_db(UUID(str(port_id))))
+
+
+def load_spectrum_section(section_id: UUIDstr) -> OpticalSpectrumSectionBlockProvisioning:
+    """Load an Optical Spectrum Section block from its subscription instance id."""
+    return cast(
+        OpticalSpectrumSectionBlockProvisioning,
+        ProductBlockModel.from_db(UUID(str(section_id))),
+    )
 
 
 def optical_spectrum_block_from_state(
@@ -280,6 +289,39 @@ def load_optical_spectrum_block(subscription: SubscriptionModel) -> State:
             ``optical_spectrum_service`` attribute.
     """
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: _optical_spectrum_block_of_subscription(subscription)}
+
+
+def check_optical_spectrum_add_drop_port_availability(
+    node_block: AbstractOpticalNodeBlockInactive,
+    port_name: str,
+    exclude_subscription_id: str | None = None,
+) -> None:
+    """Raise if the given add/drop port is already in use by another subscription.
+
+    This is the execution-time guard of the shipped create workflow: the form
+    already excludes the ports in use, but the check is repeated when the port
+    blocks are created, so a consumer bypassing the form (or a concurrent create
+    between form submission and execution) is still guarded. This is an
+    application-level check only: the module ships no database migrations, so no
+    unique constraint enforces the uniqueness in the database (residual TOCTOU
+    race between the check and the block save).
+
+    Args:
+        node_block: Optical Node block hosting the add/drop port.
+        port_name: Name of the add/drop port of the node.
+        exclude_subscription_id: Subscription id owning the port, so it never
+            conflicts with itself.
+
+    Raises:
+        ValueError: If another subscription already uses the port on the node.
+    """
+    used_ports = used_port_names_on_node(node_block, exclude_subscription_id=exclude_subscription_id)
+    if port_name in used_ports:
+        msg = (
+            f"Port {port_name} on node {node_block.management.optical_module_node_fqdn} "
+            "is already in use by another subscription"
+        )
+        raise ValueError(msg)
 
 
 def build_constrained_graph_from_active_fibers(
@@ -1013,6 +1055,31 @@ def split_path_into_platform_sections(optical_path: list[UUIDstr]) -> list[list[
     return split_loaded_path_into_platform_sections(ports)
 
 
+def validate_optical_spectrum_path(
+    interior_port_ids: list[UUIDstr],
+    src_endpoint: AbstractOpticalOlsPortBlockInactive,
+    dst_endpoint: AbstractOpticalOlsPortBlockInactive,
+) -> None:
+    """Validate that the chosen path splits into single-platform sections.
+
+    The path chosen in the form is the sequence of interior ports between the two
+    endpoint add/drop ports; this helper assembles the full path and runs the same
+    :func:`split_loaded_path_into_loaded_sections` validation the construct/divide
+    steps run, so an unsplittable path is rejected while the form is filled in
+    rather than after the subscription has been persisted.
+
+    Args:
+        interior_port_ids: The interior port subscription instance ids of the path.
+        src_endpoint: The source add/drop port block.
+        dst_endpoint: The destination add/drop port block.
+
+    Raises:
+        ValueError: If the path cannot be split into valid single-platform sections.
+    """
+    interior = [_load_ols_port(port_id) for port_id in interior_port_ids]
+    split_loaded_path_into_loaded_sections([src_endpoint, *interior, dst_endpoint])
+
+
 def store_loaded_sections_into_spectrum_block(
     sections: list[list[AbstractOpticalOlsPortBlockInactive]],
     optical_spectrum: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning,
@@ -1075,13 +1142,43 @@ def store_sections_into_spectrum_block(
     store_loaded_sections_into_spectrum_block(loaded_sections, optical_spectrum)
 
 
-def update_used_passbands(optical_spectrum: OpticalSpectrumBlockProvisioning) -> None:
-    """Refresh the ``optical_passbands`` of any Open Line System port in the path from the devices."""
+def update_used_passbands(
+    optical_spectrum: OpticalSpectrumBlockProvisioning,
+) -> list[AbstractOpticalOlsPortBlockInactive]:
+    """Refresh the ``optical_passbands`` of every Open Line System port in the path from the devices.
+
+    Both the express ports and the section add/drop ports are refreshed, for every
+    OLS host node role that carries passbands (``ROADM``, ``TRANSPONDER_XOADM`` and
+    ``AMPLIFIER``). The express ports are the OLS line port blocks owned by the pipe
+    subscriptions (fiber span, patch, leased spectrum), so they are *foreign* to the
+    spectrum subscription and ``ProductBlockModel.save`` skips them when the spectrum
+    block is persisted. The refreshed foreign ports are returned so the caller can
+    persist them under their own owner subscription (see
+    :func:`save_foreign_passband_ports`); the owned ports (the spectrum add/drop
+    ports) are persisted by the caller's block save.
+
+    Args:
+        optical_spectrum: The Optical Spectrum block whose ports are refreshed.
+
+    Returns:
+        The refreshed ports whose owner subscription is not the spectrum owner
+        (foreign ports), deduplicated by subscription instance id.
+    """
     passbands_by_device: dict[str, dict[str, list[tuple[int, int]]]] = {}
+    foreign_ports: list[AbstractOpticalOlsPortBlockInactive] = []
+    seen_foreign_port_ids: set[UUID] = set()
     for section in optical_spectrum.optical_spectrum_sections:
-        for port in section.optical_spectrum_section_express_ports:
+        ports = [
+            *section.optical_spectrum_section_express_ports,
+            *section.optical_spectrum_section_add_drop_ports,
+        ]
+        for port in ports:
             node = port.optical_port_host_node
-            if node.optical_node_role not in (OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER_XOADM):
+            if node.optical_node_role not in (
+                OpticalNodeRole.ROADM,
+                OpticalNodeRole.TRANSPONDER_XOADM,
+                OpticalNodeRole.AMPLIFIER,
+            ):
                 continue
             if node.management.optical_module_node_fqdn is None or port.optical_port_name is None:
                 continue
@@ -1092,6 +1189,50 @@ def update_used_passbands(optical_spectrum: OpticalSpectrumBlockProvisioning) ->
             port.optical_passbands = passbands_by_device[node.management.optical_module_node_fqdn].get(
                 port.optical_port_name, []
             )
+            if (
+                str(port.owner_subscription_id) != str(optical_spectrum.owner_subscription_id)
+                and port.subscription_instance_id not in seen_foreign_port_ids
+            ):
+                seen_foreign_port_ids.add(port.subscription_instance_id)
+                foreign_ports.append(port)
+    return foreign_ports
+
+
+def save_foreign_passband_ports(ports: list[AbstractOpticalOlsPortBlockInactive]) -> None:
+    """Persist the given foreign OLS port blocks under their owner subscription.
+
+    The express ports of a spectrum section are the OLS line port blocks owned by the
+    pipe subscriptions (fiber span, patch, leased spectrum); the section add/drop
+    ports at platform boundaries may belong to a leased spectrum as well. Those ports
+    are foreign to the spectrum subscription, so ``ProductBlockModel.save`` skips them
+    when the spectrum block is saved and the refreshed ``optical_passbands`` would be
+    lost. Saving each port block directly under its own owner subscription persists
+    them without reloading (and thus without overwriting) the owner's block tree.
+
+    The ports in the spectrum block tree carry the spectrum's lifecycle variant (they
+    are converted to PROVISIONING when the spectrum is transitioned), while their
+    owner subscription may be in a different lifecycle. The port is therefore reloaded
+    under the owner's status before saving, so the lifecycle check of
+    :meth:`ProductBlockModel.save` sees the matching specialized type.
+
+    Args:
+        ports: The refreshed foreign OLS port blocks, as returned by
+            :func:`update_used_passbands`.
+    """
+    for port in ports:
+        subscription = port.subscription
+        if subscription is None:
+            continue
+        owner_status = SubscriptionLifecycle(subscription.status)
+        persisted_port = cast(
+            AbstractOpticalOlsPortBlockInactive,
+            ProductBlockModel.from_db(port.subscription_instance_id, status=owner_status),
+        )
+        persisted_port.optical_passbands = port.optical_passbands
+        persisted_port.save(
+            subscription_id=port.owner_subscription_id,
+            status=owner_status,
+        )
 
 
 def get_optical_node_subscriptions_by_roles(roles: list[OpticalNodeRole]) -> list[SubscriptionTable]:

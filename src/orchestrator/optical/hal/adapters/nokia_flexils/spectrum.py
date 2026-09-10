@@ -71,6 +71,66 @@ def _divide_path_into_omses(
     return omses
 
 
+def _explicit_route_from_omses(
+    omses: list[tuple[AnyOpticalPortBlockProvisioning, AnyOpticalPortBlockProvisioning]],
+) -> list[tuple[str, str, str, str]]:
+    """Build the OEL explicit route (list of OMS hops) from the given OMS port pairs."""
+    explicit_route: list[tuple[str, str, str, str]] = []
+    for src_port, dst_port in omses:
+        src_node = _as_flexils_block(src_port.optical_port_host_node)
+        dst_node = _as_flexils_block(dst_port.optical_port_host_node)
+
+        src_node_name = _node_id(src_node)
+        dst_node_name = _node_id(dst_node)
+
+        src_port_name = _oteintf_from_port_name(src_node, _port_name(src_port))
+        dst_port_name = _oteintf_from_port_name(dst_node, _port_name(dst_port))
+
+        explicit_route.append((src_node_name, src_port_name, dst_node_name, dst_port_name))
+    return explicit_route
+
+
+def _delete_oel_if_unused(flex: FlexilsClientProtocol, oel_aid: str) -> None:
+    """Delete the given OEL only when no OSNC on the node still references it.
+
+    On FlexILS the same OEL may be shared by more than one OSNC, so deleting it while
+    it is still referenced would break those circuits. The node is queried with
+    RTRV-OSNC first; if any OSNC references the OEL, it is left in place (no-op).
+
+    Args:
+        flex: TL1 client of the node hosting the OEL.
+        oel_aid: Access identifier of the OEL.
+    """
+    aid = oel_aid[:127]
+    for record in flex.rtrv_osnc().parsed_data:
+        if record.get("OELAID", "").strip(r"\" ") == aid[:64]:
+            return
+    flex.dlt_oel(aid=aid)
+
+
+def delete_oel(
+    optical_node_block: NokiaFlexIlsBlockProvisioning,
+    circuit_identifier: str,
+) -> dict[str, Any]:
+    """Delete the OEL of the given circuit on the node, when no other OSNC uses it.
+
+    The OEL explicit route cannot be edited with ED-OEL, so a path change is applied
+    by deleting the OEL and re-entering it (see :func:`deploy`). This helper performs
+    the guarded deletion: it leaves the OEL in place while another OSNC on the node
+    still references it (a shared OEL is legitimate on FlexILS).
+
+    Args:
+        optical_node_block: The Optical Node block hosting the OEL.
+        circuit_identifier: The circuit identifier used as OEL AID.
+
+    Returns:
+        The deleted OEL access identifier.
+    """
+    flex = _get_flex_client(optical_node_block)
+    _delete_oel_if_unused(flex, circuit_identifier)
+    return {"deleted_OEL": circuit_identifier[:127]}
+
+
 def _find_or_create_oel(
     oel_aid: str,
     source_device: NokiaFlexIlsBlockProvisioning,
@@ -103,18 +163,7 @@ def _find_or_create_oel(
     dst_name = _node_id(dest_device)
     oel_label = f"{src_name}-{dst_name}"
 
-    explicit_route: list[tuple[str, str, str, str]] = []
-    for src_port, dst_port in omses:
-        src_node = _as_flexils_block(src_port.optical_port_host_node)
-        dst_node = _as_flexils_block(dst_port.optical_port_host_node)
-
-        src_node_name = _node_id(src_node)
-        dst_node_name = _node_id(dst_node)
-
-        src_port_name = _oteintf_from_port_name(src_node, _port_name(src_port))
-        dst_port_name = _oteintf_from_port_name(dst_node, _port_name(dst_port))
-
-        explicit_route.append((src_node_name, src_port_name, dst_node_name, dst_port_name))
+    explicit_route = _explicit_route_from_omses(omses)
 
     flex = _get_flex_client(source_device)
     flex.ent_oel(

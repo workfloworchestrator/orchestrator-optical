@@ -32,6 +32,7 @@ __all__ = [
     "append_optical_circuit_label",
     "create_optical_cross_connection",
     "delete_optical_circuit",
+    "delete_optical_circuit_oel",
     "delete_optical_cross_connection",
     "deploy_optical_circuit",
     "modify_optical_circuit",
@@ -186,6 +187,38 @@ def delete_optical_circuit(
             return {"not-applicable": "GX G42s do not have any internal optical crossconnections to delete"}
         case _:
             msg = f"delete_optical_circuit: {type(optical_node_block).__name__}"
+            raise UnsupportedPlatformError(msg)
+
+
+def delete_optical_circuit_oel(
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
+    circuit_identifier: str,
+) -> dict[str, Any]:
+    """Delete the OEL of the given circuit on the node, when no other OSNC uses it.
+
+    Only FlexILS nodes have OELs; on Groove G30 and GX G42 nodes this is a no-op.
+    On FlexILS an OEL may be shared by more than one OSNC: while another OSNC on the
+    node still references it, the OEL is left in place.
+
+    Args:
+        optical_node_block: The Optical Node hosting the OEL.
+        circuit_identifier: The subscription instance id of the circuit; used as the OEL AID.
+
+    Returns:
+        Platform-specific deletion result.
+
+    Raises:
+        UnsupportedPlatformError: If the vendor/platform combination is not supported.
+    """
+    match _vendor_platform(optical_node_block):
+        case (Vendor.NOKIA, Platform.FLEXILS):
+            return flexils.delete_oel(_as_flexils_block(optical_node_block), circuit_identifier)
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
+            return {"not-applicable": "Groove G30s (H4 links) do not have internal OELs"}
+        case (Vendor.NOKIA, Platform.GX_G42):
+            return {"not-applicable": "GX G42s do not have internal OELs"}
+        case _:
+            msg = f"delete_optical_circuit_oel: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 

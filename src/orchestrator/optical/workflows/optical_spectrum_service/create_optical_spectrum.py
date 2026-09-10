@@ -43,8 +43,10 @@ from orchestrator.core.workflows.steps import set_status, store_process_subscrip
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.port import set_port_description
 from orchestrator.optical.hal.spectrum import deploy_optical_circuit
-from orchestrator.optical.products import ProductType
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlockInactive,
+    OpticalNodeRole,
+)
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumBlockInactive
@@ -57,18 +59,22 @@ from orchestrator.optical.utils.custom_types.frequencies import Frequency
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
-from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
+from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
+    OPTICAL_PIPE_PRODUCT_TYPES,
     NoOpticalPathFoundError,
+    check_optical_spectrum_add_drop_port_availability,
     load_ols_port,
     multiple_optical_node_selector,
     optical_node_selector_of_roles,
     optical_spectrum_block_from_state,
     optical_spectrum_path_selector,
+    save_foreign_passband_ports,
     set_optical_spectrum_subscription_description,
     split_loaded_path_into_loaded_sections,
     store_loaded_sections_into_spectrum_block,
     update_used_passbands,
+    validate_optical_spectrum_path,
 )
 from orchestrator.optical.workflows.shared import create_summary_form, optical_port_selector
 
@@ -240,15 +246,40 @@ def create_optical_spectrum_constraints_form(
     return CreateOpticalSpectrumConstraintsForm
 
 
-def create_optical_spectrum_path_form(path_choice: type[Choice]) -> type[FormPage]:
+def _synthetic_add_drop_port(node: AbstractOpticalNodeBlockInactive) -> OlsAddDropPortBlockInactive:
+    """Build a validation-only add/drop port block on the given node.
+
+    The create form validates the chosen path before the real add/drop port
+    blocks exist, so a lightweight in-memory port block is enough to let
+    :func:`split_loaded_path_into_loaded_sections` compare the endpoint platform
+    with the interior ports. No database row is created.
+    """
+    return OlsAddDropPortBlockInactive.model_construct(
+        optical_port_role=OpticalPortRole.OLS_ADD_DROP,
+        optical_port_host_node=node,
+    )
+
+
+def create_optical_spectrum_path_form(
+    path_choice: type[Choice],
+    src_node: AbstractOpticalNodeBlockInactive,
+    dst_node: AbstractOpticalNodeBlockInactive,
+) -> type[FormPage]:
     """Return the path FormPage of the Optical Spectrum create form.
 
     This is the last page of the shipped create form: the optical path chosen
     among the ones computed by the path engine. The page rejects the placeholder
-    option used when no path was found.
+    option used when no path was found and validates that the chosen path can be
+    split into single-platform sections, so an unsplittable path is rejected
+    while the form is filled in (the construct step re-runs the same validation
+    as a backstop).
 
     Args:
         path_choice: The ``Choice`` selector of the available optical paths.
+        src_node: The source Optical Node block, used to validate the path
+            against the source add/drop port platform.
+        dst_node: The destination Optical Node block, used to validate the path
+            against the destination add/drop port platform.
 
     Returns:
         The path FormPage of the shipped create form.
@@ -267,6 +298,15 @@ def create_optical_spectrum_path_form(path_choice: type[Choice]) -> type[FormPag
                     "in the previous step or update fibers in the path."
                 )
                 raise ValueError(msg)
+            try:
+                validate_optical_spectrum_path(
+                    self.optical_path.split(";"),
+                    _synthetic_add_drop_port(src_node),
+                    _synthetic_add_drop_port(dst_node),
+                )
+            except ValueError as exc:
+                msg = f"The selected optical path cannot be split into single-platform sections: {exc}"
+                raise ValueError(msg) from exc
             return self
 
     return CreateOpticalSpectrumPathForm
@@ -340,9 +380,9 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
         roles=LINE_SYSTEM_ROLES,
         prompt="Do *not* pass through these Optical Nodes",
     )
-    exclude_spans_choice = multiple_optical_pipe_selector(
-        ProductType.OPTICAL_FIBER_SPAN.value,
-        prompt="Do *not* pass through these Optical Fiber Spans",
+    exclude_spans_choice = multiple_optical_pipe_selector_of_types(
+        OPTICAL_PIPE_PRODUCT_TYPES,
+        prompt="Do *not* pass through these Optical Pipes",
     )
     user_input_dict.update(
         (
@@ -383,7 +423,7 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
             ),
         )
 
-    user_input_dict.update((yield create_optical_spectrum_path_form(path_choice)).model_dump())
+    user_input_dict.update((yield create_optical_spectrum_path_form(path_choice, node_a, node_b)).model_dump())
     user_input_dict["optical_path"] = user_input_dict["optical_path"].split(";")
     return user_input_dict
 
@@ -488,6 +528,17 @@ def construct_optical_spectrum_subscription(
     src_device = AbstractOpticalNode.from_subscription(src_optical_device_id).optical_node
     dst_device = AbstractOpticalNode.from_subscription(dst_optical_device_id).optical_node
 
+    check_optical_spectrum_add_drop_port_availability(
+        src_device,
+        src_optical_port_name,
+        exclude_subscription_id=str(subscription.subscription_id),
+    )
+    check_optical_spectrum_add_drop_port_availability(
+        dst_device,
+        dst_optical_port_name,
+        exclude_subscription_id=str(subscription.subscription_id),
+    )
+
     src_port = OlsAddDropPortBlockInactive.new(
         subscription_id=subscription.subscription_id,
         optical_port_name=src_optical_port_name,
@@ -589,15 +640,20 @@ def update_used_passbands_step(optical_module_block: OpticalSpectrumBlockInactiv
     """Refresh the used passbands of the Open Line System ports in the path from the devices.
 
     Operates only on the Optical Spectrum block found in the state under
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY`` and returns the refreshed block so the
-    following save step persists it.
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The ports owned by the spectrum
+    subscription (the add/drop ports) are refreshed in the returned block, which
+    the following save step persists; the foreign ports (the express line ports
+    owned by the pipe subscriptions) are persisted under their own owner
+    subscription by this step, because the spectrum block save skips foreign
+    instances.
 
     Args:
         optical_module_block: The Optical Spectrum block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     block = optical_spectrum_block_from_state(optical_module_block)
-    update_used_passbands(block)
+    foreign_ports = update_used_passbands(block)
+    save_foreign_passband_ports(foreign_ports)
 
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 

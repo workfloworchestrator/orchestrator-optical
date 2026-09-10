@@ -68,6 +68,11 @@ def _fake_delete_optical_circuit(*args: Any, **kwargs: Any) -> dict[str, Any]:
     return {}
 
 
+def _fake_delete_optical_circuit_oel(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Delete the faked optical circuit OEL, returning the deletion state."""
+    return {}
+
+
 def _fake_validate_optical_circuit(*args: Any, **kwargs: Any) -> None:
     """Accept the faked optical circuit as consistent."""
 
@@ -232,6 +237,9 @@ def install_device_stubs(
             },
             "orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum": {
                 "modify_optical_circuit": _fake_modify_optical_circuit,
+                "delete_optical_circuit": _fake_delete_optical_circuit,
+                "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
+                "deploy_optical_circuit": _fake_deploy_optical_circuit,
             },
             "orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum": {
                 "delete_optical_circuit": _fake_delete_optical_circuit,

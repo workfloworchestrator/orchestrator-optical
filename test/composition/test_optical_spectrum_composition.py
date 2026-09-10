@@ -34,6 +34,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spec
 )
 from orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum import (
     MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS,
+    modify_optical_sections,
     modify_optical_spectrum,
     modify_optical_spectrum_form_generator,
     modify_optical_spectrum_form_pages,
@@ -141,17 +142,19 @@ def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr(spectrum_create, "optical_node_selector_of_roles", _fake_single_choice)
     monkeypatch.setattr(spectrum_create, "multiple_optical_node_selector", _fake_multiple_choice)
-    monkeypatch.setattr(spectrum_create, "multiple_optical_pipe_selector", _fake_multiple_choice)
+    monkeypatch.setattr(spectrum_create, "multiple_optical_pipe_selector_of_types", _fake_multiple_choice)
     monkeypatch.setattr(spectrum_create, "optical_port_selector", _fake_single_choice)
     monkeypatch.setattr(spectrum_create, "optical_spectrum_path_selector", _fake_path_choice)
+    monkeypatch.setattr(spectrum_create, "validate_optical_spectrum_path", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(spectrum_create, "AbstractOpticalNode", _FakeAbstractOpticalNode)
 
 
 def _monkeypatch_modify_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch the DB/device-backed modify page selectors with DB-free fakes."""
     monkeypatch.setattr(spectrum_modify, "multiple_optical_node_selector", _fake_multiple_choice)
-    monkeypatch.setattr(spectrum_modify, "multiple_optical_pipe_selector", _fake_multiple_choice)
+    monkeypatch.setattr(spectrum_modify, "multiple_optical_pipe_selector_of_types", _fake_multiple_choice)
     monkeypatch.setattr(spectrum_modify, "optical_spectrum_path_selector", _fake_path_choice)
+    monkeypatch.setattr(spectrum_modify, "validate_optical_spectrum_path", lambda *_args, **_kwargs: None)
 
 
 def test_block_state_key_matches_the_documented_contract() -> None:
@@ -358,16 +361,103 @@ def test_populate_optical_spectrum_block_writes_only_name_and_passband() -> None
     assert block.optical_spectrum_sections is sections
 
 
+def _make_section(add_drop_ids: list[str], express_ids: list[str]) -> SimpleNamespace:
+    """Build a DB-free spectrum section carrying only the fields the steps read."""
+
+    def port(port_id: str) -> SimpleNamespace:
+        node = SimpleNamespace(
+            subscription_instance_id=f"node-{port_id}",
+            management=SimpleNamespace(optical_module_node_fqdn=f"{port_id}.example.com"),
+        )
+        return SimpleNamespace(subscription_instance_id=port_id, optical_port_host_node=node)
+
+    return SimpleNamespace(
+        optical_spectrum_section_add_drop_ports=[port(port_id) for port_id in add_drop_ids],
+        optical_spectrum_section_express_ports=[port(port_id) for port_id in express_ids],
+    )
+
+
+def _make_modify_block(section: SimpleNamespace) -> OpticalSpectrumBlockProvisioning:
+    return OpticalSpectrumBlockProvisioning.model_construct(
+        name="OpticalSpectrumBlock",
+        subscription_instance_id=uuid.uuid4(),
+        owner_subscription_id=uuid.uuid4(),
+        optical_spectrum_name="spec-01",
+        optical_spectrum_passband=(FREQUENCY_MIN, FREQUENCY_MAX),
+        optical_spectrum_sections=[section],
+    )
+
+
+def _install_recording_hal(
+    monkeypatch: pytest.MonkeyPatch,
+    calls: dict[str, list],
+    old_section: SimpleNamespace,
+) -> None:
+    """Patch the HAL calls of ``modify_optical_sections`` with recording fakes."""
+    monkeypatch.setattr(spectrum_modify, "load_spectrum_section", lambda _sid: old_section)
+
+    def record(name: str):
+        def _recorder(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            calls[name].append(args)
+            return {}
+
+        return _recorder
+
+    monkeypatch.setattr(spectrum_modify, "delete_optical_circuit", record("delete"))
+    monkeypatch.setattr(spectrum_modify, "delete_optical_circuit_oel", record("delete_oel"))
+    monkeypatch.setattr(spectrum_modify, "deploy_optical_circuit", record("deploy"))
+    monkeypatch.setattr(spectrum_modify, "modify_optical_circuit", record("modify"))
+
+
+def test_modify_optical_sections_modifies_in_place_when_path_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An unchanged path keeps the in-place circuit modification."""
+    section = _make_section(["ad-1", "ad-2"], ["exp-1"])
+    calls: dict[str, list] = {"delete": [], "delete_oel": [], "deploy": [], "modify": []}
+    _install_recording_hal(monkeypatch, calls, section)
+
+    state = unwrap_step(modify_optical_sections)(
+        optical_module_block=_make_modify_block(section),
+        old_passband=(FREQUENCY_MIN, FREQUENCY_MAX),
+        old_section_ids=["old-section-id"],
+    )
+
+    assert calls["modify"]
+    assert not calls["delete"]
+    assert not calls["delete_oel"]
+    assert not calls["deploy"]
+    assert "configuration_results" in state
+
+
+def test_modify_optical_sections_redeploys_when_path_changed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A changed path tears down the old circuits (and OEL) and deploys the new ones."""
+    old_section = _make_section(["old-ad-1", "old-ad-2"], ["old-exp"])
+    new_section = _make_section(["new-ad-1", "new-ad-2"], ["new-exp"])
+    calls: dict[str, list] = {"delete": [], "delete_oel": [], "deploy": [], "modify": []}
+    _install_recording_hal(monkeypatch, calls, old_section)
+
+    state = unwrap_step(modify_optical_sections)(
+        optical_module_block=_make_modify_block(new_section),
+        old_passband=(FREQUENCY_MIN, FREQUENCY_MAX),
+        old_section_ids=["old-section-id"],
+    )
+
+    assert calls["delete"]
+    assert calls["delete_oel"]
+    assert calls["deploy"]
+    assert not calls["modify"]
+    assert "configuration_results" in state
+
+
 def test_update_optical_spectrum_block_writes_only_name_and_passband() -> None:
     """The modify step overwrites only the name and the passband and returns the old passband."""
-    sections = [object()]
+    section = SimpleNamespace(subscription_instance_id=uuid.uuid4())
     block = OpticalSpectrumBlockProvisioning.model_construct(
         name="OpticalSpectrumBlock",
         subscription_instance_id=uuid.uuid4(),
         owner_subscription_id=uuid.uuid4(),
         optical_spectrum_name="old-name",
         optical_spectrum_passband=(FREQUENCY_MIN, FREQUENCY_MAX),
-        optical_spectrum_sections=sections,
+        optical_spectrum_sections=[section],
     )
 
     state = unwrap_step(update_optical_spectrum_block)(
@@ -379,10 +469,11 @@ def test_update_optical_spectrum_block_writes_only_name_and_passband() -> None:
 
     assert block.optical_spectrum_name == "spec-02"
     assert block.optical_spectrum_passband == (NEW_FREQUENCY_MIN, NEW_FREQUENCY_MAX)
-    assert block.optical_spectrum_sections is sections
+    assert block.optical_spectrum_sections == [section]
     assert state == {
         OPTICAL_MODULE_BLOCK_STATE_KEY: block,
         "old_passband": (FREQUENCY_MIN, FREQUENCY_MAX),
+        "old_section_ids": [str(section.subscription_instance_id)],
     }
 
 

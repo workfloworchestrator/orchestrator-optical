@@ -281,3 +281,22 @@ def test_split_loaded_path_rejects_odd_add_drop_count() -> None:
 
     with pytest.raises(ValueError, match="even number"):
         split_loaded_path_into_platform_sections(ports)
+
+
+def test_validate_optical_spectrum_path_accepts_single_platform_and_rejects_mixed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The form validator accepts a single-platform path and rejects a mixed one."""
+    flexils = _node(platform=Platform.FLEXILS)
+    src_endpoint = _ols_add_drop(flexils)
+    dst_endpoint = _ols_add_drop(flexils)
+    interior = [_ols_line(flexils), _ols_line(flexils)]
+    monkeypatch.setattr(shared, "_load_ols_port", lambda port_id: {"p1": interior[0], "p2": interior[1]}[port_id])
+
+    # A FlexILS-only path is valid.
+    shared.validate_optical_spectrum_path(["p1", "p2"], src_endpoint, dst_endpoint)
+
+    # A path crossing a Groove G30 line port mixes platforms and is rejected.
+    monkeypatch.setattr(shared, "_load_ols_port", lambda _port_id: _ols_line(_node(platform=Platform.GROOVE_G30)))
+    with pytest.raises(ValueError, match="same vendor and platform"):
+        shared.validate_optical_spectrum_path(["p1"], src_endpoint, dst_endpoint)
