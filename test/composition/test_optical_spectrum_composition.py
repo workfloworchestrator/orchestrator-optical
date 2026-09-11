@@ -25,6 +25,12 @@ from orchestrator.optical.products.product_blocks.optical_spectrum import (
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.optical_spectrum_service import create_optical_spectrum as spectrum_create
 from orchestrator.optical.workflows.optical_spectrum_service import modify_optical_spectrum as spectrum_modify
+from orchestrator.optical.workflows.optical_spectrum_service import (
+    shared as spectrum_shared,
+)
+from orchestrator.optical.workflows.optical_spectrum_service import (
+    terminate_optical_spectrum as spectrum_terminate,
+)
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
     CREATE_OPTICAL_SPECTRUM_BLOCK_STEPS,
     create_optical_spectrum,
@@ -44,7 +50,10 @@ from orchestrator.optical.workflows.optical_spectrum_service.reconcile_optical_s
     RECONCILE_OPTICAL_SPECTRUM_BLOCK_STEPS,
     reconcile_optical_spectrum,
 )
-from orchestrator.optical.workflows.optical_spectrum_service.shared import load_optical_spectrum_block
+from orchestrator.optical.workflows.optical_spectrum_service.shared import (
+    delete_optical_spectrum_sections,
+    load_optical_spectrum_block,
+)
 from orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum import (
     TERMINATE_OPTICAL_SPECTRUM_BLOCK_STEPS,
     terminate_initial_input_form_generator,
@@ -419,8 +428,8 @@ def _install_recording_hal(
 
         return _recorder
 
-    monkeypatch.setattr(spectrum_modify, "delete_optical_circuit", record("delete"))
-    monkeypatch.setattr(spectrum_modify, "delete_optical_circuit_oel", record("delete_oel"))
+    monkeypatch.setattr(spectrum_shared, "delete_optical_circuit", record("delete"))
+    monkeypatch.setattr(spectrum_shared, "delete_optical_circuit_oel", record("delete_oel"))
     monkeypatch.setattr(spectrum_modify, "deploy_optical_circuit", record("deploy"))
     monkeypatch.setattr(spectrum_modify, "modify_optical_circuit", record("modify"))
 
@@ -462,6 +471,64 @@ def test_modify_optical_sections_redeploys_when_path_changed(monkeypatch: pytest
     assert calls["deploy"]
     assert not calls["modify"]
     assert "configuration_results" in state
+
+
+def test_delete_optical_spectrum_sections_deletes_each_node_oel_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every section is deleted, but a shared source node's OEL is deleted only once."""
+    section_a = _make_section(["shared-ad", "ad-2"], ["exp-1"])
+    section_b = _make_section(["shared-ad", "ad-3"], ["exp-2"])
+    calls: dict[str, list] = {"delete": [], "delete_oel": []}
+
+    def record(name: str):
+        def _recorder(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            calls[name].append(args)
+            return {}
+
+        return _recorder
+
+    monkeypatch.setattr(spectrum_shared, "delete_optical_circuit", record("delete"))
+    monkeypatch.setattr(spectrum_shared, "delete_optical_circuit_oel", record("delete_oel"))
+
+    results = delete_optical_spectrum_sections(
+        [section_a, section_b],
+        (FREQUENCY_MIN, FREQUENCY_MAX),
+        "spec-01",
+        "cid",
+    )
+
+    assert len(calls["delete"]) == 2
+    assert len(calls["delete_oel"]) == 1
+    assert set(results) == {"shared-ad.example.com", "shared-ad.example.com:OEL"}
+
+
+def test_terminate_delete_optical_sections_uses_the_shared_teardown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The terminate step delegates to the shared teardown with the block's own identity."""
+    section = _make_section(["ad-1", "ad-2"], ["exp-1"])
+    block = _make_modify_block(section)
+    recorded: dict[str, Any] = {}
+
+    def _fake_teardown(sections: Any, passband: Any, spectrum_name: Any, circuit_identifier: Any) -> dict[str, Any]:
+        recorded.update(
+            sections=sections,
+            passband=passband,
+            spectrum_name=spectrum_name,
+            circuit_identifier=circuit_identifier,
+        )
+        return {"node": {}}
+
+    monkeypatch.setattr(spectrum_terminate, "delete_optical_spectrum_sections", _fake_teardown)
+
+    state = unwrap_step(spectrum_terminate.delete_optical_sections)(optical_module_block=block)
+
+    assert recorded["sections"] == [section]
+    assert recorded["passband"] == (FREQUENCY_MIN, FREQUENCY_MAX)
+    assert recorded["spectrum_name"] == "spec-01"
+    assert recorded["circuit_identifier"] == str(block.subscription_instance_id)
+    assert state == {"configuration_results": {"node": {}}}
 
 
 def test_update_optical_spectrum_block_writes_only_name_and_passband() -> None:

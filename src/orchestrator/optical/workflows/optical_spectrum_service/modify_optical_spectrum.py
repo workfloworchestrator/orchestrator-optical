@@ -39,8 +39,6 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.hal.spectrum import (
-    delete_optical_circuit,
-    delete_optical_circuit_oel,
     deploy_optical_circuit,
     modify_optical_circuit,
 )
@@ -62,6 +60,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spec
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     OPTICAL_PIPE_PRODUCT_TYPES,
     NoOpticalPathFoundError,
+    delete_optical_spectrum_sections,
     load_ols_port,
     load_optical_spectrum_block,
     load_spectrum_section,
@@ -484,10 +483,12 @@ def modify_optical_sections(
 
     When the chosen path differs from the previous one, the OEL explicit route
     cannot be updated in place (ED-OEL has no ``EXPLICITROUTE``), so the old
-    circuits are deleted and the new ones deployed. Each source node's OEL is
-    deleted only after all of its OSNCs are gone and only when no other OSNC on
-    the node still uses it (see
-    :func:`orchestrator.optical.hal.spectrum.delete_optical_circuit_oel`).
+    circuits are deleted and the new ones deployed. The old circuits are torn
+    down by
+    :func:`orchestrator.optical.workflows.optical_spectrum_service.shared.delete_optical_spectrum_sections`,
+    which deletes each source node's OEL only after all of its OSNCs are gone and
+    only when no other OSNC on the node still uses it (otherwise the OEL is left
+    in place because other OSNCs still need it).
 
     Args:
         optical_module_block: The Optical Spectrum block in the state under
@@ -526,29 +527,17 @@ def modify_optical_sections(
             )
         return {"configuration_results": results}
 
-    # The path changed: tear down the old circuits (OSNCs) and redeploy the new ones.
-    for old_section in old_sections:
-        src_node = old_section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[src_node.management.optical_module_node_fqdn] = delete_optical_circuit(
-            src_node,
-            old_section,
-            spectrum_name,
+    # The path changed: tear down the old circuits (OSNCs) and their now-unused
+    # OELs, then redeploy the new ones. The OEL teardown rule lives in the shared
+    # helper: a node's OEL is deleted only when no other OSNC still references it.
+    results.update(
+        delete_optical_spectrum_sections(
+            old_sections,
             old_passband,
-            circuit_identifier=circuit_identifier,
-        )
-
-    # Delete each source node's OEL once, after all of its OSNCs are gone.
-    seen_oel_nodes: set[str] = set()
-    for old_section in old_sections:
-        src_node = old_section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        node_id = str(src_node.subscription_instance_id)
-        if node_id in seen_oel_nodes:
-            continue
-        seen_oel_nodes.add(node_id)
-        results[f"{src_node.management.optical_module_node_fqdn}:OEL"] = delete_optical_circuit_oel(
-            src_node,
+            spectrum_name,
             circuit_identifier,
         )
+    )
 
     for section in new_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node

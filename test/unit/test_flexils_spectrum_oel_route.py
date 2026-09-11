@@ -36,13 +36,21 @@ class _FakeFlex:
 
     def __init__(self, osnc_records: list[dict[str, Any]]) -> None:
         self.osnc_records = osnc_records
+        self.locked_oels: list[str] = []
         self.deleted_oels: list[str] = []
+        self.events: list[str] = []
 
     def rtrv_osnc(self) -> Any:
         return type("_Response", (), {"parsed_data": self.osnc_records})()
 
+    def ed_oel(self, aid: str, **_kwargs: Any) -> Any:
+        self.locked_oels.append(aid)
+        self.events.append(f"lock:{aid}")
+        return None
+
     def dlt_oel(self, aid: str) -> Any:
         self.deleted_oels.append(aid)
+        self.events.append(f"delete:{aid}")
         return None
 
 
@@ -72,7 +80,17 @@ def test_delete_oel_if_unused_deletes_when_no_osnc_references_it() -> None:
 
     _delete_oel_if_unused(flex, "my-oel")
 
+    assert flex.locked_oels == ["my-oel"]
     assert flex.deleted_oels == ["my-oel"]
+
+
+def test_delete_oel_if_unused_locks_the_oel_before_deleting_it() -> None:
+    """FlexILS refuses DLT-OEL with "OEL is not Locked": the OEL must be put OOS first."""
+    flex = _FakeFlex([])
+
+    _delete_oel_if_unused(flex, "my-oel")
+
+    assert flex.events == ["lock:my-oel", "delete:my-oel"]
 
 
 def test_delete_oel_if_unused_leaves_oel_when_another_osnc_references_it() -> None:
@@ -80,7 +98,24 @@ def test_delete_oel_if_unused_leaves_oel_when_another_osnc_references_it() -> No
 
     _delete_oel_if_unused(flex, "my-oel")
 
+    assert flex.locked_oels == []
     assert flex.deleted_oels == []
+
+
+def test_delete_oel_if_unused_deletes_when_the_node_has_no_osnc() -> None:
+    """A node whose last OSNC was deleted denies RTRV-OSNC; that must not block the OEL deletion."""
+    flex = _FakeFlex([])
+    tid = "flex.a"
+
+    def _rtrv_osnc() -> Any:
+        raise TL1CommandDeniedError(tid, "RTRV-OSNC", "SPECIFIED OBJECT ENTITY DOES NOT EXIST")
+
+    flex.rtrv_osnc = _rtrv_osnc  # type: ignore[method-assign]
+
+    _delete_oel_if_unused(flex, "my-oel")
+
+    assert flex.locked_oels == ["my-oel"]
+    assert flex.deleted_oels == ["my-oel"]
 
 
 def test_omses_from_line_ports_pairs_two_roadm_ports() -> None:
@@ -246,6 +281,34 @@ def test_delete_returns_the_removed_osnc_as_a_diff(monkeypatch: pytest.MonkeyPat
     }
 
 
+def test_delete_is_a_noop_when_the_osnc_is_already_gone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An already-deleted circuit yields an empty diff instead of failing (idempotent teardown)."""
+    node_a = _node(OpticalNodeRole.ROADM, "flex.a")
+    node_b = _node(OpticalNodeRole.ROADM, "flex.b")
+    section = OpticalSpectrumSectionBlockProvisioning.model_construct(
+        optical_spectrum_section_add_drop_ports=[
+            _port(node_a, "1-A-3-T11", OpticalPortRole.OLS_ADD_DROP),
+            _port(node_b, "1-A-3-T11", OpticalPortRole.OLS_ADD_DROP),
+        ],
+    )
+    monkeypatch.setattr(
+        flexils_spectrum,
+        "_get_flexils_name_client_tributary",
+        lambda device, port: (("flex.a" if device is node_a else "flex.b"), SimpleNamespace(), port),
+    )
+    monkeypatch.setattr(flexils_spectrum, "_find_matching_osnc_on_flexils", lambda **_kwargs: None)
+
+    result = flexils_spectrum.delete(
+        node_a,
+        section,
+        "spec",
+        (191_325_000, 196_125_000),
+        "cid",
+    )
+
+    assert result == {"---": {}, "+++": {}}
+
+
 def test_find_flexils_osnc_matches_by_identifier_despite_passband_mismatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -409,6 +472,7 @@ def test_delete_oel_returns_the_removed_oel_as_a_diff(monkeypatch: pytest.Monkey
     flex = SimpleNamespace(
         rtrv_oel=lambda **_kwargs: SimpleNamespace(parsed_data=list(records)),
         rtrv_osnc=lambda **_kwargs: SimpleNamespace(parsed_data=[]),
+        ed_oel=lambda **_kwargs: None,
         dlt_oel=lambda **_kwargs: records.clear(),
     )
     monkeypatch.setattr(flexils_spectrum, "_get_flex_client", lambda _device: flex)
@@ -416,6 +480,22 @@ def test_delete_oel_returns_the_removed_oel_as_a_diff(monkeypatch: pytest.Monkey
     result = flexils_spectrum.delete_oel(_node(OpticalNodeRole.ROADM, "flex.a"), "cid")
 
     assert result == {"---": {"root['OEL']['AID']": "cid", "root['OEL']['OPERSTATE']": "IS"}, "+++": {}}
+
+
+def test_delete_oel_is_a_noop_when_the_oel_is_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A missing OEL yields an empty diff and is never deleted, so a retry is safe."""
+    deleted: list[str] = []
+    flex = SimpleNamespace(
+        rtrv_oel=lambda **_kwargs: SimpleNamespace(parsed_data=[]),
+        rtrv_osnc=lambda **_kwargs: SimpleNamespace(parsed_data=[]),
+        dlt_oel=lambda **kwargs: deleted.append(kwargs["aid"]),
+    )
+    monkeypatch.setattr(flexils_spectrum, "_get_flex_client", lambda _device: flex)
+
+    result = flexils_spectrum.delete_oel(_node(OpticalNodeRole.ROADM, "flex.a"), "cid")
+
+    assert result == {"---": {}, "+++": {}}
+    assert deleted == []
 
 
 def test_delete_cross_connection_returns_the_removed_ocrs_as_a_diff(

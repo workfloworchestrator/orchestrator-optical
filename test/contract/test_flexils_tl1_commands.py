@@ -193,6 +193,12 @@ def test_to_string_renders_edit_oel_named_params() -> None:
     assert command.to_string() == f"ED-OEL:flex.bo01:1-A-1-L1:{TAG}:::LABEL=my label:;"
 
 
+def test_to_string_renders_edit_oel_admin_state() -> None:
+    """Locking an OEL before DLT-OEL renders the trailing admin state as OOS."""
+    command = EditOel(tid="flex.bo01", aid="1-A-1-L1", is_oos_ains="OOS", ctag=TAG)
+    assert command.to_string() == f"ED-OEL:flex.bo01:1-A-1-L1:{TAG}::::OOS;"
+
+
 def test_to_string_joins_flat_lists_with_ampersand() -> None:
     command = EnterOel(
         tid="flex.bo01",

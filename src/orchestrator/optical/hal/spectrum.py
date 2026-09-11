@@ -148,6 +148,9 @@ def delete_optical_circuit(
 ) -> DiffResult:
     """Delete an optical circuit for the given optical spectrum section.
 
+    The operation is idempotent: an already absent circuit yields an empty diff
+    instead of failing, so a retried or partially applied teardown is safe.
+
     Args:
         optical_node_block: The source Optical Node of the section.
         optical_spectrum_section_block: The optical spectrum section configuration.
@@ -160,7 +163,6 @@ def delete_optical_circuit(
         deletion. Platforms without internal cross-connections yield an empty diff.
 
     Raises:
-        ValueError: If the circuit cannot be found.
         UnsupportedPlatformError: If the vendor/platform combination is not supported.
     """
     match _vendor_platform(optical_node_block):

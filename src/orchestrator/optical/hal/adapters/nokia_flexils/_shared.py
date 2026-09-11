@@ -68,6 +68,16 @@ class FlexilsClientProtocol(Protocol):
     def rtrv_oel(self, aid: str | None = None) -> TL1BaseResponse:
         """Retrieve the OEL entries of the node."""
 
+    def ed_oel(
+        self,
+        aid: str,
+        label: str | None = None,
+        oelsource: str | None = None,
+        compcardtypelist: Sequence[str] | None = None,
+        is_oos_ains: str | None = None,
+    ) -> TL1BaseResponse:
+        """Edit the configuration of the given OEL."""
+
     def dlt_oel(self, aid: str) -> TL1BaseResponse:
         """Delete the given OEL."""
 

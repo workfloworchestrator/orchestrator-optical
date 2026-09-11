@@ -25,6 +25,10 @@ from orchestrator.optical.utils.datadiff import DiffResult, compare_jsons
 _OBJECT_DOES_NOT_EXIST = "SPECIFIED OBJECT ENTITY DOES NOT EXIST"
 
 
+class _OsncNotFoundError(ValueError):
+    """Raised when no OSNC matches the requested circuit on either end of a section."""
+
+
 def _node_role(port: AnyOpticalPortBlockProvisioning) -> OpticalNodeRole:
     """Return the role of the Optical Node hosting the given port."""
     role = port.optical_port_host_node.optical_node_role
@@ -155,16 +159,29 @@ def _delete_oel_if_unused(flex: FlexilsClientProtocol, oel_aid: str) -> None:
 
     On FlexILS the same OEL may be shared by more than one OSNC, so deleting it while
     it is still referenced would break those circuits. The node is queried with
-    RTRV-OSNC first; if any OSNC references the OEL, it is left in place (no-op).
+    RTRV-OSNC first; if any OSNC references the OEL, it is left in place (no-op). A
+    node with no OSNC at all is a legitimate end-state (the last OSNC was just
+    deleted): the device denies RTRV-OSNC with the "object does not exist" marker in
+    that case, which is treated as "nothing references the OEL", not as an error.
+
+    Once no OSNC references the OEL, the OEL is locked (put OOS) and only then
+    deleted: FlexILS refuses DLT-OEL with "OEL is not Locked" otherwise.
 
     Args:
         flex: TL1 client of the node hosting the OEL.
         oel_aid: Access identifier of the OEL.
     """
     aid = oel_aid[:127]
-    for record in flex.rtrv_osnc().parsed_data:
+    try:
+        osncs = flex.rtrv_osnc().parsed_data
+    except TL1CommandDeniedError as e:
+        if not _is_object_missing(e):
+            raise
+        osncs = []
+    for record in osncs:
         if record.get("OELAID", "").strip(r"\" ") == aid[:64]:
             return
+    flex.ed_oel(aid=aid, is_oos_ains="OOS")
     flex.dlt_oel(aid=aid)
 
 
@@ -177,7 +194,10 @@ def delete_oel(
     The OEL explicit route cannot be edited with ED-OEL, so a path change is applied
     by deleting the OEL and re-entering it (see :func:`deploy`). This helper performs
     the guarded deletion: it leaves the OEL in place while another OSNC on the node
-    still references it (a shared OEL is legitimate on FlexILS).
+    still references it (a shared OEL is legitimate on FlexILS), locks it (OOS) once
+    no OSNC references it, and only then deletes it. When the OEL is already absent
+    the call is a no-op yielding an empty diff, so a retried or partially applied
+    teardown is safe (idempotent).
 
     Args:
         optical_node_block: The Optical Node block hosting the OEL.
@@ -186,12 +206,13 @@ def delete_oel(
     Returns:
         The difference between the OEL configuration before and after the
         deletion: a deleted OEL shows up as a removal, while an OEL kept because
-        another OSNC still references it yields an empty diff.
+        another OSNC still references it (or already absent) yields an empty diff.
     """
     oel_aid = circuit_identifier[:127]
     flex = _get_flex_client(optical_node_block)
     before_oel = _rtrv_oel_or_none(flex, oel_aid)
-    _delete_oel_if_unused(flex, circuit_identifier)
+    if before_oel is not None:
+        _delete_oel_if_unused(flex, circuit_identifier)
     after_oel = _rtrv_oel_or_none(flex, oel_aid)
     return compare_jsons({"OEL": before_oel or {}}, {"OEL": after_oel or {}})
 
@@ -472,7 +493,7 @@ def _find_flexils_osnc(
         The FlexILS client of the device controlling the OSNC and the OSNC configuration.
 
     Raises:
-        ValueError: If no matching OSNC is found.
+        _OsncNotFoundError: If no matching OSNC is found (a ``ValueError`` subclass).
     """
     src_port_raw = _port_name(optical_spectrum_section.optical_spectrum_section_add_drop_ports[0])
     dst_port_raw = _port_name(optical_spectrum_section.optical_spectrum_section_add_drop_ports[1])
@@ -515,7 +536,7 @@ def _find_flexils_osnc(
         f"{src_node_name} {src_port} and {dst_node_name} {dst_port} "
         f"with passband {passband}. "
     )
-    raise ValueError(msg)
+    raise _OsncNotFoundError(msg)
 
 
 def _remote_flex_for_section(
@@ -708,16 +729,24 @@ def delete(
 ) -> DiffResult:
     """Delete an optical circuit specifically for FlexILS platform devices.
 
+    The operation is idempotent: a circuit whose OSNC is already gone (for instance
+    because the terminal nodes were torn down beforehand) is treated as already
+    deleted and yields an empty diff instead of failing.
+
     Returns:
         The difference between the circuit configuration before and after the
-        deletion: the deleted OSNC shows up as a removal.
+        deletion: the deleted OSNC shows up as a removal, while an already absent
+        OSNC yields an empty diff.
     """
-    flex, osnc = _find_flexils_osnc(
-        optical_spectrum_name,
-        optical_spectrum_section_block,
-        passband,
-        circuit_identifier,
-    )
+    try:
+        flex, osnc = _find_flexils_osnc(
+            optical_spectrum_name,
+            optical_spectrum_section_block,
+            passband,
+            circuit_identifier,
+        )
+    except _OsncNotFoundError:
+        return compare_jsons({}, {})
 
     # Lock the OSNC in admin state
     flex.ed_osnc(aid=osnc["LOCENDPOINT"], is_oos="OOS")

@@ -20,10 +20,10 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
-from orchestrator.optical.hal.spectrum import delete_optical_circuit
 from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumBlockInactive
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
+    delete_optical_spectrum_sections,
     load_optical_spectrum_block,
     optical_spectrum_block_from_state,
     refresh_optical_spectrum_used_passbands,
@@ -93,33 +93,34 @@ def delete_optical_sections(optical_module_block: OpticalSpectrumBlockInactive) 
     :func:`orchestrator.optical.workflows.optical_spectrum_service.shared.optical_spectrum_block_from_state`)
     and every section is deleted on the source Optical Node of the section.
 
+    The teardown, including the OEL of each source node, is delegated to
+    :func:`orchestrator.optical.workflows.optical_spectrum_service.shared.delete_optical_spectrum_sections`:
+    once all of the circuit's OSNCs are gone, the node's OEL is deleted only when no
+    other OSNC on that node still references it; otherwise it is left in place because
+    other OSNCs still need it.
+
     Args:
         optical_module_block: The Optical Spectrum block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     block = optical_spectrum_block_from_state(optical_module_block)
-    passband = block.optical_spectrum_passband
     spectrum_name = block.optical_spectrum_name
     if spectrum_name is None:
         msg = "Optical spectrum name is not set"
         raise ValueError(msg)
-    circuit_identifier = str(block.subscription_instance_id)
-    results = {}
-    for section in block.optical_spectrum_sections:
-        src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[src_node.management.optical_module_node_fqdn] = delete_optical_circuit(
-            src_node,
-            section,
-            spectrum_name,
-            passband,
-            circuit_identifier=circuit_identifier,
-        )
+    results = delete_optical_spectrum_sections(
+        block.optical_spectrum_sections,
+        block.optical_spectrum_passband,
+        spectrum_name,
+        str(block.subscription_instance_id),
+    )
 
     return {"configuration_results": results}
 
 
 #: Termination steps operating on the Optical Spectrum block in the state. The
-#: optical circuit of every section is deleted from the devices, the passbands
+#: optical circuit of every section is deleted from the devices together with the
+#: OEL of each source node when no other OSNC still references it, the passbands
 #: in use are refreshed and the block is persisted by the last step, because
 #: workflow steps execute with the state serialized between steps (the block is
 #: re-hydrated from its serialized form before every step operates on it).

@@ -232,18 +232,15 @@ def install_device_stubs(
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
                 "deploy_optical_circuit": _fake_deploy_optical_circuit,
                 "validate_optical_circuit": _fake_validate_optical_circuit,
+                "delete_optical_circuit": _fake_delete_optical_circuit,
+                "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
             },
             "orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum": {
                 "set_port_description": _fake_set_port_description,
             },
             "orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum": {
                 "modify_optical_circuit": _fake_modify_optical_circuit,
-                "delete_optical_circuit": _fake_delete_optical_circuit,
-                "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
                 "deploy_optical_circuit": _fake_deploy_optical_circuit,
-            },
-            "orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum": {
-                "delete_optical_circuit": _fake_delete_optical_circuit,
             },
         },
         "ods": {
@@ -253,6 +250,8 @@ def install_device_stubs(
             "orchestrator.optical.workflows.optical_spectrum_service.shared": {
                 "retrieve_transceiver_modes": _retrieve_transceiver_modes,
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
+                "delete_optical_circuit": _fake_delete_optical_circuit,
+                "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
             },
             "orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service": {
                 "configure_line_transceivers": _fake_configure_line_transceivers,
@@ -273,7 +272,6 @@ def install_device_stubs(
                 "delete_transponder_crossconnect": _fake_delete_transponder_crossconnect,
                 "factory_reset_transponder_client": _fake_factory_reset_transponder_client,
                 "factory_reset_transponder_lines": _fake_factory_reset_transponder_lines,
-                "delete_optical_circuit": _fake_delete_optical_circuit,
             },
             "orchestrator.optical.workflows.optical_digital_service.validate_optical_digital_service": {
                 "get_signal_bandwidth": _fake_get_signal_bandwidth,

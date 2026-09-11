@@ -11,7 +11,6 @@ from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, conditional, step
 from orchestrator.core.workflows.utils import terminate_workflow
-from orchestrator.optical.hal.spectrum import delete_optical_circuit
 from orchestrator.optical.hal.transport_channel import (
     delete_transponder_crossconnect,
     factory_reset_transponder_client,
@@ -22,7 +21,10 @@ from orchestrator.optical.products.product_blocks.optical_transport_channel impo
     OpticalTransportChannelBlock,
 )
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalService
-from orchestrator.optical.workflows.optical_spectrum_service.shared import update_used_passbands
+from orchestrator.optical.workflows.optical_spectrum_service.shared import (
+    delete_optical_spectrum_sections,
+    update_used_passbands,
+)
 
 logger = get_logger(__name__)
 
@@ -110,22 +112,27 @@ def factory_reset_trx_line_side(subscription: OpticalDigitalService) -> State:
 
 @step("Deleting optical sections")
 def delete_optical_sections(subscription: OpticalDigitalService) -> State:
-    """Delete the optical circuit of every spectrum section from the devices."""
+    """Delete the optical circuit of every spectrum section from the devices.
+
+    Each transport channel's spectrum sections are torn down by
+    :func:`orchestrator.optical.workflows.optical_spectrum_service.shared.delete_optical_spectrum_sections`,
+    which also deletes the OEL of each source node once all of its OSNCs are gone,
+    and only when no other OSNC on the node still references it (otherwise the OEL
+    is left in place because other OSNCs still need it). The channel identifier is
+    used as the circuit identifier, so each channel's circuits and OEL are distinct;
+    the results are namespaced by the channel to avoid clobbering across channels.
+    """
     results = {}
     for channel in subscription.optical_digital_service.optical_digital_service_transport_channels:
         spectrum = channel.optical_transport_spectrum
-        passband = spectrum.optical_spectrum_passband
-        spectrum_name = spectrum.optical_spectrum_name
         circuit_identifier = channel.optical_transport_channel_name
-        for section in spectrum.optical_spectrum_sections:
-            src_device = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-            results[src_device.management.optical_module_node_fqdn] = delete_optical_circuit(
-                src_device,
-                section,
-                spectrum_name,
-                passband,
-                circuit_identifier=circuit_identifier,
-            )
+        channel_results = delete_optical_spectrum_sections(
+            spectrum.optical_spectrum_sections,
+            spectrum.optical_spectrum_passband,
+            spectrum.optical_spectrum_name,
+            circuit_identifier,
+        )
+        results.update({f"{circuit_identifier}:{key}": value for key, value in channel_results.items()})
 
     return {
         "ols_config": results,
