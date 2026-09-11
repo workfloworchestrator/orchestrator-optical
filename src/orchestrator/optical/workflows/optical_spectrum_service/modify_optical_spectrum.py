@@ -58,7 +58,6 @@ from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
     NO_OPTICAL_PATH_FOUND_MSG,
-    update_used_passbands_step,
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     OPTICAL_PIPE_PRODUCT_TYPES,
@@ -69,6 +68,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     multiple_optical_node_selector,
     optical_spectrum_block_from_state,
     optical_spectrum_path_selector,
+    refresh_optical_spectrum_used_passbands,
     set_optical_spectrum_subscription_description,
     split_loaded_path_into_loaded_sections,
     store_loaded_sections_into_spectrum_block,
@@ -573,7 +573,7 @@ MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS: StepList = (
     >> update_optical_spectrum_block
     >> divide_path_into_sections
     >> modify_optical_sections
-    >> update_used_passbands_step
+    >> refresh_optical_spectrum_used_passbands
     >> save_optical_module_block
 )
 

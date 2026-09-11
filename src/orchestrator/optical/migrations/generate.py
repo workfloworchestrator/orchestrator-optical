@@ -12,9 +12,12 @@ revisions **from the shipped models**, so they never drift from the code:
   database and fails if the applied migrations are not a faithful projection of the
   models — this is the CI gate that catches model drift before a release.
 
-The module ships **no checked-in baseline until the first stable release** (the models are
-still being finalised; shipped revisions are immutable once released). Maintainers run the
-pipeline in ``--commit`` mode to write the baseline, and in CI to verify no drift.
+The module ships a **development baseline** until the first stable release (the models are
+still being finalised; shipped revisions are immutable once released): the baseline is
+regenerated with ``--commit`` whenever the models or the shipped workflows change, instead
+of being chained as a delta. At 1.0 the baseline freezes and later changes are rendered as
+deltas chained onto the optical head. Maintainers run the pipeline in ``--commit`` mode to
+write the baseline, and in CI to verify no drift.
 """
 
 # Copyright 2026 GARR, GÉANT.

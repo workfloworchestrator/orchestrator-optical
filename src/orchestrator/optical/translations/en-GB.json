@@ -40,6 +40,7 @@
       "modify_optical_spectrum": "modify optical spectrum service",
       "terminate_optical_spectrum": "terminate optical spectrum service",
       "validate_optical_spectrum": "validate optical spectrum service",
+      "reconcile_optical_spectrum": "reconcile optical spectrum service",
       "create_optical_digital_service": "create optical digital service",
       "modify_optical_digital_service": "modify optical digital service",
        "terminate_optical_digital_service": "terminate optical digital service",

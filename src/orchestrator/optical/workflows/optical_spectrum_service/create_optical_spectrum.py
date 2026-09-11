@@ -42,7 +42,6 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.port import set_port_description
-from orchestrator.optical.hal.spectrum import deploy_optical_circuit
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
@@ -69,11 +68,11 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     optical_node_selector_of_roles,
     optical_spectrum_block_from_state,
     optical_spectrum_path_selector,
-    save_foreign_passband_ports,
+    provision_optical_sections,
+    refresh_optical_spectrum_used_passbands,
     set_optical_spectrum_subscription_description,
     split_loaded_path_into_loaded_sections,
     store_loaded_sections_into_spectrum_block,
-    update_used_passbands,
     validate_optical_spectrum_path,
 )
 from orchestrator.optical.workflows.shared import create_summary_form, optical_port_selector
@@ -599,65 +598,6 @@ def configure_add_drop_ports_description(optical_module_block: OpticalSpectrumBl
     return {"configuration_results": outputs}
 
 
-@step("Provisioning optical spectrum sections")
-def provision_optical_sections(optical_module_block: OpticalSpectrumBlockInactive) -> State:
-    """Deploy the optical circuit of every spectrum section on the devices.
-
-    Operates only on the Optical Spectrum block found in the state under
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY``, the same block the rest of the shipped
-    block steps act on.
-
-    Args:
-        optical_module_block: The Optical Spectrum block in the state under
-            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-    """
-    block = optical_spectrum_block_from_state(optical_module_block)
-    passband = block.optical_spectrum_passband
-    spectrum_name = block.optical_spectrum_name
-    if spectrum_name is None:
-        msg = "Optical spectrum name is not set"
-        raise ValueError(msg)
-    carrier = (int(0.5 * (passband[0] + passband[1])), passband[1] - passband[0])
-    circuit_identifier = str(block.subscription_instance_id)
-    results = {}
-    for section in block.optical_spectrum_sections:
-        src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[src_node.management.optical_module_node_fqdn] = deploy_optical_circuit(
-            src_node,
-            section,
-            spectrum_name,
-            passband,
-            carrier,
-            label=spectrum_name,
-            circuit_identifier=circuit_identifier,
-        )
-
-    return {"configuration_results": results}
-
-
-@step("Updating the available passbands of any Open Line System port in the path")
-def update_used_passbands_step(optical_module_block: OpticalSpectrumBlockInactive) -> State:
-    """Refresh the used passbands of the Open Line System ports in the path from the devices.
-
-    Operates only on the Optical Spectrum block found in the state under
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The ports owned by the spectrum
-    subscription (the add/drop ports) are refreshed in the returned block, which
-    the following save step persists; the foreign ports (the express line ports
-    owned by the pipe subscriptions) are persisted under their own owner
-    subscription by this step, because the spectrum block save skips foreign
-    instances.
-
-    Args:
-        optical_module_block: The Optical Spectrum block in the state under
-            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-    """
-    block = optical_spectrum_block_from_state(optical_module_block)
-    foreign_ports = update_used_passbands(block)
-    save_foreign_passband_ports(foreign_ports)
-
-    return {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
-
-
 #: Create steps operating on the Optical Spectrum block in the state. Every step
 #: is block-level: the add/drop port descriptions are configured on the devices,
 #: the optical circuit of every section is deployed, the passbands in use are
@@ -670,11 +610,14 @@ def update_used_passbands_step(optical_module_block: OpticalSpectrumBlockInactiv
 #: :func:`construct_optical_spectrum_subscription`). Consumers with their own
 #: model run this list after constructing their subscription the same way and
 #: putting their block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+#: The device-push, passband-refresh and verification steps are shared with the
+#: other shipped spectrum workflows (see
+#: :mod:`orchestrator.optical.workflows.optical_spectrum_service.shared`).
 CREATE_OPTICAL_SPECTRUM_BLOCK_STEPS: StepList = (
     begin
     >> configure_add_drop_ports_description
     >> provision_optical_sections
-    >> update_used_passbands_step
+    >> refresh_optical_spectrum_used_passbands
     >> save_optical_module_block
 )
 

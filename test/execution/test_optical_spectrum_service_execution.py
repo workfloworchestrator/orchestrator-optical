@@ -351,6 +351,9 @@ def test_full_lifecycle_create_modify_validate_terminate(
     validate_process_id = run_process("validate_optical_spectrum", [{"subscription_id": subscription_id}])
     _assert_process_completed(validate_process_id)
 
+    reconcile_process_id = run_process("reconcile_optical_spectrum", [{"subscription_id": subscription_id}])
+    _assert_process_completed(reconcile_process_id)
+
     terminate_process_id = run_process(
         "terminate_optical_spectrum",
         [{"subscription_id": subscription_id}, {"subscription_id": subscription_id}],

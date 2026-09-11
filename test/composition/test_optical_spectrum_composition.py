@@ -40,6 +40,10 @@ from orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spec
     modify_optical_spectrum_form_pages,
     update_optical_spectrum_block,
 )
+from orchestrator.optical.workflows.optical_spectrum_service.reconcile_optical_spectrum import (
+    RECONCILE_OPTICAL_SPECTRUM_BLOCK_STEPS,
+    reconcile_optical_spectrum,
+)
 from orchestrator.optical.workflows.optical_spectrum_service.shared import load_optical_spectrum_block
 from orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum import (
     TERMINATE_OPTICAL_SPECTRUM_BLOCK_STEPS,
@@ -184,6 +188,7 @@ def test_block_steps_consume_the_block_state_key() -> None:
         + MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS
         + TERMINATE_OPTICAL_SPECTRUM_BLOCK_STEPS
         + VALIDATE_OPTICAL_SPECTRUM_BLOCK_STEPS
+        + RECONCILE_OPTICAL_SPECTRUM_BLOCK_STEPS
     )
     unexpected_exceptions = []
     for step_func in step_functions(all_steps):
@@ -236,6 +241,17 @@ def test_validate_block_steps_have_the_expected_order() -> None:
     """The shipped validate block steps run in the documented order."""
     names = [step.name for step in VALIDATE_OPTICAL_SPECTRUM_BLOCK_STEPS]
     assert names == ["Load optical spectrum block", "Verifying optical spectrum sections"]
+
+
+def test_reconcile_block_steps_have_the_expected_order() -> None:
+    """The shipped reconcile block steps run in the documented order."""
+    names = [step.name for step in RECONCILE_OPTICAL_SPECTRUM_BLOCK_STEPS]
+    assert names == [
+        "Provisioning optical spectrum sections",
+        "Updating the available passbands of any Open Line System port in the path",
+        "Persist optical module block",
+        "Verifying optical spectrum sections",
+    ]
 
 
 def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -484,6 +500,7 @@ def test_update_optical_spectrum_block_writes_only_name_and_passband() -> None:
         (modify_optical_spectrum, "modify_optical_spectrum", Target.MODIFY),
         (terminate_optical_spectrum, "terminate_optical_spectrum", Target.TERMINATE),
         (validate_optical_spectrum, "validate_optical_spectrum", Target.VALIDATE),
+        (reconcile_optical_spectrum, "reconcile_optical_spectrum", Target.RECONCILE),
     ],
 )
 def test_shipped_workflows_are_workflow_instances_with_the_right_target(
@@ -530,6 +547,18 @@ def test_shipped_terminate_and_validate_workflows_compose_the_shared_steps() -> 
         "Verifying optical spectrum sections"
     )
     assert "Set Optical Spectrum subscription description" in validate_names
+
+
+def test_shipped_reconcile_workflow_loads_pushes_and_verifies_the_block() -> None:
+    """The shipped reconcile workflow loads, re-pushes, persists and re-verifies the block."""
+    names = [step.name for step in reconcile_optical_spectrum.steps]
+    load = names.index("Load optical spectrum block")
+    provision = names.index("Provisioning optical spectrum sections")
+    refresh = names.index("Updating the available passbands of any Open Line System port in the path")
+    persist = names.index("Persist optical module block")
+    verify = names.index("Verifying optical spectrum sections")
+    set_description = names.index("Set Optical Spectrum subscription description")
+    assert load < provision < refresh < persist < verify < set_description
 
 
 def test_load_optical_spectrum_block_puts_the_block_in_the_state() -> None:

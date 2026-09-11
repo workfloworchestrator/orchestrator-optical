@@ -23,12 +23,10 @@ from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.spectrum import delete_optical_circuit
 from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumBlockInactive
 from orchestrator.optical.workflows.block import save_optical_module_block
-from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
-    update_used_passbands_step,
-)
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     load_optical_spectrum_block,
     optical_spectrum_block_from_state,
+    refresh_optical_spectrum_used_passbands,
 )
 
 
@@ -126,7 +124,7 @@ def delete_optical_sections(optical_module_block: OpticalSpectrumBlockInactive) 
 #: workflow steps execute with the state serialized between steps (the block is
 #: re-hydrated from its serialized form before every step operates on it).
 TERMINATE_OPTICAL_SPECTRUM_BLOCK_STEPS: StepList = (
-    begin >> delete_optical_sections >> update_used_passbands_step >> save_optical_module_block
+    begin >> delete_optical_sections >> refresh_optical_spectrum_used_passbands >> save_optical_module_block
 )
 
 

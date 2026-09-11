@@ -8,10 +8,12 @@ linearly onto a pinned orchestrator-core schema revision. Consumers add the ship
 optical head with their own ``data`` head once, and ``upgrade head`` from then on.
 
 Until the module reaches a stable release (the models are still being finalised) the
-shipped ``versions/schema`` directory is intentionally empty and consumers provision the
-catalog with the orchestrator-core CLI wizards instead; the generation pipeline
-(:mod:`orchestrator.optical.migrations.generate`) is the mechanism that will produce the
-checked-in baseline at 1.0.
+shipped ``versions/schema`` directory carries a **development baseline** generated from
+the models: it is regenerated (not chained) whenever the models or the shipped workflows
+change, because it does not represent a released state yet. At 1.0 the baseline becomes
+immutable and later changes ship as deltas chained onto it. The generation pipeline
+(:mod:`orchestrator.optical.migrations.generate`) is the mechanism that produces the
+baseline.
 """
 
 # Copyright 2026 GARR, GÉANT.

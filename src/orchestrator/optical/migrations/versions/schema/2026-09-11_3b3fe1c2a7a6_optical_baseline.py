@@ -1,8 +1,8 @@
 """optical baseline
 
-Revision ID: 263aedd1b28d
+Revision ID: 3b3fe1c2a7a6
 Revises: ca79fd834ba0
-Create Date: 2026-09-04
+Create Date: 2026-09-11
 
 """
 
@@ -11,7 +11,7 @@ from alembic import op
 from orchestrator.core.migrations.helpers import create, create_workflow, delete, delete_workflow
 
 # revision identifiers, used by Alembic.
-revision = "263aedd1b28d"
+revision = "3b3fe1c2a7a6"
 down_revision = "ca79fd834ba0"
 branch_labels = None
 depends_on = None
@@ -737,6 +737,15 @@ def upgrade() -> None:
     create_workflow(
         conn,
         {
+            "name": "reconcile_optical_spectrum",
+            "target": "RECONCILE",
+            "description": "reconcile optical spectrum service",
+            "product_type": "OpticalSpectrum",
+        },
+    )
+    create_workflow(
+        conn,
+        {
             "name": "terminate_optical_spectrum",
             "target": "TERMINATE",
             "description": "terminate optical spectrum service",
@@ -758,6 +767,7 @@ def downgrade() -> None:
     conn = op.get_bind()
     delete_workflow(conn, "validate_optical_spectrum")
     delete_workflow(conn, "terminate_optical_spectrum")
+    delete_workflow(conn, "reconcile_optical_spectrum")
     delete_workflow(conn, "modify_optical_spectrum")
     delete_workflow(conn, "create_optical_spectrum")
     delete_workflow(conn, "validate_optical_node_nokia_gx_g42")

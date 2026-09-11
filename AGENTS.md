@@ -135,7 +135,8 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
 
 - The module ships the **ready-to-use workflows of the shipped product types**: one module-level
   `@create_workflow`/`@modify_workflow`/`@terminate_workflow`/`@validate_workflow`-decorated function per product
-  (plus a `@reconcile_workflow` for each optical pipe family), where each is a plain function
+  (plus a `@reconcile_workflow` for each optical pipe family and for the Optical Spectrum service), where each is a
+  plain function
   (decorators from `orchestrator.core.workflows.utils`, chains from `orchestrator.core.workflow`), named exactly as
   the shipped name (the translation keys in `translations/en-GB.json`). No factories, no hooks, no `**kwargs`; the
   workflow function name MUST keep the shipped name. The shipped workflows are bound to the shipped subscription
@@ -209,7 +210,8 @@ uv build                        # package build
   changes instead (e.g. field renames must be propagated to `hal/` and `workflows/`).
 - workflows: done create,modify,validate,terminate for `optical_location`; create,modify,validate,terminate for the 3
   optical nodes (FlexILS, G30, G42); create,modify,validate,terminate + reconcile for the 3 optical pipes
-  (`fiber_span`, `fiber_patch`, `leased_spectrum`); create,modify,validate,terminate for `optical_spectrum_service`
+  (`fiber_span`, `fiber_patch`, `leased_spectrum`); create,modify,validate,terminate + reconcile for
+  `optical_spectrum_service`
   (the path engine builds the constrained graph from fiber spans + patches + leased spectra but only OLS
   `OLS_LINE`/`OLS_ADD_DROP` ports, supports ordered waypoints, and splits the chosen path into single-platform
   sections at the add/drop ports). The rest are defined but still WIP.

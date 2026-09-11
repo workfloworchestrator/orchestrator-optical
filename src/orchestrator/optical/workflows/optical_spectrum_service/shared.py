@@ -42,6 +42,7 @@ from orchestrator.optical.db import (
 )
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import retrieve_transceiver_modes
+from orchestrator.optical.hal.spectrum import deploy_optical_circuit, validate_optical_circuit
 from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
@@ -289,6 +290,110 @@ def load_optical_spectrum_block(subscription: SubscriptionModel) -> State:
             ``optical_spectrum_service`` attribute.
     """
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: _optical_spectrum_block_of_subscription(subscription)}
+
+
+@step("Provisioning optical spectrum sections")
+def provision_optical_sections(optical_module_block: OpticalSpectrumBlockInactive) -> State:
+    """Deploy the optical circuit of every spectrum section on the devices.
+
+    Operates only on the Optical Spectrum block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``, the same block the rest of the shipped
+    block steps act on. The device push is idempotent (the FlexILS circuits are
+    found or created), so the step is shared by the shipped create and reconcile
+    workflows.
+
+    Args:
+        optical_module_block: The Optical Spectrum block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    block = optical_spectrum_block_from_state(optical_module_block)
+    passband = block.optical_spectrum_passband
+    spectrum_name = block.optical_spectrum_name
+    if spectrum_name is None:
+        msg = "Optical spectrum name is not set"
+        raise ValueError(msg)
+    carrier = (int(0.5 * (passband[0] + passband[1])), passband[1] - passband[0])
+    circuit_identifier = str(block.subscription_instance_id)
+    results = {}
+    for section in block.optical_spectrum_sections:
+        src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
+        results[src_node.management.optical_module_node_fqdn] = deploy_optical_circuit(
+            src_node,
+            section,
+            spectrum_name,
+            passband,
+            carrier,
+            label=spectrum_name,
+            circuit_identifier=circuit_identifier,
+        )
+
+    return {"configuration_results": results}
+
+
+@step("Updating the available passbands of any Open Line System port in the path")
+def refresh_optical_spectrum_used_passbands(optical_module_block: OpticalSpectrumBlockInactive) -> State:
+    """Refresh the used passbands of the Open Line System ports in the path from the devices.
+
+    Operates only on the Optical Spectrum block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The ports owned by the spectrum
+    subscription (the add/drop ports) are refreshed in the returned block, which
+    the following save step persists; the foreign ports (the express line ports
+    owned by the pipe subscriptions) are persisted under their own owner
+    subscription by this step, because the spectrum block save skips foreign
+    instances. The step is shared by the shipped create, modify, terminate and
+    reconcile workflows.
+
+    Args:
+        optical_module_block: The Optical Spectrum block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    block = optical_spectrum_block_from_state(optical_module_block)
+    foreign_ports = update_used_passbands(block)
+    save_foreign_passband_ports(foreign_ports)
+
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
+
+
+@step("Verifying optical spectrum sections")
+def verify_optical_spectrum_sections(optical_module_block: OpticalSpectrumBlockInactive) -> State:
+    """Verify the optical circuit of every spectrum section against the devices.
+
+    Operates only on the Optical Spectrum block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``: the block is re-hydrated from its
+    serialized form (see :func:`optical_spectrum_block_from_state`) and every
+    section is verified on the source Optical Node of the section. The step is
+    read-only and is shared by the shipped validate and reconcile workflows.
+
+    Args:
+        optical_module_block: The Optical Spectrum block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    block = optical_spectrum_block_from_state(optical_module_block)
+    spectrum_name = block.optical_spectrum_name
+    if spectrum_name is None:
+        msg = "Optical spectrum name is not set"
+        raise ValueError(msg)
+    passband = block.optical_spectrum_passband
+    central_frequency = int((passband[0] + passband[1]) / 2)
+    bandwidth = passband[1] - passband[0]
+    carrier = (
+        central_frequency,
+        bandwidth,
+    )
+    circuit_identifier = str(block.subscription_instance_id)
+    for section in block.optical_spectrum_sections:
+        src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
+        validate_optical_circuit(
+            src_node,
+            section,
+            spectrum_name,
+            passband,
+            carrier,
+            label=spectrum_name,
+            circuit_identifier=circuit_identifier,
+        )
+
+    return {}
 
 
 def check_optical_spectrum_add_drop_port_availability(

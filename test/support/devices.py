@@ -230,10 +230,11 @@ def install_device_stubs(
             },
             "orchestrator.optical.workflows.optical_spectrum_service.shared": {
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
+                "deploy_optical_circuit": _fake_deploy_optical_circuit,
+                "validate_optical_circuit": _fake_validate_optical_circuit,
             },
             "orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum": {
                 "set_port_description": _fake_set_port_description,
-                "deploy_optical_circuit": _fake_deploy_optical_circuit,
             },
             "orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum": {
                 "modify_optical_circuit": _fake_modify_optical_circuit,
@@ -243,9 +244,6 @@ def install_device_stubs(
             },
             "orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum": {
                 "delete_optical_circuit": _fake_delete_optical_circuit,
-            },
-            "orchestrator.optical.workflows.optical_spectrum_service.validate_optical_spectrum": {
-                "validate_optical_circuit": _fake_validate_optical_circuit,
             },
         },
         "ods": {

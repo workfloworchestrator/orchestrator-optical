@@ -23,16 +23,18 @@ from orchestrator.optical.migrations.generate import (
     workflow_product_type,
 )
 
-#: The optical pipe product types ship a reconcile workflow in addition to the
-#: standard create/modify/terminate/validate set.
-PIPE_PRODUCT_TYPES = {
+#: The optical pipe product types and the Optical Spectrum service ship a
+#: reconcile workflow in addition to the standard create/modify/terminate/validate
+#: set.
+RECONCILE_PRODUCT_TYPES = {
     "OpticalFiberSpanSubscription",
     "OpticalFiberPatchSubscription",
     "OpticalLeasedSpectrumSubscription",
+    "OpticalSpectrum",
 }
 
 STANDARD_TARGETS = {"CREATE", "MODIFY", "TERMINATE", "VALIDATE"}
-PIPE_TARGETS = STANDARD_TARGETS | {"RECONCILE"}
+RECONCILE_TARGETS = STANDARD_TARGETS | {"RECONCILE"}
 
 
 def test_shipped_workflow_discovery_contract() -> None:
@@ -45,14 +47,14 @@ def test_shipped_workflow_discovery_contract() -> None:
     product_types = {model.__name__ for model in SUBSCRIPTION_MODEL_REGISTRY.values()}
     for workflow in workflows:
         assert workflow.product_type in product_types, workflow.product_type
-        assert workflow.target in PIPE_TARGETS
+        assert workflow.target in RECONCILE_TARGETS
         assert workflow.description
 
     by_product_type: dict[str, set[str]] = {}
     for workflow in workflows:
         by_product_type.setdefault(workflow.product_type, set()).add(workflow.target)
     for product_type, targets in by_product_type.items():
-        expected_targets = PIPE_TARGETS if product_type in PIPE_PRODUCT_TYPES else STANDARD_TARGETS
+        expected_targets = RECONCILE_TARGETS if product_type in RECONCILE_PRODUCT_TYPES else STANDARD_TARGETS
         assert targets == expected_targets, product_type
 
 
