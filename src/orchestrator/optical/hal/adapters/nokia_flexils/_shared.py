@@ -381,7 +381,7 @@ def discover_flexils_node(
     management_ips = [x for x in [optical_management_ip, optical_loopback_ip] if x is not None]
 
     if management_ips:
-        candidates = [(optical_flexils_target_id, str(ip)) for ip in management_ips]
+        candidates = [(optical_flexils_target_id, [ip]) for ip in management_ips]
     else:
         if optical_flexils_gmpls_id is None:
             msg = "At least one of management IP or GMPLS ID must be provided to discover the node"
