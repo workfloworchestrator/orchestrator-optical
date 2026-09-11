@@ -519,7 +519,8 @@ def _get_remote_node_id(remote_port_block: AnyOpticalPortBlockProvisioning) -> s
         remote_port_block: Optical Port product block of the remote port.
 
     Returns:
-        The Groove G30 shelf serial number, or the fqdn for the other vendors.
+        The Groove G30 shelf serial number, the Target Identifier (TID) for FlexILS,
+        or the fqdn for the other vendors.
 
     Raises:
         ValueError: If the node id cannot be determined.

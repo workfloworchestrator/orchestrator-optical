@@ -17,9 +17,12 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import Any
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlockProvisioning,
 )
-from orchestrator.optical.services.nokia.flexils.commands.base import TL1BaseResponse
 from orchestrator.optical.services.nokia.flexils.exceptions import TL1CommandDeniedError
 from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
+from orchestrator.optical.utils.datadiff import DiffResult, compare_jsons
+
+#: TL1 response marker returned when a requested object does not exist on the node.
+_OBJECT_DOES_NOT_EXIST = "SPECIFIED OBJECT ENTITY DOES NOT EXIST"
 
 
 def _node_role(port: AnyOpticalPortBlockProvisioning) -> OpticalNodeRole:
@@ -29,6 +32,54 @@ def _node_role(port: AnyOpticalPortBlockProvisioning) -> OpticalNodeRole:
         msg = f"Optical port {_port_name(port)} is hosted by a node without a role"
         raise ValueError(msg)
     return role
+
+
+def _is_object_missing(exc: TL1CommandDeniedError) -> bool:
+    """Return whether a TL1 command was denied because the requested object does not exist."""
+    return _OBJECT_DOES_NOT_EXIST in str(exc.response).upper()
+
+
+def _rtrv_oel_or_none(flex: FlexilsClientProtocol, aid: str) -> dict[str, Any] | None:
+    """Retrieve an OEL, returning ``None`` when the node does not have it.
+
+    Args:
+        flex: TL1 client of the node hosting the OEL.
+        aid: Access identifier of the OEL.
+
+    Returns:
+        The OEL record, or ``None`` when the OEL does not exist.
+    """
+    try:
+        response = flex.rtrv_oel(aid=aid)
+    except TL1CommandDeniedError as e:
+        if not _is_object_missing(e):
+            raise
+        return None
+    return response.parsed_data[0] if response.parsed_data else None
+
+
+def _rtrv_ocrs_or_none(
+    flex: FlexilsClientProtocol,
+    fromaid: str | None = None,
+    toaid: str | None = None,
+) -> dict[str, Any] | None:
+    """Retrieve an OCRS, returning ``None`` when the node does not have it.
+
+    Args:
+        flex: TL1 client of the node hosting the cross-connection.
+        fromaid: Access identifier of the ``from`` endpoint.
+        toaid: Access identifier of the ``to`` endpoint.
+
+    Returns:
+        The OCRS record, or ``None`` when the cross-connection does not exist.
+    """
+    try:
+        response = flex.rtrv_ocrs(fromaid=fromaid, toaid=toaid)
+    except TL1CommandDeniedError as e:
+        if not _is_object_missing(e):
+            raise
+        return None
+    return response.parsed_data[0] if response.parsed_data else None
 
 
 def _omses_from_line_ports(
@@ -120,7 +171,7 @@ def _delete_oel_if_unused(flex: FlexilsClientProtocol, oel_aid: str) -> None:
 def delete_oel(
     optical_node_block: NokiaFlexIlsBlockProvisioning,
     circuit_identifier: str,
-) -> dict[str, Any]:
+) -> DiffResult:
     """Delete the OEL of the given circuit on the node, when no other OSNC uses it.
 
     The OEL explicit route cannot be edited with ED-OEL, so a path change is applied
@@ -133,11 +184,16 @@ def delete_oel(
         circuit_identifier: The circuit identifier used as OEL AID.
 
     Returns:
-        The deleted OEL access identifier.
+        The difference between the OEL configuration before and after the
+        deletion: a deleted OEL shows up as a removal, while an OEL kept because
+        another OSNC still references it yields an empty diff.
     """
+    oel_aid = circuit_identifier[:127]
     flex = _get_flex_client(optical_node_block)
+    before_oel = _rtrv_oel_or_none(flex, oel_aid)
     _delete_oel_if_unused(flex, circuit_identifier)
-    return {"deleted_OEL": circuit_identifier[:127]}
+    after_oel = _rtrv_oel_or_none(flex, oel_aid)
+    return compare_jsons({"OEL": before_oel or {}}, {"OEL": after_oel or {}})
 
 
 def _find_or_create_oel(
@@ -303,7 +359,7 @@ def _find_or_create_osnc(
     dst_port_name: str,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth],
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], bool]:
     """Find an existing OSNC on the source device or create a new one.
 
     The OSNC CKTIDSUFFIX is the circuit identifier (the subscription instance id
@@ -311,6 +367,9 @@ def _find_or_create_osnc(
 
     Raises:
         ValueError: If the circuit identifier is empty or the FlexILS commands fail.
+
+    Returns:
+        The OSNC record and whether it was created (``False`` when it was found).
     """
     if not circuit_identifier:
         msg = "An OSNC circuit identifier is required to create or retrieve an OSNC"
@@ -334,7 +393,7 @@ def _find_or_create_osnc(
     )
 
     if osnc is not None:
-        return osnc
+        return osnc, False
 
     dst_sch_id = _find_first_free_sch_id(dst_flex, dst_port_name)
     src_sch_id = _find_first_free_sch_id(src_flex, src_port_name)
@@ -353,11 +412,13 @@ def _find_or_create_osnc(
         carrierlist=carrier,
     )
 
+    sleep(3)
+
     response = src_flex.rtrv_osnc(aid=src_endpoint)
     if not response.parsed_data:
         msg = f"RTRV-OSNC returned no data for aid {src_endpoint}"
         raise ValueError(msg)
-    return response.parsed_data[0]
+    return response.parsed_data[0], True
 
 
 def _find_first_free_sch_id(flex: FlexilsClientProtocol, port_name: str) -> int:
@@ -393,12 +454,18 @@ def _find_flexils_osnc(
 
     The OSNC is matched by its CKTIDSUFFIX, which is the circuit identifier (the
     subscription instance id of the circuit) when provided; otherwise the
-    spectrum name is used as a fallback.
+    spectrum name is used as a fallback, plus the local/remote endpoints and the
+    remote node. The passband is deliberately *not* part of the match: the
+    circuit identifier already identifies the OSNC uniquely, while the passband
+    stored in the subscription can legitimately differ from the device during a
+    retried modify (the device is updated before the database transaction is
+    committed, see :func:`modify`), so matching on it would make retries fail to
+    find the OSNC. ``passband`` is only used to build the error message.
 
     Args:
         optical_spectrum_name: The user-facing name of the optical spectrum.
         optical_spectrum_section: The optical spectrum section block.
-        passband: The passband of the optical spectrum.
+        passband: The passband of the optical spectrum, used only in the error message.
         circuit_identifier: The subscription instance id of the circuit; used as the CKTIDSUFFIX.
 
     Returns:
@@ -428,7 +495,6 @@ def _find_flexils_osnc(
         src_port_name=src_port,
         dst_port_name=dst_port,
         dst_node_name=dst_node_name,
-        passband=passband,
     )
     if osnc is not None:
         return src_flex, osnc
@@ -440,7 +506,6 @@ def _find_flexils_osnc(
         src_port_name=dst_port,
         dst_port_name=src_port,
         dst_node_name=src_node_name,  # Notice dst is now src_node_name
-        passband=passband,
     )
     if osnc is not None:
         return dst_flex, osnc
@@ -484,8 +549,14 @@ def deploy(
     carrier: tuple[Frequency, Bandwidth],
     label: str | None = None,
     circuit_identifier: str = "",
-) -> dict[str, Any]:
-    """Deploy an optical circuit specifically for FlexILS platform devices."""
+) -> DiffResult:
+    """Deploy an optical circuit specifically for FlexILS platform devices.
+
+    Returns:
+        The difference between the circuit configuration before and after the
+        deployment: the OEL and OSNC of a freshly deployed circuit show up as
+        additions, while a circuit already present on the node yields an empty diff.
+    """
     add_drop_ports = optical_spectrum_section_block.optical_spectrum_section_add_drop_ports
     express_ports = optical_spectrum_section_block.optical_spectrum_section_express_ports
 
@@ -496,6 +567,9 @@ def deploy(
 
     oel_aid = circuit_identifier[:127]
     osnc_label = f"{src_flexils_name}_{dst_flexils_name}" if label in (None, "") else label.strip()
+
+    src_flex = _get_flex_client(src_device)
+    before_oel = _rtrv_oel_or_none(src_flex, oel_aid)
 
     omses = _omses_from_line_ports(express_ports)
     oel = _find_or_create_oel(
@@ -508,7 +582,7 @@ def deploy(
     for port in add_drop_ports:
         _ensure_manualmode2(port)
 
-    osnc = _find_or_create_osnc(
+    osnc, osnc_created = _find_or_create_osnc(
         src_device=src_device,
         dst_device=dst_device,
         circuit_identifier=circuit_identifier,
@@ -519,19 +593,19 @@ def deploy(
         passband=passband,
         carrier=carrier,
     )
+    before_osnc = None if osnc_created else osnc
 
     sleep(5)
 
     _open_shutter(src_device, osnc["LOCENDPOINT"])
     _open_shutter(dst_device, osnc["REMENDPOINT"])
 
-    flex = _get_flex_client(src_device)
-    osnc = flex.rtrv_osnc(aid=osnc["LOCENDPOINT"]).parsed_data[0]
+    osnc = src_flex.rtrv_osnc(aid=osnc["LOCENDPOINT"]).parsed_data[0]
 
-    return {
-        "OEL": oel,
-        "OSNC": osnc,
-    }
+    return compare_jsons(
+        {"OEL": before_oel or {}, "OSNC": before_osnc or {}},
+        {"OEL": oel, "OSNC": osnc},
+    )
 
 
 def modify(
@@ -543,8 +617,13 @@ def modify(
     label: str | None = None,
     old_passband: Passband | None = None,
     circuit_identifier: str = "",
-) -> dict[str, Any]:
-    """Modify an optical circuit specifically for FlexILS platform devices."""
+) -> DiffResult:
+    """Modify an optical circuit specifically for FlexILS platform devices.
+
+    Returns:
+        The difference between the circuit configuration before and after the
+        modification.
+    """
     osnc_name = circuit_identifier or optical_spectrum_name.replace(" ", "_")
 
     flex, osnc = _find_flexils_osnc(
@@ -553,6 +632,7 @@ def modify(
         old_passband,
         circuit_identifier,
     )
+    before_osnc = osnc
 
     remote_flex = _remote_flex_for_section(flex, optical_spectrum_section_block)
 
@@ -560,6 +640,8 @@ def modify(
     express_ports = optical_spectrum_section_block.optical_spectrum_section_express_ports
 
     oel_aid = circuit_identifier[:127]
+
+    before_oel = _rtrv_oel_or_none(_get_flex_client(optical_node_block), oel_aid)
 
     matches_oel = osnc.get("OELAID", "").strip(r"\" ") == oel_aid[:64]
     new_oel: dict[str, Any] | None = None
@@ -598,6 +680,8 @@ def modify(
         label=label if label else osnc.get("LABEL", ""),
     )
 
+    sleep(3)
+
     flex.put_maintenance(aidtype="SCH", aid=osnc["LOCENDPOINT"])
     flex.ed_sch(aid=osnc["LOCENDPOINT"], shutterstate="OPEN")
     flex.rst_maintenance(aidtype="SCH", aid=osnc["LOCENDPOINT"])
@@ -606,13 +690,13 @@ def modify(
     remote_flex.ed_sch(aid=osnc["REMENDPOINT"], shutterstate="OPEN")
     remote_flex.rst_maintenance(aidtype="SCH", aid=osnc["REMENDPOINT"])
 
-    osnc = flex.rtrv_osnc(aid=osnc["LOCENDPOINT"])
-    osnc = osnc.parsed_data[0]
+    after_osnc = flex.rtrv_osnc(aid=osnc["LOCENDPOINT"]).parsed_data[0]
+    after_oel = new_oel if new_oel is not None else before_oel
 
-    return {
-        "new OEL": new_oel,
-        "OSNC": osnc,
-    }
+    return compare_jsons(
+        {"OEL": before_oel or {}, "OSNC": before_osnc},
+        {"OEL": after_oel or {}, "OSNC": after_osnc},
+    )
 
 
 def delete(
@@ -621,8 +705,13 @@ def delete(
     optical_spectrum_name: str,
     passband: Passband,
     circuit_identifier: str = "",
-) -> dict[str, Any]:
-    """Delete an optical circuit specifically for FlexILS platform devices."""
+) -> DiffResult:
+    """Delete an optical circuit specifically for FlexILS platform devices.
+
+    Returns:
+        The difference between the circuit configuration before and after the
+        deletion: the deleted OSNC shows up as a removal.
+    """
     flex, osnc = _find_flexils_osnc(
         optical_spectrum_name,
         optical_spectrum_section_block,
@@ -636,7 +725,7 @@ def delete(
     # Delete the OSNC
     flex.dlt_osnc(aid=osnc["LOCENDPOINT"])
 
-    return {"deleted_OSNC": osnc["LOCENDPOINT"]}
+    return compare_jsons({"OSNC": osnc}, {"OSNC": {}})
 
 
 def validate(
@@ -667,11 +756,15 @@ def validate(
         optical_spectrum_section_block,
         passband,
         circuit_identifier,
-    )  # already raises error if CKTIDSUFFIX/LOCENDPOINT/REMENDPOINT/PASSBANDLIST do not match
+    )  # already raises error if CKTIDSUFFIX/LOCENDPOINT/REMENDPOINT do not match
 
     remote_flex = _remote_flex_for_section(flex, optical_spectrum_section_block)
 
     errors = []
+
+    actual_passband = tuple(int(x) for x in osnc.get("PASSBANDLIST", []))
+    if actual_passband != tuple(passband):
+        errors.append(f"Passband mismatch: expected {tuple(passband)}, got {actual_passband}")
 
     actual_carrier = tuple(int(x) for x in osnc.get("CARRIERLIST", []))
     expected_carrier = carrier
@@ -702,7 +795,7 @@ def append_label(
     passband: Passband,
     label: str,
     circuit_identifier: str = "",
-) -> dict[str, Any]:
+) -> DiffResult:
     """Append a label to the OSNC of the given optical spectrum section.
 
     Args:
@@ -714,7 +807,7 @@ def append_label(
         circuit_identifier: The subscription instance id of the circuit; used as the OSNC CKTIDSUFFIX.
 
     Returns:
-        The updated OSNC configuration.
+        The difference between the OSNC configuration before and after the update.
 
     Raises:
         ValueError: If the OSNC cannot be found.
@@ -725,16 +818,16 @@ def append_label(
         passband,
         circuit_identifier,
     )
+    before_osnc = osnc
     old_label = osnc.get("LABEL", "").strip(r"\" ")
     labels = old_label.split("+")
     labels.append(label)
     labels = sorted(name.strip() for name in labels)
     new_label = "+".join(labels)
     flex.ed_osnc(aid=osnc["LOCENDPOINT"], label=new_label)
-    response = flex.rtrv_osnc(aid=osnc["LOCENDPOINT"])
-    osnc = response.parsed_data[0]
+    after_osnc = flex.rtrv_osnc(aid=osnc["LOCENDPOINT"]).parsed_data[0]
 
-    return {"updated_OSNC": osnc}
+    return compare_jsons({"OSNC": before_osnc}, {"OSNC": after_osnc})
 
 
 def create_cross_connection(
@@ -746,7 +839,7 @@ def create_cross_connection(
     label: str | None = None,
     circuit_name: str | None = None,  # noqa: ARG001
     circuit_identifier: str = "",
-) -> dict[str, Any]:
+) -> DiffResult:
     """Create an optical cross connection on the given Optical Node.
 
     Args:
@@ -761,7 +854,9 @@ def create_cross_connection(
         circuit_identifier: The subscription instance id of the circuit; used as the OCRS CKTIDSUFFIX.
 
     Returns:
-        Platform-specific cross connection configuration.
+        The difference between the cross connection configuration before and after
+        the creation: a freshly created cross connection shows up as an addition,
+        while one already present yields an empty diff.
 
     Raises:
         NotImplementedError: If the node vendor does not support this operation.
@@ -788,6 +883,8 @@ def create_cross_connection(
     fromaid = f"{from_port_name}-{from_sch_id}"
     toaid = f"{to_port_name}-{to_sch_id}"
 
+    before_ocrs = _rtrv_ocrs_or_none(flex, fromaid, toaid)
+
     flex.ent_ocrs(
         fromaid=fromaid,
         toaid=toaid,
@@ -805,8 +902,8 @@ def create_cross_connection(
     flex.ed_sch(aid=fromaid, shutterstate="OPEN")
     flex.rst_maintenance(aidtype="SCH", aid=fromaid)
 
-    response = flex.rtrv_ocrs(fromaid=fromaid, toaid=toaid)
-    return response.parsed_data[0]
+    after_ocrs = flex.rtrv_ocrs(fromaid=fromaid, toaid=toaid).parsed_data[0]
+    return compare_jsons({"OCRS": before_ocrs or {}}, {"OCRS": after_ocrs})
 
 
 def delete_cross_connection(
@@ -818,7 +915,7 @@ def delete_cross_connection(
     label: str | None = None,
     circuit_name: str | None = None,  # noqa: ARG001
     circuit_identifier: str = "",
-) -> dict[str, Any] | TL1BaseResponse:
+) -> DiffResult:
     """Delete an optical cross connection on the given Optical Node.
 
     Args:
@@ -833,7 +930,8 @@ def delete_cross_connection(
         circuit_identifier: The subscription instance id of the circuit; used as the OCRS CKTIDSUFFIX.
 
     Returns:
-        The result of the deletion operation.
+        The difference between the cross connection configuration before and after
+        the deletion: the deleted OCRS shows up as a removal.
 
     Raises:
         NotImplementedError: If the node vendor does not support this operation.
@@ -867,7 +965,8 @@ def delete_cross_connection(
             and ocr_cktidsuffix == circuit_identifier
             and ocr_label == (label or "")
         ):
-            return flex.dlt_ocrs(fromaid=ocr["FROMAID"], toaid=ocr["TOAID"])
+            flex.dlt_ocrs(fromaid=ocr["FROMAID"], toaid=ocr["TOAID"])
+            return compare_jsons({"OCRS": ocr}, {"OCRS": {}})
 
     msg = (
         f"Could not find the optical cross connection from {from_port_name} to {to_port_name} "

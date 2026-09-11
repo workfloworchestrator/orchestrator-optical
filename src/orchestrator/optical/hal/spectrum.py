@@ -11,8 +11,6 @@ not have internal optical cross-connections. The FlexILS implementation lives in
 
 from __future__ import annotations
 
-from typing import Any
-
 from orchestrator.optical.hal._common import (
     UnsupportedPlatformError,
     _as_flexils_block,
@@ -25,8 +23,8 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import Any
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlockProvisioning,
 )
-from orchestrator.optical.services.nokia.flexils.commands.base import TL1BaseResponse
 from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
+from orchestrator.optical.utils.datadiff import DiffResult, compare_jsons
 
 __all__ = [
     "append_optical_circuit_label",
@@ -48,7 +46,7 @@ def deploy_optical_circuit(
     carrier: tuple[Frequency, Bandwidth],
     label: str | None = None,
     circuit_identifier: str = "",
-) -> dict[str, Any]:
+) -> DiffResult:
     """Deploy an optical circuit for the given optical spectrum section.
 
     Args:
@@ -62,7 +60,8 @@ def deploy_optical_circuit(
             device-side OEL AID and OSNC CKTIDSUFFIX.
 
     Returns:
-        Platform-specific deployment configuration.
+        The difference between the circuit configuration before and after the
+        deployment. Platforms without internal cross-connections yield an empty diff.
 
     Raises:
         ValueError: If the circuit cannot be deployed.
@@ -79,12 +78,8 @@ def deploy_optical_circuit(
                 label,
                 circuit_identifier,
             )
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return {
-                "not-applicable": "Groove G30s (H4 links) do not need internal optical crossconnections configurations"
-            }
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return {"not-applicable": "GX G42s do not need internal optical crossconnections configurations"}
+        case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
+            return compare_jsons({}, {})
         case _:
             msg = f"deploy_optical_circuit: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
@@ -99,7 +94,7 @@ def modify_optical_circuit(
     label: str | None = None,
     old_passband: Passband | None = None,
     circuit_identifier: str = "",
-) -> dict[str, Any]:
+) -> DiffResult:
     """Modify an optical circuit for the given optical spectrum section.
 
     The circuit is found by its circuit identifier, so the spectrum name is not
@@ -118,7 +113,8 @@ def modify_optical_circuit(
             device-side OEL AID and OSNC CKTIDSUFFIX.
 
     Returns:
-        Platform-specific modification result.
+        The difference between the circuit configuration before and after the
+        modification. Platforms without internal cross-connections yield an empty diff.
 
     Raises:
         ValueError: If the circuit cannot be modified.
@@ -136,12 +132,8 @@ def modify_optical_circuit(
                 old_passband,
                 circuit_identifier,
             )
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return {
-                "not-applicable": "Groove G30s (H4 links) do not have any internal optical crossconnections to modify"
-            }
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return {"not-applicable": "GX G42s do not have any internal optical crossconnections to modify"}
+        case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
+            return compare_jsons({}, {})
         case _:
             msg = f"modify_optical_circuit: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
@@ -153,7 +145,7 @@ def delete_optical_circuit(
     optical_spectrum_name: str,
     passband: Passband,
     circuit_identifier: str = "",
-) -> dict[str, Any]:
+) -> DiffResult:
     """Delete an optical circuit for the given optical spectrum section.
 
     Args:
@@ -164,7 +156,8 @@ def delete_optical_circuit(
         circuit_identifier: The subscription instance id of the circuit; used as the OSNC CKTIDSUFFIX.
 
     Returns:
-        Platform-specific deletion result.
+        The difference between the circuit configuration before and after the
+        deletion. Platforms without internal cross-connections yield an empty diff.
 
     Raises:
         ValueError: If the circuit cannot be found.
@@ -179,12 +172,8 @@ def delete_optical_circuit(
                 passband,
                 circuit_identifier,
             )
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return {
-                "not-applicable": "Groove G30s (H4 links) do not have any internal optical crossconnections to delete"
-            }
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return {"not-applicable": "GX G42s do not have any internal optical crossconnections to delete"}
+        case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
+            return compare_jsons({}, {})
         case _:
             msg = f"delete_optical_circuit: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
@@ -193,7 +182,7 @@ def delete_optical_circuit(
 def delete_optical_circuit_oel(
     optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     circuit_identifier: str,
-) -> dict[str, Any]:
+) -> DiffResult:
     """Delete the OEL of the given circuit on the node, when no other OSNC uses it.
 
     Only FlexILS nodes have OELs; on Groove G30 and GX G42 nodes this is a no-op.
@@ -205,7 +194,8 @@ def delete_optical_circuit_oel(
         circuit_identifier: The subscription instance id of the circuit; used as the OEL AID.
 
     Returns:
-        Platform-specific deletion result.
+        The difference between the OEL configuration before and after the deletion.
+        Platforms without OELs yield an empty diff.
 
     Raises:
         UnsupportedPlatformError: If the vendor/platform combination is not supported.
@@ -213,10 +203,8 @@ def delete_optical_circuit_oel(
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.FLEXILS):
             return flexils.delete_oel(_as_flexils_block(optical_node_block), circuit_identifier)
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return {"not-applicable": "Groove G30s (H4 links) do not have internal OELs"}
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return {"not-applicable": "GX G42s do not have internal OELs"}
+        case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
+            return compare_jsons({}, {})
         case _:
             msg = f"delete_optical_circuit_oel: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
@@ -272,7 +260,7 @@ def append_optical_circuit_label(
     passband: Passband,
     label: str,
     circuit_identifier: str = "",
-) -> dict[str, Any]:
+) -> DiffResult:
     """Append a label to the OSNC of the given optical spectrum section.
 
     Args:
@@ -284,7 +272,8 @@ def append_optical_circuit_label(
         circuit_identifier: The subscription instance id of the circuit; used as the OSNC CKTIDSUFFIX.
 
     Returns:
-        The updated OSNC configuration.
+        The difference between the OSNC configuration before and after the update.
+        Platforms without internal cross-connections yield an empty diff.
 
     Raises:
         ValueError: If the OSNC cannot be found.
@@ -300,12 +289,8 @@ def append_optical_circuit_label(
                 label,
                 circuit_identifier,
             )
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return {
-                "not-applicable": "Groove G30s (H4 links) do not have any internal optical crossconnections to label"
-            }
-        case (Vendor.NOKIA, Platform.GX_G42):
-            return {"not-applicable": "GX G42s do not have any internal optical crossconnections to label"}
+        case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
+            return compare_jsons({}, {})
         case _:
             msg = f"append_optical_circuit_label: {type(source_optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
@@ -320,7 +305,7 @@ def create_optical_cross_connection(
     label: str | None = None,
     circuit_name: str | None = None,
     circuit_identifier: str = "",
-) -> dict[str, Any]:
+) -> DiffResult:
     """Create an optical cross connection on the given Optical Node.
 
     Args:
@@ -335,7 +320,8 @@ def create_optical_cross_connection(
         circuit_identifier: The subscription instance id of the circuit; used as the OCRS CKTIDSUFFIX.
 
     Returns:
-        Platform-specific cross connection configuration.
+        The difference between the cross connection configuration before and after
+        the creation.
 
     Raises:
         NotImplementedError: If the node vendor does not support this operation.
@@ -374,7 +360,7 @@ def delete_optical_cross_connection(
     label: str | None = None,
     circuit_name: str | None = None,
     circuit_identifier: str = "",
-) -> dict[str, Any] | TL1BaseResponse:
+) -> DiffResult:
     """Delete an optical cross connection on the given Optical Node.
 
     Args:
@@ -389,7 +375,8 @@ def delete_optical_cross_connection(
         circuit_identifier: The subscription instance id of the circuit; used as the OCRS CKTIDSUFFIX.
 
     Returns:
-        The result of the deletion operation.
+        The difference between the cross connection configuration before and after
+        the deletion.
 
     Raises:
         NotImplementedError: If the node vendor does not support this operation.

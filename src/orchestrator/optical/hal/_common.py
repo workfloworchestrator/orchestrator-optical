@@ -85,7 +85,18 @@ def _vendor_platform(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -
 
 
 def _node_id(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> str:
-    """Return the fqdn of the given Optical Node block, for use in identifiers and messages."""
+    """Return the device-side node name of the given Optical Node block.
+
+    A Nokia FlexILS node is identified on the device by its GMPLS NENAME, i.e. its
+    Target Identifier (TID), which is *not* its fqdn (e.g. ``flex.ba01`` vs
+    ``flex.ba01.exa.it``). Every other platform uses the management fqdn. This is
+    the name to use in device identifiers (OEL ``SRCNODENAME``/``DSTNODENAME``,
+    OSNC ``REMNODETID``, SCG ``PROVOWREMPTP``, ...) and in messages.
+    """
+    if isinstance(optical_node_block, NokiaFlexIlsBlockProvisioning) and (
+        target_id := getattr(optical_node_block, "optical_flexils_target_id", None)
+    ):
+        return target_id
     fqdn = optical_node_block.management.optical_module_node_fqdn
     return fqdn if fqdn is not None else "<no fqdn>"
 

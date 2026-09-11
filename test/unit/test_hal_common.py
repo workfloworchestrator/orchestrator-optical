@@ -117,6 +117,31 @@ def test_node_id_falls_back_when_fqdn_missing() -> None:
     assert _node_id(block) == "<no fqdn>"
 
 
+def test_node_id_returns_flexils_target_id() -> None:
+    subscription_id = uuid4()
+    block = NokiaFlexIlsBlockProvisioning.model_construct(
+        name="NokiaFlexIlsBlock",
+        subscription_instance_id=subscription_id,
+        owner_subscription_id=subscription_id,
+        management=_management(fqdn="flex.ba01.exa.it"),
+        optical_flexils_target_id="flex.ba01",
+    )
+
+    assert _node_id(block) == "flex.ba01"
+
+
+def test_node_id_falls_back_to_fqdn_when_flexils_target_id_missing() -> None:
+    block = _node_block(NokiaFlexIlsBlockProvisioning, Vendor.NOKIA, Platform.FLEXILS, fqdn="flex.ba01.exa.it")
+
+    assert _node_id(block) == "flex.ba01.exa.it"
+
+
+def test_node_id_returns_fqdn_for_non_flexils_block() -> None:
+    block = _node_block(NokiaGrooveG30BlockProvisioning, Vendor.NOKIA, Platform.GROOVE_G30, fqdn="g30.example.com")
+
+    assert _node_id(block) == "g30.example.com"
+
+
 def test_same_node_identity() -> None:
     block = SimpleNamespace(management=_management())
 

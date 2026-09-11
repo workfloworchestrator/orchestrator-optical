@@ -305,15 +305,20 @@ def test_set_channel_description_is_not_applicable_for_flexils() -> None:
             id="delete_optical_circuit",
         ),
         pytest.param(
+            lambda node: hal_spectrum.delete_optical_circuit_oel(node, "cid"),
+            id="delete_optical_circuit_oel",
+        ),
+        pytest.param(
             lambda node: hal_spectrum.append_optical_circuit_label(node, _SECTION, "spec", _PASSBAND, "label"),
             id="append_optical_circuit_label",
         ),
     ],
 )
-def test_circuit_lifecycle_is_not_applicable_for_g30_and_g42(node_factory: Any, call: Any) -> None:
+def test_circuit_lifecycle_is_empty_diff_for_g30_and_g42(node_factory: Any, call: Any) -> None:
+    """Platforms without internal cross-connections provision nothing, so the diff is empty."""
     result = call(node_factory())
 
-    assert "not-applicable" in result
+    assert result == {"---": {}, "+++": {}}
 
 
 @pytest.mark.parametrize("node_factory", [_g30_node, _g42_node], ids=["g30", "g42"])
