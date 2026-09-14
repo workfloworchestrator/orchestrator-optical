@@ -29,7 +29,6 @@ from orchestrator.optical.products.product_blocks.optical_coherent_pluggable imp
 )
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlockInactive,
-    OpticalDigitalServiceBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
@@ -78,11 +77,12 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.create import (
 from orchestrator.optical.workflows.optical_coherent_pluggable.modify import (
     update_optical_coherent_pluggable_block,
 )
-from orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service import (
-    construct_optical_digital_service_model,
+from orchestrator.optical.workflows.optical_digital_service.modify import (
+    update_optical_digital_service_block,
 )
-from orchestrator.optical.workflows.optical_digital_service.modify_optical_digital_service import (
-    update_subscription as update_optical_digital_service_subscription,
+from orchestrator.optical.workflows.optical_digital_service.shared import (
+    build_optical_digital_service_block,
+    populate_optical_digital_service_block,
 )
 from orchestrator.optical.workflows.optical_location.create import populate_optical_module_location_block
 from orchestrator.optical.workflows.optical_location.modify import update_optical_module_location_block
@@ -304,42 +304,49 @@ WRITERS = [
     ),
     # --- Optical Digital Service family ---
     _entry(
-        construct_optical_digital_service_model,
+        populate_optical_digital_service_block,
+        OpticalDigitalServiceBlockInactive,
+        (
+            "optical_digital_service_name",
+            "optical_digital_service_speed",
+            "optical_digital_service_type",
+        ),
+    ),
+    _entry(
+        build_optical_digital_service_block,
         OpticalTransponderClientPortBlockInactive,
         ("optical_port_name", "optical_port_host_node", "optical_port_description"),
     ),
     _entry(
-        construct_optical_digital_service_model,
+        build_optical_digital_service_block,
         OpticalSpectrumBlockInactive,
         ("optical_spectrum_name", "optical_spectrum_passband"),
     ),
     _entry(
-        construct_optical_digital_service_model,
+        build_optical_digital_service_block,
         OpticalTransportChannelBlockInactive,
         (
+            "optical_transport_channel_name",
             "optical_transport_central_frequency",
             "optical_transport_mode",
+            "optical_transport_total_capacity",
             "optical_transport_line_ports",
             "optical_transport_spectrum",
-            "optical_transport_channel_name",
         ),
     ),
     _entry(
-        construct_optical_digital_service_model,
+        build_optical_digital_service_block,
         OpticalDigitalServiceBlockInactive,
         (
             "optical_digital_service_name",
+            "optical_digital_service_speed",
+            "optical_digital_service_type",
             "optical_digital_service_client_ports",
             "optical_digital_service_transport_channels",
         ),
     ),
     _entry(
-        update_optical_digital_service_subscription,
-        OpticalDigitalServiceBlockProvisioning,
-        ("optical_digital_service_name",),
-    ),
-    _entry(
-        update_optical_digital_service_subscription,
+        update_optical_digital_service_block,
         OpticalTransportChannelBlockProvisioning,
         (
             "optical_transport_central_frequency",
@@ -364,17 +371,9 @@ EXCLUDED_WRITERS: dict[str, str] = {
     # and never a block field.
     "orchestrator.optical.workflows.optical_coherent_pluggable.shared."
     "update_optical_coherent_pluggable_subscription_description": "sets subscription.description, not a block field",
-    "orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service."
-    "update_subscription_description": "sets subscription.description, not a block field",
-    "orchestrator.optical.workflows.optical_digital_service.validate_optical_digital_service."
-    "update_subscription_description": "sets subscription.description, not a block field",
     "orchestrator.optical.workflows.optical_node.shared.modify."
     "update_optical_node_subscription_description": "sets subscription.description, not a block field",
     # Step wrappers around the covered ``update_used_passbands`` block writer.
-    "orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service."
-    "update_used_passbands_step": "step wrapper delegating to the covered update_used_passbands",
-    "orchestrator.optical.workflows.optical_digital_service.terminate_optical_digital_service."
-    "update_used_passbands_step": "step wrapper delegating to the covered update_used_passbands",
     # Builds the path-finding graph, never a block.
     "orchestrator.optical.workflows.optical_spectrum_service.shared."
     "build_constrained_graph_from_active_fibers": "builds the path-finding graph, writes no block field",

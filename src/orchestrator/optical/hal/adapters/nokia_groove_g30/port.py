@@ -1,6 +1,7 @@
 """Nokia Groove G30 port operations: discovery, description, admin state, termination and checks."""
 
 import json
+import re
 from decimal import Decimal
 from typing import Any, Literal, cast
 
@@ -15,6 +16,7 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_port_navigator_node_from_port_name,
     get_g30_client,
 )
+from orchestrator.optical.hal.adapters.nokia_groove_g30.transponder import _get_modulation_and_rate_from_mode
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
@@ -146,13 +148,16 @@ def retrieve_transceiver_modes(optical_node_block: NokiaGrooveG30BlockProvisioni
             "not-applicable",      "QPSK_100G",          "16QAM_200G",          "8QAM_300G",
         ],
         CardTypeEnum.CHM2T: [
-            "16QAM_200G",          "16QAM_300G",         "16QAM_32QAM_400G",    "16QAM_32QAM_500G",
-            "16QAM_400G",          "32QAM_200G",          "32QAM_300G",          "32QAM_400G",
-            "32QAM_500G",          "32QAM_64QAM_500G",    "32QAM_64QAM_600G",    "64QAM_300G",
-            "64QAM_400G",          "64QAM_500G",          "64QAM_600G",          "QPSK_100G",
-            "QPSK_200G",           "QPSK_SP16QAM_200G",   "QPSK_SP16QAM_300G",   "SP16QAM_16QAM_200G",
-            "SP16QAM_16QAM_300G",  "SP16QAM_16QAM_400G",  "SP16QAM_200G",        "SP16QAM_300G",
-            "SPQPSK_100G",         "SPQPSK_QPSK_100G",    "SPQPSK_QPSK_200G",    "not-applicable",
+            "16QAM_200G",           "16QAM_300G",           "16QAM_32QAM_400G",     "16QAM_32QAM_500G",
+            "16QAM_400G",           "32QAM_200G",           "32QAM_300G",           "32QAM_400G",
+            "32QAM_500G",           "32QAM_64QAM_500G",     "32QAM_64QAM_600G",     "64QAM_300G",
+            "64QAM_400G",           "64QAM_500G",           "64QAM_600G",           "QPSK_100G",
+            "QPSK_200G",            "QPSK_SP16QAM_200G",    "QPSK_SP16QAM_300G",    "SP16QAM_16QAM_200G",
+            "SP16QAM_16QAM_300G",   "SP16QAM_16QAM_400G",   "SP16QAM_200G",         "SP16QAM_300G",
+            "SPQPSK_100G",          "SPQPSK_QPSK_100G",     "SPQPSK_QPSK_200G",     "not-applicable",
+            "SP16QAM_300G_C",       "QPSK_SP16QAM_300G_C",  "16QAM_32QAM_500G_C",   "16QAM_500G_C",
+            "SP16QAM_500G_C",       "QPSK_SP16QAM_500G_C",  "32QAM_64QAM_700G_C",   "16QAM_700G_C",
+            "SP16QAM_16QAM_700G_C", "32QAM_900G_C",         "16QAM_32QAM_900G_C",   "32QAM_64QAM_1100G_C",
         ],
     }
     # fmt: on
@@ -469,3 +474,21 @@ def check_fiber(
                 indent=4,
             )
         )
+
+
+def get_transceiver_capacity_from_mode(mode: str) -> int | None:
+    """Return the carrier capacity in Gbit/s of a Groove G30 transceiver mode.
+
+    The capacity is the effective rate class of the mode (e.g. ``8QAM_300G``
+    carries 150G), not the bitrate in the mode name; modes without coherent
+    properties yield None (unknown capacity).
+
+    Args:
+        mode: The operating mode string stored on the transport channel.
+
+    Returns:
+        The capacity in Gbit/s, or None when the mode carries no bitrate.
+    """
+    _, rate = _get_modulation_and_rate_from_mode(mode)
+    match = re.fullmatch(r"(\d+)G", rate.strip())
+    return int(match.group(1)) if match else None

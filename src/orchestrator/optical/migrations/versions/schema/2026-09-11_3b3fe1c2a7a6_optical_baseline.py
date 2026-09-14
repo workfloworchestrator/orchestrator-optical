@@ -61,7 +61,7 @@ def upgrade() -> None:
                     "status": "active",
                     "product_blocks": ["OpticalDigitalServiceBlock"],
                     "fixed_inputs": {
-                        "optical_digital_service_speed": "100",
+                        "optical_digital_service_speed": "400",
                         "optical_digital_service_type": "Ethernet",
                     },
                 },
@@ -73,7 +73,7 @@ def upgrade() -> None:
                     "status": "active",
                     "product_blocks": ["OpticalDigitalServiceBlock"],
                     "fixed_inputs": {
-                        "optical_digital_service_speed": "100",
+                        "optical_digital_service_speed": "800",
                         "optical_digital_service_type": "Ethernet",
                     },
                 },
@@ -305,6 +305,7 @@ def upgrade() -> None:
                         "optical_transport_channel_name": "Optical Transport Channel Name",
                         "optical_transport_central_frequency": "Optical Transport Central Frequency",
                         "optical_transport_mode": "Optical Transport Mode",
+                        "optical_transport_total_capacity": "Optical Transport Total Capacity",
                     },
                     "depends_on_block_relations": [
                         "CoherentPluggableBlock",
@@ -317,7 +318,9 @@ def upgrade() -> None:
                     "description": "Active state of an Optical Digital Service product block.",
                     "tag": "OPTICAL_DIGITAL_SERV",
                     "status": "active",
-                    "resources": {"optical_digital_service_name": "Optical Digital Service Name"},
+                    "resources": {"optical_digital_service_name": "Optical Digital Service Name",
+                                  "optical_digital_service_speed": "Optical Digital Service Speed",
+                                  "optical_digital_service_type": "Optical Digital Service Type"},
                     "depends_on_block_relations": [
                         "CoherentPluggableBlock",
                         "OpticalTransponderClientPortBlock",

@@ -77,6 +77,11 @@ def _fake_validate_optical_circuit(*args: Any, **kwargs: Any) -> None:
     """Accept the faked optical circuit as consistent."""
 
 
+def _fake_append_optical_circuit_label(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Append the faked label to the optical circuit, returning the update state."""
+    return {}
+
+
 def _fake_get_signal_bandwidth(block: Any, port_name: str) -> int:
     """Return the faked signal bandwidth of a device port."""
     return 37500
@@ -244,41 +249,35 @@ def install_device_stubs(
             },
         },
         "ods": {
-            "orchestrator.optical.workflows.shared": {
-                "get_device_ports_by_role": _get_device_ports_by_role,
-            },
-            "orchestrator.optical.workflows.optical_spectrum_service.shared": {
-                "retrieve_transceiver_modes": _retrieve_transceiver_modes,
-                "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
-                "delete_optical_circuit": _fake_delete_optical_circuit,
-                "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
-            },
-            "orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service": {
+            "orchestrator.optical.workflows.optical_digital_service.shared": {
                 "configure_line_transceivers": _fake_configure_line_transceivers,
                 "configure_transceiver_client": _fake_configure_transceiver_client,
                 "configure_transponder_crossconnect": _fake_configure_transponder_crossconnect,
-                "get_signal_bandwidth": _fake_get_signal_bandwidth,
-                "delta_rx_power_vs_target": _fake_delta_rx_power_vs_target,
-                "align_tx_power_to_target": _fake_align_tx_power_to_target,
-                "deploy_optical_circuit": _fake_deploy_optical_circuit,
-                "sleep": _fake_sleep,
-            },
-            "orchestrator.optical.workflows.optical_digital_service.modify_optical_digital_service": {
-                "get_signal_bandwidth": _fake_get_signal_bandwidth,
-                "modify_optical_circuit": _fake_modify_optical_circuit,
-                "sleep": _fake_sleep,
-            },
-            "orchestrator.optical.workflows.optical_digital_service.terminate_optical_digital_service": {
                 "delete_transponder_crossconnect": _fake_delete_transponder_crossconnect,
                 "factory_reset_transponder_client": _fake_factory_reset_transponder_client,
                 "factory_reset_transponder_lines": _fake_factory_reset_transponder_lines,
-            },
-            "orchestrator.optical.workflows.optical_digital_service.validate_optical_digital_service": {
                 "get_signal_bandwidth": _fake_get_signal_bandwidth,
+                "delta_rx_power_vs_target": _fake_delta_rx_power_vs_target,
+                "align_tx_power_to_target": _fake_align_tx_power_to_target,
                 "validate_trx_line": _fake_validate_trx_line,
                 "validate_trx_client": _fake_validate_trx_client,
                 "validate_trx_crossconnect": _fake_validate_trx_crossconnect,
+                "deploy_optical_circuit": _fake_deploy_optical_circuit,
+                "modify_optical_circuit": _fake_modify_optical_circuit,
+                "append_optical_circuit_label": _fake_append_optical_circuit_label,
                 "validate_optical_circuit": _fake_validate_optical_circuit,
+                "sleep": _fake_sleep,
+            },
+            "orchestrator.optical.workflows.optical_spectrum_service.shared": {
+                "delete_optical_circuit": _fake_delete_optical_circuit,
+                "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
+            },
+            "orchestrator.optical.workflows.optical_digital_service.create": {
+                "retrieve_transceiver_modes": _retrieve_transceiver_modes,
+                "sleep": _fake_sleep,
+            },
+            "orchestrator.optical.workflows.optical_digital_service.modify": {
+                "sleep": _fake_sleep,
             },
         },
     }

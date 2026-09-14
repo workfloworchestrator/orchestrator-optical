@@ -309,6 +309,21 @@ def _sort_blocks_dependency_first(blocks: dict[str, type[ProductBlockModel]]) ->
     return ordered
 
 
+#: Per-product fixed-input values that cannot be derived from the models: one
+#: subscription class backs several products distinguished only by their fixed
+#: inputs (e.g. the three digital service speeds share ``OpticalDigitalService``,
+#: whose first speed enum member would otherwise seed every product with 100).
+#: Applied over :func:`_product_fixed_inputs` in :func:`build_catalog`.
+FIXED_INPUT_OVERRIDES: dict[str, dict[str, str]] = {
+    orchestrator.optical.products.ProductName.OPTICAL_DIGITAL_SERVICE_400G_ETHERNET.value: {
+        "optical_digital_service_speed": "400"
+    },
+    orchestrator.optical.products.ProductName.OPTICAL_DIGITAL_SERVICE_800G_ETHERNET.value: {
+        "optical_digital_service_speed": "800"
+    },
+}
+
+
 def _product_fixed_inputs(model: type[SubscriptionModel]) -> dict[str, str]:
     """Return the product's fixed inputs (its scalar fields) with a derived value.
 
@@ -318,7 +333,8 @@ def _product_fixed_inputs(model: type[SubscriptionModel]) -> dict[str, str]:
     *names*, so any value keeps the catalog in sync; using a real enum member
     keeps the seed a valid input for the field (enum fields otherwise reject a
     placeholder, breaking product indexing); maintainers review the values when
-    the baseline is generated for a release.
+    the baseline is generated for a release. Per-product corrections that one
+    model class cannot express live in :data:`FIXED_INPUT_OVERRIDES`.
     """
     block_fields = model._get_depends_on_product_block_types()  # noqa: SLF001
     fixed_inputs: dict[str, str] = {}
@@ -378,6 +394,7 @@ def build_catalog() -> dict[str, dict[str, Any]]:
     products: dict[str, dict[str, Any]] = {}
     for product_name, model in SUBSCRIPTION_MODEL_REGISTRY.items():
         fixed_inputs = _product_fixed_inputs(model)
+        fixed_inputs.update(FIXED_INPUT_OVERRIDES.get(product_name, {}))
         product: dict[str, Any] = {
             "product_id": str(uuid5(CATALOG_NAMESPACE, f"product:{product_name}")),
             "product_type": model.__name__,

@@ -1,0 +1,835 @@
+"""Create Optical Digital Service workflow.
+
+This module ships the ready-to-use ``create_optical_digital_service`` workflow
+for the shipped Optical Digital Service product type, together with the
+importable parts: the FormPages of the create form (as the
+:func:`create_optical_digital_service_form_pages` page sequence), the block
+population logic and the step list that operates on the Optical Digital Service
+block found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+
+Consumers that keep the shipped product type register the shipped workflow;
+consumers with their own model that has-a the shipped block compose their own
+``@create_workflow`` with the parts. The shipped workflow itself is composed
+from the shipped parts: the construct step builds the shipped subscription
+model, creates or links the client port blocks (transponder client ports are
+created, coherent pluggables are linked from their own subscriptions), links
+or creates the transport channel blocks (with their spectra and sections) and transitions the subscription to
+PROVISIONING, the shipped block steps configure the transponders, deploy the
+optical circuits of the new channels, refresh the passbands in use and persist
+the PROVISIONING block found in the state under
+``OPTICAL_MODULE_BLOCK_STATE_KEY``, and the shipped description step finalizes
+the subscription. The shipped form generator is a thin composition of the
+shipped pages and the summary form, without hooks: consumers build their own
+form generator by yielding from the shipped page sequence in one line and
+adding their own pages::
+
+    user_input_dict = yield from create_optical_digital_service_form_pages(product_name)
+    user_input_dict.update((yield my_own_page).model_dump())
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
+"""
+
+from time import sleep
+from typing import Annotated, Any, cast
+from uuid import UUID, uuid4
+
+from pydantic import ConfigDict, Field, model_validator
+from pydantic_forms.types import FormGenerator, State, UUIDstr
+from pydantic_forms.validators import Choice, choice_list
+from structlog import get_logger
+
+from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.forms import FormPage
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.workflow import StepList, begin, step
+from orchestrator.core.workflows.steps import set_status, store_process_subscription
+from orchestrator.core.workflows.utils import create_workflow
+from orchestrator.optical.db import node_block_from_subscription
+from orchestrator.optical.hal.port import retrieve_transceiver_modes
+from orchestrator.optical.products.product_blocks.optical_digital_service import (
+    OpticalDigitalServiceBlockInactive,
+)
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
+from orchestrator.optical.products.product_types.optical_digital_service import (
+    OpticalDigitalServiceProvisioning,
+)
+from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency
+from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
+from orchestrator.optical.workflows.block import save_optical_module_block
+from orchestrator.optical.workflows.customer import customer_choice_form_page
+from orchestrator.optical.workflows.optical_digital_service.shared import (
+    DIRECT_CONNECTION,
+    align_optical_digital_tx_power,
+    append_reused_channel_labels,
+    build_optical_digital_service_block,
+    configure_optical_digital_client_ports,
+    configure_optical_digital_crossconnects,
+    configure_optical_digital_line_ports,
+    has_new_channels_with_sections,
+    is_packet_node_host,
+    line_port_selector,
+    new_optical_digital_service_subscription,
+    optical_digital_endpoint_selector,
+    optical_digital_service_block_from_state,
+    optical_digital_service_speed_and_type,
+    optical_digital_service_speed_and_type_for_product,
+    port_ids_used_by_digital_services,
+    provision_optical_digital_sections,
+    refresh_optical_digital_used_passbands,
+    resolve_channels_by_names,
+    set_optical_digital_service_subscription_description,
+    unused_coherent_pluggable_selector,
+)
+from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
+from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
+    NO_OPTICAL_PATH_FOUND_MSG,
+    create_optical_spectrum_constraints_form,
+    create_optical_spectrum_waypoints_form,
+)
+from orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum import LINE_SYSTEM_ROLES
+from orchestrator.optical.workflows.optical_spectrum_service.shared import (
+    OPTICAL_PIPE_PRODUCT_TYPES,
+    NoOpticalPathFoundError,
+    all_shortest_paths_through_waypoints,
+    are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path,
+    check_optical_spectrum_add_drop_port_availability,
+    find_add_drop_ports,
+    human_readable_transport_channel_path_selector,
+    multiple_optical_node_selector,
+)
+from orchestrator.optical.workflows.shared import create_summary_form, optical_port_selector
+
+logger = get_logger(__name__)
+
+
+def create_optical_digital_service_identity_form(product_name: str) -> type[FormPage]:
+    """Return the identity FormPage of the Optical Digital Service create form.
+
+    This is the first page of the shipped create form: the user-facing service
+    name, the two endpoint hosts (validated different) and the names of the
+    transport channels (one, or two for reverse multiplexing). The channel
+    names ARE the new-vs-reuse fork: names that match already provisioned
+    channels reuse them (spare capacity and terminations checked here and
+    re-checked by the construct step), new names are created by the later
+    pages. Speed and framing type are NOT asked and NOT carried in the form:
+    they are fixed inputs stored 1:1 on the product row.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+
+    Returns:
+        The identity FormPage of the shipped create form.
+    """
+    src_node_choice = optical_digital_endpoint_selector("This service starts on this endpoint host: ")
+    dst_node_choice = optical_digital_endpoint_selector("...and ends on this endpoint host: ")
+
+    class CreateOpticalDigitalServiceIdentityForm(FormPage):
+        model_config = ConfigDict(title=product_name)
+
+        optical_digital_service_name: str
+        src_node_block_instance_id: src_node_choice
+        dst_node_block_instance_id: dst_node_choice
+        channel_name_1: str
+        channel_name_2: Annotated[
+            str,
+            Field(
+                title="Second transport channel",
+                description=(
+                    "Name of the second transport channel when this service is carried over "
+                    "2 channels (reverse multiplexing); leave empty for a single-channel service."
+                ),
+            ),
+        ] = ""
+
+        @model_validator(mode="after")
+        def validate_endpoints(self) -> "CreateOpticalDigitalServiceIdentityForm":
+            if self.src_node_block_instance_id == self.dst_node_block_instance_id:
+                msg = "The source and destination endpoint hosts must be different"
+                raise ValueError(msg)
+            names = [self.channel_name_1.strip(), self.channel_name_2.strip()]
+            if not names[0]:
+                msg = "The first transport channel name cannot be blank"
+                raise ValueError(msg)
+            speed, _service_type = optical_digital_service_speed_and_type_for_product(product_name)
+            resolve_channels_by_names(
+                names, int(speed), self.src_node_block_instance_id, self.dst_node_block_instance_id
+            )
+            return self
+
+    return CreateOpticalDigitalServiceIdentityForm
+
+
+def create_optical_digital_service_client_ports_form(
+    product_name: str,
+    src_host_id: UUIDstr,
+    dst_host_id: UUIDstr,
+) -> type[FormPage]:
+    """Return the client ports FormPage of the Optical Digital Service create form.
+
+    This is the second page of the shipped create form: the client port of both
+    endpoint hosts. On a packet node the coherent pluggable is selected among
+    the existing pluggable blocks hosted on the node that are not already in
+    use by another digital service; on a transponder host the client port is
+    selected among the device client ports not already in use (the device must
+    be reachable, otherwise the page fails). In both cases the value is a
+    string: an instance id or a port name.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+        src_host_id: Subscription id of the source endpoint host.
+        dst_host_id: Subscription id of the destination endpoint host.
+
+    Returns:
+        The client ports FormPage of the shipped create form.
+    """
+
+    def _client_field(host_id: UUIDstr, prompt: str) -> Any:
+        if is_packet_node_host(host_id):
+            return unused_coherent_pluggable_selector(host_id, prompt)
+        return optical_port_selector(
+            node_block_from_subscription(host_id),
+            roles=[OpticalPortRole.TRANSPONDER_CLIENT],
+            prompt=prompt,
+        )
+
+    src_port_field: Any = _client_field(src_host_id, "Select the source client port")
+    dst_port_field: Any = _client_field(dst_host_id, "Select the destination client port")
+
+    class CreateOpticalDigitalServiceClientPortsForm(FormPage):
+        model_config = ConfigDict(title=product_name)
+
+        unused_src_client: src_port_field
+        unused_dst_client: dst_port_field
+
+        @model_validator(mode="after")
+        def validate_client_ports(self) -> "CreateOpticalDigitalServiceClientPortsForm":
+            for host_id, port_ref in (
+                (src_host_id, self.unused_src_client),
+                (dst_host_id, self.unused_dst_client),
+            ):
+                if is_packet_node_host(host_id):
+                    if str(port_ref) in port_ids_used_by_digital_services():
+                        msg = "This coherent pluggable is already in use by another digital service"
+                        raise ValueError(msg)
+                else:
+                    check_optical_spectrum_add_drop_port_availability(
+                        node_block_from_subscription(host_id), str(port_ref)
+                    )
+            return self
+
+    return CreateOpticalDigitalServiceClientPortsForm
+
+
+def create_optical_digital_service_lines_form(
+    product_name: str,
+    num_channels: int,
+    src_line_choice: type[Choice],
+    dst_line_choice: type[Choice],
+) -> type[FormPage]:
+    """Return the lines FormPage of the Optical Digital Service create form.
+
+    This page is only shown for new transport channels: each side picks one
+    line port (two when reverse-multiplexed) among the choices computed for
+    the endpoint host's card — the patched, unused line ports on the same
+    card as the client on a transponder host, the client pluggable itself
+    (single option) on a packet node (see :func:`line_port_selector
+    <orchestrator.optical.workflows.optical_digital_service.shared.line_port_selector>`).
+    The validator re-checks availability like any other selection.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+        num_channels: Number of new transport channels (1, or 2 for reverse multiplexing).
+        src_line_choice: ``Choice`` of the source line ports.
+        dst_line_choice: ``Choice`` of the destination line ports.
+
+    Returns:
+        The lines FormPage of the shipped create form.
+    """
+    src_lines_type = choice_list(src_line_choice, min_items=num_channels, max_items=num_channels, unique_items=True)
+    dst_lines_type = choice_list(dst_line_choice, min_items=num_channels, max_items=num_channels, unique_items=True)
+
+    class CreateOpticalDigitalServiceLinesForm(FormPage):
+        model_config = ConfigDict(title=product_name)
+
+        src_lines: src_lines_type
+        dst_lines: dst_lines_type
+
+        @model_validator(mode="after")
+        def validate_lines(self) -> "CreateOpticalDigitalServiceLinesForm":
+            for line_id in [*self.src_lines, *self.dst_lines]:
+                if str(line_id) in port_ids_used_by_digital_services():
+                    msg = "This line port is already in use by another digital service"
+                    raise ValueError(msg)
+            return self
+
+    return CreateOpticalDigitalServiceLinesForm
+
+
+def create_optical_digital_service_channels_form(
+    product_name: str,
+    num_channels: int,
+    src_line_ids: list[UUIDstr],
+    dst_line_ids: list[UUIDstr],
+) -> type[FormPage]:
+    """Return the transport channels FormPage of the Optical Digital Service create form.
+
+    This page collects the shared operating mode and the central frequency
+    and spectral width of each new transport channel (one, or two for reverse
+    multiplexing). It is only shown for new transport channels: the names were
+    already collected on the identity page. The device-side identifiers stay
+    the subscription instance id UUIDs.
+
+    Args:
+        product_name: Name of the product being created, used as the page title.
+        num_channels: Number of new transport channels (1, or 2 for reverse multiplexing).
+        src_line_ids: Subscription instance ids of the selected source line ports.
+        dst_line_ids: Subscription instance ids of the selected destination line ports.
+
+    Returns:
+        The transport channels FormPage of the shipped create form.
+    """
+
+    class CreateOpticalDigitalServiceChannelsForm(FormPage):
+        model_config = ConfigDict(title=product_name)
+
+        optical_transport_mode: str
+        frequency_1: Frequency
+        bandwidth_1: Bandwidth
+
+        @model_validator(mode="after")
+        def validate_channels(self) -> "CreateOpticalDigitalServiceChannelsForm":
+            if self.bandwidth_1 % 12500 != 0:
+                msg = "Bandwidth must be a multiple of 12_500 MHz"
+                raise ValueError(msg)
+            for line_id, client_name in (
+                *[(line_id, "src") for line_id in src_line_ids],
+                *[(line_id, "dst") for line_id in dst_line_ids],
+            ):
+                _validate_line_port_mode(line_id, self.optical_transport_mode, client_name)
+            return self
+
+    if num_channels == 1:
+        return CreateOpticalDigitalServiceChannelsForm
+
+    class CreateOpticalDigitalServiceDualChannelsForm(CreateOpticalDigitalServiceChannelsForm):
+        frequency_2: Frequency
+        bandwidth_2: Bandwidth
+
+        @model_validator(mode="after")
+        def validate_dual_channels(self) -> "CreateOpticalDigitalServiceDualChannelsForm":
+            if self.bandwidth_2 % 12500 != 0:
+                msg = "Bandwidth must be a multiple of 12_500 MHz"
+                raise ValueError(msg)
+            return self
+
+    return CreateOpticalDigitalServiceDualChannelsForm
+
+
+def _validate_line_port_mode(line_port_id: UUIDstr, mode: str, side: str) -> None:
+    """Validate the operating mode against the live modes of a line port card.
+
+    The check is best-effort: ports whose modes cannot be retrieved (e.g.
+    coherent pluggables, whose device push is not implemented yet) skip it.
+
+    Args:
+        line_port_id: Subscription instance id of the line port block.
+        mode: The operating mode entered in the form.
+        side: Human-readable side of the service, used in error messages.
+
+    Raises:
+        ValueError: If the card reports modes and the entered mode is not among them.
+    """
+    if not mode:
+        msg = f"Operating mode of the {side} side cannot be empty"
+        raise ValueError(msg)
+    try:
+        line_port: Any = ProductBlockModel.from_db(UUID(str(line_port_id)))
+        host = cast(AnyOpticalNodeBlockProvisioningUnion, line_port.optical_port_host_node)
+        modes = retrieve_transceiver_modes(host, cast(str, line_port.optical_port_name))
+    except Exception:  # noqa: BLE001
+        return
+    if modes and mode not in modes:
+        msg = f"Mode {mode!r} is not supported by the {side} line port card (supported: {', '.join(modes)})"
+        raise ValueError(msg)
+
+
+def create_optical_digital_service_path_form(path_choice: type[Choice]) -> type[FormPage]:
+    """Return the path FormPage of the Optical Digital Service create form.
+
+    This is the last page of the shipped create form (new channels only): the
+    optical path of the first transport channel, chosen among the ones computed
+    by the path engine. The page rejects the placeholder option used when no
+    path was found. The ``"direct_connection"`` option is valid: it means the
+    endpoints are directly connected with no line system in between.
+
+    Args:
+        path_choice: The ``Choice`` selector of the available optical paths.
+
+    Returns:
+        The path FormPage of the shipped create form.
+    """
+
+    class CreateOpticalDigitalServicePathForm(FormPage):
+        model_config = ConfigDict(title="Optical Path")
+
+        optical_path: path_choice
+
+        @model_validator(mode="after")
+        def validate_data(self) -> "CreateOpticalDigitalServicePathForm":
+            if self.optical_path == NO_OPTICAL_PATH_FOUND_MSG:
+                msg = (
+                    "No optical path found, please adjust the routing constraints "
+                    "in the previous step or update fibers in the path."
+                )
+                raise ValueError(msg)
+            return self
+
+    return CreateOpticalDigitalServicePathForm
+
+
+def optical_digital_service_path_choice(
+    line_a_1: UUIDstr,
+    line_b_1: UUIDstr,
+    waypoint_node_ids: list[UUIDstr] | None,
+    passband: tuple[int, int],
+    exclude_node_ids: list[UUIDstr] | None,
+    exclude_span_ids: list[UUIDstr] | None,
+) -> type[Choice]:
+    """Create the optical-path selector between two transponder line ports.
+
+    This mirrors :func:`orchestrator.optical.workflows.optical_spectrum_service.shared.transport_channel_path_selector`
+    with ordered waypoints: the line ports resolve to their add/drop ports
+    (or to themselves when directly connected), the waypoint engine computes
+    the OLS interior, and each path is wrapped with the add/drop ends — the
+    exact shape the trx engine produces, so :func:`build_optical_digital_service_block`
+    consumes it unchanged.
+
+    Args:
+        line_a_1: Subscription instance id of the first source line port block.
+        line_b_1: Subscription instance id of the first destination line port block.
+        waypoint_node_ids: Ordered subscription instance ids of the intermediate
+            nodes the path must traverse.
+        passband: The passband configuration for the optical path.
+        exclude_node_ids: Subscription instance ids of nodes to exclude.
+        exclude_span_ids: Subscription instance ids of spans to exclude.
+
+    Returns:
+        A ``Choice`` class whose values are ``";"``-joined port instance ids.
+
+    Raises:
+        NoOpticalPathFoundError: If no valid path exists.
+        ValueError: If waypoints are given for directly connected endpoints.
+    """
+    prompt = (
+        "Select the optical path, if you don't see the desired path,"
+        " adjust constraints in previous step or validate fibers along the path."
+    )
+    first_add_drop, last_add_drop = find_add_drop_ports(line_a_1, line_b_1)
+    if (
+        str(first_add_drop.subscription_instance_id) == line_b_1
+        and str(last_add_drop.subscription_instance_id) == line_a_1
+    ):
+        if waypoint_node_ids:
+            msg = "The endpoints are directly connected: clear the intermediate nodes to proceed"
+            raise ValueError(msg)
+        return human_readable_transport_channel_path_selector([[]], prompt)
+    src_ols_dev_id = str(first_add_drop.optical_port_host_node.subscription_instance_id)
+    dst_ols_dev_id = str(last_add_drop.optical_port_host_node.subscription_instance_id)
+    ols_paths = all_shortest_paths_through_waypoints(
+        src_ols_dev_id, dst_ols_dev_id, waypoint_node_ids, passband, exclude_node_ids, exclude_span_ids
+    )
+    wrapped_paths = []
+    for path in ols_paths:
+        path.insert(0, str(first_add_drop.subscription_instance_id))
+        path.append(str(last_add_drop.subscription_instance_id))
+        if are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path):
+            wrapped_paths.append(path)
+    if not wrapped_paths:
+        raise NoOpticalPathFoundError(src=line_a_1, dst=line_b_1)
+    return human_readable_transport_channel_path_selector(wrapped_paths, prompt)
+
+
+def create_optical_digital_service_form_pages(product_name: str) -> FormGenerator:
+    """Yield the FormPages of the Optical Digital Service create form, in order.
+
+    This is the shipped create form as a page sequence: it yields the identity
+    page (name, endpoints and transport channel names — the names ARE the
+    new-vs-reuse fork), the client ports page, and then, only for new
+    transport channels, the lines page, the channels page (mode,
+    frequencies), the waypoints page, the constraints page and the path page.
+    It returns the collected user input as a flat dict of the state keys,
+    consumed by the shipped construct step
+    (:func:`construct_optical_digital_service_subscription`). The customer of
+    the subscription is collected separately by the consumer (see
+    :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
+
+    Args:
+        product_name: Name of the product being created.
+
+    Returns:
+        The collected user input of the shipped pages.
+    """
+    user_input_dict: dict[str, Any] = {}
+    user_input_dict.update((yield create_optical_digital_service_identity_form(product_name)).model_dump())
+    src_host_id = user_input_dict["src_node_block_instance_id"]
+    dst_host_id = user_input_dict["dst_node_block_instance_id"]
+    user_input_dict["channel_name_1"] = user_input_dict["channel_name_1"].strip()
+    user_input_dict["channel_name_2"] = user_input_dict["channel_name_2"].strip()
+    channel_names = [user_input_dict["channel_name_1"]]
+    if user_input_dict["channel_name_2"]:
+        channel_names.append(user_input_dict["channel_name_2"])
+    num_channels = len(channel_names)
+
+    user_input_dict.update(
+        (yield create_optical_digital_service_client_ports_form(product_name, src_host_id, dst_host_id)).model_dump()
+    )
+    speed, _service_type = optical_digital_service_speed_and_type_for_product(product_name)
+
+    fork, group = resolve_channels_by_names(channel_names, int(speed), src_host_id, dst_host_id)
+    if fork == "reuse":
+        user_input_dict["reuse_channel_ids"] = ";".join(group.channel_ids) if group is not None else ""
+        return user_input_dict
+
+    src_line_choice = line_port_selector(
+        src_host_id, str(user_input_dict["unused_src_client"]), "Select the source line ports"
+    )
+    dst_line_choice = line_port_selector(
+        dst_host_id, str(user_input_dict["unused_dst_client"]), "Select the destination line ports"
+    )
+    user_input_dict.update(
+        (
+            yield create_optical_digital_service_lines_form(
+                product_name, num_channels, src_line_choice, dst_line_choice
+            )
+        ).model_dump()
+    )
+
+    src_line_ids = [cast(UUIDstr, line_id) for line_id in user_input_dict["src_lines"]]
+    dst_line_ids = [cast(UUIDstr, line_id) for line_id in user_input_dict["dst_lines"]]
+    user_input_dict = yield from _yield_new_channel_spec_pages(
+        product_name,
+        user_input_dict,
+        num_channels,
+        src_line_ids,
+        dst_line_ids,
+    )
+    return user_input_dict
+
+
+def _yield_new_channel_spec_pages(
+    product_name: str,
+    user_input_dict: dict[str, Any],
+    num_channels: int,
+    src_line_ids: list[UUIDstr],
+    dst_line_ids: list[UUIDstr],
+) -> FormGenerator:
+    """Yield the new-channel spec pages of the Optical Digital Service create form.
+
+    Only shown for new transport channels: the channels page (mode,
+    frequencies), the waypoints page, the constraints page and the path page.
+    The collected input is merged into ``user_input_dict`` in place and
+    returned.
+
+    Args:
+        product_name: Name of the product being created.
+        user_input_dict: The collected user input of the previous pages.
+        num_channels: Number of new transport channels (1, or 2 for reverse multiplexing).
+        src_line_ids: Subscription instance ids of the selected source line ports.
+        dst_line_ids: Subscription instance ids of the selected destination line ports.
+
+    Returns:
+        The updated user input dict.
+    """
+    user_input_dict.update(
+        (
+            yield create_optical_digital_service_channels_form(
+                product_name,
+                num_channels,
+                src_line_ids,
+                dst_line_ids,
+            )
+        ).model_dump()
+    )
+
+    waypoints_choice = multiple_optical_node_selector(
+        roles=LINE_SYSTEM_ROLES,
+        prompt="Which Optical Nodes must the path pass through?",
+    )
+    user_input_dict.update((yield create_optical_spectrum_waypoints_form(product_name, waypoints_choice)).model_dump())
+
+    exclude_nodes_choice = multiple_optical_node_selector(
+        roles=LINE_SYSTEM_ROLES,
+        prompt="Do *not* pass through these Optical Nodes",
+    )
+    exclude_spans_choice = multiple_optical_pipe_selector_of_types(
+        OPTICAL_PIPE_PRODUCT_TYPES,
+        prompt="Do *not* pass through these Optical Pipes",
+    )
+    user_input_dict.update(
+        (
+            yield create_optical_spectrum_constraints_form(product_name, exclude_nodes_choice, exclude_spans_choice)
+        ).model_dump()
+    )
+
+    passband = (
+        user_input_dict["frequency_1"] - user_input_dict["bandwidth_1"] // 2,
+        user_input_dict["frequency_1"] + user_input_dict["bandwidth_1"] // 2,
+    )
+    try:
+        path_choice = optical_digital_service_path_choice(
+            user_input_dict["src_lines"][0],
+            user_input_dict["dst_lines"][0],
+            user_input_dict["intermediate_node_ids"],
+            passband,
+            user_input_dict["exclude_devices_list"],
+            user_input_dict["exclude_fibers_list"],
+        )
+    except Exception:
+        # NoOpticalPathFoundError and any resolution failure (e.g. a coherent
+        # pluggable whose fiber attachment cannot be resolved yet): the form
+        # offers the rejecting placeholder so the user adjusts the constraints.
+        logger.exception(
+            "No optical path found",
+            src_lines=user_input_dict["src_lines"],
+            dst_lines=user_input_dict["dst_lines"],
+            passband=passband,
+        )
+        path_choice = cast(
+            type[Choice],
+            Choice(
+                NO_OPTICAL_PATH_FOUND_MSG,
+                [(NO_OPTICAL_PATH_FOUND_MSG, NO_OPTICAL_PATH_FOUND_MSG)],
+            ),
+        )
+
+    user_input_dict.update((yield create_optical_digital_service_path_form(path_choice)).model_dump())
+    user_input_dict["optical_path"] = user_input_dict["optical_path"].split(";")
+    return user_input_dict
+
+
+def create_optical_digital_service_form_generator(product_name: str) -> FormGenerator:
+    """Generate the initial input form for creating an Optical Digital Service.
+
+    The form emits the flat ``optical_*`` state keys consumed by the shipped
+    construct step (:func:`construct_optical_digital_service_subscription`). It is a
+    thin composition of the customer page, the shipped page sequence
+    (:func:`create_optical_digital_service_form_pages`) and the summary form.
+
+    Args:
+        product_name: Name of the product being created.
+    """
+    user_input_dict = yield from customer_choice_form_page(title=product_name)
+    user_input_dict.update((yield from create_optical_digital_service_form_pages(product_name)))
+
+    summary_fields = [
+        "customer_id",
+        "optical_digital_service_name",
+        "src_node_block_instance_id",
+        "dst_node_block_instance_id",
+        "channel_name_1",
+        "unused_src_client",
+        "unused_dst_client",
+    ]
+    if user_input_dict.get("channel_name_2"):
+        summary_fields.append("channel_name_2")
+    if "reuse_channel_ids" in user_input_dict:
+        summary_fields.append("reuse_channel_ids")
+    else:
+        summary_fields += [
+            "src_lines",
+            "dst_lines",
+            "optical_transport_mode",
+            "frequency_1",
+            "bandwidth_1",
+            "intermediate_node_ids",
+            "exclude_devices_list",
+            "exclude_fibers_list",
+            "optical_path",
+        ]
+        if user_input_dict.get("channel_name_2"):
+            summary_fields += ["frequency_2", "bandwidth_2"]
+    yield from create_summary_form(user_input_dict, product_name, summary_fields)
+
+    return user_input_dict
+
+
+@step("Construct Optical Digital Service Subscription")
+def construct_optical_digital_service_subscription(
+    product: UUIDstr,
+    customer_id: UUIDstr,
+    optical_digital_service_name: str,
+    src_node_block_instance_id: UUIDstr,
+    dst_node_block_instance_id: UUIDstr,
+    unused_src_client: UUIDstr,
+    unused_dst_client: UUIDstr,
+    channel_name_1: str,
+    channel_name_2: str = "",
+    src_lines: list[UUIDstr] | None = None,
+    dst_lines: list[UUIDstr] | None = None,
+    optical_transport_mode: str | None = None,
+    frequency_1: Frequency | None = None,
+    bandwidth_1: Bandwidth | None = None,
+    frequency_2: Frequency | None = None,
+    bandwidth_2: Bandwidth | None = None,
+    optical_path: list[UUIDstr] | None = None,
+) -> State:
+    """Construct the PROVISIONING domain subscription model for an Optical Digital Service.
+
+    This step builds the shipped ``OpticalDigitalService`` model through
+    :func:`orchestrator.optical.workflows.optical_digital_service.shared.build_optical_digital_service_block`
+    (the anti-corruption point) and transitions the subscription to PROVISIONING
+    in memory, so the block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY`` is the PROVISIONING variant with its
+    mandatory fields already set — the contract of the shipped block step
+    :func:`orchestrator.optical.workflows.block.save_optical_module_block`.
+
+    Consumers that define their own product type (composing the
+    ``OpticalDigitalServiceBlock`` under their own attribute name) write their
+    own construct step instead: it builds their subscription, populates the
+    composed block with the mandatory fields set (e.g. via
+    :func:`orchestrator.optical.workflows.optical_digital_service.shared.populate_optical_digital_service_block`),
+    transitions it to PROVISIONING and puts the block in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    subscription_id = uuid4()
+    optical_digital_service_speed, optical_digital_service_type = optical_digital_service_speed_and_type(product)
+    channel_names = [channel_name_1.strip()]
+    if channel_name_2.strip():
+        channel_names.append(channel_name_2.strip())
+    fork, group = resolve_channels_by_names(
+        channel_names, int(optical_digital_service_speed), src_node_block_instance_id, dst_node_block_instance_id
+    )
+    if fork == "reuse":
+        if group is None:
+            msg = "Could not resolve the named transport channels to a reusable channel group"
+            raise ValueError(msg)
+        reuse_ids = list(group.channel_ids)
+        channel_names = []
+        line_ids_a: list[UUIDstr] = []
+        line_ids_b: list[UUIDstr] = []
+        frequencies: list[Frequency] = []
+        bandwidths: list[Bandwidth] = []
+    else:
+        if src_lines is None or dst_lines is None:
+            msg = "New transport channels require selected line ports"
+            raise ValueError(msg)
+        if len(src_lines) != len(channel_names) or len(dst_lines) != len(channel_names):
+            msg = "The line selection must hold one port per side per transport channel"
+            raise ValueError(msg)
+        reuse_ids = []
+        if frequency_1 is None or bandwidth_1 is None:
+            msg = "New transport channels require frequencies and bandwidths"
+            raise ValueError(msg)
+        line_ids_a = list(src_lines)
+        line_ids_b = list(dst_lines)
+        frequencies = [frequency_1] if len(channel_names) == 1 else [frequency_1, cast(Frequency, frequency_2)]
+        bandwidths = [bandwidth_1] if len(channel_names) == 1 else [bandwidth_1, cast(Bandwidth, bandwidth_2)]
+    digital_block = build_optical_digital_service_block(
+        subscription_id=subscription_id,
+        optical_digital_service_name=optical_digital_service_name,
+        optical_digital_service_speed=optical_digital_service_speed,
+        optical_digital_service_type=optical_digital_service_type,
+        src_host_id=src_node_block_instance_id,
+        dst_host_id=dst_node_block_instance_id,
+        src_client_port=unused_src_client,
+        dst_client_port=unused_dst_client,
+        reuse_channel_ids=reuse_ids,
+        channel_names=channel_names,
+        line_port_ids_a=line_ids_a,
+        line_port_ids_b=line_ids_b,
+        frequencies=frequencies,
+        bandwidths=bandwidths,
+        optical_transport_mode=optical_transport_mode or "",
+        optical_path=optical_path or [DIRECT_CONNECTION],
+    )
+    subscription = new_optical_digital_service_subscription(
+        product,
+        str(customer_id),
+        digital_block,
+        optical_digital_service_speed,
+        optical_digital_service_type,
+    )
+    subscription = OpticalDigitalServiceProvisioning.from_other_lifecycle(
+        subscription, SubscriptionLifecycle.PROVISIONING
+    )
+
+    return {
+        "subscription": subscription,
+        "subscription_id": subscription.subscription_id,
+        OPTICAL_MODULE_BLOCK_STATE_KEY: subscription.optical_digital_service,
+    }
+
+
+@step("Waiting for the transponders and ROADMs to settle")
+def wait_before_power_alignment(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
+    """Wait for the lasers and the line system to settle before measuring power.
+
+    The step sleeps only when the block holds new transport channels with
+    deployed sections; reused-only services skip the wait.
+
+    Args:
+        optical_module_block: The Optical Digital Service block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    block = optical_digital_service_block_from_state(optical_module_block)
+    if has_new_channels_with_sections(block):
+        sleep(30)
+    return {}
+
+
+#: Create steps operating on the Optical Digital Service block in the state. Every step
+#: is block-level: the transponders are configured, the optical circuits of the new
+#: channels are deployed, the passbands in use are refreshed, the labels of reused
+#: channels are extended, the transmit power is aligned and the block is persisted by
+#: the last step, because workflow steps execute with the state serialized between
+#: steps (the block is re-hydrated from its serialized form before every step
+#: operates on it). The block is assumed to be in the PROVISIONING lifecycle
+#: status with its mandatory fields and channels already set: the caller's
+#: construct step provides it (see
+#: :func:`construct_optical_digital_service_subscription`). Consumers with their own
+#: model run this list after constructing their subscription the same way and
+#: putting their block in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+CREATE_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS: StepList = (
+    begin
+    >> configure_optical_digital_line_ports
+    >> configure_optical_digital_client_ports
+    >> configure_optical_digital_crossconnects
+    >> provision_optical_digital_sections
+    >> refresh_optical_digital_used_passbands
+    >> append_reused_channel_labels
+    >> wait_before_power_alignment
+    >> align_optical_digital_tx_power
+    >> save_optical_module_block
+)
+
+
+@create_workflow(initial_input_form=create_optical_digital_service_form_generator)
+def create_optical_digital_service() -> StepList:
+    """Workflow to create a new Optical Digital Service subscription.
+
+    The workflow is composed from the shipped parts: the construct step builds
+    the shipped :class:`OpticalDigitalService` model, creates the client port
+    blocks, links or creates the transport channels and transitions the
+    subscription to PROVISIONING, the shipped block steps configure the devices
+    and persist the block, and the shipped description step finalizes the
+    subscription. It is therefore only valid for the shipped product type;
+    consumers with their own product type compose their own create workflow
+    with the same parts.
+    """
+    return (
+        begin
+        >> construct_optical_digital_service_subscription
+        >> set_status(SubscriptionLifecycle.PROVISIONING)
+        >> CREATE_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS
+        >> set_optical_digital_service_subscription_description
+        >> store_process_subscription()
+    )
+
+
+__all__ = [
+    "CREATE_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS",
+    "construct_optical_digital_service_subscription",
+    "create_optical_digital_service",
+    "create_optical_digital_service_form_generator",
+    "create_optical_digital_service_form_pages",
+]

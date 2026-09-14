@@ -27,6 +27,10 @@ class OpticalTransportChannelBlockInactive(ProductBlockModel, product_block_name
     optical_transport_channel_name: str | None = None
     optical_transport_central_frequency: int | None = None
     optical_transport_mode: str | None = None
+    # Total carrier capacity in Gbit/s, parsed from the mode at creation. Optional in every
+    # lifecycle state on purpose: channels persisted before this field existed reload with
+    # None (unknown capacity) instead of crashing, and are simply never offered for reuse.
+    optical_transport_total_capacity: int | None = None
     optical_transport_line_ports: ListOfTwo[OpticalTransportLineChannelBlockInactive] = Field(default_factory=list)
     optical_transport_spectrum: OpticalSpectrumBlockInactive
 
@@ -39,6 +43,7 @@ class OpticalTransportChannelBlockProvisioning(
     optical_transport_channel_name: str
     optical_transport_central_frequency: int
     optical_transport_mode: str
+    optical_transport_total_capacity: int | None = None
     optical_transport_line_ports: ListOfTwo[OpticalTransportLineChannelBlockProvisioning]
     optical_transport_spectrum: OpticalSpectrumBlockProvisioning
 
@@ -49,5 +54,6 @@ class OpticalTransportChannelBlock(OpticalTransportChannelBlockProvisioning, lif
     optical_transport_channel_name: str
     optical_transport_central_frequency: int
     optical_transport_mode: str
+    optical_transport_total_capacity: int | None = None
     optical_transport_line_ports: ListOfTwo[OpticalTransportLineChannelBlock]
     optical_transport_spectrum: OpticalSpectrumBlock

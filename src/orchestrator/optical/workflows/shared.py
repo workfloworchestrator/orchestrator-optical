@@ -311,7 +311,8 @@ def used_port_names_on_node(
     The port blocks of all pipe, spectrum and transport channel subscriptions are
     stored in the database as instances that depend on the Optical Node block of the
     node that hosts them; this function collects the ``optical_port_name`` of all of
-    them.
+    them. Subscriptions being created (INITIAL) count as users, so two concurrent
+    creates cannot book the same port name.
 
     Args:
         node_block: Optical Node block of the node to check.
@@ -327,7 +328,11 @@ def used_port_names_on_node(
             product_block_type=block_type,
             resource_type="optical_port_name",
             depending_on_instance_id=str(node_block.subscription_instance_id),
-            states=[SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING],
+            states=[
+                SubscriptionLifecycle.INITIAL,
+                SubscriptionLifecycle.ACTIVE,
+                SubscriptionLifecycle.PROVISIONING,
+            ],
         )
         for instance_value in instance_values:
             if exclude_subscription_id is not None:

@@ -1,6 +1,7 @@
 """Nokia GX G42 port-level HAL operations."""
 
 import json
+import re
 from typing import Any, Literal
 
 from orchestrator.optical.hal._common import (
@@ -351,3 +352,19 @@ def check_fiber(
                 indent=4,
             )
         )
+
+
+def get_transceiver_capacity_from_mode(mode: str) -> int | None:
+    """Return the carrier capacity in Gbit/s of a GX G42 transceiver mode.
+
+    G42 modes lead with the bitrate in Gbit/s before the ``E`` separator
+    (e.g. ``400E.63P``); anything else yields None (unknown capacity).
+
+    Args:
+        mode: The operating mode string stored on the transport channel.
+
+    Returns:
+        The capacity in Gbit/s, or None when the mode carries no bitrate.
+    """
+    match = re.match(r"(\d+)E\.", mode.strip())
+    return int(match.group(1)) if match else None

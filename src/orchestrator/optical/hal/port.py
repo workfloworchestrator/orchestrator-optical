@@ -32,6 +32,7 @@ __all__ = [
     "configure_termination_when_attaching_new_fiber",
     "factory_reset_port_configuration",
     "get_device_ports_by_role",
+    "get_transceiver_capacity_from_mode",
     "retrieve_transceiver_modes",
     "set_channel_description",
     "set_port_admin_state",
@@ -98,6 +99,37 @@ def retrieve_transceiver_modes(optical_node_block: AnyOpticalNodeBlockProvisioni
             return []
         case _:
             msg = f"retrieve_transceiver_modes: {type(optical_node_block).__name__}"
+            raise UnsupportedPlatformError(msg)
+
+
+def get_transceiver_capacity_from_mode(
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion, mode: str
+) -> int | None:
+    """Return the carrier capacity in Gbit/s of a transceiver mode on an Optical Node.
+
+    Each node family resolves the mode its own way (see the per-device
+    adapters); modes without a resolvable bitrate yield None (unknown
+    capacity), as do FlexILS nodes, whose modes are free text.
+
+    Args:
+        optical_node_block: The Optical Node hosting the line port.
+        mode: The operating mode string stored on the transport channel.
+
+    Returns:
+        The capacity in Gbit/s, or None when the capacity is unknown.
+
+    Raises:
+        UnsupportedPlatformError: If the Optical Node is not supported by this operation.
+    """
+    match _vendor_platform(optical_node_block):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
+            return groove_g30.get_transceiver_capacity_from_mode(mode)
+        case (Vendor.NOKIA, Platform.GX_G42):
+            return gx_g42.get_transceiver_capacity_from_mode(mode)
+        case (Vendor.NOKIA, Platform.FLEXILS):
+            return None
+        case _:
+            msg = f"get_transceiver_capacity_from_mode: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 
