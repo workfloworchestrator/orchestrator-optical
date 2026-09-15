@@ -47,6 +47,12 @@ and persist them with ``orchestrator db migrate-workflows``. The full list of
 shipped workflows and their import paths is in the README. Consumers with
 their own product type compose their own workflows with the shipped parts; see
 the README for the complete consumption model.
+
+The ``tasks`` subpackage ships the **system tasks** of the module
+(``Target.SYSTEM`` workflows such as the CSV bulk creation of Optical Nodes
+and Optical Pipes): unlike the product workflows they are not bound to a
+product type and fan out to the shipped product workflows, one sub-workflow
+per row. They are registered and persisted the same way.
 """
 
 #: The single state key under which a shipped block travels in the workflow

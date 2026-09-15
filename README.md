@@ -192,6 +192,45 @@ The full list of shipped workflows and their import paths:
 | `terminate_optical_module_location`   | `orchestrator.optical.workflows.optical_location.terminate_optical_location`                                         |
 | `validate_optical_module_location`    | `orchestrator.optical.workflows.optical_location.validate_optical_location`                                          |
 
+#### Bulk creation tasks
+
+The module also ships two `Target.SYSTEM` tasks that create Optical Nodes and Optical Pipes in bulk from a
+pasted CSV payload. Each task validates the payload and launches one shipped create sub-workflow per row
+(`start_process`), so every row goes through the same forms, uniqueness checks and device steps as an
+interactive create; sub-workflow progress is tracked in the Subscriptions page.
+
+| Task                         | Module                                                              |
+|------------------------------|---------------------------------------------------------------------|
+| `bulk_create_optical_nodes`  | `orchestrator.optical.workflows.tasks.bulk_create_optical_nodes`    |
+| `bulk_create_optical_pipes`  | `orchestrator.optical.workflows.tasks.bulk_create_optical_pipes`    |
+
+```python
+# mywfo/workflows/__init__.py
+from orchestrator.core.workflows import LazyWorkflowInstance
+
+LazyWorkflowInstance("orchestrator.optical.workflows.tasks.bulk_create_optical_nodes", "bulk_create_optical_nodes")
+LazyWorkflowInstance("orchestrator.optical.workflows.tasks.bulk_create_optical_pipes", "bulk_create_optical_pipes")
+```
+
+The task form collects the customer shared by the whole batch (see [Configuring the customer selection](#configuring-the-customer-selection))
+plus the CSV payload and its delimiter. The node CSV has one row per node:
+
+```
+location_code,vendor,platform,fqdn,dcn_loopback_ip,dcn_interface_ip,gmpls_id,target_id
+```
+
+`vendor`/`platform` selects the sub-workflow (`Nokia` + `FlexILS`/`Groove G30`/`GX G42`); `gmpls_id`/`target_id`
+are the FlexILS GMPLS ID and Target Identifier, mandatory on FlexILS rows and forbidden otherwise. The pipe CSV
+has one row per pipe:
+
+```
+pipe_type,node_a_fqdn,port_a_name,node_b_fqdn,port_b_name,optical_pipe_name,provider_name
+```
+
+`pipe_type` is `Span`, `Patch` or `Leased Spectrum` and selects the sub-workflow; `provider_name` is mandatory
+on leased spectrum rows (it is prefixed to the pipe name) and forbidden otherwise. An empty `optical_pipe_name`
+defaults to `"<fqdn A> <port A> --- <fqdn B> <port B>"`.
+
 ### 2. Define your own product type that has-a the shipped block (composition + optional anti-corruption layer)
 
 You are free to model your subscription as you see fit as long as your model has a

@@ -49,6 +49,8 @@
        "create_optical_module_location": "create optical module location",
        "modify_optical_module_location": "modify optical module location",
        "terminate_optical_module_location": "terminate optical module location",
-       "validate_optical_module_location": "validate optical module location"
+       "validate_optical_module_location": "validate optical module location",
+       "bulk_create_optical_nodes": "bulk create optical nodes from CSV",
+       "bulk_create_optical_pipes": "bulk create optical pipes from CSV"
    }
 }

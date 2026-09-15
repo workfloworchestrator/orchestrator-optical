@@ -5,8 +5,8 @@ workflows) as coded Alembic revisions. This module is the generator that produce
 revisions **from the shipped models**, so they never drift from the code:
 
 * :func:`generate_plan` derives the catalog directly from ``SUBSCRIPTION_MODEL_REGISTRY``
-  (the models are the single source of truth) and discovers the shipped workflows from
-  the ``orchestrator.optical.workflows`` package.
+  (the models are the single source of truth) and discovers the shipped workflows and
+  tasks from the ``orchestrator.optical.workflows`` package.
 * :func:`write_migration` renders one Alembic revision file for a plan.
 * :func:`verify_no_drift` re-runs the orchestrator-core domain-model diff against the
   database and fails if the applied migrations are not a faithful projection of the
@@ -40,6 +40,7 @@ import json
 import pkgutil
 import re
 import types
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from importlib import import_module
@@ -59,12 +60,15 @@ from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.core.domain.base import ProductBlockModel, SubscriptionModel
 from orchestrator.core.targets import Target
 from orchestrator.optical.migrations import version_schema_path
+from orchestrator.optical.products import ProductType
 
 __all__ = [
     "MigrationPlan",
+    "ShippedTask",
     "WorkflowMigration",
     "apply_migrations",
     "build_catalog",
+    "discover_shipped_tasks",
     "discover_shipped_workflows",
     "generate_plan",
     "pinned_core_revision",
@@ -108,18 +112,21 @@ CATALOG_NAMESPACE = NAMESPACE_OID
 
 #: Mapping of workflow package family to the product type the family's workflows bind to.
 #: The keys are prefixes of the shipped workflow module paths (``orchestrator.optical.workflows.<family>``),
-#: the values are ``ProductType`` values (the subscription model class names).
+#: the values are ``ProductType`` values (the subscription model class names). The values
+#: must be the full subscription class names: the generated migration links each workflow
+#: to the products whose ``product_type`` column matches, and the create-workflow engine
+#: only offers linked products.
 WORKFLOW_PRODUCT_TYPES: dict[str, str] = {
-    "optical_node.nokia_flexils": "OpticalNodeNokiaFlexIls",
-    "optical_node.nokia_groove_g30": "OpticalNodeNokiaGrooveG30",
-    "optical_node.nokia_gx_g42": "OpticalNodeNokiaGxG42",
-    "optical_coherent_pluggable": "OpticalCoherentPluggable",
-    "optical_pipe.fiber_span": "OpticalFiberSpanSubscription",
-    "optical_pipe.fiber_patch": "OpticalFiberPatchSubscription",
-    "optical_pipe.leased_spectrum": "OpticalLeasedSpectrumSubscription",
-    "optical_spectrum_service": "OpticalSpectrum",
-    "optical_digital_service": "OpticalDigitalService",
-    "optical_location": "OpticalModuleLocationSubscription",
+    "optical_node.nokia_flexils": ProductType.OPTICAL_NODE_NOKIA_FLEXILS.value,
+    "optical_node.nokia_groove_g30": ProductType.OPTICAL_NODE_NOKIA_GROOVE_G30.value,
+    "optical_node.nokia_gx_g42": ProductType.OPTICAL_NODE_NOKIA_GX_G42.value,
+    "optical_coherent_pluggable": ProductType.OPTICAL_COHERENT_PLUGGABLE_CISCO_DP04QSDD_HK9.value,
+    "optical_pipe.fiber_span": ProductType.OPTICAL_FIBER_SPAN.value,
+    "optical_pipe.fiber_patch": ProductType.OPTICAL_FIBER_PATCH.value,
+    "optical_pipe.leased_spectrum": ProductType.OPTICAL_LEASED_SPECTRUM.value,
+    "optical_spectrum_service": ProductType.OPTICAL_SPECTRUM.value,
+    "optical_digital_service": ProductType.OPTICAL_DIGITAL_SERVICE_100G_ETHERNET.value,
+    "optical_location": ProductType.OPTICAL_MODULE_LOCATION.value,
 }
 
 _TRANSLATIONS_PATH = Path(orchestrator.optical.products.__file__).parent.parent / "translations" / "en-GB.json"
@@ -145,6 +152,18 @@ class WorkflowMigration:
 
 
 @dataclass(frozen=True)
+class ShippedTask:
+    """A shipped system task as it is inserted into the ``workflows`` table by a migration."""
+
+    name: str
+    description: str
+
+    def as_migration_dict(self) -> dict[str, str]:
+        """Return the dict accepted by ``orchestrator.core.migrations.helpers.create_task``."""
+        return {"name": self.name, "description": self.description}
+
+
+@dataclass(frozen=True)
 class MigrationPlan:
     """The full content of one shipped migration: catalog rows plus workflow rows.
 
@@ -155,6 +174,7 @@ class MigrationPlan:
     catalog: dict[str, dict[str, Any]]
     workflows: tuple[WorkflowMigration, ...]
     revision: str
+    tasks: tuple[ShippedTask, ...] = ()
 
     @property
     def product_names(self) -> tuple[str, ...]:
@@ -169,7 +189,7 @@ class MigrationPlan:
     @property
     def is_empty(self) -> bool:
         """Whether the plan contains no catalog rows and no workflows."""
-        return not self.product_names and not self.block_names and not self.workflows
+        return not self.product_names and not self.block_names and not self.workflows and not self.tasks
 
     def upgrade_body(self) -> str:
         """Return the indented body of the migration's ``upgrade()``."""
@@ -179,11 +199,13 @@ class MigrationPlan:
         lines.extend(
             f"create_workflow(conn, {_render_dict(workflow.as_migration_dict())})" for workflow in self.workflows
         )
+        lines.extend(f"create_task(conn, {_render_dict(task.as_migration_dict())})" for task in self.tasks)
         return _indent("\n".join(lines), 4)
 
     def downgrade_body(self) -> str:
         """Return the indented body of the migration's ``downgrade()``."""
         lines = ["conn = op.get_bind()"]
+        lines.extend(f"delete_workflow(conn, {task.name!r})" for task in reversed(self.tasks))
         lines.extend(f"delete_workflow(conn, {workflow.name!r})" for workflow in reversed(self.workflows))
         if not self.is_empty:
             deletes = {"products": list(self.product_names), "product_blocks": list(self.block_names)}
@@ -437,16 +459,17 @@ def workflow_product_type(module_name: str) -> str:
     raise UnknownWorkflowFamilyError(message)
 
 
-def discover_shipped_workflows() -> tuple[WorkflowMigration, ...]:
-    """Discover the shipped workflows from the ``orchestrator.optical.workflows`` package.
+def _iter_shipped_workflow_functions() -> Iterator[tuple[str, Any]]:
+    """Yield the module name and function of every decorated shipped workflow or task.
 
-    The shipped workflows are the module-level functions decorated with
-    ``@create_workflow``/``@modify_workflow``/``@terminate_workflow``/``@validate_workflow``
-    (they carry a ``target`` attribute). The descriptions come from the shipped
-    translations file; the product type from :func:`workflow_product_type`.
+    Shipped workflows and tasks are the module-level functions decorated with
+    ``@create_workflow``/``@modify_workflow``/``@terminate_workflow``/
+    ``@validate_workflow``/``@reconcile_workflow``/``@workflow`` (they carry a
+    ``target`` attribute).
+
+    Yields:
+        ``(module_name, function)`` pairs, one per decorated function.
     """
-    descriptions = _workflow_descriptions()
-    workflows: list[WorkflowMigration] = []
     for module_info in pkgutil.walk_packages(
         orchestrator.optical.workflows.__path__, orchestrator.optical.workflows.__name__ + "."
     ):
@@ -459,21 +482,63 @@ def discover_shipped_workflows() -> tuple[WorkflowMigration, ...]:
             # raises when no database is configured.
             if attribute_name.startswith("_") or not inspect.isfunction(attribute):
                 continue
-            target = getattr(attribute, "target", None)
-            if not isinstance(target, Target):
+            if not isinstance(getattr(attribute, "target", None), Target):
                 continue
-            workflows.append(
-                WorkflowMigration(
-                    name=attribute.__name__,
-                    target=target.value,
-                    description=descriptions.get(attribute.__name__, attribute.__name__),
-                    product_type=workflow_product_type(module_info.name),
-                )
+            yield module_info.name, attribute
+
+
+def discover_shipped_workflows() -> tuple[WorkflowMigration, ...]:
+    """Discover the shipped product workflows from the ``orchestrator.optical.workflows`` package.
+
+    The shipped product workflows are the module-level functions decorated with
+    ``@create_workflow``/``@modify_workflow``/``@terminate_workflow``/``@validate_workflow``/
+    ``@reconcile_workflow`` (they carry a non-SYSTEM ``target`` attribute). The
+    descriptions come from the shipped translations file; the product type from
+    :func:`workflow_product_type`. System tasks (``Target.SYSTEM``) are not
+    product workflows; they are discovered separately by
+    :func:`discover_shipped_tasks`.
+    """
+    descriptions = _workflow_descriptions()
+    workflows: list[WorkflowMigration] = []
+    for module_name, attribute in _iter_shipped_workflow_functions():
+        if attribute.target is Target.SYSTEM:
+            continue
+        workflows.append(
+            WorkflowMigration(
+                name=attribute.__name__,
+                target=attribute.target.value,
+                description=descriptions.get(attribute.__name__, attribute.__name__),
+                product_type=workflow_product_type(module_name),
             )
+        )
     return tuple(sorted(workflows, key=lambda workflow: (workflow.product_type, workflow.target, workflow.name)))
 
 
-def _plan_revision(catalog: dict[str, Any], workflows: tuple[WorkflowMigration, ...]) -> str:
+def discover_shipped_tasks() -> tuple[ShippedTask, ...]:
+    """Discover the shipped system tasks from the ``orchestrator.optical.workflows`` package.
+
+    The shipped tasks are the module-level functions decorated with ``@workflow``
+    carrying a ``Target.SYSTEM`` target (currently the CSV bulk creation tasks).
+    Tasks are not bound to a product type; their descriptions come from the
+    shipped translations file, like the product workflows.
+    """
+    descriptions = _workflow_descriptions()
+    tasks = [
+        ShippedTask(
+            name=attribute.__name__,
+            description=descriptions.get(attribute.__name__, attribute.__name__),
+        )
+        for _, attribute in _iter_shipped_workflow_functions()
+        if attribute.target is Target.SYSTEM
+    ]
+    return tuple(sorted(tasks, key=lambda task: task.name))
+
+
+def _plan_revision(
+    catalog: dict[str, Any],
+    workflows: tuple[WorkflowMigration, ...],
+    tasks: tuple[ShippedTask, ...],
+) -> str:
     """Return a deterministic revision id derived from the plan content.
 
     Regenerating a plan with unchanged models yields the same revision id, so applying it
@@ -482,6 +547,7 @@ def _plan_revision(catalog: dict[str, Any], workflows: tuple[WorkflowMigration, 
     content = json.dumps(catalog, sort_keys=True) + json.dumps(
         [w.as_migration_dict() for w in workflows], sort_keys=True
     )
+    content += json.dumps([t.as_migration_dict() for t in tasks], sort_keys=True)
     return hashlib.sha1(content.encode()).hexdigest()[:12]  # noqa: S324  # content hash, not security
 
 
@@ -492,7 +558,10 @@ def generate_plan() -> MigrationPlan:
     """
     catalog = build_catalog()
     workflows = discover_shipped_workflows()
-    return MigrationPlan(catalog=catalog, workflows=workflows, revision=_plan_revision(catalog, workflows))
+    tasks = discover_shipped_tasks()
+    return MigrationPlan(
+        catalog=catalog, workflows=workflows, revision=_plan_revision(catalog, workflows, tasks), tasks=tasks
+    )
 
 
 def _render_dict(value: dict[str, Any]) -> str:
@@ -519,6 +588,7 @@ def render_migration(plan: MigrationPlan, *, down_revision: str, message: str, c
         The full migration file content.
     """
     create_date = create_date or datetime.now(UTC).date()
+    helper_names = ["create", "create_task", "create_workflow", "delete", "delete_workflow"]
     header_lines = [
         f'"""{message}',
         "",
@@ -529,7 +599,7 @@ def render_migration(plan: MigrationPlan, *, down_revision: str, message: str, c
         '"""',
         "from alembic import op",
         "",
-        "from orchestrator.core.migrations.helpers import create, create_workflow, delete, delete_workflow",
+        f"from orchestrator.core.migrations.helpers import {', '.join(helper_names)}",
         "",
         "# revision identifiers, used by Alembic.",
         f"revision = {plan.revision!r}",

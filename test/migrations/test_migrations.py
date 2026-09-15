@@ -16,6 +16,7 @@ from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
 from orchestrator.optical.migrations import add_optical_module_migrations, alembic_cfg, version_schema_path
 from orchestrator.optical.migrations.generate import (
     build_catalog,
+    discover_shipped_tasks,
     discover_shipped_workflows,
     generate_plan,
     pinned_core_revision,
@@ -23,14 +24,15 @@ from orchestrator.optical.migrations.generate import (
     workflow_product_type,
 )
 
-#: The optical pipe product types and the Optical Spectrum service ship a
-#: reconcile workflow in addition to the standard create/modify/terminate/validate
-#: set.
+#: The optical pipe product types, the Optical Spectrum service and the Optical Digital
+#: Service ship a reconcile workflow in addition to the standard
+#: create/modify/terminate/validate set.
 RECONCILE_PRODUCT_TYPES = {
     "OpticalFiberSpanSubscription",
     "OpticalFiberPatchSubscription",
     "OpticalLeasedSpectrumSubscription",
-    "OpticalSpectrum",
+    "OpticalSpectrumServiceSubscription",
+    "OpticalDigitalServiceSubscription",
 }
 
 STANDARD_TARGETS = {"CREATE", "MODIFY", "TERMINATE", "VALIDATE"}
@@ -56,6 +58,19 @@ def test_shipped_workflow_discovery_contract() -> None:
     for product_type, targets in by_product_type.items():
         expected_targets = RECONCILE_TARGETS if product_type in RECONCILE_PRODUCT_TYPES else STANDARD_TARGETS
         assert targets == expected_targets, product_type
+
+
+def test_shipped_task_discovery_contract() -> None:
+    """Every shipped task is discovered once, carries a display string and stays disjoint from workflows."""
+    tasks = discover_shipped_tasks()
+    assert tasks, "no shipped tasks discovered"
+    names = [task.name for task in tasks]
+    assert len(names) == len(set(names)), "duplicate shipped task names"
+    for task in tasks:
+        assert task.description
+
+    workflow_names = {workflow.name for workflow in discover_shipped_workflows()}
+    assert not (set(names) & workflow_names), "a shipped name is both a workflow and a task"
 
 
 def test_workflow_product_type_rejects_unknown_family() -> None:
@@ -96,6 +111,7 @@ def test_plan_is_deterministic() -> None:
     assert first.revision == second.revision
     assert first.catalog == second.catalog
     assert first.workflows == second.workflows
+    assert first.tasks == second.tasks
     assert not first.is_empty
 
 
@@ -110,6 +126,7 @@ def test_rendered_migration_is_valid_python() -> None:
     assert f"revision = '{plan.revision}'" in rendered
     assert f"down_revision = '{down_revision}'" in rendered
     assert "from orchestrator.core.migrations.helpers import create" in rendered
+    assert "create_task(conn" in rendered
     assert "def upgrade() -> None:" in rendered
     assert "def downgrade() -> None:" in rendered
     # The downgrade deletes the workflows and the catalog rows.
@@ -173,3 +190,27 @@ def test_provisioned_catalog_contains_the_shipped_workflows(postgres_database) -
         row = rows[workflow.name]
         assert row.target == workflow.target
         assert row.is_task is False
+
+
+@pytest.mark.db
+def test_provisioned_catalog_contains_the_shipped_tasks(postgres_database) -> None:
+    """The generated migration provisions the workflows table with the shipped tasks as tasks."""
+    from sqlalchemy import select
+
+    from orchestrator.core.db import WorkflowTable
+
+    discovered = discover_shipped_tasks()
+    assert discovered, "no shipped tasks discovered"
+    with postgres_database.database_scope():
+        rows = {
+            row.name: row
+            for row in postgres_database.session.scalars(
+                select(WorkflowTable).where(WorkflowTable.name.in_([task.name for task in discovered]))
+            )
+        }
+    assert len(rows) == len(discovered)
+    for task in discovered:
+        row = rows[task.name]
+        assert row.target == "SYSTEM"
+        assert row.is_task is True
+        assert row.description == task.description

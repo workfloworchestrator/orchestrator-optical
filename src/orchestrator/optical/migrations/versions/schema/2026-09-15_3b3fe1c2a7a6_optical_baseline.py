@@ -2,13 +2,13 @@
 
 Revision ID: 3b3fe1c2a7a6
 Revises: ca79fd834ba0
-Create Date: 2026-09-11
+Create Date: 2026-09-15
 
 """
 
 from alembic import op
 
-from orchestrator.core.migrations.helpers import create, create_workflow, delete, delete_workflow
+from orchestrator.core.migrations.helpers import create, create_task, create_workflow, delete, delete_workflow
 
 # revision identifiers, used by Alembic.
 revision = "3b3fe1c2a7a6"
@@ -25,7 +25,7 @@ def upgrade() -> None:
             "products": {
                 "Cisco DP04QSDD HK9 Coherent Pluggable": {
                     "product_id": "32183c75-8eb4-513d-b476-b2732d98cb8c",
-                    "product_type": "OpticalCoherentPluggable",
+                    "product_type": "OpticalCoherentPluggableSubscription",
                     "description": "Cisco DP04QSDD HK9 Coherent Pluggable",
                     "tag": "CISCO_DP04_QSDD_HK9_",
                     "status": "active",
@@ -34,7 +34,7 @@ def upgrade() -> None:
                 },
                 "Cisco QDD 400G ZR+ Coherent Pluggable": {
                     "product_id": "f171d241-e35c-55bc-b10c-7cce850598eb",
-                    "product_type": "OpticalCoherentPluggable",
+                    "product_type": "OpticalCoherentPluggableSubscription",
                     "description": "Cisco QDD 400G ZR+ Coherent Pluggable",
                     "tag": "CISCO_QDD_400_G_ZR_C",
                     "status": "active",
@@ -43,7 +43,7 @@ def upgrade() -> None:
                 },
                 "100G Ethernet Optical Digital Service": {
                     "product_id": "6e891792-2bf8-59ce-9744-3efd8bfe7d05",
-                    "product_type": "OpticalDigitalService",
+                    "product_type": "OpticalDigitalServiceSubscription",
                     "description": "100G Ethernet Optical Digital Service",
                     "tag": "100_G_ETHERNET_OPTIC",
                     "status": "active",
@@ -55,7 +55,7 @@ def upgrade() -> None:
                 },
                 "400G Ethernet Optical Digital Service": {
                     "product_id": "b3a92f9d-57e3-5273-ae34-28e52579aafa",
-                    "product_type": "OpticalDigitalService",
+                    "product_type": "OpticalDigitalServiceSubscription",
                     "description": "400G Ethernet Optical Digital Service",
                     "tag": "400_G_ETHERNET_OPTIC",
                     "status": "active",
@@ -67,7 +67,7 @@ def upgrade() -> None:
                 },
                 "800G Ethernet Optical Digital Service": {
                     "product_id": "de0e0e28-6078-58ee-9c49-1c63df688c87",
-                    "product_type": "OpticalDigitalService",
+                    "product_type": "OpticalDigitalServiceSubscription",
                     "description": "800G Ethernet Optical Digital Service",
                     "tag": "800_G_ETHERNET_OPTIC",
                     "status": "active",
@@ -95,7 +95,7 @@ def upgrade() -> None:
                 },
                 "Nokia FlexILS Optical Node": {
                     "product_id": "e0c15bd6-578f-5c29-98f8-0c0866001326",
-                    "product_type": "OpticalNodeNokiaFlexIls",
+                    "product_type": "OpticalNodeNokiaFlexIlsSubscription",
                     "description": "Nokia FlexILS Optical Node",
                     "tag": "NOKIA_FLEX_ILS_OPTIC",
                     "status": "active",
@@ -103,7 +103,7 @@ def upgrade() -> None:
                 },
                 "Nokia Groove G30 Optical Node": {
                     "product_id": "52667c13-3ab0-5272-8a5a-e3ffe2f634a8",
-                    "product_type": "OpticalNodeNokiaGrooveG30",
+                    "product_type": "OpticalNodeNokiaGrooveG30Subscription",
                     "description": "Nokia Groove G30 Optical Node",
                     "tag": "NOKIA_GROOVE_G30_OPT",
                     "status": "active",
@@ -111,7 +111,7 @@ def upgrade() -> None:
                 },
                 "Nokia GX G42 Optical Node": {
                     "product_id": "5245a251-5893-577b-b294-8fd31fc236ac",
-                    "product_type": "OpticalNodeNokiaGxG42",
+                    "product_type": "OpticalNodeNokiaGxG42Subscription",
                     "description": "Nokia GX G42 Optical Node",
                     "tag": "NOKIA_GX_G42_OPTICAL",
                     "status": "active",
@@ -127,7 +127,7 @@ def upgrade() -> None:
                 },
                 "Optical Spectrum": {
                     "product_id": "d94b809c-bbe2-55cc-9fa7-efb210f07e74",
-                    "product_type": "OpticalSpectrum",
+                    "product_type": "OpticalSpectrumServiceSubscription",
                     "description": "Optical Spectrum",
                     "tag": "OPTICAL_SPECTRUM",
                     "status": "active",
@@ -274,9 +274,9 @@ def upgrade() -> None:
                     "depends_on_block_relations": ["OlsAddDropPortBlock", "OlsLinePortBlock"],
                 },
                 "OpticalSpectrumServiceBlock": {
-                    "product_block_id": "163e7fed-c2e0-5102-906d-1cad2d967fac",
+                    "product_block_id": "4d6cb2b3-e66c-5310-b8c3-dc9eed1fb254",
                     "description": "Active state of the Optical Spectrum product block.",
-                    "tag": "OPTICAL_SPECTRUM_BLO",
+                    "tag": "OPTICAL_SPECTRUM_SER",
                     "status": "active",
                     "resources": {
                         "optical_spectrum_name": "Optical Spectrum Name",
@@ -376,7 +376,7 @@ def upgrade() -> None:
             "name": "create_optical_coherent_pluggable",
             "target": "CREATE",
             "description": "create optical coherent pluggable",
-            "product_type": "OpticalCoherentPluggable",
+            "product_type": "OpticalCoherentPluggableSubscription",
         },
     )
     create_workflow(
@@ -385,7 +385,7 @@ def upgrade() -> None:
             "name": "modify_optical_coherent_pluggable",
             "target": "MODIFY",
             "description": "modify optical coherent pluggable",
-            "product_type": "OpticalCoherentPluggable",
+            "product_type": "OpticalCoherentPluggableSubscription",
         },
     )
     create_workflow(
@@ -394,7 +394,7 @@ def upgrade() -> None:
             "name": "terminate_optical_coherent_pluggable",
             "target": "TERMINATE",
             "description": "terminate optical coherent pluggable",
-            "product_type": "OpticalCoherentPluggable",
+            "product_type": "OpticalCoherentPluggableSubscription",
         },
     )
     create_workflow(
@@ -403,7 +403,7 @@ def upgrade() -> None:
             "name": "validate_optical_coherent_pluggable",
             "target": "VALIDATE",
             "description": "validate optical coherent pluggable",
-            "product_type": "OpticalCoherentPluggable",
+            "product_type": "OpticalCoherentPluggableSubscription",
         },
     )
     create_workflow(
@@ -412,7 +412,7 @@ def upgrade() -> None:
             "name": "create_optical_digital_service",
             "target": "CREATE",
             "description": "create optical digital service",
-            "product_type": "OpticalDigitalService",
+            "product_type": "OpticalDigitalServiceSubscription",
         },
     )
     create_workflow(
@@ -421,7 +421,16 @@ def upgrade() -> None:
             "name": "modify_optical_digital_service",
             "target": "MODIFY",
             "description": "modify optical digital service",
-            "product_type": "OpticalDigitalService",
+            "product_type": "OpticalDigitalServiceSubscription",
+        },
+    )
+    create_workflow(
+        conn,
+        {
+            "name": "reconcile_optical_digital_service",
+            "target": "RECONCILE",
+            "description": "reconcile optical digital service",
+            "product_type": "OpticalDigitalServiceSubscription",
         },
     )
     create_workflow(
@@ -430,7 +439,7 @@ def upgrade() -> None:
             "name": "terminate_optical_digital_service",
             "target": "TERMINATE",
             "description": "terminate optical digital service",
-            "product_type": "OpticalDigitalService",
+            "product_type": "OpticalDigitalServiceSubscription",
         },
     )
     create_workflow(
@@ -439,7 +448,7 @@ def upgrade() -> None:
             "name": "validate_optical_digital_service",
             "target": "VALIDATE",
             "description": "validate optical digital service",
-            "product_type": "OpticalDigitalService",
+            "product_type": "OpticalDigitalServiceSubscription",
         },
     )
     create_workflow(
@@ -619,7 +628,7 @@ def upgrade() -> None:
             "name": "create_optical_node_nokia_flexils",
             "target": "CREATE",
             "description": "create Nokia FlexILS optical node",
-            "product_type": "OpticalNodeNokiaFlexIls",
+            "product_type": "OpticalNodeNokiaFlexIlsSubscription",
         },
     )
     create_workflow(
@@ -628,7 +637,7 @@ def upgrade() -> None:
             "name": "modify_optical_node_nokia_flexils",
             "target": "MODIFY",
             "description": "modify Nokia FlexILS optical node",
-            "product_type": "OpticalNodeNokiaFlexIls",
+            "product_type": "OpticalNodeNokiaFlexIlsSubscription",
         },
     )
     create_workflow(
@@ -637,7 +646,7 @@ def upgrade() -> None:
             "name": "terminate_optical_node_nokia_flexils",
             "target": "TERMINATE",
             "description": "terminate Nokia FlexILS optical node",
-            "product_type": "OpticalNodeNokiaFlexIls",
+            "product_type": "OpticalNodeNokiaFlexIlsSubscription",
         },
     )
     create_workflow(
@@ -646,7 +655,7 @@ def upgrade() -> None:
             "name": "validate_optical_node_nokia_flexils",
             "target": "VALIDATE",
             "description": "validate Nokia FlexILS optical node",
-            "product_type": "OpticalNodeNokiaFlexIls",
+            "product_type": "OpticalNodeNokiaFlexIlsSubscription",
         },
     )
     create_workflow(
@@ -655,7 +664,7 @@ def upgrade() -> None:
             "name": "create_optical_node_nokia_groove_g30",
             "target": "CREATE",
             "description": "create Nokia Groove G30 optical node",
-            "product_type": "OpticalNodeNokiaGrooveG30",
+            "product_type": "OpticalNodeNokiaGrooveG30Subscription",
         },
     )
     create_workflow(
@@ -664,7 +673,7 @@ def upgrade() -> None:
             "name": "modify_optical_node_nokia_groove_g30",
             "target": "MODIFY",
             "description": "modify Nokia Groove G30 optical node",
-            "product_type": "OpticalNodeNokiaGrooveG30",
+            "product_type": "OpticalNodeNokiaGrooveG30Subscription",
         },
     )
     create_workflow(
@@ -673,7 +682,7 @@ def upgrade() -> None:
             "name": "terminate_optical_node_nokia_groove_g30",
             "target": "TERMINATE",
             "description": "terminate Nokia Groove G30 optical node",
-            "product_type": "OpticalNodeNokiaGrooveG30",
+            "product_type": "OpticalNodeNokiaGrooveG30Subscription",
         },
     )
     create_workflow(
@@ -682,7 +691,7 @@ def upgrade() -> None:
             "name": "validate_optical_node_nokia_groove_g30",
             "target": "VALIDATE",
             "description": "validate Nokia Groove G30 optical node",
-            "product_type": "OpticalNodeNokiaGrooveG30",
+            "product_type": "OpticalNodeNokiaGrooveG30Subscription",
         },
     )
     create_workflow(
@@ -691,7 +700,7 @@ def upgrade() -> None:
             "name": "create_optical_node_nokia_gx_g42",
             "target": "CREATE",
             "description": "create Nokia GX G42 optical node",
-            "product_type": "OpticalNodeNokiaGxG42",
+            "product_type": "OpticalNodeNokiaGxG42Subscription",
         },
     )
     create_workflow(
@@ -700,7 +709,7 @@ def upgrade() -> None:
             "name": "modify_optical_node_nokia_gx_g42",
             "target": "MODIFY",
             "description": "modify Nokia GX G42 optical node",
-            "product_type": "OpticalNodeNokiaGxG42",
+            "product_type": "OpticalNodeNokiaGxG42Subscription",
         },
     )
     create_workflow(
@@ -709,7 +718,7 @@ def upgrade() -> None:
             "name": "terminate_optical_node_nokia_gx_g42",
             "target": "TERMINATE",
             "description": "terminate Nokia GX G42 optical node",
-            "product_type": "OpticalNodeNokiaGxG42",
+            "product_type": "OpticalNodeNokiaGxG42Subscription",
         },
     )
     create_workflow(
@@ -718,7 +727,7 @@ def upgrade() -> None:
             "name": "validate_optical_node_nokia_gx_g42",
             "target": "VALIDATE",
             "description": "validate Nokia GX G42 optical node",
-            "product_type": "OpticalNodeNokiaGxG42",
+            "product_type": "OpticalNodeNokiaGxG42Subscription",
         },
     )
     create_workflow(
@@ -727,7 +736,7 @@ def upgrade() -> None:
             "name": "create_optical_spectrum",
             "target": "CREATE",
             "description": "create optical spectrum service",
-            "product_type": "OpticalSpectrum",
+            "product_type": "OpticalSpectrumServiceSubscription",
         },
     )
     create_workflow(
@@ -736,7 +745,7 @@ def upgrade() -> None:
             "name": "modify_optical_spectrum",
             "target": "MODIFY",
             "description": "modify optical spectrum service",
-            "product_type": "OpticalSpectrum",
+            "product_type": "OpticalSpectrumServiceSubscription",
         },
     )
     create_workflow(
@@ -745,7 +754,7 @@ def upgrade() -> None:
             "name": "reconcile_optical_spectrum",
             "target": "RECONCILE",
             "description": "reconcile optical spectrum service",
-            "product_type": "OpticalSpectrum",
+            "product_type": "OpticalSpectrumServiceSubscription",
         },
     )
     create_workflow(
@@ -754,7 +763,7 @@ def upgrade() -> None:
             "name": "terminate_optical_spectrum",
             "target": "TERMINATE",
             "description": "terminate optical spectrum service",
-            "product_type": "OpticalSpectrum",
+            "product_type": "OpticalSpectrumServiceSubscription",
         },
     )
     create_workflow(
@@ -763,13 +772,17 @@ def upgrade() -> None:
             "name": "validate_optical_spectrum",
             "target": "VALIDATE",
             "description": "validate optical spectrum service",
-            "product_type": "OpticalSpectrum",
+            "product_type": "OpticalSpectrumServiceSubscription",
         },
     )
+    create_task(conn, {"name": "bulk_create_optical_nodes", "description": "bulk create optical nodes from CSV"})
+    create_task(conn, {"name": "bulk_create_optical_pipes", "description": "bulk create optical pipes from CSV"})
 
 
 def downgrade() -> None:
     conn = op.get_bind()
+    delete_workflow(conn, "bulk_create_optical_pipes")
+    delete_workflow(conn, "bulk_create_optical_nodes")
     delete_workflow(conn, "validate_optical_spectrum")
     delete_workflow(conn, "terminate_optical_spectrum")
     delete_workflow(conn, "reconcile_optical_spectrum")
@@ -808,6 +821,7 @@ def downgrade() -> None:
     delete_workflow(conn, "create_fiber_patch")
     delete_workflow(conn, "validate_optical_digital_service")
     delete_workflow(conn, "terminate_optical_digital_service")
+    delete_workflow(conn, "reconcile_optical_digital_service")
     delete_workflow(conn, "modify_optical_digital_service")
     delete_workflow(conn, "create_optical_digital_service")
     delete_workflow(conn, "validate_optical_coherent_pluggable")
