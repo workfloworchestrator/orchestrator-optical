@@ -49,12 +49,12 @@ from orchestrator.optical.products.product_blocks.optical_location import (
 )
 from orchestrator.optical.utils.custom_types.coordinates import LatitudeCoordinate, LongitudeCoordinate
 from orchestrator.optical.workflows.customer import customer_choice_form_page
-from orchestrator.optical.workflows.optical_location.create import (
+from orchestrator.optical.workflows.optical_location.create_optical_location import (
     CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
     create_optical_module_location_form_generator,
     populate_optical_module_location_block,
 )
-from orchestrator.optical.workflows.optical_location.modify import (
+from orchestrator.optical.workflows.optical_location.modify_optical_location import (
     MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
     modify_optical_module_location_form_pages,
 )
@@ -62,11 +62,13 @@ from orchestrator.optical.workflows.optical_location.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     set_optical_module_location_subscription_description,
 )
-from orchestrator.optical.workflows.optical_location.terminate import (
+from orchestrator.optical.workflows.optical_location.terminate_optical_location import (
     OPTICAL_MODULE_LOCATION_TERMINATE_STEPS,
     terminate_initial_input_form_generator,
 )
-from orchestrator.optical.workflows.optical_location.validate import OPTICAL_MODULE_LOCATION_VALIDATE_STEPS
+from orchestrator.optical.workflows.optical_location.validate_optical_location import (
+    OPTICAL_MODULE_LOCATION_VALIDATE_STEPS,
+)
 from orchestrator.optical.workflows.shared import modify_summary_form
 from test.support.catalog import seed_consumer_catalog
 from test.support.models import (

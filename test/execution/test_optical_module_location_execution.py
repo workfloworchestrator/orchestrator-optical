@@ -36,7 +36,9 @@ from orchestrator.optical.workflows.optical_location.shared import (
     check_location_code_uniqueness,
     optical_location_block_from_state,
 )
-from orchestrator.optical.workflows.optical_location.validate import validate_optical_module_location_block_step
+from orchestrator.optical.workflows.optical_location.validate_optical_location import (
+    validate_optical_module_location_block_step,
+)
 
 pytestmark = pytest.mark.db
 

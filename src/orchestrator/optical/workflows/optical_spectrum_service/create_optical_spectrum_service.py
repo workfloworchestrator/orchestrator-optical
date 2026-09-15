@@ -48,11 +48,11 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
 )
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
-from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumBlockInactive
-from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
+from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumServiceBlockInactive
+from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNodeSubscription
 from orchestrator.optical.products.product_types.optical_spectrum_service import (
-    OpticalSpectrumInactive,
-    OpticalSpectrumProvisioning,
+    OpticalSpectrumServiceSubscriptionInactive,
+    OpticalSpectrumServiceSubscriptionProvisioning,
 )
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
@@ -341,8 +341,8 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
         (yield create_optical_spectrum_nodes_form(product_name, node_a_choice, node_b_choice)).model_dump()
     )
 
-    node_a = AbstractOpticalNode.from_subscription(user_input_dict["src_optical_device_id"]).optical_node
-    node_b = AbstractOpticalNode.from_subscription(user_input_dict["dst_optical_device_id"]).optical_node
+    node_a = AbstractOpticalNodeSubscription.from_subscription(user_input_dict["src_optical_device_id"]).optical_node
+    node_b = AbstractOpticalNodeSubscription.from_subscription(user_input_dict["dst_optical_device_id"]).optical_node
 
     src_port_choice = optical_port_selector(
         node_a,
@@ -454,7 +454,7 @@ def create_optical_spectrum_form_generator(product_name: str) -> FormGenerator:
 
 
 def populate_optical_spectrum_block(
-    optical_module_block: OpticalSpectrumBlockInactive,
+    optical_module_block: OpticalSpectrumServiceBlockInactive,
     optical_spectrum_name: str,
     frequency_min: Frequency,
     frequency_max: Frequency,
@@ -500,14 +500,14 @@ def construct_optical_spectrum_subscription(
     block step :func:`orchestrator.optical.workflows.block.save_optical_module_block`.
 
     Consumers that define their own product type (composing the
-    ``OpticalSpectrumBlock`` under their own attribute name) write their own
+    ``OpticalSpectrumServiceBlock`` under their own attribute name) write their own
     construct step instead: it builds their subscription, populates the composed
     block with the mandatory fields set (e.g. via
     :func:`populate_optical_spectrum_block`), creates the add/drop ports, stores
     the sections, transitions it to PROVISIONING and puts the block in the state
     under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
-    subscription = OpticalSpectrumInactive.from_product_id(
+    subscription = OpticalSpectrumServiceSubscriptionInactive.from_product_id(
         product_id=product,
         customer_id=customer_id,
         status=SubscriptionLifecycle.INITIAL,
@@ -519,8 +519,8 @@ def construct_optical_spectrum_subscription(
         frequency_max,
     )
 
-    src_device = AbstractOpticalNode.from_subscription(src_optical_device_id).optical_node
-    dst_device = AbstractOpticalNode.from_subscription(dst_optical_device_id).optical_node
+    src_device = AbstractOpticalNodeSubscription.from_subscription(src_optical_device_id).optical_node
+    dst_device = AbstractOpticalNodeSubscription.from_subscription(dst_optical_device_id).optical_node
 
     check_optical_spectrum_add_drop_port_availability(
         src_device,
@@ -556,7 +556,9 @@ def construct_optical_spectrum_subscription(
     sections = split_loaded_path_into_loaded_sections([src_port, *interior, dst_port])
     store_loaded_sections_into_spectrum_block(sections, subscription.optical_spectrum_service)
 
-    subscription = OpticalSpectrumProvisioning.from_other_lifecycle(subscription, SubscriptionLifecycle.PROVISIONING)
+    subscription = OpticalSpectrumServiceSubscriptionProvisioning.from_other_lifecycle(
+        subscription, SubscriptionLifecycle.PROVISIONING
+    )
 
     return {
         "subscription": subscription,
@@ -566,7 +568,7 @@ def construct_optical_spectrum_subscription(
 
 
 @step("Adding a description to the add/drop ports")
-def configure_add_drop_ports_description(optical_module_block: OpticalSpectrumBlockInactive) -> State:
+def configure_add_drop_ports_description(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
     """Set the port description on the device for the source and destination add/drop ports.
 
     Operates only on the Optical Spectrum block found in the state under

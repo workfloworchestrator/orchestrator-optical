@@ -27,6 +27,7 @@ OpticalTransportChannelList = Annotated[
     "Two channels means reverse multiplexing: two transport channels for one client service.",
 ]
 
+
 class OpticalDigitalServiceSpeed(IntEnum):
     """Speed of an optical port in Gbit/s."""
 

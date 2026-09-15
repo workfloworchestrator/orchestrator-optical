@@ -27,19 +27,19 @@ workflows with the standard orchestrator-core mechanism, one
     from orchestrator.core.workflows import LazyWorkflowInstance
 
     LazyWorkflowInstance(
-        "orchestrator.optical.workflows.optical_node.nokia_flexils.create",
+        "orchestrator.optical.workflows.optical_node.nokia_flexils.create_nokia_flexils",
         "create_optical_node_nokia_flexils",
     )
     LazyWorkflowInstance(
-        "orchestrator.optical.workflows.optical_node.nokia_flexils.modify",
+        "orchestrator.optical.workflows.optical_node.nokia_flexils.modify_nokia_flexils",
         "modify_optical_node_nokia_flexils",
     )
     LazyWorkflowInstance(
-        "orchestrator.optical.workflows.optical_node.nokia_flexils.terminate",
+        "orchestrator.optical.workflows.optical_node.nokia_flexils.terminate_nokia_flexils",
         "terminate_optical_node_nokia_flexils",
     )
     LazyWorkflowInstance(
-        "orchestrator.optical.workflows.optical_node.nokia_flexils.validate",
+        "orchestrator.optical.workflows.optical_node.nokia_flexils.validate_nokia_flexils",
         "validate_optical_node_nokia_flexils",
     )
 

@@ -43,11 +43,11 @@ from orchestrator.optical.hal.spectrum import (
     modify_optical_circuit,
 )
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalOlsPortBlockInactive
-from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumServiceBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlockProvisioning,
 )
-from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
+from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrumServiceSubscription
 from orchestrator.optical.utils.custom_types.frequencies import Frequency, Passband
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
@@ -329,7 +329,7 @@ def modify_optical_spectrum_form_pages(
 
 def modify_optical_spectrum_form_generator(
     subscription_id: UUIDstr,
-    subscription_model: type[SubscriptionModel] = OpticalSpectrum,
+    subscription_model: type[SubscriptionModel] = OpticalSpectrumServiceSubscription,
     block_field_name: str = "optical_spectrum_service",
 ) -> FormGenerator:
     """Generate the initial input form for modifying an Optical Spectrum subscription.
@@ -365,7 +365,7 @@ def modify_optical_spectrum_form_generator(
 
 @step("Updating Optical Spectrum block")
 def update_optical_spectrum_block(
-    optical_module_block: OpticalSpectrumBlockProvisioning,
+    optical_module_block: OpticalSpectrumServiceBlockProvisioning,
     optical_spectrum_name: str,
     frequency_min: Frequency,
     frequency_max: Frequency,
@@ -402,7 +402,7 @@ def update_optical_spectrum_block(
 
 @step("Dividing the optical path into single-platform sections")
 def divide_path_into_sections(
-    optical_module_block: OpticalSpectrumBlockProvisioning,
+    optical_module_block: OpticalSpectrumServiceBlockProvisioning,
     optical_path: list[UUIDstr],
 ) -> State:
     """Split the chosen optical path into single-platform sections.
@@ -465,7 +465,7 @@ def _sections_signature(sections: list[OpticalSpectrumSectionBlockProvisioning])
 
 @step("Modifying optical spectrum sections")
 def modify_optical_sections(
-    optical_module_block: OpticalSpectrumBlockProvisioning,
+    optical_module_block: OpticalSpectrumServiceBlockProvisioning,
     old_passband: Passband,
     old_section_ids: list[UUIDstr],
 ) -> State:

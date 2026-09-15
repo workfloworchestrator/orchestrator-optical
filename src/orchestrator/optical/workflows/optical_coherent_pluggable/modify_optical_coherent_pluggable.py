@@ -36,7 +36,7 @@ from orchestrator.optical.products.product_blocks.optical_coherent_pluggable imp
     OpticalCoherentPluggableBlockProvisioning,
 )
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
-    OpticalCoherentPluggable,
+    OpticalCoherentPluggableSubscription,
 )
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
@@ -118,7 +118,7 @@ def modify_optical_coherent_pluggable_form_pages(
 
 def modify_optical_coherent_pluggable_form_generator(
     subscription_id: UUIDstr,
-    subscription_model: type[SubscriptionModel] = OpticalCoherentPluggable,
+    subscription_model: type[SubscriptionModel] = OpticalCoherentPluggableSubscription,
     block_field_name: str = "optical_coherent_pluggable",
 ) -> FormGenerator:
     """Generate the initial input form for modifying a Coherent Pluggable subscription.

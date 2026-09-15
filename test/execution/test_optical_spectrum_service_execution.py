@@ -35,8 +35,8 @@ from orchestrator.optical.products.product_types.optical_pipe.fiber_span import 
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import (
     OpticalLeasedSpectrumSubscription,
 )
-from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrum
-from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
+from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrumServiceSubscription
+from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
     construct_optical_spectrum_subscription,
 )
 from test.support.core_api import unwrap_step
@@ -118,7 +118,7 @@ def _orphan_section_instance_count(subscription_id: str) -> int:
                 )
             ).all()
         )
-        spectrum = OpticalSpectrum.from_subscription(subscription_id).optical_spectrum_service
+        spectrum = OpticalSpectrumServiceSubscription.from_subscription(subscription_id).optical_spectrum_service
         reachable = {section.subscription_instance_id for section in spectrum.optical_spectrum_sections}
     return len(instances - reachable)
 
@@ -239,7 +239,7 @@ def test_create_optical_spectrum_service_end_to_end(
     assert table.description == f"{SPECTRUM_NAME} ({SPECTRUM_PRODUCT_NAME})"
     assert _subscription_id_of_process(process_id) == subscription_id
 
-    spectrum = OpticalSpectrum.from_subscription(subscription_id).optical_spectrum_service
+    spectrum = OpticalSpectrumServiceSubscription.from_subscription(subscription_id).optical_spectrum_service
     assert spectrum.optical_spectrum_name == SPECTRUM_NAME
     assert tuple(spectrum.optical_spectrum_passband) == PASSBAND
 
@@ -339,7 +339,7 @@ def test_full_lifecycle_create_modify_validate_terminate(
     )
     _assert_process_completed(modify_process_id)
     assert _subscription_table(subscription_id).description == f"{MODIFIED_SPECTRUM_NAME} ({SPECTRUM_PRODUCT_NAME})"
-    spectrum = OpticalSpectrum.from_subscription(subscription_id).optical_spectrum_service
+    spectrum = OpticalSpectrumServiceSubscription.from_subscription(subscription_id).optical_spectrum_service
     assert spectrum.optical_spectrum_name == MODIFIED_SPECTRUM_NAME
     assert tuple(spectrum.optical_spectrum_passband) == MODIFIED_PASSBAND
     assert len(spectrum.optical_spectrum_sections) == 1
@@ -445,7 +445,7 @@ def test_create_optical_spectrum_multi_vendor_sections(run_process, seed_optical
     )
 
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
-    spectrum = OpticalSpectrum.from_subscription(subscription_id).optical_spectrum_service
+    spectrum = OpticalSpectrumServiceSubscription.from_subscription(subscription_id).optical_spectrum_service
     sections = spectrum.optical_spectrum_sections
     assert len(sections) >= 2
 

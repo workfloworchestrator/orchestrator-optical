@@ -13,9 +13,9 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import (
     OpticalTransportLineChannelBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_spectrum import (
-    OpticalSpectrumBlock,
-    OpticalSpectrumBlockInactive,
-    OpticalSpectrumBlockProvisioning,
+    OpticalSpectrumServiceBlock,
+    OpticalSpectrumServiceBlockInactive,
+    OpticalSpectrumServiceBlockProvisioning,
 )
 
 ListOfTwo = Annotated[list[SI], Len(min_length=2, max_length=2)]
@@ -32,7 +32,7 @@ class OpticalTransportChannelBlockInactive(ProductBlockModel, product_block_name
     # None (unknown capacity) instead of crashing, and are simply never offered for reuse.
     optical_transport_total_capacity: int | None = None
     optical_transport_line_ports: ListOfTwo[OpticalTransportLineChannelBlockInactive] = Field(default_factory=list)
-    optical_transport_spectrum: OpticalSpectrumBlockInactive
+    optical_transport_spectrum: OpticalSpectrumServiceBlockInactive
 
 
 class OpticalTransportChannelBlockProvisioning(
@@ -45,7 +45,7 @@ class OpticalTransportChannelBlockProvisioning(
     optical_transport_mode: str
     optical_transport_total_capacity: int | None = None
     optical_transport_line_ports: ListOfTwo[OpticalTransportLineChannelBlockProvisioning]
-    optical_transport_spectrum: OpticalSpectrumBlockProvisioning
+    optical_transport_spectrum: OpticalSpectrumServiceBlockProvisioning
 
 
 class OpticalTransportChannelBlock(OpticalTransportChannelBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
@@ -56,4 +56,4 @@ class OpticalTransportChannelBlock(OpticalTransportChannelBlockProvisioning, lif
     optical_transport_mode: str
     optical_transport_total_capacity: int | None = None
     optical_transport_line_ports: ListOfTwo[OpticalTransportLineChannelBlock]
-    optical_transport_spectrum: OpticalSpectrumBlock
+    optical_transport_spectrum: OpticalSpectrumServiceBlock

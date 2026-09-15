@@ -33,6 +33,8 @@ __all__ = [
     "factory_reset_port_configuration",
     "get_device_ports_by_role",
     "get_transceiver_capacity_from_mode",
+    "is_transponder_line_port",
+    "parse_port_identifiers",
     "retrieve_transceiver_modes",
     "set_channel_description",
     "set_port_admin_state",
@@ -318,3 +320,42 @@ def check_fiber_terminating_port(
         case _:
             msg = f"check_fiber_terminating_port: {type(host_node).__name__}"
             raise UnsupportedPlatformError(msg)
+
+
+def parse_port_identifiers(port_name: str, platform: Platform) -> tuple[str, str, str]:
+    """Split a device port name into shelf, slot and port identifiers.
+
+    The conventions are the device-native ones (see the HAL adapters):
+    ``"port-1/2/3"`` on Groove G30, ``"1-4-L1"`` on GX G42.
+
+    Args:
+        port_name: The device-native port name.
+        platform: The platform of the hosting node.
+
+    Returns:
+        The ``(shelf, slot, port)`` identifiers as strings.
+
+    Raises:
+        ValueError: If the platform is not a transponder platform or the name does not parse.
+    """
+    match platform:
+        case Platform.GROOVE_G30:
+            raw = port_name.split("-", 1)[-1]
+            shelf, slot, port = raw.split("/")
+        case Platform.GX_G42:
+            shelf, slot, port = port_name.split("-", 2)
+        case _:
+            msg = f"Cannot parse port identifiers on platform {platform}"
+            raise ValueError(msg)
+    return shelf, slot, port
+
+
+def is_transponder_line_port(port: str, platform: Platform) -> bool:
+    """Return whether a port identifier is a line (coherent) port of its card."""
+    match platform:
+        case Platform.GROOVE_G30:
+            return port.isdigit() and int(port) in (1, 2)
+        case Platform.GX_G42:
+            return port in ("L1", "L2")
+        case _:
+            return False

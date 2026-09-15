@@ -62,49 +62,51 @@ from orchestrator.optical.products.product_blocks.optical_port.transponder_clien
     OpticalTransponderClientPortBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_spectrum import (
-    OpticalSpectrumBlockInactive,
-    OpticalSpectrumBlockProvisioning,
+    OpticalSpectrumServiceBlockInactive,
+    OpticalSpectrumServiceBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import OpticalSpectrumSectionBlockInactive
 from orchestrator.optical.products.product_blocks.optical_transport_channel import (
     OpticalTransportChannelBlockInactive,
     OpticalTransportChannelBlockProvisioning,
 )
-from orchestrator.optical.workflows.optical_coherent_pluggable.create import (
+from orchestrator.optical.workflows.optical_coherent_pluggable.create_optical_coherent_pluggable import (
     construct_optical_coherent_pluggable_subscription,
     populate_optical_coherent_pluggable_block,
 )
-from orchestrator.optical.workflows.optical_coherent_pluggable.modify import (
+from orchestrator.optical.workflows.optical_coherent_pluggable.modify_optical_coherent_pluggable import (
     update_optical_coherent_pluggable_block,
 )
-from orchestrator.optical.workflows.optical_digital_service.modify import (
+from orchestrator.optical.workflows.optical_digital_service.modify_optical_digital_service import (
     update_optical_digital_service_block,
 )
 from orchestrator.optical.workflows.optical_digital_service.shared import (
     build_optical_digital_service_block,
     populate_optical_digital_service_block,
 )
-from orchestrator.optical.workflows.optical_location.create import populate_optical_module_location_block
-from orchestrator.optical.workflows.optical_location.modify import update_optical_module_location_block
-from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
+from orchestrator.optical.workflows.optical_location.create_optical_location import (
+    populate_optical_module_location_block,
+)
+from orchestrator.optical.workflows.optical_location.modify_optical_location import update_optical_module_location_block
+from orchestrator.optical.workflows.optical_node.nokia_flexils.create_nokia_flexils import (
     construct_optical_node_nokia_flexils_subscription,
     populate_optical_node_nokia_flexils_block,
 )
-from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import (
+from orchestrator.optical.workflows.optical_node.nokia_flexils.modify_nokia_flexils import (
     update_optical_node_nokia_flexils_block,
 )
-from orchestrator.optical.workflows.optical_node.nokia_groove_g30.create import (
+from orchestrator.optical.workflows.optical_node.nokia_groove_g30.create_nokia_groove_g30 import (
     construct_optical_node_nokia_groove_g30_subscription,
     populate_optical_node_nokia_groove_g30_block,
 )
-from orchestrator.optical.workflows.optical_node.nokia_groove_g30.modify import (
+from orchestrator.optical.workflows.optical_node.nokia_groove_g30.modify_nokia_groove_g30 import (
     update_optical_node_nokia_groove_g30_block,
 )
-from orchestrator.optical.workflows.optical_node.nokia_gx_g42.create import (
+from orchestrator.optical.workflows.optical_node.nokia_gx_g42.create_nokia_gx_g42 import (
     construct_optical_node_nokia_gx_g42_subscription,
     populate_optical_node_nokia_gx_g42_block,
 )
-from orchestrator.optical.workflows.optical_node.nokia_gx_g42.modify import (
+from orchestrator.optical.workflows.optical_node.nokia_gx_g42.modify_nokia_gx_g42 import (
     update_optical_node_nokia_gx_g42_block,
 )
 from orchestrator.optical.workflows.optical_node.shared.create import populate_abstract_optical_node_fields
@@ -112,14 +114,16 @@ from orchestrator.optical.workflows.optical_node.shared.modify import update_opt
 from orchestrator.optical.workflows.optical_node.shared.retrieve import (
     retrieve_optical_node_role_and_software_version,
 )
-from orchestrator.optical.workflows.optical_pipe.fiber_patch.create import build_fiber_patch_block
-from orchestrator.optical.workflows.optical_pipe.fiber_span.create import build_fiber_span_block
-from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create import build_leased_spectrum_block
+from orchestrator.optical.workflows.optical_pipe.fiber_patch.create_fiber_patch import build_fiber_patch_block
+from orchestrator.optical.workflows.optical_pipe.fiber_span.create_fiber_span import build_fiber_span_block
+from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create_leased_spectrum import (
+    build_leased_spectrum_block,
+)
 from orchestrator.optical.workflows.optical_pipe.shared import new_pipe_port_block, update_optical_pipe_block
-from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
+from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
     populate_optical_spectrum_block,
 )
-from orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum import (
+from orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum_service import (
     update_optical_spectrum_block,
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
@@ -277,10 +281,12 @@ WRITERS = [
     # --- Optical Spectrum Service family ---
     _entry(
         populate_optical_spectrum_block,
-        OpticalSpectrumBlockInactive,
+        OpticalSpectrumServiceBlockInactive,
         ("optical_spectrum_name", "optical_spectrum_passband"),
     ),
-    _entry(store_list_of_ports_into_spectrum_sections, OpticalSpectrumBlockInactive, ("optical_spectrum_sections",)),
+    _entry(
+        store_list_of_ports_into_spectrum_sections, OpticalSpectrumServiceBlockInactive, ("optical_spectrum_sections",)
+    ),
     _entry(
         store_list_of_ports_into_spectrum_sections,
         OpticalSpectrumSectionBlockInactive,
@@ -288,7 +294,7 @@ WRITERS = [
     ),
     _entry(
         store_loaded_sections_into_spectrum_block,
-        OpticalSpectrumBlockInactive,
+        OpticalSpectrumServiceBlockInactive,
         ("optical_spectrum_sections",),
     ),
     _entry(
@@ -299,7 +305,7 @@ WRITERS = [
     _entry(update_used_passbands, AbstractOpticalOlsPortBlockProvisioning, ("optical_passbands",)),
     _entry(
         update_optical_spectrum_block,
-        OpticalSpectrumBlockProvisioning,
+        OpticalSpectrumServiceBlockProvisioning,
         ("optical_spectrum_name", "optical_spectrum_passband"),
     ),
     # --- Optical Digital Service family ---
@@ -319,7 +325,7 @@ WRITERS = [
     ),
     _entry(
         build_optical_digital_service_block,
-        OpticalSpectrumBlockInactive,
+        OpticalSpectrumServiceBlockInactive,
         ("optical_spectrum_name", "optical_spectrum_passband"),
     ),
     _entry(

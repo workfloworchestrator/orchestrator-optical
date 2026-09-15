@@ -62,14 +62,14 @@ from orchestrator.optical.products.product_blocks.optical_port.abstracts import 
     OpticalPortRole,
 )
 from orchestrator.optical.products.product_blocks.optical_spectrum import (
-    OpticalSpectrumBlockInactive,
-    OpticalSpectrumBlockProvisioning,
+    OpticalSpectrumServiceBlockInactive,
+    OpticalSpectrumServiceBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlockInactive,
     OpticalSpectrumSectionBlockProvisioning,
 )
-from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNode
+from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNodeSubscription
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
@@ -171,8 +171,11 @@ def load_spectrum_section(section_id: UUIDstr) -> OpticalSpectrumSectionBlockPro
 
 
 def optical_spectrum_block_from_state(
-    optical_module_block: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning | dict[str, Any] | None,
-) -> OpticalSpectrumBlockProvisioning:
+    optical_module_block: OpticalSpectrumServiceBlockInactive
+    | OpticalSpectrumServiceBlockProvisioning
+    | dict[str, Any]
+    | None,
+) -> OpticalSpectrumServiceBlockProvisioning:
     """Return the Optical Spectrum block of the workflow state as a domain model.
 
     Workflow steps execute with the state serialized between steps, so a block
@@ -200,15 +203,15 @@ def optical_spectrum_block_from_state(
     if optical_module_block is None:
         msg = "No Optical Spectrum block in the state under OPTICAL_MODULE_BLOCK_STATE_KEY"
         raise ValueError(msg)
-    if isinstance(optical_module_block, OpticalSpectrumBlockInactive):
-        return cast(OpticalSpectrumBlockProvisioning, optical_module_block)
+    if isinstance(optical_module_block, OpticalSpectrumServiceBlockInactive):
+        return cast(OpticalSpectrumServiceBlockProvisioning, optical_module_block)
     return cast(
-        OpticalSpectrumBlockProvisioning,
+        OpticalSpectrumServiceBlockProvisioning,
         rehydrate_optical_module_block(optical_module_block, block_description="Optical Spectrum"),
     )
 
 
-def _optical_spectrum_block_of_subscription(subscription: SubscriptionModel) -> OpticalSpectrumBlockInactive:
+def _optical_spectrum_block_of_subscription(subscription: SubscriptionModel) -> OpticalSpectrumServiceBlockInactive:
     """Return the Optical Spectrum block under the ``optical_spectrum_service`` attribute.
 
     This is the shipped-model fallback of the family: it reads the block from
@@ -232,12 +235,12 @@ def _optical_spectrum_block_of_subscription(subscription: SubscriptionModel) -> 
             "e.g. under 'optical_spectrum_service'"
         )
         raise ValueError(msg)
-    return cast(OpticalSpectrumBlockInactive, spectrum)
+    return cast(OpticalSpectrumServiceBlockInactive, spectrum)
 
 
 def optical_spectrum_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: OpticalSpectrumBlockInactive | None = None,
+    optical_module_block: OpticalSpectrumServiceBlockInactive | None = None,
 ) -> str:
     """Generate the human-readable description of an Optical Spectrum subscription.
 
@@ -270,7 +273,7 @@ def optical_spectrum_subscription_description(
 @step("Set Optical Spectrum subscription description")
 def set_optical_spectrum_subscription_description(
     subscription: SubscriptionModel,
-    optical_module_block: OpticalSpectrumBlockInactive | None = None,
+    optical_module_block: OpticalSpectrumServiceBlockInactive | None = None,
 ) -> State:
     """Set the description of the Optical Spectrum subscription.
 
@@ -314,7 +317,7 @@ def load_optical_spectrum_block(subscription: SubscriptionModel) -> State:
 
 
 @step("Provisioning optical spectrum sections")
-def provision_optical_sections(optical_module_block: OpticalSpectrumBlockInactive) -> State:
+def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
     """Deploy the optical circuit of every spectrum section on the devices.
 
     Operates only on the Optical Spectrum block found in the state under
@@ -352,7 +355,7 @@ def provision_optical_sections(optical_module_block: OpticalSpectrumBlockInactiv
 
 
 @step("Updating the available passbands of any Open Line System port in the path")
-def refresh_optical_spectrum_used_passbands(optical_module_block: OpticalSpectrumBlockInactive) -> State:
+def refresh_optical_spectrum_used_passbands(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
     """Refresh the used passbands of the Open Line System ports in the path from the devices.
 
     Operates only on the Optical Spectrum block found in the state under
@@ -376,7 +379,7 @@ def refresh_optical_spectrum_used_passbands(optical_module_block: OpticalSpectru
 
 
 @step("Verifying optical spectrum sections")
-def verify_optical_spectrum_sections(optical_module_block: OpticalSpectrumBlockInactive) -> State:
+def verify_optical_spectrum_sections(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
     """Verify the optical circuit of every spectrum section against the devices.
 
     Operates only on the Optical Spectrum block found in the state under
@@ -1104,7 +1107,7 @@ def optical_spectrum_path_selector(
 
 def store_list_of_ports_into_spectrum_sections(
     optical_path: list[UUIDstr],
-    optical_spectrum: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning,
+    optical_spectrum: OpticalSpectrumServiceBlockInactive | OpticalSpectrumServiceBlockProvisioning,
 ) -> None:
     """Decompose a continuous list of optical ports into vendor-specific sections.
 
@@ -1266,7 +1269,7 @@ def validate_optical_spectrum_path(
 
 def store_loaded_sections_into_spectrum_block(
     sections: list[list[AbstractOpticalOlsPortBlockInactive]],
-    optical_spectrum: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning,
+    optical_spectrum: OpticalSpectrumServiceBlockInactive | OpticalSpectrumServiceBlockProvisioning,
 ) -> None:
     """Store the given single-platform sections into the spectrum block.
 
@@ -1286,7 +1289,7 @@ def store_loaded_sections_into_spectrum_block(
         None: The function modifies the ``optical_spectrum`` object in place.
     """
     subscription_id = optical_spectrum.owner_subscription_id
-    if isinstance(optical_spectrum, OpticalSpectrumBlockProvisioning):
+    if isinstance(optical_spectrum, OpticalSpectrumServiceBlockProvisioning):
         optical_spectrum.optical_spectrum_sections = [
             OpticalSpectrumSectionBlockProvisioning.new(
                 subscription_id=subscription_id,
@@ -1308,7 +1311,7 @@ def store_loaded_sections_into_spectrum_block(
 
 def store_sections_into_spectrum_block(
     sections: list[list[UUIDstr]],
-    optical_spectrum: OpticalSpectrumBlockInactive | OpticalSpectrumBlockProvisioning,
+    optical_spectrum: OpticalSpectrumServiceBlockInactive | OpticalSpectrumServiceBlockProvisioning,
 ) -> None:
     """Store the given single-platform sections into the spectrum block.
 
@@ -1327,7 +1330,7 @@ def store_sections_into_spectrum_block(
 
 
 def update_used_passbands(
-    optical_spectrum: OpticalSpectrumBlockProvisioning,
+    optical_spectrum: OpticalSpectrumServiceBlockProvisioning,
 ) -> list[AbstractOpticalOlsPortBlockInactive]:
     """Refresh the ``optical_passbands`` of every Open Line System port in the path from the devices.
 
@@ -1516,7 +1519,7 @@ def transceiver_mode_selector(
     Returns:
         A Choice class containing the prompt and a list of available transceiver modes.
     """
-    subscription = AbstractOpticalNode.from_subscription(optical_node_subscription_id)
+    subscription = AbstractOpticalNodeSubscription.from_subscription(optical_node_subscription_id)
     node_block = cast(AnyOpticalNodeBlockProvisioningUnion, subscription.optical_node)
     modulations = retrieve_transceiver_modes(node_block, port_name)
     if not prompt:

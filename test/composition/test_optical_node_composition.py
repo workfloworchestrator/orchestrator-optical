@@ -34,11 +34,13 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
     Platform,
     Vendor,
 )
-from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
+from orchestrator.optical.workflows.optical_node.nokia_flexils.create_nokia_flexils import (
     CREATE_NOKIA_FLEXILS_BLOCK_STEPS,
     populate_optical_node_nokia_flexils_block,
 )
-from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import MODIFY_NOKIA_FLEXILS_BLOCK_STEPS
+from orchestrator.optical.workflows.optical_node.nokia_flexils.modify_nokia_flexils import (
+    MODIFY_NOKIA_FLEXILS_BLOCK_STEPS,
+)
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     OPTICAL_NODE_TERMINATE_STEPS,

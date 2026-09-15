@@ -133,10 +133,10 @@ workflows package.
 # mywfo/workflows/__init__.py
 from orchestrator.core.workflows import LazyWorkflowInstance
 
-LazyWorkflowInstance("orchestrator.optical.workflows.optical_node.nokia_flexils.create", "create_optical_node_nokia_flexils")
-LazyWorkflowInstance("orchestrator.optical.workflows.optical_node.nokia_flexils.modify", "modify_optical_node_nokia_flexils")
-LazyWorkflowInstance("orchestrator.optical.workflows.optical_node.nokia_flexils.terminate", "terminate_optical_node_nokia_flexils")
-LazyWorkflowInstance("orchestrator.optical.workflows.optical_node.nokia_flexils.validate", "validate_optical_node_nokia_flexils")
+LazyWorkflowInstance("orchestrator.optical.workflows.optical_node.nokia_flexils.create_nokia_flexils", "create_optical_node_nokia_flexils")
+LazyWorkflowInstance("orchestrator.optical.workflows.optical_node.nokia_flexils.modify_nokia_flexils", "modify_optical_node_nokia_flexils")
+LazyWorkflowInstance("orchestrator.optical.workflows.optical_node.nokia_flexils.terminate_nokia_flexils", "terminate_optical_node_nokia_flexils")
+LazyWorkflowInstance("orchestrator.optical.workflows.optical_node.nokia_flexils.validate_nokia_flexils", "validate_optical_node_nokia_flexils")
 ```
 
 Then persist the workflows to the database with the orchestrator-core CLI (`orchestrator db migrate-workflows`) and
@@ -147,50 +147,50 @@ The full list of shipped workflows and their import paths:
 
 | Workflow                              | Module                                                                                              |
 |---------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `create_optical_node_nokia_flexils`   | `orchestrator.optical.workflows.optical_node.nokia_flexils.create`                                  |
-| `modify_optical_node_nokia_flexils`   | `orchestrator.optical.workflows.optical_node.nokia_flexils.modify`                                  |
-| `terminate_optical_node_nokia_flexils`| `orchestrator.optical.workflows.optical_node.nokia_flexils.terminate`                               |
-| `validate_optical_node_nokia_flexils` | `orchestrator.optical.workflows.optical_node.nokia_flexils.validate`                                |
-| `create_optical_node_nokia_groove_g30`| `orchestrator.optical.workflows.optical_node.nokia_groove_g30.create`                               |
-| `modify_optical_node_nokia_groove_g30`| `orchestrator.optical.workflows.optical_node.nokia_groove_g30.modify`                               |
-| `terminate_optical_node_nokia_groove_g30` | `orchestrator.optical.workflows.optical_node.nokia_groove_g30.terminate`                        |
-| `validate_optical_node_nokia_groove_g30` | `orchestrator.optical.workflows.optical_node.nokia_groove_g30.validate`                         |
-| `create_optical_node_nokia_gx_g42`    | `orchestrator.optical.workflows.optical_node.nokia_gx_g42.create`                                   |
-| `modify_optical_node_nokia_gx_g42`    | `orchestrator.optical.workflows.optical_node.nokia_gx_g42.modify`                                   |
-| `terminate_optical_node_nokia_gx_g42` | `orchestrator.optical.workflows.optical_node.nokia_gx_g42.terminate`                                |
-| `validate_optical_node_nokia_gx_g42`  | `orchestrator.optical.workflows.optical_node.nokia_gx_g42.validate`                                 |
-| `create_optical_coherent_pluggable`   | `orchestrator.optical.workflows.optical_coherent_pluggable.create`                                  |
-| `modify_optical_coherent_pluggable`   | `orchestrator.optical.workflows.optical_coherent_pluggable.modify`                                  |
-| `terminate_optical_coherent_pluggable`| `orchestrator.optical.workflows.optical_coherent_pluggable.terminate`                               |
-| `validate_optical_coherent_pluggable` | `orchestrator.optical.workflows.optical_coherent_pluggable.validate`                                |
-| `create_fiber_span`                   | `orchestrator.optical.workflows.optical_pipe.fiber_span.create`                                     |
-| `modify_fiber_span`                   | `orchestrator.optical.workflows.optical_pipe.fiber_span.modify`                                     |
-| `terminate_fiber_span`                | `orchestrator.optical.workflows.optical_pipe.fiber_span.terminate`                                  |
-| `validate_fiber_span`                 | `orchestrator.optical.workflows.optical_pipe.fiber_span.validate`                                   |
-| `reconcile_fiber_span`                | `orchestrator.optical.workflows.optical_pipe.fiber_span.reconcile`                                  |
-| `create_fiber_patch`                  | `orchestrator.optical.workflows.optical_pipe.fiber_patch.create`                                    |
-| `modify_fiber_patch`                  | `orchestrator.optical.workflows.optical_pipe.fiber_patch.modify`                                    |
-| `terminate_fiber_patch`               | `orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate`                                 |
-| `validate_fiber_patch`                | `orchestrator.optical.workflows.optical_pipe.fiber_patch.validate`                                  |
-| `reconcile_fiber_patch`               | `orchestrator.optical.workflows.optical_pipe.fiber_patch.reconcile`                                 |
-| `create_leased_spectrum`              | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.create`                                |
-| `modify_leased_spectrum`              | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.modify`                                |
-| `terminate_leased_spectrum`           | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate`                             |
-| `validate_leased_spectrum`            | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.validate`                              |
-| `reconcile_leased_spectrum`           | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.reconcile`                             |
-| `create_optical_spectrum`             | `orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum`                   |
-| `modify_optical_spectrum`             | `orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum`                   |
-| `terminate_optical_spectrum`          | `orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum`                |
-| `validate_optical_spectrum`           | `orchestrator.optical.workflows.optical_spectrum_service.validate_optical_spectrum`                 |
-| `reconcile_optical_spectrum`          | `orchestrator.optical.workflows.optical_spectrum_service.reconcile_optical_spectrum`                |
+| `create_optical_node_nokia_flexils`   | `orchestrator.optical.workflows.optical_node.nokia_flexils.create_nokia_flexils`                                  |
+| `modify_optical_node_nokia_flexils`   | `orchestrator.optical.workflows.optical_node.nokia_flexils.modify_nokia_flexils`                                  |
+| `terminate_optical_node_nokia_flexils`| `orchestrator.optical.workflows.optical_node.nokia_flexils.terminate_nokia_flexils`                               |
+| `validate_optical_node_nokia_flexils` | `orchestrator.optical.workflows.optical_node.nokia_flexils.validate_nokia_flexils`                                |
+| `create_optical_node_nokia_groove_g30`| `orchestrator.optical.workflows.optical_node.nokia_groove_g30.create_nokia_groove_g30`                               |
+| `modify_optical_node_nokia_groove_g30`| `orchestrator.optical.workflows.optical_node.nokia_groove_g30.modify_nokia_groove_g30`                               |
+| `terminate_optical_node_nokia_groove_g30` | `orchestrator.optical.workflows.optical_node.nokia_groove_g30.terminate_nokia_groove_g30`                        |
+| `validate_optical_node_nokia_groove_g30` | `orchestrator.optical.workflows.optical_node.nokia_groove_g30.validate_nokia_groove_g30`                         |
+| `create_optical_node_nokia_gx_g42`    | `orchestrator.optical.workflows.optical_node.nokia_gx_g42.create_nokia_gx_g42`                                   |
+| `modify_optical_node_nokia_gx_g42`    | `orchestrator.optical.workflows.optical_node.nokia_gx_g42.modify_nokia_gx_g42`                                   |
+| `terminate_optical_node_nokia_gx_g42` | `orchestrator.optical.workflows.optical_node.nokia_gx_g42.terminate_nokia_gx_g42`                                |
+| `validate_optical_node_nokia_gx_g42`  | `orchestrator.optical.workflows.optical_node.nokia_gx_g42.validate_nokia_gx_g42`                                 |
+| `create_optical_coherent_pluggable`   | `orchestrator.optical.workflows.optical_coherent_pluggable.create_optical_coherent_pluggable`                                  |
+| `modify_optical_coherent_pluggable`   | `orchestrator.optical.workflows.optical_coherent_pluggable.modify_optical_coherent_pluggable`                                  |
+| `terminate_optical_coherent_pluggable`| `orchestrator.optical.workflows.optical_coherent_pluggable.terminate_optical_coherent_pluggable`                               |
+| `validate_optical_coherent_pluggable` | `orchestrator.optical.workflows.optical_coherent_pluggable.validate_optical_coherent_pluggable`                                |
+| `create_fiber_span`                   | `orchestrator.optical.workflows.optical_pipe.fiber_span.create_fiber_span`                                     |
+| `modify_fiber_span`                   | `orchestrator.optical.workflows.optical_pipe.fiber_span.modify_fiber_span`                                     |
+| `terminate_fiber_span`                | `orchestrator.optical.workflows.optical_pipe.fiber_span.terminate_fiber_span`                                  |
+| `validate_fiber_span`                 | `orchestrator.optical.workflows.optical_pipe.fiber_span.validate_fiber_span`                                   |
+| `reconcile_fiber_span`                | `orchestrator.optical.workflows.optical_pipe.fiber_span.reconcile_fiber_span`                                  |
+| `create_fiber_patch`                  | `orchestrator.optical.workflows.optical_pipe.fiber_patch.create_fiber_patch`                                    |
+| `modify_fiber_patch`                  | `orchestrator.optical.workflows.optical_pipe.fiber_patch.modify_fiber_patch`                                    |
+| `terminate_fiber_patch`               | `orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate_fiber_patch`                                 |
+| `validate_fiber_patch`                | `orchestrator.optical.workflows.optical_pipe.fiber_patch.validate_fiber_patch`                                  |
+| `reconcile_fiber_patch`               | `orchestrator.optical.workflows.optical_pipe.fiber_patch.reconcile_fiber_patch`                                 |
+| `create_leased_spectrum`              | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.create_leased_spectrum`                                |
+| `modify_leased_spectrum`              | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.modify_leased_spectrum`                                |
+| `terminate_leased_spectrum`           | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate_leased_spectrum`                             |
+| `validate_leased_spectrum`            | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.validate_leased_spectrum`                              |
+| `reconcile_leased_spectrum`           | `orchestrator.optical.workflows.optical_pipe.leased_spectrum.reconcile_leased_spectrum`                             |
+| `create_optical_spectrum`             | `orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service`                   |
+| `modify_optical_spectrum`             | `orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum_service`                   |
+| `terminate_optical_spectrum`          | `orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum_service`                |
+| `validate_optical_spectrum`           | `orchestrator.optical.workflows.optical_spectrum_service.validate_optical_spectrum_service`                 |
+| `reconcile_optical_spectrum`          | `orchestrator.optical.workflows.optical_spectrum_service.reconcile_optical_spectrum_service`                |
 | `create_optical_digital_service`      | `orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service`             |
 | `modify_optical_digital_service`      | `orchestrator.optical.workflows.optical_digital_service.modify_optical_digital_service`             |
 | `terminate_optical_digital_service`   | `orchestrator.optical.workflows.optical_digital_service.terminate_optical_digital_service`          |
 | `validate_optical_digital_service`    | `orchestrator.optical.workflows.optical_digital_service.validate_optical_digital_service`           |
-| `create_optical_module_location`      | `orchestrator.optical.workflows.optical_location.create`                                            |
-| `modify_optical_module_location`      | `orchestrator.optical.workflows.optical_location.modify`                                            |
-| `terminate_optical_module_location`   | `orchestrator.optical.workflows.optical_location.terminate`                                         |
-| `validate_optical_module_location`    | `orchestrator.optical.workflows.optical_location.validate`                                          |
+| `create_optical_module_location`      | `orchestrator.optical.workflows.optical_location.create_optical_location`                                            |
+| `modify_optical_module_location`      | `orchestrator.optical.workflows.optical_location.modify_optical_location`                                            |
+| `terminate_optical_module_location`   | `orchestrator.optical.workflows.optical_location.terminate_optical_location`                                         |
+| `validate_optical_module_location`    | `orchestrator.optical.workflows.optical_location.validate_optical_location`                                          |
 
 ### 2. Define your own product type that has-a the shipped block (composition + optional anti-corruption layer)
 
@@ -257,7 +257,7 @@ Notes:
 
   ```python
   # mywfo/forms.py
-  from orchestrator.optical.workflows.optical_location.create import create_optical_module_location_form_pages
+  from orchestrator.optical.workflows.optical_location.create_optical_location import create_optical_module_location_form_pages
   from orchestrator.optical.workflows.shared import create_summary_form
 
   def my_create_form_generator(product_name):

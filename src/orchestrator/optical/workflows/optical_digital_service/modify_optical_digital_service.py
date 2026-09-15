@@ -36,7 +36,7 @@ from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlockInactive,
 )
-from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalService
+from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSubscription
 from orchestrator.optical.utils.custom_types.frequencies import (
     Frequency,
     Passband,
@@ -143,7 +143,7 @@ def modify_optical_digital_service_form_pages(
 
 def modify_optical_digital_service_form_generator(
     subscription_id: UUIDstr,
-    subscription_model: type[SubscriptionModel] = OpticalDigitalService,
+    subscription_model: type[SubscriptionModel] = OpticalDigitalServiceSubscription,
     block_field_name: str = "optical_digital_service",
 ) -> FormGenerator:
     """Generate the initial input form for modifying an Optical Digital Service.

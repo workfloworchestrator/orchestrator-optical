@@ -31,18 +31,18 @@ from orchestrator.optical.products.product_blocks.optical_location import (
 from orchestrator.optical.workflows import block as block_parts
 from orchestrator.optical.workflows import customer as customer_parts
 from orchestrator.optical.workflows.block import save_optical_module_block
-from orchestrator.optical.workflows.optical_location import create as location_create
-from orchestrator.optical.workflows.optical_location import modify as location_modify
+from orchestrator.optical.workflows.optical_location import create_optical_location as location_create
+from orchestrator.optical.workflows.optical_location import modify_optical_location as location_modify
 from orchestrator.optical.workflows.optical_location import shared as location_shared
-from orchestrator.optical.workflows.optical_location import terminate as location_terminate
-from orchestrator.optical.workflows.optical_location import validate as location_validate
-from orchestrator.optical.workflows.optical_location.create import (
+from orchestrator.optical.workflows.optical_location import terminate_optical_location as location_terminate
+from orchestrator.optical.workflows.optical_location import validate_optical_location as location_validate
+from orchestrator.optical.workflows.optical_location.create_optical_location import (
     CREATE_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
     construct_optical_module_location_subscription,
     create_optical_module_location_form_generator,
     populate_optical_module_location_block,
 )
-from orchestrator.optical.workflows.optical_location.modify import (
+from orchestrator.optical.workflows.optical_location.modify_optical_location import (
     MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS,
     modify_optical_module_location_form_generator,
     update_optical_module_location_block,
@@ -54,13 +54,13 @@ from orchestrator.optical.workflows.optical_location.shared import (
     optical_module_location_subscription_description,
     set_optical_module_location_subscription_description,
 )
-from orchestrator.optical.workflows.optical_location.terminate import (
+from orchestrator.optical.workflows.optical_location.terminate_optical_location import (
     OPTICAL_MODULE_LOCATION_TERMINATE_STEPS,
 )
-from orchestrator.optical.workflows.optical_location.terminate import (
+from orchestrator.optical.workflows.optical_location.terminate_optical_location import (
     terminate_initial_input_form_generator as location_terminate_initial_input_form_generator,
 )
-from orchestrator.optical.workflows.optical_location.validate import (
+from orchestrator.optical.workflows.optical_location.validate_optical_location import (
     OPTICAL_MODULE_LOCATION_VALIDATE_STEPS,
     validate_optical_module_location_block,
     validate_optical_module_location_block_step,

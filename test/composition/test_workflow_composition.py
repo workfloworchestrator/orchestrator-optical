@@ -16,14 +16,14 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import Workflow, begin
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow, modify_workflow, terminate_workflow, validate_workflow
-from orchestrator.optical.products.product_types.optical_coherent_pluggable import OpticalCoherentPluggable
-from orchestrator.optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIls
-from orchestrator.optical.workflows.optical_coherent_pluggable.create import (
+from orchestrator.optical.products.product_types.optical_coherent_pluggable import OpticalCoherentPluggableSubscription
+from orchestrator.optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIlsSubscription
+from orchestrator.optical.workflows.optical_coherent_pluggable.create_optical_coherent_pluggable import (
     CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS,
     construct_optical_coherent_pluggable_subscription,
     create_optical_coherent_pluggable_form_generator,
 )
-from orchestrator.optical.workflows.optical_coherent_pluggable.modify import (
+from orchestrator.optical.workflows.optical_coherent_pluggable.modify_optical_coherent_pluggable import (
     MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS,
     modify_optical_coherent_pluggable_form_generator,
 )
@@ -31,21 +31,21 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     load_optical_coherent_pluggable_block,
     update_optical_coherent_pluggable_subscription_description,
 )
-from orchestrator.optical.workflows.optical_coherent_pluggable.terminate import (
+from orchestrator.optical.workflows.optical_coherent_pluggable.terminate_optical_coherent_pluggable import (
     OPTICAL_COHERENT_PLUGGABLE_TERMINATE_STEPS,
 )
-from orchestrator.optical.workflows.optical_coherent_pluggable.terminate import (
+from orchestrator.optical.workflows.optical_coherent_pluggable.terminate_optical_coherent_pluggable import (
     terminate_initial_input_form_generator as coherent_pluggable_terminate_initial_input_form_generator,
 )
-from orchestrator.optical.workflows.optical_coherent_pluggable.validate import (
+from orchestrator.optical.workflows.optical_coherent_pluggable.validate_optical_coherent_pluggable import (
     OPTICAL_COHERENT_PLUGGABLE_VALIDATE_STEPS,
 )
-from orchestrator.optical.workflows.optical_node.nokia_flexils.create import (
+from orchestrator.optical.workflows.optical_node.nokia_flexils.create_nokia_flexils import (
     CREATE_NOKIA_FLEXILS_BLOCK_STEPS,
     construct_optical_node_nokia_flexils_subscription,
     create_optical_node_nokia_flexils_form_generator,
 )
-from orchestrator.optical.workflows.optical_node.nokia_flexils.modify import (
+from orchestrator.optical.workflows.optical_node.nokia_flexils.modify_nokia_flexils import (
     MODIFY_NOKIA_FLEXILS_BLOCK_STEPS,
     modify_optical_node_nokia_flexils_form_generator,
 )
@@ -85,7 +85,7 @@ def test_shipped_type_modify_workflow_composition() -> None:
     @modify_workflow(
         initial_input_form=partial(
             modify_optical_node_nokia_flexils_form_generator,
-            subscription_model=OpticalNodeNokiaFlexIls,
+            subscription_model=OpticalNodeNokiaFlexIlsSubscription,
         )
     )
     def modify_optical_node_nokia_flexils():
@@ -179,7 +179,7 @@ def test_shipped_type_coherent_pluggable_modify_workflow_composition() -> None:
     @modify_workflow(
         initial_input_form=partial(
             modify_optical_coherent_pluggable_form_generator,
-            subscription_model=OpticalCoherentPluggable,
+            subscription_model=OpticalCoherentPluggableSubscription,
         )
     )
     def modify_optical_coherent_pluggable():

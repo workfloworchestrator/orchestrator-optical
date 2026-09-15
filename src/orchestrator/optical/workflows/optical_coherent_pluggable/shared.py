@@ -19,14 +19,14 @@ from orchestrator.optical.products.product_blocks.optical_coherent_pluggable imp
     OpticalCoherentPluggableBlockProvisioning,
 )
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
-    OpticalCoherentPluggableInactive,
+    OpticalCoherentPluggableSubscriptionInactive,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 
 
 def optical_coherent_pluggable_subscription_description(
-    subscription: OpticalCoherentPluggableInactive,
+    subscription: OpticalCoherentPluggableSubscriptionInactive,
     optical_module_block: OpticalCoherentPluggableBlockProvisioning | None = None,
 ) -> str:
     """Generate the human-readable description of a Coherent Pluggable subscription.
@@ -205,7 +205,7 @@ def update_optical_coherent_pluggable_subscription_description(
     """
     pluggable = optical_coherent_pluggable_block_from_state(optical_module_block)
     subscription.description = optical_coherent_pluggable_subscription_description(
-        cast(OpticalCoherentPluggableInactive, subscription), pluggable
+        cast(OpticalCoherentPluggableSubscriptionInactive, subscription), pluggable
     )
     return {"subscription": subscription, "subscription_description": subscription.description}
 

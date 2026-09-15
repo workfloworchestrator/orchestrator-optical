@@ -42,15 +42,17 @@ from orchestrator.optical.products.product_types.optical_coherent_pluggable impo
 from orchestrator.optical.workflows import block as block_parts
 from orchestrator.optical.workflows import customer as customer_parts
 from orchestrator.optical.workflows.block import save_optical_module_block
-from orchestrator.optical.workflows.optical_coherent_pluggable import create as create_parts
-from orchestrator.optical.workflows.optical_coherent_pluggable import modify as modify_parts
+from orchestrator.optical.workflows.optical_coherent_pluggable import create_optical_coherent_pluggable as create_parts
+from orchestrator.optical.workflows.optical_coherent_pluggable import modify_optical_coherent_pluggable as modify_parts
 from orchestrator.optical.workflows.optical_coherent_pluggable import shared as shared_parts
-from orchestrator.optical.workflows.optical_coherent_pluggable import terminate as terminate_parts
-from orchestrator.optical.workflows.optical_coherent_pluggable.create import (
+from orchestrator.optical.workflows.optical_coherent_pluggable import (
+    terminate_optical_coherent_pluggable as terminate_parts,
+)
+from orchestrator.optical.workflows.optical_coherent_pluggable.create_optical_coherent_pluggable import (
     CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS,
     populate_optical_coherent_pluggable_block,
 )
-from orchestrator.optical.workflows.optical_coherent_pluggable.modify import (
+from orchestrator.optical.workflows.optical_coherent_pluggable.modify_optical_coherent_pluggable import (
     MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS,
     update_optical_coherent_pluggable_block,
 )
@@ -59,10 +61,10 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     load_optical_coherent_pluggable_block,
     optical_coherent_pluggable_block_from_state,
 )
-from orchestrator.optical.workflows.optical_coherent_pluggable.terminate import (
+from orchestrator.optical.workflows.optical_coherent_pluggable.terminate_optical_coherent_pluggable import (
     OPTICAL_COHERENT_PLUGGABLE_TERMINATE_STEPS,
 )
-from orchestrator.optical.workflows.optical_coherent_pluggable.validate import (
+from orchestrator.optical.workflows.optical_coherent_pluggable.validate_optical_coherent_pluggable import (
     OPTICAL_COHERENT_PLUGGABLE_VALIDATE_STEPS,
     validate_optical_coherent_pluggable_state,
 )

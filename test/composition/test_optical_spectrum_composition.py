@@ -19,26 +19,26 @@ from pydantic_forms.validators import Choice, choice_list
 from orchestrator.core.targets import Target
 from orchestrator.core.workflow import Workflow
 from orchestrator.optical.products.product_blocks.optical_spectrum import (
-    OpticalSpectrumBlockInactive,
-    OpticalSpectrumBlockProvisioning,
+    OpticalSpectrumServiceBlockInactive,
+    OpticalSpectrumServiceBlockProvisioning,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
-from orchestrator.optical.workflows.optical_spectrum_service import create_optical_spectrum as spectrum_create
-from orchestrator.optical.workflows.optical_spectrum_service import modify_optical_spectrum as spectrum_modify
+from orchestrator.optical.workflows.optical_spectrum_service import create_optical_spectrum_service as spectrum_create
+from orchestrator.optical.workflows.optical_spectrum_service import modify_optical_spectrum_service as spectrum_modify
 from orchestrator.optical.workflows.optical_spectrum_service import (
     shared as spectrum_shared,
 )
 from orchestrator.optical.workflows.optical_spectrum_service import (
-    terminate_optical_spectrum as spectrum_terminate,
+    terminate_optical_spectrum_service as spectrum_terminate,
 )
-from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
+from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
     CREATE_OPTICAL_SPECTRUM_BLOCK_STEPS,
     create_optical_spectrum,
     create_optical_spectrum_form_generator,
     create_optical_spectrum_form_pages,
     populate_optical_spectrum_block,
 )
-from orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum import (
+from orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum_service import (
     MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS,
     modify_optical_sections,
     modify_optical_spectrum,
@@ -46,7 +46,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spec
     modify_optical_spectrum_form_pages,
     update_optical_spectrum_block,
 )
-from orchestrator.optical.workflows.optical_spectrum_service.reconcile_optical_spectrum import (
+from orchestrator.optical.workflows.optical_spectrum_service.reconcile_optical_spectrum_service import (
     RECONCILE_OPTICAL_SPECTRUM_BLOCK_STEPS,
     reconcile_optical_spectrum,
 )
@@ -54,12 +54,12 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     delete_optical_spectrum_sections,
     load_optical_spectrum_block,
 )
-from orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum import (
+from orchestrator.optical.workflows.optical_spectrum_service.terminate_optical_spectrum_service import (
     TERMINATE_OPTICAL_SPECTRUM_BLOCK_STEPS,
     terminate_initial_input_form_generator,
     terminate_optical_spectrum,
 )
-from orchestrator.optical.workflows.optical_spectrum_service.validate_optical_spectrum import (
+from orchestrator.optical.workflows.optical_spectrum_service.validate_optical_spectrum_service import (
     VALIDATE_OPTICAL_SPECTRUM_BLOCK_STEPS,
     validate_optical_spectrum,
 )
@@ -372,8 +372,8 @@ def test_modify_form_pages_yield_the_prefilled_pages_in_order(monkeypatch: pytes
 def test_populate_optical_spectrum_block_writes_only_name_and_passband() -> None:
     """The create anti-corruption function sets only the name and the passband."""
     sections = [object()]
-    block = OpticalSpectrumBlockInactive.model_construct(
-        name="OpticalSpectrumBlock",
+    block = OpticalSpectrumServiceBlockInactive.model_construct(
+        name="OpticalSpectrumServiceBlock",
         subscription_instance_id=uuid.uuid4(),
         owner_subscription_id=uuid.uuid4(),
         optical_spectrum_sections=sections,
@@ -402,9 +402,9 @@ def _make_section(add_drop_ids: list[str], express_ids: list[str]) -> SimpleName
     )
 
 
-def _make_modify_block(section: SimpleNamespace) -> OpticalSpectrumBlockProvisioning:
-    return OpticalSpectrumBlockProvisioning.model_construct(
-        name="OpticalSpectrumBlock",
+def _make_modify_block(section: SimpleNamespace) -> OpticalSpectrumServiceBlockProvisioning:
+    return OpticalSpectrumServiceBlockProvisioning.model_construct(
+        name="OpticalSpectrumServiceBlock",
         subscription_instance_id=uuid.uuid4(),
         owner_subscription_id=uuid.uuid4(),
         optical_spectrum_name="spec-01",
@@ -534,8 +534,8 @@ def test_terminate_delete_optical_sections_uses_the_shared_teardown(
 def test_update_optical_spectrum_block_writes_only_name_and_passband() -> None:
     """The modify step overwrites only the name and the passband and returns the old passband."""
     section = SimpleNamespace(subscription_instance_id=uuid.uuid4())
-    block = OpticalSpectrumBlockProvisioning.model_construct(
-        name="OpticalSpectrumBlock",
+    block = OpticalSpectrumServiceBlockProvisioning.model_construct(
+        name="OpticalSpectrumServiceBlock",
         subscription_instance_id=uuid.uuid4(),
         owner_subscription_id=uuid.uuid4(),
         optical_spectrum_name="old-name",
@@ -630,8 +630,8 @@ def test_shipped_reconcile_workflow_loads_pushes_and_verifies_the_block() -> Non
 
 def test_load_optical_spectrum_block_puts_the_block_in_the_state() -> None:
     """The wiring step reads the block from the ``optical_spectrum_service`` attribute."""
-    block = OpticalSpectrumBlockInactive.model_construct(
-        name="OpticalSpectrumBlock",
+    block = OpticalSpectrumServiceBlockInactive.model_construct(
+        name="OpticalSpectrumServiceBlock",
         subscription_instance_id=uuid.uuid4(),
         owner_subscription_id=uuid.uuid4(),
     )

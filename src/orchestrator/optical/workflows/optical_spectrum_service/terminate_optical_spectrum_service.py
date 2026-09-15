@@ -20,7 +20,7 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
-from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumBlockInactive
+from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumServiceBlockInactive
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     delete_optical_spectrum_sections,
@@ -84,7 +84,7 @@ def terminate_initial_input_form_generator(
 
 
 @step("Deleting optical sections")
-def delete_optical_sections(optical_module_block: OpticalSpectrumBlockInactive) -> State:
+def delete_optical_sections(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
     """Delete the optical circuit of every spectrum section from the devices.
 
     Operates only on the Optical Spectrum block found in the state under

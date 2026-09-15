@@ -33,7 +33,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
-from orchestrator.optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIls
+from orchestrator.optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIlsSubscription
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.flexils import FlexIlsTargetId
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
@@ -151,7 +151,7 @@ def modify_optical_node_nokia_flexils_form_pages(
 
 def modify_optical_node_nokia_flexils_form_generator(
     subscription_id: UUIDstr,
-    subscription_model: type[SubscriptionModel] = OpticalNodeNokiaFlexIls,
+    subscription_model: type[SubscriptionModel] = OpticalNodeNokiaFlexIlsSubscription,
     block_field_name: str = "optical_node",
 ) -> FormGenerator:
     """Generate the initial input form for modifying a Nokia FlexILS Optical Node subscription.

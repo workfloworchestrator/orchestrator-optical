@@ -53,7 +53,7 @@ from orchestrator.optical.products.product_blocks.optical_node.optical_packet_no
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_types.optical_digital_service import (
-    OpticalDigitalServiceProvisioning,
+    OpticalDigitalServiceSubscriptionProvisioning,
 )
 from orchestrator.optical.utils.custom_types.frequencies import Frequency, SpectralWidth, passband_from
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
@@ -81,7 +81,7 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
     unused_coherent_pluggable_selector,
 )
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
-from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
+from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
     create_optical_spectrum_constraints_form,
     create_optical_spectrum_waypoints_form,
 )
@@ -864,7 +864,7 @@ def construct_optical_digital_service_subscription(
         optical_digital_service_speed,
         optical_digital_service_type,
     )
-    subscription = OpticalDigitalServiceProvisioning.from_other_lifecycle(
+    subscription = OpticalDigitalServiceSubscriptionProvisioning.from_other_lifecycle(
         subscription, SubscriptionLifecycle.PROVISIONING
     )
 

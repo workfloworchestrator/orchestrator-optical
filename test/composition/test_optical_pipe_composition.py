@@ -27,41 +27,43 @@ from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.workflows import customer as customer_parts
 from orchestrator.optical.workflows.optical_pipe import shared as pipe_shared
-from orchestrator.optical.workflows.optical_pipe.fiber_patch.create import (
+from orchestrator.optical.workflows.optical_pipe.fiber_patch.create_fiber_patch import (
     CREATE_FIBER_PATCH_BLOCK_STEPS,
     construct_fiber_patch_subscription,
     create_fiber_patch_form_generator,
 )
-from orchestrator.optical.workflows.optical_pipe.fiber_patch.modify import modify_fiber_patch_form_generator
-from orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate import (
+from orchestrator.optical.workflows.optical_pipe.fiber_patch.modify_fiber_patch import modify_fiber_patch_form_generator
+from orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate_fiber_patch import (
     terminate_initial_input_form_generator as fiber_patch_terminate_initial_input_form_generator,
 )
-from orchestrator.optical.workflows.optical_pipe.fiber_span import create as fiber_span_create
-from orchestrator.optical.workflows.optical_pipe.fiber_span import modify as fiber_span_modify
-from orchestrator.optical.workflows.optical_pipe.fiber_span import terminate as fiber_span_terminate
-from orchestrator.optical.workflows.optical_pipe.fiber_span.create import (
+from orchestrator.optical.workflows.optical_pipe.fiber_span import create_fiber_span as fiber_span_create
+from orchestrator.optical.workflows.optical_pipe.fiber_span import modify_fiber_span as fiber_span_modify
+from orchestrator.optical.workflows.optical_pipe.fiber_span import terminate_fiber_span as fiber_span_terminate
+from orchestrator.optical.workflows.optical_pipe.fiber_span.create_fiber_span import (
     CREATE_FIBER_SPAN_BLOCK_STEPS,
     construct_fiber_span_subscription,
     create_fiber_span_form_generator,
 )
-from orchestrator.optical.workflows.optical_pipe.fiber_span.modify import (
+from orchestrator.optical.workflows.optical_pipe.fiber_span.modify_fiber_span import (
     MODIFY_FIBER_SPAN_BLOCK_STEPS,
     modify_fiber_span_form_generator,
 )
-from orchestrator.optical.workflows.optical_pipe.fiber_span.terminate import TERMINATE_FIBER_SPAN_BLOCK_STEPS
-from orchestrator.optical.workflows.optical_pipe.fiber_span.terminate import (
+from orchestrator.optical.workflows.optical_pipe.fiber_span.terminate_fiber_span import TERMINATE_FIBER_SPAN_BLOCK_STEPS
+from orchestrator.optical.workflows.optical_pipe.fiber_span.terminate_fiber_span import (
     terminate_initial_input_form_generator as fiber_span_terminate_initial_input_form_generator,
 )
-from orchestrator.optical.workflows.optical_pipe.fiber_span.validate import (
+from orchestrator.optical.workflows.optical_pipe.fiber_span.validate_fiber_span import (
     VALIDATE_FIBER_SPAN_BLOCK_STEPS,
     load_initial_state_fiber_span,
 )
-from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create import create_leased_spectrum_form_generator
-from orchestrator.optical.workflows.optical_pipe.leased_spectrum.modify import (
+from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create_leased_spectrum import (
+    create_leased_spectrum_form_generator,
+)
+from orchestrator.optical.workflows.optical_pipe.leased_spectrum.modify_leased_spectrum import (
     MODIFY_LEASED_SPECTRUM_BLOCK_STEPS,
     modify_leased_spectrum_form_generator,
 )
-from orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate import (
+from orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate_leased_spectrum import (
     terminate_initial_input_form_generator as leased_spectrum_terminate_initial_input_form_generator,
 )
 from orchestrator.optical.workflows.optical_pipe.shared import (

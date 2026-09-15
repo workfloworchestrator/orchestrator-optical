@@ -131,7 +131,7 @@ def upgrade() -> None:
                     "description": "Optical Spectrum",
                     "tag": "OPTICAL_SPECTRUM",
                     "status": "active",
-                    "product_blocks": ["OpticalSpectrumBlock"],
+                    "product_blocks": ["OpticalSpectrumServiceBlock"],
                 },
                 "Optical Module Location": {
                     "product_id": "6da3eea2-abbb-5971-ac96-6049ee55e393",
@@ -273,7 +273,7 @@ def upgrade() -> None:
                     "resources": {},
                     "depends_on_block_relations": ["OlsAddDropPortBlock", "OlsLinePortBlock"],
                 },
-                "OpticalSpectrumBlock": {
+                "OpticalSpectrumServiceBlock": {
                     "product_block_id": "163e7fed-c2e0-5102-906d-1cad2d967fac",
                     "description": "Active state of the Optical Spectrum product block.",
                     "tag": "OPTICAL_SPECTRUM_BLO",
@@ -309,7 +309,7 @@ def upgrade() -> None:
                     },
                     "depends_on_block_relations": [
                         "CoherentPluggableBlock",
-                        "OpticalSpectrumBlock",
+                        "OpticalSpectrumServiceBlock",
                         "OpticalTransponderLinePortBlock",
                     ],
                 },
@@ -318,9 +318,11 @@ def upgrade() -> None:
                     "description": "Active state of an Optical Digital Service product block.",
                     "tag": "OPTICAL_DIGITAL_SERV",
                     "status": "active",
-                    "resources": {"optical_digital_service_name": "Optical Digital Service Name",
-                                  "optical_digital_service_speed": "Optical Digital Service Speed",
-                                  "optical_digital_service_type": "Optical Digital Service Type"},
+                    "resources": {
+                        "optical_digital_service_name": "Optical Digital Service Name",
+                        "optical_digital_service_speed": "Optical Digital Service Speed",
+                        "optical_digital_service_type": "Optical Digital Service Type",
+                    },
                     "depends_on_block_relations": [
                         "CoherentPluggableBlock",
                         "OpticalTransponderClientPortBlock",
@@ -843,7 +845,7 @@ def downgrade() -> None:
                 "OlsAddDropPortBlock",
                 "OlsLinePortBlock",
                 "OpticalSpectrumSectionBlock",
-                "OpticalSpectrumBlock",
+                "OpticalSpectrumServiceBlock",
                 "OpticalTransponderLinePortBlock",
                 "OpticalTransportChannelBlock",
                 "OpticalDigitalServiceBlock",

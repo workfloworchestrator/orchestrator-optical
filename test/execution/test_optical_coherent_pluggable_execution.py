@@ -25,8 +25,8 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import packet_node_block_from_subscription
 from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import OpticalModulePacketNodeBlock
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
-    OpticalCoherentPluggable,
     OpticalCoherentPluggablePartNumber,
+    OpticalCoherentPluggableSubscription,
 )
 
 pytestmark = pytest.mark.db
@@ -110,7 +110,7 @@ def test_create_coherent_pluggable_end_to_end(
     assert subscription.customer_id == CUSTOMER_ID
     assert subscription.description == DESCRIPTION
 
-    model = OpticalCoherentPluggable.from_subscription(subscription_id)
+    model = OpticalCoherentPluggableSubscription.from_subscription(subscription_id)
     assert model.optical_coherent_pluggable_part_number == PART_NUMBER
     block = model.optical_coherent_pluggable
     assert block.optical_port_name == PORT_NAME
@@ -157,7 +157,7 @@ def test_full_lifecycle_create_modify_validate_terminate(
     # The shipped modify workflow refreshes the subscription description; it reads the host
     # node, port name and part number, none of which the modify form changes.
     assert _subscription(subscription_id).description == DESCRIPTION
-    modified = OpticalCoherentPluggable.from_subscription(subscription_id)
+    modified = OpticalCoherentPluggableSubscription.from_subscription(subscription_id)
     assert modified.optical_coherent_pluggable.optical_coherent_pluggable_firmware_version == MODIFIED_FIRMWARE_VERSION
     assert modified.optical_coherent_pluggable.optical_port_description == PORT_DESCRIPTION
     assert SubscriptionLifecycle(_subscription(subscription_id).status) == SubscriptionLifecycle.ACTIVE

@@ -8,19 +8,19 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
 )
 
 
-class AbstractOpticalNodeInactive(SubscriptionModel):
+class AbstractOpticalNodeSubscriptionInactive(SubscriptionModel):
     """Abstract base model for an optical node subscription in the inactive state."""
 
     optical_node: AbstractOpticalNodeBlockInactive
 
 
-class AbstractOpticalNodeProvisioning(AbstractOpticalNodeInactive):
+class AbstractOpticalNodeSubscriptionProvisioning(AbstractOpticalNodeSubscriptionInactive):
     """Abstract base model for an optical node subscription in the provisioning state."""
 
     optical_node: AbstractOpticalNodeBlockProvisioning
 
 
-class AbstractOpticalNode(AbstractOpticalNodeProvisioning):
+class AbstractOpticalNodeSubscription(AbstractOpticalNodeSubscriptionProvisioning):
     """Abstract base model for an optical node subscription in the active state."""
 
     optical_node: AbstractOpticalNodeBlock

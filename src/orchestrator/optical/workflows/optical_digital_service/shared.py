@@ -48,6 +48,7 @@ from orchestrator.optical.db import (
 from orchestrator.optical.hal.port import (
     get_transceiver_capacity_from_mode as hal_get_transceiver_capacity_from_mode,
 )
+from orchestrator.optical.hal.port import is_transponder_line_port, parse_port_identifiers
 from orchestrator.optical.hal.spectrum import (
     append_optical_circuit_label,
     deploy_optical_circuit,
@@ -69,6 +70,7 @@ from orchestrator.optical.hal.transport_channel import (
     validate_trx_line,
 )
 from orchestrator.optical.products import ProductType
+from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import OpticalCoherentPluggableBlock
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlock,
     OpticalDigitalServiceBlockInactive,
@@ -86,14 +88,15 @@ from orchestrator.optical.products.product_blocks.optical_port.abstracts import 
 from orchestrator.optical.products.product_blocks.optical_port.transponder_client import (
     OpticalTransponderClientPortBlockInactive,
 )
-from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumBlockInactive
+from orchestrator.optical.products.product_blocks.optical_port.transponder_line import OpticalTransponderLinePortBlock
+from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumServiceBlockInactive
 from orchestrator.optical.products.product_blocks.optical_transport_channel import (
     OpticalTransportChannelBlock,
     OpticalTransportChannelBlockInactive,
     OpticalTransportChannelBlockProvisioning,
 )
 from orchestrator.optical.products.product_types.optical_digital_service import (
-    OpticalDigitalServiceInactive,
+    OpticalDigitalServiceSubscriptionInactive,
 )
 from orchestrator.optical.utils.custom_types.frequencies import (
     Bandwidth,
@@ -357,45 +360,6 @@ def has_flexils_sections(block: OpticalDigitalServiceBlockProvisioning) -> bool:
     )
 
 
-def _parse_port_identifiers(port_name: str, platform: Platform) -> tuple[str, str, str]:
-    """Split a device port name into shelf, slot and port identifiers.
-
-    The conventions are the device-native ones (see the HAL adapters):
-    ``"port-1/2/3"`` on Groove G30, ``"1-4-L1"`` on GX G42.
-
-    Args:
-        port_name: The device-native port name.
-        platform: The platform of the hosting node.
-
-    Returns:
-        The ``(shelf, slot, port)`` identifiers as strings.
-
-    Raises:
-        ValueError: If the platform is not a transponder platform or the name does not parse.
-    """
-    match platform:
-        case Platform.GROOVE_G30:
-            raw = port_name.split("-", 1)[-1]
-            shelf, slot, port = raw.split("/")
-        case Platform.GX_G42:
-            shelf, slot, port = port_name.split("-", 2)
-        case _:
-            msg = f"Cannot parse port identifiers on platform {platform}"
-            raise ValueError(msg)
-    return shelf, slot, port
-
-
-def _is_line_port_name(port: str, platform: Platform) -> bool:
-    """Return whether a port identifier is a line (coherent) port of its card."""
-    match platform:
-        case Platform.GROOVE_G30:
-            return port.isdigit() and int(port) in (1, 2)
-        case Platform.GX_G42:
-            return port in ("L1", "L2")
-        case _:
-            return False
-
-
 def line_port_selector(host_subscription_id: UUIDstr, client: str, prompt: str | None = None) -> type[Choice]:
     """Create a ``Choice`` selector for the line ports of an endpoint host's card.
 
@@ -421,7 +385,7 @@ def line_port_selector(host_subscription_id: UUIDstr, client: str, prompt: str |
         pluggable_id = str(client)
         label = pluggable_id
         for instance_value in subscription_instance_values_by_block_type_depending_on_instance_id(
-            product_block_type="CoherentPluggableBlock",
+            product_block_type=cast(str, OpticalCoherentPluggableBlock.name),
             resource_type="optical_port_name",
             depending_on_instance_id=str(host_block.subscription_instance_id),
             states=[SubscriptionLifecycle.ACTIVE],
@@ -439,14 +403,14 @@ def line_port_selector(host_subscription_id: UUIDstr, client: str, prompt: str |
         msg = f"Line port selection is not supported on platform {platform}"
         raise ValueError(msg)
     try:
-        shelf_id, slot_id, _ = _parse_port_identifiers(str(client), platform)
+        shelf_id, slot_id, _ = parse_port_identifiers(str(client), platform)
     except ValueError as exc:
         msg = f"Cannot determine the card of client port {client!r}: {exc}"
         raise ValueError(msg) from exc
     in_use = port_ids_used_by_digital_services()
     candidates: dict[str, str] = {}
     for instance_value in subscription_instance_values_by_block_type_depending_on_instance_id(
-        product_block_type="OpticalTransponderLinePortBlock",
+        product_block_type=cast(str, OpticalTransponderLinePortBlock.name),
         resource_type="optical_port_name",
         depending_on_instance_id=str(host_block.subscription_instance_id),
         states=[SubscriptionLifecycle.ACTIVE],
@@ -456,10 +420,10 @@ def line_port_selector(host_subscription_id: UUIDstr, client: str, prompt: str |
             continue
         port_name = str(instance_value.value)
         try:
-            shelf, slot, port = _parse_port_identifiers(port_name, platform)
+            shelf, slot, port = parse_port_identifiers(port_name, platform)
         except ValueError:
             continue
-        if shelf != shelf_id or slot != slot_id or not _is_line_port_name(port, platform):
+        if shelf != shelf_id or slot != slot_id or not is_transponder_line_port(port, platform):
             continue
         candidates[port_instance_id] = port_name
     if not prompt:
@@ -491,7 +455,7 @@ def unused_coherent_pluggable_selector(host_subscription_id: UUIDstr, prompt: st
     in_use = port_ids_used_by_digital_services()
     candidates: dict[str, str] = {}
     for instance_value in subscription_instance_values_by_block_type_depending_on_instance_id(
-        product_block_type="CoherentPluggableBlock",
+        product_block_type=cast(str, OpticalCoherentPluggableBlock.name),
         resource_type="optical_port_name",
         depending_on_instance_id=host_instance_id,
         states=[SubscriptionLifecycle.ACTIVE],
@@ -971,7 +935,7 @@ def new_optical_digital_service_subscription(
     digital_block: OpticalDigitalServiceBlockInactive,
     speed: OpticalDigitalServiceSpeed,
     service_type: OpticalDigitalServiceType,
-) -> OpticalDigitalServiceInactive:
+) -> OpticalDigitalServiceSubscriptionInactive:
     """Build a new digital service subscription model around a pre-built digital block.
 
     ``from_product_id`` is not used for digital services: the digital block is
@@ -1040,7 +1004,7 @@ def new_optical_digital_service_subscription(
         "optical_digital_service_type": service_type,
         "optical_digital_service": digital_block,
     }
-    model = cast(OpticalDigitalServiceInactive, OpticalDigitalServiceInactive(**model_data))
+    model = cast(OpticalDigitalServiceSubscriptionInactive, OpticalDigitalServiceSubscriptionInactive(**model_data))
     model.db_model = subscription
     return model
 
@@ -1205,7 +1169,7 @@ def build_optical_digital_service_block(
         for index, spec in enumerate(specs):
             spectrum_name = f"{spec.name} spectrum"
             passband: Passband = passband_from(spec.frequency, spec.bandwidth)
-            spectrum = OpticalSpectrumBlockInactive.new(
+            spectrum = OpticalSpectrumServiceBlockInactive.new(
                 subscription_id=subscription_id,
                 optical_spectrum_name=spectrum_name,
                 optical_spectrum_passband=passband,

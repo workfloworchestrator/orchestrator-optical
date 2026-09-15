@@ -17,7 +17,7 @@ from orchestrator.optical.utils.custom_types.frequencies import Passband
 OpticalSpectrumSectionList = Annotated[list[SI], Len(min_length=0, max_length=9)]
 
 
-class OpticalSpectrumBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrumBlock"):
+class OpticalSpectrumServiceBlockInactive(ProductBlockModel, product_block_name="OpticalSpectrumServiceBlock"):
     """Inactive state of the Optical Spectrum product block."""
 
     optical_spectrum_name: str | None = None
@@ -27,7 +27,9 @@ class OpticalSpectrumBlockInactive(ProductBlockModel, product_block_name="Optica
     )
 
 
-class OpticalSpectrumBlockProvisioning(OpticalSpectrumBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class OpticalSpectrumServiceBlockProvisioning(
+    OpticalSpectrumServiceBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
     """Provisioning state of the Optical Spectrum product block."""
 
     optical_spectrum_name: str | None
@@ -35,7 +37,7 @@ class OpticalSpectrumBlockProvisioning(OpticalSpectrumBlockInactive, lifecycle=[
     optical_spectrum_sections: OpticalSpectrumSectionList[OpticalSpectrumSectionBlockProvisioning]
 
 
-class OpticalSpectrumBlock(OpticalSpectrumBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalSpectrumServiceBlock(OpticalSpectrumServiceBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     """Active state of the Optical Spectrum product block."""
 
     optical_spectrum_name: str

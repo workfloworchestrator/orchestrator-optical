@@ -219,13 +219,13 @@ def install_device_stubs(
                 "get_device_ports_by_role": _get_device_ports_by_role,
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
             },
-            "orchestrator.optical.workflows.optical_pipe.fiber_span.terminate": {
+            "orchestrator.optical.workflows.optical_pipe.fiber_span.terminate_fiber_span": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
             },
-            "orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate": {
+            "orchestrator.optical.workflows.optical_pipe.fiber_patch.terminate_fiber_patch": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
             },
-            "orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate": {
+            "orchestrator.optical.workflows.optical_pipe.leased_spectrum.terminate_leased_spectrum": {
                 "factory_reset_port_configuration": _fake_factory_reset_port_configuration,
             },
         },
@@ -240,10 +240,10 @@ def install_device_stubs(
                 "delete_optical_circuit": _fake_delete_optical_circuit,
                 "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
             },
-            "orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum": {
+            "orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service": {
                 "set_port_description": _fake_set_port_description,
             },
-            "orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum": {
+            "orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum_service": {
                 "modify_optical_circuit": _fake_modify_optical_circuit,
                 "deploy_optical_circuit": _fake_deploy_optical_circuit,
             },
@@ -272,11 +272,11 @@ def install_device_stubs(
                 "delete_optical_circuit": _fake_delete_optical_circuit,
                 "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
             },
-            "orchestrator.optical.workflows.optical_digital_service.create": {
+            "orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service": {
                 "retrieve_transceiver_modes": _retrieve_transceiver_modes,
                 "sleep": _fake_sleep,
             },
-            "orchestrator.optical.workflows.optical_digital_service.modify": {
+            "orchestrator.optical.workflows.optical_digital_service.modify_optical_digital_service": {
                 "sleep": _fake_sleep,
             },
         },

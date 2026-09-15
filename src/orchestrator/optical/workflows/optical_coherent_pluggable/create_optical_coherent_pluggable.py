@@ -45,9 +45,9 @@ from orchestrator.optical.products.product_blocks.optical_node.optical_packet_no
     OpticalModulePacketNodeBlockInactive,
 )
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
-    OpticalCoherentPluggableInactive,
     OpticalCoherentPluggablePartNumber,
-    OpticalCoherentPluggableProvisioning,
+    OpticalCoherentPluggableSubscriptionInactive,
+    OpticalCoherentPluggableSubscriptionProvisioning,
 )
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
@@ -308,7 +308,7 @@ def construct_optical_coherent_pluggable_subscription(
     PROVISIONING and puts the block in the state under
     ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
-    subscription = OpticalCoherentPluggableInactive.from_product_id(
+    subscription = OpticalCoherentPluggableSubscriptionInactive.from_product_id(
         product_id=product,
         customer_id=customer_id,
         status=SubscriptionLifecycle.INITIAL,
@@ -329,7 +329,7 @@ def construct_optical_coherent_pluggable_subscription(
     # the block and subscription, so persist the subscription (and its
     # instances) first.
     subscription.save()
-    subscription = OpticalCoherentPluggableProvisioning.from_other_lifecycle(
+    subscription = OpticalCoherentPluggableSubscriptionProvisioning.from_other_lifecycle(
         subscription, SubscriptionLifecycle.PROVISIONING
     )
 

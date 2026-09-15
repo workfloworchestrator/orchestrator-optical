@@ -11,7 +11,7 @@ from orchestrator.optical.products.product_blocks.optical_digital_service import
 )
 
 
-class OpticalDigitalServiceInactive(SubscriptionModel, is_base=True):
+class OpticalDigitalServiceSubscriptionInactive(SubscriptionModel, is_base=True):
     """An Optical Digital service that is inactive."""
 
     optical_digital_service_speed: OpticalDigitalServiceSpeed
@@ -19,7 +19,9 @@ class OpticalDigitalServiceInactive(SubscriptionModel, is_base=True):
     optical_digital_service: OpticalDigitalServiceBlockInactive
 
 
-class OpticalDigitalServiceProvisioning(OpticalDigitalServiceInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+class OpticalDigitalServiceSubscriptionProvisioning(
+    OpticalDigitalServiceSubscriptionInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]
+):
     """An Optical Digital service that is provisioning."""
 
     optical_digital_service_speed: OpticalDigitalServiceSpeed
@@ -27,7 +29,9 @@ class OpticalDigitalServiceProvisioning(OpticalDigitalServiceInactive, lifecycle
     optical_digital_service: OpticalDigitalServiceBlockProvisioning
 
 
-class OpticalDigitalService(OpticalDigitalServiceProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+class OpticalDigitalServiceSubscription(
+    OpticalDigitalServiceSubscriptionProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]
+):
     """An Optical Digital service that is active."""
 
     optical_digital_service_speed: OpticalDigitalServiceSpeed
