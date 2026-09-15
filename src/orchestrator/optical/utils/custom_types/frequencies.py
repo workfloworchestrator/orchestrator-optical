@@ -31,6 +31,17 @@ Bandwidth = Annotated[
     Doc("A bandwidth value in MHz."),
 ]
 
+SpectralWidth = Annotated[
+    int,
+    Field(ge=3125, multiple_of=12_500),
+    Doc("A user-entered spectral width in MHz, on the 12.5 GHz grid."),
+]
+
+
+def passband_from(central_frequency: int, bandwidth: int) -> tuple[int, int]:
+    """Return the ``(start, end)`` passband of a central frequency and spectral width in MHz."""
+    return (central_frequency - bandwidth // 2, central_frequency + bandwidth // 2)
+
 
 def parse_if_string(value):
     """Parse a string value with :func:`ast.literal_eval`, returning other types unchanged."""

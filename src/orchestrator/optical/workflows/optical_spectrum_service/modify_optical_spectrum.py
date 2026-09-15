@@ -42,7 +42,6 @@ from orchestrator.optical.hal.spectrum import (
     deploy_optical_circuit,
     modify_optical_circuit,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalOlsPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
@@ -54,10 +53,9 @@ from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
-from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum import (
-    NO_OPTICAL_PATH_FOUND_MSG,
-)
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
+    LINE_SYSTEM_ROLES,
+    NO_OPTICAL_PATH_FOUND_MSG,
     OPTICAL_PIPE_PRODUCT_TYPES,
     NoOpticalPathFoundError,
     delete_optical_spectrum_sections,
@@ -77,11 +75,8 @@ from orchestrator.optical.workflows.shared import modify_summary_form
 
 logger = get_logger(__name__)
 
-LINE_SYSTEM_ROLES = [
-    OpticalNodeRole.ROADM,
-    OpticalNodeRole.TRANSPONDER_XOADM,
-    OpticalNodeRole.AMPLIFIER,
-]
+# NOTE: LINE_SYSTEM_ROLES lives in shared.py; re-exported via __all__ below for
+# backward compatibility (import from shared going forward).
 
 
 def modify_optical_spectrum_identity_form(
@@ -589,6 +584,7 @@ def modify_optical_spectrum() -> StepList:
 
 
 __all__ = [
+    "LINE_SYSTEM_ROLES",
     "MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS",
     "modify_optical_spectrum",
     "modify_optical_spectrum_form_generator",

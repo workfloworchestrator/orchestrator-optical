@@ -60,6 +60,8 @@ from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
+    LINE_SYSTEM_ROLES,
+    NO_OPTICAL_PATH_FOUND_MSG,
     OPTICAL_PIPE_PRODUCT_TYPES,
     NoOpticalPathFoundError,
     check_optical_spectrum_add_drop_port_availability,
@@ -84,15 +86,8 @@ ROADM_ROLES = [
     OpticalNodeRole.TRANSPONDER_XOADM,
 ]
 
-LINE_SYSTEM_ROLES = [
-    OpticalNodeRole.ROADM,
-    OpticalNodeRole.TRANSPONDER_XOADM,
-    OpticalNodeRole.AMPLIFIER,
-]
-
-NO_OPTICAL_PATH_FOUND_MSG = (
-    "No optical path found, please adjust the routing constraints in the previous step or validate fibers in the path."
-)
+# NOTE: LINE_SYSTEM_ROLES and NO_OPTICAL_PATH_FOUND_MSG live in shared.py and are
+# re-exported below for backward compatibility (import from shared going forward).
 
 
 def create_optical_spectrum_identity_form(product_name: str) -> type[FormPage]:
@@ -646,6 +641,8 @@ def create_optical_spectrum() -> StepList:
 
 __all__ = [
     "CREATE_OPTICAL_SPECTRUM_BLOCK_STEPS",
+    "LINE_SYSTEM_ROLES",
+    "NO_OPTICAL_PATH_FOUND_MSG",
     "construct_optical_spectrum_subscription",
     "create_optical_spectrum",
     "create_optical_spectrum_form_generator",

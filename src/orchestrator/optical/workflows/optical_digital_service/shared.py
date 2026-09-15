@@ -25,6 +25,7 @@ coherent-pluggable-hosted ports is not implemented yet: every step that would
 configure one raises ``NotImplementedError``.
 """
 
+from dataclasses import dataclass
 from time import sleep
 from typing import Any, NamedTuple, cast
 from uuid import UUID
@@ -94,7 +95,13 @@ from orchestrator.optical.products.product_blocks.optical_transport_channel impo
 from orchestrator.optical.products.product_types.optical_digital_service import (
     OpticalDigitalServiceInactive,
 )
-from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
+from orchestrator.optical.utils.custom_types.frequencies import (
+    Bandwidth,
+    Frequency,
+    Passband,
+    SpectralWidth,
+    passband_from,
+)
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
@@ -120,6 +127,9 @@ DIGITAL_ENDPOINT_ROLES = [
 #: Placeholder path value meaning the endpoints are directly connected, with no
 #: line system in between (mirrors the transport-channel path selector).
 DIRECT_CONNECTION = "direct_connection"
+
+#: Seconds to wait after adjusting a transponder transmit power before re-measuring.
+TX_POWER_REALIGN_DELAY_S = 5
 
 
 def optical_digital_service_block_from_state(
@@ -512,6 +522,23 @@ class ChannelReuseGroup(NamedTuple):
     spare_capacity: int
 
 
+@dataclass(frozen=True)
+class ChannelSpec:
+    """The per-channel inputs for building one new transport channel.
+
+    Groups the parallel ``channel_names`` / ``line_port_ids_a`` /
+    ``line_port_ids_b`` / ``frequencies`` / ``bandwidths`` entries of
+    :func:`build_optical_digital_service_block` so the entries of one channel
+    cannot drift out of sync by index.
+    """
+
+    name: str
+    line_port_id_a: UUIDstr
+    line_port_id_b: UUIDstr
+    frequency: Frequency
+    bandwidth: SpectralWidth
+
+
 def get_transceiver_capacity_from_mode(host_node_blocks: list[Any], mode: str) -> int | None:
     """Return the carrier capacity in Gbit/s of a transceiver mode on endpoint hosts.
 
@@ -625,7 +652,7 @@ def _owner_group_spare(members: list[OpticalTransportChannelBlock]) -> tuple[int
 
 def resolve_channels_by_names(
     channel_names: list[str],
-    speed: int,
+    speed: int | OpticalDigitalServiceSpeed,
     src_host_id: UUIDstr,
     dst_host_id: UUIDstr,
 ) -> tuple[str, ChannelReuseGroup | None]:
@@ -722,10 +749,11 @@ def resolve_channels_by_names(
         msg = "The named channels have unknown total capacity and cannot be reused"
         raise ValueError(msg)
     totals, spare = _owner_group_spare(members)
-    if spare < speed:
+    speed_value = int(speed)
+    if spare < speed_value:
         msg = (
             f"The named channels only have {spare} Gbit/s of spare capacity "
-            f"out of {totals} Gbit/s, but the service needs {speed} Gbit/s"
+            f"out of {totals} Gbit/s, but the service needs {speed_value} Gbit/s"
         )
         raise ValueError(msg)
     modes = {str(channel.optical_transport_mode) for channel in members}
@@ -741,7 +769,9 @@ def resolve_channels_by_names(
     )
 
 
-def reusable_channel_groups(src_host_id: UUIDstr, dst_host_id: UUIDstr, speed: int) -> list[ChannelReuseGroup]:
+def reusable_channel_groups(
+    src_host_id: UUIDstr, dst_host_id: UUIDstr, speed: int | OpticalDigitalServiceSpeed
+) -> list[ChannelReuseGroup]:
     """Return the reusable channel groups between two endpoint hosts.
 
     A group is one channel or the coupled channels of one owning subscription
@@ -773,10 +803,11 @@ def reusable_channel_groups(src_host_id: UUIDstr, dst_host_id: UUIDstr, speed: i
             continue
         by_owner.setdefault(str(channel.owner_subscription_id), []).append(channel)
     groups: list[ChannelReuseGroup] = []
+    speed_value = int(speed)
     for owner_members in by_owner.values():
         members = sorted(owner_members, key=lambda channel: str(channel.optical_transport_channel_name))
         totals, spare = _owner_group_spare(members)
-        if spare < speed:
+        if spare < speed_value:
             continue
         modes = {str(channel.optical_transport_mode) for channel in members}
         groups.append(
@@ -1051,7 +1082,7 @@ def build_optical_digital_service_block(
     line_port_ids_a: list[UUIDstr],
     line_port_ids_b: list[UUIDstr],
     frequencies: list[Frequency],
-    bandwidths: list[Bandwidth],
+    bandwidths: list[SpectralWidth],
     optical_transport_mode: str,
     optical_path: list[UUIDstr],
 ) -> OpticalDigitalServiceBlockInactive:
@@ -1159,11 +1190,21 @@ def build_optical_digital_service_block(
             reused = OpticalTransportChannelBlock.from_db(subscription_instance_id=UUID(str(reuse_channel_id)))
             channels.append(cast(OpticalTransportChannelBlockInactive, reused))
     else:
-        for index, (channel_name, frequency, bandwidth) in enumerate(
-            zip(channel_names, frequencies, bandwidths, strict=True)
-        ):
-            spectrum_name = f"{channel_name} spectrum"
-            passband: Passband = (frequency - bandwidth // 2, frequency + bandwidth // 2)
+        specs = [
+            ChannelSpec(
+                name=channel_name,
+                line_port_id_a=line_port_id_a,
+                line_port_id_b=line_port_id_b,
+                frequency=frequency,
+                bandwidth=bandwidth,
+            )
+            for channel_name, line_port_id_a, line_port_id_b, frequency, bandwidth in zip(
+                channel_names, line_port_ids_a, line_port_ids_b, frequencies, bandwidths, strict=True
+            )
+        ]
+        for index, spec in enumerate(specs):
+            spectrum_name = f"{spec.name} spectrum"
+            passband: Passband = passband_from(spec.frequency, spec.bandwidth)
             spectrum = OpticalSpectrumBlockInactive.new(
                 subscription_id=subscription_id,
                 optical_spectrum_name=spectrum_name,
@@ -1179,22 +1220,22 @@ def build_optical_digital_service_block(
                     # second carrier shares the first channel path as-is.
                     store_list_of_ports_into_spectrum_sections(optical_path, spectrum)
                 else:
-                    first_add_drop, last_add_drop = find_add_drop_ports(line_port_ids_a[-1], line_port_ids_b[-1])
+                    first_add_drop, last_add_drop = find_add_drop_ports(spec.line_port_id_a, spec.line_port_id_b)
                     derived_path = [
                         str(first_add_drop.subscription_instance_id),
                         *optical_path[1:-1],
                         str(last_add_drop.subscription_instance_id),
                     ]
                     store_list_of_ports_into_spectrum_sections(derived_path, spectrum)
-            line_a: Any = ProductBlockModel.from_db(UUID(str(line_port_ids_a[index])))
-            line_b: Any = ProductBlockModel.from_db(UUID(str(line_port_ids_b[index])))
+            line_a: Any = ProductBlockModel.from_db(UUID(str(spec.line_port_id_a)))
+            line_b: Any = ProductBlockModel.from_db(UUID(str(spec.line_port_id_b)))
             total_capacity = get_transceiver_capacity_from_mode(
                 [line_a.optical_port_host_node, line_b.optical_port_host_node], optical_transport_mode
             )
             channel = OpticalTransportChannelBlockInactive.new(
                 subscription_id=subscription_id,
-                optical_transport_channel_name=channel_name,
-                optical_transport_central_frequency=frequency,
+                optical_transport_channel_name=spec.name,
+                optical_transport_central_frequency=spec.frequency,
                 optical_transport_mode=optical_transport_mode,
                 optical_transport_total_capacity=total_capacity,
                 optical_transport_line_ports=[line_a, line_b],
@@ -1560,7 +1601,7 @@ def align_optical_digital_tx_power(optical_module_block: OpticalDigitalServiceBl
             results[f"{_host_label(trx_node)} {trx_port_name}"] = align_tx_power_to_target(
                 trx_node, trx_port_name, db_from_target
             )
-            sleep(5)
+            sleep(TX_POWER_REALIGN_DELAY_S)
             db_from_target = delta_rx_power_vs_target(trib_node, spectrum_name, circuit_identifier)
             results[f"{_host_label(trib_node)} {trib_port.optical_port_name}"] = (
                 f"P_rx_measured - P_rx_target = {db_from_target} dB"
@@ -1869,8 +1910,10 @@ __all__ = [
     "DIGITAL_ENDPOINT_ROLES",
     "DIRECT_CONNECTION",
     "PROVISION_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS",
+    "TX_POWER_REALIGN_DELAY_S",
     "VERIFY_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS",
     "ChannelReuseGroup",
+    "ChannelSpec",
     "align_optical_digital_tx_power",
     "append_reused_channel_labels",
     "build_optical_digital_service_block",

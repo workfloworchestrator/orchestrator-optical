@@ -37,7 +37,12 @@ from orchestrator.optical.products.product_blocks.optical_digital_service import
     OpticalDigitalServiceBlockInactive,
 )
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalService
-from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
+from orchestrator.optical.utils.custom_types.frequencies import (
+    Frequency,
+    Passband,
+    SpectralWidth,
+    passband_from,
+)
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
@@ -56,6 +61,9 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
     set_optical_digital_service_subscription_description,
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
+
+#: Seconds to wait for the retuned lasers and ROADMs to settle before measuring power.
+SETTLE_AFTER_RETUNE_S = 10
 
 
 def modify_optical_digital_service_form(
@@ -86,7 +94,7 @@ def modify_optical_digital_service_form(
     class ModifyOpticalDigitalServiceForm(FormPage):
         optical_transport_mode: str = old_mode
         frequency_1: Frequency = channels[0].optical_transport_central_frequency
-        bandwidth_1: Bandwidth = (
+        bandwidth_1: SpectralWidth = (
             channels[0].optical_transport_spectrum.optical_spectrum_passband[1]
             - channels[0].optical_transport_spectrum.optical_spectrum_passband[0]
         )
@@ -96,7 +104,7 @@ def modify_optical_digital_service_form(
 
     class ModifyOpticalDigitalServiceDualForm(ModifyOpticalDigitalServiceForm):
         frequency_2: Frequency = channels[1].optical_transport_central_frequency
-        bandwidth_2: Bandwidth = (
+        bandwidth_2: SpectralWidth = (
             channels[1].optical_transport_spectrum.optical_spectrum_passband[1]
             - channels[1].optical_transport_spectrum.optical_spectrum_passband[0]
         )
@@ -130,12 +138,7 @@ def modify_optical_digital_service_form_pages(
         The collected user input of the shipped pages.
     """
     user_input = yield modify_optical_digital_service_form(subscription, block_field_name)
-    user_input_dict = user_input.model_dump()
-    for bandwidth_key in ("bandwidth_1", "bandwidth_2"):
-        if user_input_dict.get(bandwidth_key) is not None and user_input_dict[bandwidth_key] % 12500 != 0:
-            msg = "Bandwidth must be a multiple of 12_500 MHz"
-            raise ValueError(msg)
-    return user_input_dict
+    return user_input.model_dump()
 
 
 def modify_optical_digital_service_form_generator(
@@ -182,9 +185,9 @@ def update_optical_digital_service_block(
     optical_module_block: OpticalDigitalServiceBlockInactive,
     optical_transport_mode: str,
     frequency_1: Frequency,
-    bandwidth_1: Bandwidth,
+    bandwidth_1: SpectralWidth,
     frequency_2: Frequency | None = None,
-    bandwidth_2: Bandwidth | None = None,
+    bandwidth_2: SpectralWidth | None = None,
 ) -> State:
     """Update the transport channels of the block in the state from the modify-form keys.
 
@@ -213,7 +216,7 @@ def update_optical_digital_service_block(
     """
     block = optical_digital_service_block_from_state(optical_module_block)
     channels = list(block.optical_digital_service_transport_channels)
-    new_values: list[tuple[Frequency, Bandwidth]] = [(frequency_1, bandwidth_1)]
+    new_values: list[tuple[Frequency, SpectralWidth]] = [(frequency_1, bandwidth_1)]
     if frequency_2 is not None and bandwidth_2 is not None:
         new_values.append((frequency_2, bandwidth_2))
     if len(new_values) != len(channels):
@@ -223,10 +226,7 @@ def update_optical_digital_service_block(
     for channel, (frequency, bandwidth) in zip(channels, new_values, strict=True):
         old_passbands.append(channel.optical_transport_spectrum.optical_spectrum_passband)
         channel.optical_transport_central_frequency = frequency
-        channel.optical_transport_spectrum.optical_spectrum_passband = (
-            frequency - bandwidth // 2,
-            frequency + bandwidth // 2,
-        )
+        channel.optical_transport_spectrum.optical_spectrum_passband = passband_from(frequency, bandwidth)
         channel.optical_transport_mode = optical_transport_mode
         if is_new_channel(channel, block):
             hosts = [line.optical_port_host_node for line in channel.optical_transport_line_ports]
@@ -247,7 +247,7 @@ def wait_for_retune_to_settle(optical_module_block: OpticalDigitalServiceBlockIn
     """
     block = optical_digital_service_block_from_state(optical_module_block)
     if has_flexils_sections(block):
-        sleep(10)
+        sleep(SETTLE_AFTER_RETUNE_S)
     return {}
 
 
@@ -291,9 +291,11 @@ def modify_optical_digital_service() -> StepList:
 
 __all__ = [
     "MODIFY_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS",
+    "SETTLE_AFTER_RETUNE_S",
     "modify_optical_digital_service",
     "modify_optical_digital_service_form",
     "modify_optical_digital_service_form_generator",
     "modify_optical_digital_service_form_pages",
     "update_optical_digital_service_block",
+    "wait_for_retune_to_settle",
 ]

@@ -93,6 +93,21 @@ OPTICAL_PIPE_PRODUCT_TYPES = [
     ProductType.OPTICAL_LEASED_SPECTRUM.value,
 ]
 
+#: Roles of the Optical Nodes forming the line system (ROADMs, XOADMs, amplifiers).
+#: Single home for the constant previously duplicated across the spectrum
+#: create/modify modules; import from here going forward.
+LINE_SYSTEM_ROLES = [
+    OpticalNodeRole.ROADM,
+    OpticalNodeRole.TRANSPONDER_XOADM,
+    OpticalNodeRole.AMPLIFIER,
+]
+
+#: Rejecting placeholder path Choice value offered when no optical path resolves.
+#: Single home for the message previously defined in the spectrum create module.
+NO_OPTICAL_PATH_FOUND_MSG = (
+    "No optical path found, please adjust the routing constraints in the previous step or validate fibers in the path."
+)
+
 # ``AbstractOpticalNodeBlockInactive.subscription_instance_id``
 Node = UUIDstr
 # ``AbstractOpticalOlsPortBlockInactive.subscription_instance_id``
