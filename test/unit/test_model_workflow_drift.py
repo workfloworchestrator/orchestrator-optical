@@ -387,6 +387,9 @@ EXCLUDED_WRITERS: dict[str, str] = {
     "build_graph_from_pipes": "builds the path-finding graph, writes no block field",
     "orchestrator.optical.workflows.optical_spectrum_service.shared."
     "build_constrained_graph": "builds the path-finding graph, writes no block field",
+    # Composite OLS circuit label builder: pure string formatting, writes no block field.
+    "orchestrator.optical.workflows.optical_digital_service.shared."
+    "build_optical_circuit_label": "builds the '<channel>: <svcA> + <svcB>' label string, writes no block field",
 }
 
 

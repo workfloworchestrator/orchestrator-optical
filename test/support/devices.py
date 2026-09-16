@@ -53,16 +53,6 @@ def _fake_set_port_description(port: Any, description: str) -> None:
     """Set the description of the faked port."""
 
 
-def _fake_deploy_optical_circuit(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """Deploy the faked optical circuit, returning the deployment state."""
-    return {}
-
-
-def _fake_modify_optical_circuit(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """Modify the faked optical circuit, returning the modification state."""
-    return {}
-
-
 def _fake_delete_optical_circuit(*args: Any, **kwargs: Any) -> dict[str, Any]:
     """Delete the faked optical circuit, returning the deletion state."""
     return {}
@@ -77,8 +67,13 @@ def _fake_validate_optical_circuit(*args: Any, **kwargs: Any) -> None:
     """Accept the faked optical circuit as consistent."""
 
 
-def _fake_append_optical_circuit_label(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """Append the faked label to the optical circuit, returning the update state."""
+def _fake_set_optical_circuit_label(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Overwrite the faked optical circuit label, returning the update state."""
+    return {}
+
+
+def _fake_ensure_optical_circuit(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Ensure the faked optical circuit, returning the converged state."""
     return {}
 
 
@@ -235,7 +230,7 @@ def install_device_stubs(
             },
             "orchestrator.optical.workflows.optical_spectrum_service.shared": {
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
-                "deploy_optical_circuit": _fake_deploy_optical_circuit,
+                "ensure_optical_circuit": _fake_ensure_optical_circuit,
                 "validate_optical_circuit": _fake_validate_optical_circuit,
                 "delete_optical_circuit": _fake_delete_optical_circuit,
                 "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
@@ -244,8 +239,7 @@ def install_device_stubs(
                 "set_port_description": _fake_set_port_description,
             },
             "orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum_service": {
-                "modify_optical_circuit": _fake_modify_optical_circuit,
-                "deploy_optical_circuit": _fake_deploy_optical_circuit,
+                "ensure_optical_circuit": _fake_ensure_optical_circuit,
             },
         },
         "ods": {
@@ -262,9 +256,8 @@ def install_device_stubs(
                 "validate_trx_line": _fake_validate_trx_line,
                 "validate_trx_client": _fake_validate_trx_client,
                 "validate_trx_crossconnect": _fake_validate_trx_crossconnect,
-                "deploy_optical_circuit": _fake_deploy_optical_circuit,
-                "modify_optical_circuit": _fake_modify_optical_circuit,
-                "append_optical_circuit_label": _fake_append_optical_circuit_label,
+                "ensure_optical_circuit": _fake_ensure_optical_circuit,
+                "set_optical_circuit_label": _fake_set_optical_circuit_label,
                 "validate_optical_circuit": _fake_validate_optical_circuit,
                 "sleep": _fake_sleep,
             },

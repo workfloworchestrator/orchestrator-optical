@@ -430,14 +430,13 @@ def _install_recording_hal(
 
     monkeypatch.setattr(spectrum_shared, "delete_optical_circuit", record("delete"))
     monkeypatch.setattr(spectrum_shared, "delete_optical_circuit_oel", record("delete_oel"))
-    monkeypatch.setattr(spectrum_modify, "deploy_optical_circuit", record("deploy"))
-    monkeypatch.setattr(spectrum_modify, "modify_optical_circuit", record("modify"))
+    monkeypatch.setattr(spectrum_modify, "ensure_optical_circuit", record("ensure"))
 
 
 def test_modify_optical_sections_modifies_in_place_when_path_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An unchanged path keeps the in-place circuit modification."""
+    """An unchanged path keeps the in-place circuit convergence."""
     section = _make_section(["ad-1", "ad-2"], ["exp-1"])
-    calls: dict[str, list] = {"delete": [], "delete_oel": [], "deploy": [], "modify": []}
+    calls: dict[str, list] = {"delete": [], "delete_oel": [], "ensure": []}
     _install_recording_hal(monkeypatch, calls, section)
 
     state = unwrap_step(modify_optical_sections)(
@@ -446,18 +445,17 @@ def test_modify_optical_sections_modifies_in_place_when_path_unchanged(monkeypat
         old_section_ids=["old-section-id"],
     )
 
-    assert calls["modify"]
+    assert calls["ensure"]
     assert not calls["delete"]
     assert not calls["delete_oel"]
-    assert not calls["deploy"]
     assert "configuration_results" in state
 
 
 def test_modify_optical_sections_redeploys_when_path_changed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A changed path tears down the old circuits (and OEL) and deploys the new ones."""
+    """A changed path tears down the old circuits (and OEL) and ensures the new ones."""
     old_section = _make_section(["old-ad-1", "old-ad-2"], ["old-exp"])
     new_section = _make_section(["new-ad-1", "new-ad-2"], ["new-exp"])
-    calls: dict[str, list] = {"delete": [], "delete_oel": [], "deploy": [], "modify": []}
+    calls: dict[str, list] = {"delete": [], "delete_oel": [], "ensure": []}
     _install_recording_hal(monkeypatch, calls, old_section)
 
     state = unwrap_step(modify_optical_sections)(
@@ -468,8 +466,7 @@ def test_modify_optical_sections_redeploys_when_path_changed(monkeypatch: pytest
 
     assert calls["delete"]
     assert calls["delete_oel"]
-    assert calls["deploy"]
-    assert not calls["modify"]
+    assert calls["ensure"]
     assert "configuration_results" in state
 
 

@@ -44,13 +44,12 @@ from orchestrator.optical.hal.port import (
     set_port_description,
 )
 from orchestrator.optical.hal.spectrum import (
-    append_optical_circuit_label,
     create_optical_cross_connection,
     delete_optical_circuit,
     delete_optical_circuit_oel,
     delete_optical_cross_connection,
-    deploy_optical_circuit,
-    modify_optical_circuit,
+    ensure_optical_circuit,
+    set_optical_circuit_label,
     validate_optical_circuit,
 )
 from orchestrator.optical.hal.transport_channel import (
@@ -71,7 +70,6 @@ from orchestrator.optical.hal.transport_channel import (
 __all__ = [
     "FlexilsGneProvider",
     "align_tx_power_to_target",
-    "append_optical_circuit_label",
     "check_fiber_terminating_port",
     "configure_line_transceivers",
     "configure_termination_when_attaching_new_fiber",
@@ -83,8 +81,8 @@ __all__ = [
     "delete_optical_cross_connection",
     "delete_transponder_crossconnect",
     "delta_rx_power_vs_target",
-    "deploy_optical_circuit",
     "discover_flexils_node",
+    "ensure_optical_circuit",
     "factory_reset_port_configuration",
     "factory_reset_transponder_client",
     "factory_reset_transponder_lines",
@@ -96,7 +94,6 @@ __all__ = [
     "get_signal_bandwidth",
     "get_transceiver_capacity_from_mode",
     "is_transponder_line_port",
-    "modify_optical_circuit",
     "parse_port_identifiers",
     "retrieve_omses_terminating_on_device",
     "retrieve_optical_node_role_and_software_version",
@@ -104,6 +101,7 @@ __all__ = [
     "retrieve_software_version",
     "retrieve_transceiver_modes",
     "set_channel_description",
+    "set_optical_circuit_label",
     "set_port_admin_state",
     "set_port_description",
     "validate_management_network_config",

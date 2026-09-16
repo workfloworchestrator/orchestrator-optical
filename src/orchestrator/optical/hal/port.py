@@ -35,6 +35,7 @@ __all__ = [
     "get_transceiver_capacity_from_mode",
     "is_transponder_line_port",
     "parse_port_identifiers",
+    "retrieve_common_transceiver_modes",
     "retrieve_transceiver_modes",
     "set_channel_description",
     "set_port_admin_state",
@@ -102,6 +103,47 @@ def retrieve_transceiver_modes(optical_node_block: AnyOpticalNodeBlockProvisioni
         case _:
             msg = f"retrieve_transceiver_modes: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
+
+
+#: Transceiver mode values reported by the adapters that are sentinels rather than
+#: selectable operating modes (e.g. the Groove G30 ``"not-applicable"`` entry).
+TRANSPORT_MODE_SENTINELS = frozenset({"not-applicable"})
+
+
+def retrieve_common_transceiver_modes(node_ports: list[tuple[AnyOpticalNodeBlockProvisioningUnion, str]]) -> list[str]:
+    """Return the operating modes supported by every given line port card.
+
+    This is the set algebra behind the transport-mode dropdown of the Optical
+    Digital Service forms: one service-wide mode must be valid on all of its
+    line port cards, so only the intersection is offered.
+
+    Args:
+        node_ports: ``(host node block, device port name)`` pairs, typically the
+            selected line ports of both sides of the service.
+
+    Returns:
+        The intersection of the per-card mode tables, in the order of the first
+        card's table and without sentinel values. An empty list means the cards
+        share no common mode (or every card reported an unknown table, e.g.
+        FlexILS); it is NOT an error — callers offer a rejecting placeholder
+        instead. Hard failures (unreachable devices, unsupported platforms such
+        as packet nodes) propagate to the caller.
+    """
+    common: list[str] | None = None
+    for optical_node_block, port_name in node_ports:
+        modes = [
+            mode
+            for mode in retrieve_transceiver_modes(optical_node_block, port_name)
+            if mode not in TRANSPORT_MODE_SENTINELS
+        ]
+        if not modes:
+            # Unknown table: excluded from the intersection (fail open), mirroring
+            # the construct-time mode check.
+            continue
+        common = modes if common is None else [mode for mode in common if mode in set(modes)]
+        if not common:
+            return []
+    return common or []
 
 
 def get_transceiver_capacity_from_mode(

@@ -45,7 +45,7 @@ from orchestrator.optical.hal.port import retrieve_transceiver_modes
 from orchestrator.optical.hal.spectrum import (
     delete_optical_circuit,
     delete_optical_circuit_oel,
-    deploy_optical_circuit,
+    ensure_optical_circuit,
     validate_optical_circuit,
 )
 from orchestrator.optical.products import ProductType
@@ -318,13 +318,14 @@ def load_optical_spectrum_block(subscription: SubscriptionModel) -> State:
 
 @step("Provisioning optical spectrum sections")
 def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
-    """Deploy the optical circuit of every spectrum section on the devices.
+    """Ensure the optical circuit of every spectrum section on the devices.
 
     Operates only on the Optical Spectrum block found in the state under
     ``OPTICAL_MODULE_BLOCK_STATE_KEY``, the same block the rest of the shipped
-    block steps act on. The device push is idempotent (the FlexILS circuits are
-    found or created), so the step is shared by the shipped create and reconcile
-    workflows.
+    block steps act on. The device push is the single idempotent
+    optical-circuit primitive (the FlexILS circuits are found by identity or
+    created, and drifted attributes converge in place), so the step is shared
+    by the shipped create and reconcile workflows.
 
     Args:
         optical_module_block: The Optical Spectrum block in the state under
@@ -341,7 +342,7 @@ def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlock
     results = {}
     for section in block.optical_spectrum_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[src_node.management.optical_module_node_fqdn] = deploy_optical_circuit(
+        results[src_node.management.optical_module_node_fqdn] = ensure_optical_circuit(
             src_node,
             section,
             spectrum_name,
@@ -633,16 +634,32 @@ def build_graph_from_pipes(
     """
     exclude_node_sub_id_set = set(exclude_node_sub_ids or [])
     exclude_span_sub_id_set = set(exclude_span_sub_ids or [])
+    logger.debug(
+        "Exclusion sets for path computation",
+        exclude_node_sub_ids=sorted(exclude_node_sub_id_set),
+        exclude_span_sub_ids=sorted(exclude_span_sub_id_set),
+        passband=passband,
+    )
 
     graph: dict[Node, list[NeighborConnection]] = {}
+    sifted: list[str] = []
     for pipe in pipes:
-        if str(pipe.owner_subscription_id) in exclude_span_sub_id_set:
+        pipe_name = pipe.optical_pipe_name
+        pipe_owner = str(pipe.owner_subscription_id)
+        if pipe_owner in exclude_span_sub_id_set:
+            logger.debug("Skipping pipe: excluded subscription", pipe_name=pipe_name, pipe_owner=pipe_owner)
             continue
         terminations = pipe.optical_pipe_terminations
         if terminations is None or len(terminations) != 2:  # noqa: PLR2004
             msg = f"Optical pipe {pipe.optical_pipe_name!r} must have exactly two terminations"
             raise ValueError(msg)
         if not all(isinstance(port, AbstractOpticalOlsPortBlockInactive) for port in terminations):
+            logger.debug(
+                "Skipping pipe: non-OLS termination",
+                pipe_name=pipe_name,
+                pipe_owner=pipe_owner,
+                roles=[str(port.optical_port_role) for port in terminations],
+            )
             continue
         port_a = cast(AbstractOpticalOlsPortBlockInactive, terminations[0])
         port_b = cast(AbstractOpticalOlsPortBlockInactive, terminations[1])
@@ -650,8 +667,10 @@ def build_graph_from_pipes(
             str(port.optical_port_host_node.owner_subscription_id) in exclude_node_sub_id_set
             for port in (port_a, port_b)
         ):
+            logger.debug("Skipping pipe: excluded node", pipe_name=pipe_name, pipe_owner=pipe_owner)
             continue
         if any(disjoint_intervals_overlap_search(port.optical_passbands, passband) for port in (port_a, port_b)):
+            logger.debug("Skipping pipe: passband overlap", pipe_name=pipe_name, pipe_owner=pipe_owner)
             continue
 
         id_port_a = str(port_a.subscription_instance_id)
@@ -660,8 +679,36 @@ def build_graph_from_pipes(
         id_node_b = str(port_b.optical_port_host_node.subscription_instance_id)
         graph.setdefault(id_node_a, []).append((id_node_b, (id_port_a, id_port_b)))
         graph.setdefault(id_node_b, []).append((id_node_a, (id_port_b, id_port_a)))
+        sifted.append(f"{pipe_name} ({port_a.optical_port_name} --- {port_b.optical_port_name})")
+
+    logger.debug(
+        "Graph edges for path computation",
+        sifted_pipes=sifted,
+        num_nodes=len(graph),
+        num_edges=sum(len(edges) for edges in graph.values()) // 2,
+    )
 
     return graph
+
+
+def _load_active_pipes() -> list[AbstractOpticalPipeBlockInactive]:
+    """Load the optical pipe blocks of all active pipe subscriptions.
+
+    Returns:
+        The active Fiber Span, Fiber Patch and Leased Spectrum pipe blocks.
+    """
+    pipes: list[AbstractOpticalPipeBlockInactive] = []
+    counts: dict[str, int] = {}
+    for product_type, subscription_model in (
+        (ProductType.OPTICAL_FIBER_SPAN.value, OpticalFiberSpanSubscription),
+        (ProductType.OPTICAL_FIBER_PATCH.value, OpticalFiberPatchSubscription),
+        (ProductType.OPTICAL_LEASED_SPECTRUM.value, OpticalLeasedSpectrumSubscription),
+    ):
+        subscriptions = subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE])
+        counts[product_type] = len(subscriptions)
+        pipes.extend(subscription_model.from_subscription(sub.subscription_id).optical_pipe for sub in subscriptions)
+    logger.debug("Loaded active pipes for path computation", counts=counts, total=len(pipes))
+    return pipes
 
 
 def build_constrained_graph(
@@ -683,16 +730,7 @@ def build_constrained_graph(
         An adjacency list representation of the constrained graph (see
         :func:`build_graph_from_pipes`).
     """
-    pipes: list[AbstractOpticalPipeBlockInactive] = []
-    for product_type, subscription_model in (
-        (ProductType.OPTICAL_FIBER_SPAN.value, OpticalFiberSpanSubscription),
-        (ProductType.OPTICAL_FIBER_PATCH.value, OpticalFiberPatchSubscription),
-        (ProductType.OPTICAL_LEASED_SPECTRUM.value, OpticalLeasedSpectrumSubscription),
-    ):
-        pipes.extend(
-            subscription_model.from_subscription(sub.subscription_id).optical_pipe
-            for sub in subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE])
-        )
+    pipes = _load_active_pipes()
     return build_graph_from_pipes(pipes, passband, exclude_node_sub_ids, exclude_span_sub_ids)
 
 
@@ -807,18 +845,103 @@ def are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path: Path) -> bool:
     return True
 
 
+def _peer_of_line_port(
+    port: AbstractOpticalPortBlockInactive,
+    pipes: Sequence[AbstractOpticalPipeBlockInactive],
+) -> tuple[AbstractOpticalPortBlockInactive | None, AbstractOpticalPipeBlockInactive | None]:
+    """Return the peer termination of a line port and the pipe connecting them.
+
+    Two passes, so transponder line ports and coherent pluggables resolve the
+    same way. A transponder line port only exists as a pipe termination, so the
+    first pass matches it by ``subscription_instance_id``. A coherent pluggable
+    is owned by its own subscription while the pipe stores a copy with the same
+    host node and port name, so the second pass matches it by host and name.
+
+    Args:
+        port: The line port (transponder line or coherent pluggable) to resolve.
+        pipes: The active pipe blocks to search (span, patch and leased spectrum).
+
+    Returns:
+        The peer termination and its pipe, or ``(None, None)`` when unresolved.
+    """
+    port_id = str(port.subscription_instance_id)
+    for pipe in pipes:
+        terminations = pipe.optical_pipe_terminations or []
+        if len(terminations) != 2:  # noqa: PLR2004
+            continue
+        ids = [str(t.subscription_instance_id) for t in terminations]
+        if port_id in ids:
+            peer = terminations[1] if ids[0] == port_id else terminations[0]
+            logger.debug(
+                "Resolved line port by pipe termination",
+                port_id=port_id,
+                port_role=str(port.optical_port_role),
+                pipe_name=pipe.optical_pipe_name,
+                pipe_owner=str(pipe.owner_subscription_id),
+                peer_id=str(peer.subscription_instance_id),
+                peer_role=str(peer.optical_port_role),
+            )
+            return peer, pipe
+    if port.optical_port_role is OpticalPortRole.COHERENT_PLUGGABLE:
+        host = port.optical_port_host_node
+        host_id = str(host.subscription_instance_id) if host is not None else None
+        port_name = port.optical_port_name
+        if host_id is not None and port_name is not None:
+            candidates: list[tuple[AbstractOpticalPortBlockInactive, AbstractOpticalPipeBlockInactive]] = []
+            for pipe in pipes:
+                terminations = pipe.optical_pipe_terminations or []
+                if len(terminations) != 2:  # noqa: PLR2004
+                    continue
+                for index, termination in enumerate(terminations):
+                    term_host = termination.optical_port_host_node
+                    if (
+                        term_host is not None
+                        and str(term_host.subscription_instance_id) == host_id
+                        and termination.optical_port_name == port_name
+                    ):
+                        candidates.append((terminations[1 - index], pipe))
+            if candidates:
+                if len(candidates) > 1:
+                    logger.warning(
+                        "Multiple pipes match coherent pluggable, using the first",
+                        port_id=port_id,
+                        host_id=host_id,
+                        port_name=port_name,
+                        num_matches=len(candidates),
+                    )
+                peer, pipe = candidates[0]
+                logger.debug(
+                    "Resolved coherent pluggable by host and port name",
+                    port_id=port_id,
+                    host_id=host_id,
+                    port_name=port_name,
+                    pipe_name=pipe.optical_pipe_name,
+                    pipe_owner=str(pipe.owner_subscription_id),
+                    peer_id=str(peer.subscription_instance_id),
+                    peer_role=str(peer.optical_port_role),
+                )
+                return peer, pipe
+    return None, None
+
+
 def find_add_drop_ports(
     src_trx_port_block_id: UUIDstr,
     dst_trx_port_block_id: UUIDstr,
 ) -> tuple[AbstractOpticalPortBlockInactive, AbstractOpticalPortBlockInactive]:
     """Retrieve the add/drop ports connected to the transponder/transceiver ports.
 
+    Each line port (a transponder line port or a coherent pluggable, which is
+    both client and line) is resolved to the peer termination of the optical
+    pipe it is attached to, searching every active pipe type (span, patch and
+    leased spectrum) by termination instance id, with a host-and-name fallback
+    for coherent pluggables (whose pipe stores a copy of the pluggable block).
+
     Args:
         src_trx_port_block_id: Subscription instance id of the source transponder port block.
         dst_trx_port_block_id: Subscription instance id of the destination transponder port block.
 
     Returns:
-        The add/drop ports terminating the fiber spans connected to the transponder ports.
+        The add/drop ports terminating the optical pipes connected to the transponder ports.
 
     Raises:
         NoOpticalPathFoundError: If the add/drop ports cannot be found.
@@ -826,21 +949,23 @@ def find_add_drop_ports(
     src_trx_port = _load_port(src_trx_port_block_id)
     dst_trx_port = _load_port(dst_trx_port_block_id)
 
-    fiber_a = OpticalFiberSpanSubscription.from_subscription(src_trx_port.owner_subscription_id).optical_pipe
-    fiber_b = OpticalFiberSpanSubscription.from_subscription(dst_trx_port.owner_subscription_id).optical_pipe
-
-    src_add_drop_port: AbstractOpticalPortBlockInactive | None = None
-    dst_add_drop_port: AbstractOpticalPortBlockInactive | None = None
-    for t in fiber_a.optical_pipe_terminations:
-        if t.subscription_instance_id != src_trx_port.subscription_instance_id:
-            src_add_drop_port = t
-            break
-    for t in fiber_b.optical_pipe_terminations:
-        if t.subscription_instance_id != dst_trx_port.subscription_instance_id:
-            dst_add_drop_port = t
-            break
+    pipes = _load_active_pipes()
+    src_add_drop_port, src_pipe = _peer_of_line_port(src_trx_port, pipes)
+    dst_add_drop_port, dst_pipe = _peer_of_line_port(dst_trx_port, pipes)
 
     if src_add_drop_port is None or dst_add_drop_port is None:
+        logger.warning(
+            "Could not resolve add/drop ports for line ports",
+            src_port_id=str(src_trx_port_block_id),
+            src_role=str(src_trx_port.optical_port_role),
+            src_resolved=src_add_drop_port is not None,
+            src_pipe=getattr(src_pipe, "optical_pipe_name", None),
+            dst_port_id=str(dst_trx_port_block_id),
+            dst_role=str(dst_trx_port.optical_port_role),
+            dst_resolved=dst_add_drop_port is not None,
+            dst_pipe=getattr(dst_pipe, "optical_pipe_name", None),
+            num_pipes=len(pipes),
+        )
         raise NoOpticalPathFoundError(src=src_trx_port_block_id, dst=dst_trx_port_block_id)
 
     return src_add_drop_port, dst_add_drop_port

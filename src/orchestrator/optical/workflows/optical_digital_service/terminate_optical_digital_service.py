@@ -27,6 +27,7 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
     factory_reset_optical_digital_crossconnects,
     factory_reset_optical_digital_lines,
     load_optical_digital_service_block,
+    prune_departing_service_channel_labels,
     refresh_optical_digital_passbands_after_teardown,
 )
 
@@ -85,7 +86,8 @@ def terminate_initial_input_form_generator(
 
 
 #: Termination steps operating on the Optical Digital Service block in the
-#: state. The cross-connects and client ports are always reset; the line ports
+#: state. The cross-connects and client ports are always reset; shared circuit
+#: labels are pruned of the departing service name first, then the line ports
 #: and optical circuits are torn down only when the service is the last client
 #: of its transport channels (shared channels stay up for the remaining
 #: services, see the gate in the shared steps), and the block is persisted by
@@ -95,6 +97,7 @@ TERMINATE_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS: StepList = (
     >> factory_reset_optical_digital_crossconnects
     >> factory_reset_optical_digital_clients
     >> factory_reset_optical_digital_lines
+    >> prune_departing_service_channel_labels
     >> delete_optical_digital_sections
     >> refresh_optical_digital_passbands_after_teardown
     >> save_optical_module_block

@@ -21,20 +21,17 @@ from typing_extensions import Doc
 
 Frequency = Annotated[
     int,
-    Field(ge=191_312_500, le=196_137_500, multiple_of=6_250),
-    Doc("A frequency value in MHz."),
+    Field(ge=191_312_500, le=196_137_500, multiple_of=6_250, title="Frequency in MHz"),
 ]
 
 Bandwidth = Annotated[
     int,
-    Field(ge=3125),
-    Doc("A bandwidth value in MHz."),
+    Field(ge=3125, title="Bandwidth in MHz"),
 ]
 
 SpectralWidth = Annotated[
     int,
-    Field(ge=3125, multiple_of=12_500),
-    Doc("A user-entered spectral width in MHz, on the 12.5 GHz grid."),
+    Field(ge=3125, multiple_of=12_500, title="Spectral Width in MHz"),
 ]
 
 

@@ -30,27 +30,22 @@ adding their own pages::
 
 from time import sleep
 from typing import Annotated, Any, cast
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 from structlog import get_logger
 
-from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
-from orchestrator.optical.hal._common import UnsupportedPlatformError
-from orchestrator.optical.hal.port import retrieve_transceiver_modes
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlockInactive,
 )
-from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import OpticalModulePacketNodeBlock
-from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_types.optical_digital_service import (
     OpticalDigitalServiceSubscriptionProvisioning,
@@ -64,8 +59,8 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
     PROVISION_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS,
     ChannelReuseGroup,
     align_optical_digital_tx_power,
-    append_reused_channel_labels,
     build_optical_digital_service_block,
+    ensure_circuit_label_token_valid,
     has_new_channels_with_sections,
     is_packet_node_host,
     line_port_selector,
@@ -74,11 +69,14 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
     optical_digital_service_block_from_state,
     optical_digital_service_speed_and_type,
     optical_digital_service_speed_and_type_for_product,
+    optical_transport_mode_selector,
     port_ids_used_by_digital_services,
     refresh_optical_digital_used_passbands,
+    reject_placeholder_transport_mode,
     resolve_channels_by_names,
     set_optical_digital_service_subscription_description,
     unused_coherent_pluggable_selector,
+    validate_line_port_mode,
 )
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
@@ -230,7 +228,10 @@ def create_optical_digital_service_identity_form(product_name: str) -> type[Form
             if not self.channel_name_1.strip():
                 msg = "The first transport channel name cannot be blank"
                 raise ValueError(msg)
+            ensure_circuit_label_token_valid(self.optical_digital_service_name, "digital service")
             names = _normalize_channel_names(self.channel_name_1, self.channel_name_2)
+            for name in names:
+                ensure_circuit_label_token_valid(name, "transport channel")
             speed, _service_type = optical_digital_service_speed_and_type_for_product(product_name)
             # Early hint only: the page sequence re-resolves to branch the form and the
             # construct step re-resolves authoritatively, so a stale result here is harmless.
@@ -349,19 +350,27 @@ def create_optical_digital_service_lines_form(
 def create_optical_digital_service_channels_form(
     product_name: str,
     num_channels: int,
+    mode_choice: type[Choice],
 ) -> type[FormPage]:
     """Return the transport channels FormPage of the Optical Digital Service create form.
 
     This page collects the shared operating mode and the central frequency
     and spectral width of each new transport channel (one, or two for reverse
     multiplexing). It is only shown for new transport channels: the names were
-    already collected on the identity page. The mode is only checked for shape
-    here (non-empty); the authoritative check against the live modes of the
-    line port cards runs in the construct step (see :func:`_validate_line_port_mode`).
+    already collected on the identity page. The mode is a drop-down over the
+    intersection of the live mode tables of the selected line port cards (see
+    :func:`optical_transport_mode_selector
+    <orchestrator.optical.workflows.optical_digital_service.shared.optical_transport_mode_selector>`);
+    when the cards share no common mode the drop-down holds only a rejecting
+    placeholder. The authoritative check against the live modes of the line port
+    cards re-runs in the construct step (see :func:`validate_line_port_mode
+    <orchestrator.optical.workflows.optical_digital_service.shared.validate_line_port_mode>`).
 
     Args:
         product_name: Name of the product being created, used as the page title.
         num_channels: Number of new transport channels (1, or 2 for reverse multiplexing).
+        mode_choice: ``Choice`` of the operating modes supported by the selected
+            line ports.
 
     Returns:
         The transport channels FormPage of the shipped create form.
@@ -370,15 +379,13 @@ def create_optical_digital_service_channels_form(
     class CreateOpticalDigitalServiceChannelsForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        optical_transport_mode: str
+        optical_transport_mode: mode_choice
         frequency_1: Frequency
         bandwidth_1: SpectralWidth
 
         @model_validator(mode="after")
         def validate_channels(self) -> "CreateOpticalDigitalServiceChannelsForm":
-            if not self.optical_transport_mode.strip():
-                msg = "Operating mode cannot be empty"
-                raise ValueError(msg)
+            reject_placeholder_transport_mode(str(self.optical_transport_mode))
             return self
 
     if num_channels == 1:
@@ -389,45 +396,6 @@ def create_optical_digital_service_channels_form(
         bandwidth_2: SpectralWidth
 
     return CreateOpticalDigitalServiceDualChannelsForm
-
-
-def _validate_line_port_mode(line_port_id: UUIDstr, mode: str, side: str) -> None:
-    """Validate the operating mode against the live modes of a line port card.
-
-    Authoritative construct-time check (see
-    :func:`construct_optical_digital_service_subscription`): the form only
-    checks the mode for shape, so a typo surfaces here with the card's
-    supported modes. Ports whose modes cannot be retrieved are skipped:
-    coherent-pluggable-hosted ports expose no mode table yet, and unreachable
-    devices fail open (their configuration step reports the outage).
-
-    Args:
-        line_port_id: Subscription instance id of the line port block.
-        mode: The operating mode entered in the form.
-        side: Human-readable side of the service, used in error messages.
-
-    Raises:
-        ValueError: If the mode is empty, or if the card reports modes and the
-            entered mode is not among them.
-    """
-    if not mode:
-        msg = f"Operating mode of the {side} side cannot be empty"
-        raise ValueError(msg)
-    try:
-        line_port: Any = ProductBlockModel.from_db(UUID(str(line_port_id)))
-        host = cast(AnyOpticalNodeBlockProvisioningUnion, line_port.optical_port_host_node)
-        if isinstance(host, OpticalModulePacketNodeBlock):
-            return
-        modes = retrieve_transceiver_modes(host, cast(str, line_port.optical_port_name))
-    except (ValueError, KeyError, AttributeError, OSError, UnsupportedPlatformError):
-        # Fail open: unknown blocks, unparsable ports, unreachable devices and
-        # platforms without a mode table skip the check; the provision step
-        # reports the outage with device context.
-        logger.debug("Skipping line-port mode check: live modes could not be retrieved", line_port_id=line_port_id)
-        return
-    if modes and mode not in modes:
-        msg = f"Mode {mode!r} is not supported by the {side} line port card (supported: {', '.join(modes)})"
-        raise ValueError(msg)
 
 
 def create_optical_digital_service_path_form(path_choice: type[Choice]) -> type[FormPage]:
@@ -520,6 +488,16 @@ def optical_digital_service_path_choice(
         return human_readable_transport_channel_path_selector([[]], prompt)
     src_ols_dev_id = str(first_add_drop.optical_port_host_node.subscription_instance_id)
     dst_ols_dev_id = str(last_add_drop.optical_port_host_node.subscription_instance_id)
+    logger.debug(
+        "Computing digital service optical path",
+        src_line_id=str(line_a_1),
+        dst_line_id=str(line_b_1),
+        first_add_drop_id=str(first_add_drop.subscription_instance_id),
+        last_add_drop_id=str(last_add_drop.subscription_instance_id),
+        src_ols_dev_id=src_ols_dev_id,
+        dst_ols_dev_id=dst_ols_dev_id,
+        passband=passband,
+    )
     ols_paths = all_shortest_paths_through_waypoints(
         src_ols_dev_id, dst_ols_dev_id, waypoint_node_ids, passband, exclude_node_ids, exclude_span_ids
     )
@@ -689,7 +667,10 @@ def _yield_new_channel_spec_pages(
         The collected user input of the new-channel spec pages.
     """
     collected: dict[str, Any] = {}
-    collected.update((yield create_optical_digital_service_channels_form(product_name, num_channels)).model_dump())
+    mode_choice = optical_transport_mode_selector([*src_line_ids, *dst_line_ids])
+    collected.update(
+        (yield create_optical_digital_service_channels_form(product_name, num_channels, mode_choice)).model_dump()
+    )
     collected.update((yield from _yield_routing_constraint_pages(product_name)))
 
     passband = passband_from(collected["frequency_1"], collected["bandwidth_1"])
@@ -777,7 +758,7 @@ def _new_channel_plan(
         *[(line_id, "source") for line_id in line_ids_a],
         *[(line_id, "destination") for line_id in line_ids_b],
     ):
-        _validate_line_port_mode(line_id, optical_transport_mode, side)
+        validate_line_port_mode(line_id, optical_transport_mode, side)
     frequencies = [frequency_1]
     bandwidths = [bandwidth_1]
     if len(channel_names) == 2:  # noqa: PLR2004
@@ -894,15 +875,14 @@ def wait_before_power_alignment(optical_module_block: OpticalDigitalServiceBlock
 
 #: Create steps operating on the Optical Digital Service block in the state. Every step
 #: is block-level: the shared provisioning push (line/client/cross-connect
-#: configuration and optical-circuit deployment, see
+#: configuration and optical-circuit ensure of every channel, see
 #: ``PROVISION_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS``) runs first, then the
-#: passbands in use are refreshed, the labels of reused channels are extended,
-#: the transmit power is aligned and the block is persisted by the last step,
-#: because workflow steps execute with the state serialized between steps (the
-#: block is re-hydrated from its serialized form before every step operates on
-#: it). The block is assumed to be in the PROVISIONING lifecycle status with
-#: its mandatory fields and channels already set: the caller's construct step
-#: provides it (see :func:`construct_optical_digital_service_subscription`).
+#: passbands in use are refreshed, the transmit power is aligned and the block is
+#: persisted by the last step, because workflow steps execute with the state
+#: serialized between steps (the block is re-hydrated from its serialized form
+#: before every step operates on it). The block is assumed to be in the PROVISIONING
+#: lifecycle status with its mandatory fields and channels already set: the caller's
+#: construct step provides it (see :func:`construct_optical_digital_service_subscription`).
 #: Consumers with their own model run this list after constructing their
 #: subscription the same way and putting their block in the state under
 #: ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
@@ -910,7 +890,6 @@ CREATE_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS: StepList = StepList(
     [
         *PROVISION_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS,
         refresh_optical_digital_used_passbands,
-        append_reused_channel_labels,
         wait_before_power_alignment,
         align_optical_digital_tx_power,
         save_optical_module_block,

@@ -167,12 +167,8 @@ def test_port_dispatchers_reject_unsupported_platform(call: Any) -> None:
 
 _SPECTRUM_UNSUPPORTED_CALLS = [
     pytest.param(
-        lambda node: hal_spectrum.deploy_optical_circuit(node, _SECTION, "spec", _PASSBAND, _CARRIER),
-        id="deploy_optical_circuit",
-    ),
-    pytest.param(
-        lambda node: hal_spectrum.modify_optical_circuit(node, _SECTION, "spec", _PASSBAND, _CARRIER),
-        id="modify_optical_circuit",
+        lambda node: hal_spectrum.ensure_optical_circuit(node, _SECTION, "spec", _PASSBAND, _CARRIER),
+        id="ensure_optical_circuit",
     ),
     pytest.param(
         lambda node: hal_spectrum.delete_optical_circuit(node, _SECTION, "spec", _PASSBAND),
@@ -183,8 +179,8 @@ _SPECTRUM_UNSUPPORTED_CALLS = [
         id="validate_optical_circuit",
     ),
     pytest.param(
-        lambda node: hal_spectrum.append_optical_circuit_label(node, _SECTION, "spec", _PASSBAND, "label"),
-        id="append_optical_circuit_label",
+        lambda node: hal_spectrum.set_optical_circuit_label(node, _SECTION, "spec", _PASSBAND, "label"),
+        id="set_optical_circuit_label",
     ),
     pytest.param(
         lambda node: hal_spectrum.create_optical_cross_connection(node, _port(node), _port(node), _PASSBAND),
@@ -293,12 +289,8 @@ def test_set_channel_description_is_not_applicable_for_flexils() -> None:
     "call",
     [
         pytest.param(
-            lambda node: hal_spectrum.deploy_optical_circuit(node, _SECTION, "spec", _PASSBAND, _CARRIER),
-            id="deploy_optical_circuit",
-        ),
-        pytest.param(
-            lambda node: hal_spectrum.modify_optical_circuit(node, _SECTION, "spec", _PASSBAND, _CARRIER),
-            id="modify_optical_circuit",
+            lambda node: hal_spectrum.ensure_optical_circuit(node, _SECTION, "spec", _PASSBAND, _CARRIER),
+            id="ensure_optical_circuit",
         ),
         pytest.param(
             lambda node: hal_spectrum.delete_optical_circuit(node, _SECTION, "spec", _PASSBAND),
@@ -309,8 +301,8 @@ def test_set_channel_description_is_not_applicable_for_flexils() -> None:
             id="delete_optical_circuit_oel",
         ),
         pytest.param(
-            lambda node: hal_spectrum.append_optical_circuit_label(node, _SECTION, "spec", _PASSBAND, "label"),
-            id="append_optical_circuit_label",
+            lambda node: hal_spectrum.set_optical_circuit_label(node, _SECTION, "spec", _PASSBAND, "label"),
+            id="set_optical_circuit_label",
         ),
     ],
 )
@@ -547,26 +539,14 @@ def test_check_fiber_dispatches_per_vendor_and_forwards_pipe_type(monkeypatch: p
     assert g42.calls == [((g42_local, g42_remote), {})]
 
 
-def test_deploy_optical_circuit_dispatches_to_flexils(monkeypatch: pytest.MonkeyPatch) -> None:
-    recorder = _patch(monkeypatch, flexils_spectrum, "deploy", {"deployed": True})
+def test_ensure_optical_circuit_dispatches_to_flexils(monkeypatch: pytest.MonkeyPatch) -> None:
+    recorder = _patch(monkeypatch, flexils_spectrum, "ensure", {"ensured": True})
     block = _flexils_node()
 
-    result = hal_spectrum.deploy_optical_circuit(block, _SECTION, "spec", _PASSBAND, _CARRIER, "label", "cid")
+    result = hal_spectrum.ensure_optical_circuit(block, _SECTION, "spec", _PASSBAND, _CARRIER, "label", "cid")
 
-    assert result == {"deployed": True}
+    assert result == {"ensured": True}
     assert recorder.calls == [((block, _SECTION, "spec", _PASSBAND, _CARRIER, "label", "cid"), {})]
-
-
-def test_modify_optical_circuit_dispatches_to_flexils(monkeypatch: pytest.MonkeyPatch) -> None:
-    recorder = _patch(monkeypatch, flexils_spectrum, "modify", {"modified": True})
-    block = _flexils_node()
-
-    result = hal_spectrum.modify_optical_circuit(
-        block, _SECTION, "spec", _PASSBAND, _CARRIER, "label", _PASSBAND, "cid"
-    )
-
-    assert result == {"modified": True}
-    assert recorder.calls == [((block, _SECTION, "spec", _PASSBAND, _CARRIER, "label", _PASSBAND, "cid"), {})]
 
 
 def test_delete_optical_circuit_dispatches_to_flexils(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -587,11 +567,11 @@ def test_validate_optical_circuit_dispatches_to_flexils(monkeypatch: pytest.Monk
     assert recorder.calls == [((block, _SECTION, "spec", _PASSBAND, _CARRIER, "label", "cid"), {})]
 
 
-def test_append_optical_circuit_label_dispatches_to_flexils(monkeypatch: pytest.MonkeyPatch) -> None:
-    recorder = _patch(monkeypatch, flexils_spectrum, "append_label", {"labelled": True})
+def test_set_optical_circuit_label_dispatches_to_flexils(monkeypatch: pytest.MonkeyPatch) -> None:
+    recorder = _patch(monkeypatch, flexils_spectrum, "set_label", {"labelled": True})
     block = _flexils_node()
 
-    result = hal_spectrum.append_optical_circuit_label(block, _SECTION, "spec", _PASSBAND, "label", "cid")
+    result = hal_spectrum.set_optical_circuit_label(block, _SECTION, "spec", _PASSBAND, "label", "cid")
 
     assert result == {"labelled": True}
     assert recorder.calls == [((block, _SECTION, "spec", _PASSBAND, "label", "cid"), {})]

@@ -25,6 +25,7 @@ sequence in one line and adding their own pages::
 
 from time import sleep
 
+from pydantic import model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from orchestrator.core.domain import SubscriptionModel
@@ -39,7 +40,6 @@ from orchestrator.optical.products.product_blocks.optical_digital_service import
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSubscription
 from orchestrator.optical.utils.custom_types.frequencies import (
     Frequency,
-    Passband,
     SpectralWidth,
     passband_from,
 )
@@ -57,8 +57,11 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
     load_optical_digital_service_block,
     modify_optical_digital_sections,
     optical_digital_service_block_from_state,
+    optical_transport_mode_selector,
     refresh_optical_digital_used_passbands,
+    reject_placeholder_transport_mode,
     set_optical_digital_service_subscription_description,
+    validate_line_port_mode,
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
 
@@ -73,7 +76,12 @@ def modify_optical_digital_service_form(
     """Return the modify FormPage of the Optical Digital Service subscription.
 
     The page is prefilled with the current frequencies, bandwidths and mode of
-    the transport channels, so unchanged fields remain intact. The number of
+    the transport channels, so unchanged fields remain intact. The mode is a
+    drop-down over the intersection of the live mode tables of the channels'
+    line port cards (see :func:`optical_transport_mode_selector
+    <orchestrator.optical.workflows.optical_digital_service.shared.optical_transport_mode_selector>`);
+    the currently provisioned mode is always offered, so the prefilled page
+    renders even when the stored mode went stale. The number of
     fields follows the number of channels: services with two channels
     (reverse multiplexing) expose the second frequency/bandwidth pair.
 
@@ -90,14 +98,25 @@ def modify_optical_digital_service_form(
     block = getattr(subscription, block_field_name)
     channels = block.optical_digital_service_transport_channels
     old_mode = channels[0].optical_transport_mode
+    line_port_ids = [
+        str(line_port.subscription_instance_id)
+        for channel in channels
+        for line_port in channel.optical_transport_line_ports
+    ]
+    mode_choice = optical_transport_mode_selector(line_port_ids, extra_options=[str(old_mode)])
 
     class ModifyOpticalDigitalServiceForm(FormPage):
-        optical_transport_mode: str = old_mode
+        optical_transport_mode: mode_choice = old_mode
         frequency_1: Frequency = channels[0].optical_transport_central_frequency
         bandwidth_1: SpectralWidth = (
             channels[0].optical_transport_spectrum.optical_spectrum_passband[1]
             - channels[0].optical_transport_spectrum.optical_spectrum_passband[0]
         )
+
+        @model_validator(mode="after")
+        def validate_data(self) -> "ModifyOpticalDigitalServiceForm":
+            reject_placeholder_transport_mode(str(self.optical_transport_mode))
+            return self
 
     if len(channels) == 1:
         return ModifyOpticalDigitalServiceForm
@@ -193,11 +212,13 @@ def update_optical_digital_service_block(
 
     Every channel keeps its ports and sections: only the central frequency, the
     passband (recomputed as ``frequency ± bandwidth / 2``) and the mode are
-    overwritten. The total capacity is re-derived from the new mode on the
+    overwritten. The new mode is validated against the live mode tables of the
+    channels' line port cards before anything is mutated (see :func:`validate_line_port_mode
+    <orchestrator.optical.workflows.optical_digital_service.shared.validate_line_port_mode>`).
+    The total capacity is re-derived from the new mode on the
     service-owned channels only: reused channels keep the capacity accounting
-    of their owning subscription. The old passbands are returned in the state
-    so the following circuit modification step can locate the existing circuits
-    on the devices.
+    of their owning subscription. The circuits are converged by identity by the
+    following steps, so the old passbands are not needed anymore.
     Workflow steps execute with the state serialized between steps, so the block
     is re-hydrated from its serialized form before it is updated.
 
@@ -222,16 +243,20 @@ def update_optical_digital_service_block(
     if len(new_values) != len(channels):
         msg = "The number of carriers cannot be changed by the modify workflow"
         raise ValueError(msg)
-    old_passbands: list[Passband] = []
+    for channel in channels:
+        channel_name = str(channel.optical_transport_channel_name)
+        for line_port in channel.optical_transport_line_ports:
+            validate_line_port_mode(
+                str(line_port.subscription_instance_id), optical_transport_mode, f"channel {channel_name}"
+            )
     for channel, (frequency, bandwidth) in zip(channels, new_values, strict=True):
-        old_passbands.append(channel.optical_transport_spectrum.optical_spectrum_passband)
         channel.optical_transport_central_frequency = frequency
         channel.optical_transport_spectrum.optical_spectrum_passband = passband_from(frequency, bandwidth)
         channel.optical_transport_mode = optical_transport_mode
         if is_new_channel(channel, block):
             hosts = [line.optical_port_host_node for line in channel.optical_transport_line_ports]
             channel.optical_transport_total_capacity = get_transceiver_capacity_from_mode(hosts, optical_transport_mode)
-    return {OPTICAL_MODULE_BLOCK_STATE_KEY: block, "old_passbands": old_passbands}
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
 
 @step("Waiting for the retune to settle")

@@ -45,14 +45,19 @@ from orchestrator.optical.db import (
     subscription_instances_by_block_type,
     subscriptions_by_product_type,
 )
+from orchestrator.optical.hal._common import UnsupportedPlatformError
 from orchestrator.optical.hal.port import (
     get_transceiver_capacity_from_mode as hal_get_transceiver_capacity_from_mode,
 )
-from orchestrator.optical.hal.port import is_transponder_line_port, parse_port_identifiers
+from orchestrator.optical.hal.port import (
+    is_transponder_line_port,
+    parse_port_identifiers,
+    retrieve_common_transceiver_modes,
+    retrieve_transceiver_modes,
+)
 from orchestrator.optical.hal.spectrum import (
-    append_optical_circuit_label,
-    deploy_optical_circuit,
-    modify_optical_circuit,
+    ensure_optical_circuit,
+    set_optical_circuit_label,
     validate_optical_circuit,
 )
 from orchestrator.optical.hal.transport_channel import (
@@ -133,6 +138,100 @@ DIRECT_CONNECTION = "direct_connection"
 
 #: Seconds to wait after adjusting a transponder transmit power before re-measuring.
 TX_POWER_REALIGN_DELAY_S = 5
+
+#: Separator between the conduit channel name and the carried digital services
+#: in an OLS optical circuit label, e.g. ``"ch-01: svcA + svcB"``.
+OPTICAL_CIRCUIT_LABEL_CONDUIT_SEPARATOR = ": "
+
+#: Separator joining the carried digital service names in an OLS optical circuit label.
+OPTICAL_CIRCUIT_LABEL_SERVICE_SEPARATOR = " + "
+
+
+def ensure_circuit_label_token_valid(name: str, kind: str) -> str:
+    """Validate a digital service or transport channel name for use in a circuit label.
+
+    The composite OLS circuit label (``"<channel>: <svcA> + <svcB>"``) uses ``": "``
+    and ``"+"`` as structural separators, and the label is double-quoted on the
+    TL1 wire, so names containing them, a double quote, or blank names would make
+    the label ambiguous or corrupt the TL1 command.
+
+    Args:
+        name: The user-facing service or channel name to validate.
+        kind: Human-readable kind (``"digital service"`` / ``"transport channel"``) for errors.
+
+    Returns:
+        The stripped name.
+
+    Raises:
+        ValueError: If the name is blank or contains a label separator.
+    """
+    stripped = name.strip()
+    if not stripped:
+        msg = f"The {kind} name cannot be blank in an optical circuit label"
+        raise ValueError(msg)
+    for separator in (
+        OPTICAL_CIRCUIT_LABEL_CONDUIT_SEPARATOR.strip(),
+        OPTICAL_CIRCUIT_LABEL_SERVICE_SEPARATOR.strip(),
+        ":",
+        '"',
+    ):
+        if separator and separator in stripped:
+            msg = (
+                f"The {kind} name {stripped!r} cannot contain {separator!r}: "
+                "it would make the OLS optical circuit label ambiguous"
+            )
+            raise ValueError(msg)
+    return stripped
+
+
+def build_optical_circuit_label(channel_name: str, service_names: list[str]) -> str:
+    """Build the composite OLS optical circuit label of a transport channel.
+
+    The label carries both the conduit (own transport channel name) and all the
+    carried digital services: ``"<channel>: <svcA> + <svcB>"`` with digitals
+    deduped and sorted, so reverse-multiplexed pairs read ``"ch1: svc"`` /
+    ``"ch2: svc"`` (own conduit only) and a normally muxed channel reads
+    ``"ch: svcA + svcB"``.
+
+    Args:
+        channel_name: User-facing name of the transport channel (the conduit).
+        service_names: User-facing names of all non-terminated digital services carried.
+
+    Returns:
+        The composite label, e.g. ``"ch-01: svcA + svcB"``.
+
+    Raises:
+        ValueError: If the channel name or the service list is blank/ambiguous.
+    """
+    conduit = ensure_circuit_label_token_valid(channel_name, "transport channel")
+    cleaned = sorted({ensure_circuit_label_token_valid(name, "digital service") for name in service_names})
+    if not cleaned:
+        msg = "At least one digital service name is required in an optical circuit label"
+        raise ValueError(msg)
+    return f"{conduit}{OPTICAL_CIRCUIT_LABEL_CONDUIT_SEPARATOR}{OPTICAL_CIRCUIT_LABEL_SERVICE_SEPARATOR.join(cleaned)}"
+
+
+def parse_optical_circuit_label(label: str) -> tuple[str, list[str]]:
+    """Split a composite OLS optical circuit label into conduit and digital names.
+
+    The split is tolerant: services are separated on ``"+"`` with surrounding
+    whitespace stripped, so both the shipped ``"a + b"`` form and legacy
+    unspaced ``"a+b"`` labels parse.
+
+    Args:
+        label: A label previously built by :func:`build_optical_circuit_label`.
+
+    Returns:
+        The ``(channel_name, sorted_service_names)`` pair; unknown/legacy labels
+        yield ``("", [])`` instead of raising, so device-read-merge stays best-effort.
+    """
+    if OPTICAL_CIRCUIT_LABEL_CONDUIT_SEPARATOR not in label:
+        return ("", [])
+    conduit, _, services = label.partition(OPTICAL_CIRCUIT_LABEL_CONDUIT_SEPARATOR)
+    names = sorted({name.strip() for name in services.split("+") if name.strip()})
+    if not conduit.strip() or not names:
+        return ("", [])
+    return (conduit.strip(), names)
 
 
 def optical_digital_service_block_from_state(
@@ -472,6 +571,114 @@ def unused_coherent_pluggable_selector(host_subscription_id: UUIDstr, prompt: st
     )
 
 
+#: Rejecting placeholder offered as the only transport-mode option when the selected
+#: line port cards share no common operating mode. Like the no-optical-path placeholder,
+#: it renders the diagnosis in the form itself; the form validator rejects it, so the
+#: user must go back and reselect line ports on matching cards.
+NO_COMMON_TRANSPORT_MODE_MSG = (
+    "No common operating mode for selected transceivers. Go back to previous page to change ports."
+)
+
+
+def reject_placeholder_transport_mode(mode: str) -> None:
+    """Raise if the given transport mode is the no-common-mode placeholder.
+
+    Args:
+        mode: The operating mode submitted by the form.
+
+    Raises:
+        ValueError: If the mode is the rejecting placeholder.
+    """
+    if mode == NO_COMMON_TRANSPORT_MODE_MSG:
+        raise ValueError(NO_COMMON_TRANSPORT_MODE_MSG)
+
+
+def optical_transport_mode_selector(
+    line_port_ids: list[UUIDstr],
+    prompt: str | None = None,
+    extra_options: list[str] | None = None,
+) -> type[Choice]:
+    """Create a ``Choice`` selector for the operating mode of new transport channels.
+
+    One service-wide mode must be valid on every selected line port card, so the
+    options are the intersection of the live per-card mode tables (see
+    :func:`orchestrator.optical.hal.port.retrieve_common_transceiver_modes`).
+    When the cards share no common mode, the selector holds only the rejecting
+    :data:`NO_COMMON_TRANSPORT_MODE_MSG` placeholder, which the form validator
+    rejects. Device errors and unsupported hosts (e.g. packet nodes, whose
+    coherent-pluggable push is not implemented yet) propagate and fail the form.
+
+    Args:
+        line_port_ids: Subscription instance ids of the selected line port blocks
+            of both sides of the service.
+        prompt: Prompt of the selector. When omitted, a default prompt is generated.
+        extra_options: Additional modes appended after the live intersection (e.g.
+            the currently provisioned mode on a modify form, so the prefilled page
+            renders even when the stored mode went stale).
+
+    Returns:
+        A ``Choice`` class whose values are operating mode strings.
+    """
+    node_ports: list[tuple[AnyOpticalNodeBlockProvisioningUnion, str]] = []
+    for line_port_id in line_port_ids:
+        line_port = cast(Any, ProductBlockModel.from_db(UUID(str(line_port_id))))
+        node_ports.append(
+            (
+                cast(AnyOpticalNodeBlockProvisioningUnion, line_port.optical_port_host_node),
+                str(line_port.optical_port_name),
+            )
+        )
+    modes = retrieve_common_transceiver_modes(node_ports)
+    options = list(modes) + [mode for mode in (extra_options or []) if mode not in modes]
+    if not prompt:
+        prompt = "Select the operating mode of the transport channels"
+    if not options:
+        return cast(
+            type[Choice],
+            Choice(prompt, [(NO_COMMON_TRANSPORT_MODE_MSG, NO_COMMON_TRANSPORT_MODE_MSG)]),
+        )
+    return cast(type[Choice], Choice(prompt, zip(options, options, strict=False)))
+
+
+def validate_line_port_mode(line_port_id: UUIDstr, mode: str, side: str) -> None:
+    """Validate the operating mode against the live modes of a line port card.
+
+    Authoritative construct/update-time check: the forms only offer live modes,
+    so a rejection here means the inventory changed between the form and the
+    step — it surfaces with the card's supported modes. Ports whose modes cannot
+    be retrieved are skipped: coherent-pluggable-hosted ports expose no mode
+    table yet, and unreachable devices fail open (their configuration step
+    reports the outage).
+
+    Args:
+        line_port_id: Subscription instance id of the line port block.
+        mode: The operating mode entered in the form.
+        side: Human-readable side of the service, used in error messages.
+
+    Raises:
+        ValueError: If the mode is empty, or if the card reports modes and the
+            entered mode is not among them.
+    """
+    if not mode:
+        msg = f"Operating mode of the {side} side cannot be empty"
+        raise ValueError(msg)
+    try:
+        line_port: Any = ProductBlockModel.from_db(UUID(str(line_port_id)))
+        host = cast(AnyOpticalNodeBlockProvisioningUnion, line_port.optical_port_host_node)
+        if isinstance(host, OpticalModulePacketNodeBlock):
+            return
+        modes = retrieve_transceiver_modes(host, cast(str, line_port.optical_port_name))
+    except (ValueError, KeyError, AttributeError, OSError, UnsupportedPlatformError):
+        # Fail open: unknown blocks, unparsable ports, unreachable devices and
+        # platforms without a mode table skip the check; the provision step
+        # reports the outage with device context.
+        logger.debug("Skipping line-port mode check: live modes could not be retrieved", line_port_id=line_port_id)
+        return
+    if modes and mode not in modes:
+        msg = f"Mode {mode!r} is not supported by the {side} line port card (supported: {', '.join(modes)})"
+        raise ValueError(msg)
+
+
 class ChannelReuseGroup(NamedTuple):
     """A reusable unit of already provisioned transport channels.
 
@@ -576,6 +783,107 @@ def _distinct_using_service_speeds(channel: OpticalTransportChannelBlock) -> dic
         if speed is not None:
             speeds[str(subscription.subscription_id)] = int(speed)
     return speeds
+
+
+def _digital_service_name_of_subscription(subscription_id: UUIDstr) -> str | None:
+    """Return the digital service name of a subscription, tolerating consumer models.
+
+    The shipped subscription models hold the block under ``optical_digital_service``;
+    consumers composing the shipped block under their own attribute hold it elsewhere,
+    so every attribute holding an Optical Digital Service block is accepted.
+
+    Args:
+        subscription_id: Subscription id of a digital service subscription.
+
+    Returns:
+        The user-facing digital service name, or ``None`` when the subscription
+        has no Optical Digital Service block (not a digital service user).
+    """
+    model = SubscriptionModel.from_subscription(subscription_id)
+    direct = getattr(model, "optical_digital_service", None)
+    name = getattr(direct, "optical_digital_service_name", None)
+    if name:
+        return str(name)
+    for value in vars(model).values():
+        name = getattr(value, "optical_digital_service_name", None)
+        channels = getattr(value, "optical_digital_service_transport_channels", None)
+        if name and channels is not None:
+            return str(name)
+    return None
+
+
+def digital_service_names_for_channel(
+    channel: OpticalTransportChannelBlockProvisioning | OpticalTransportChannelBlock,
+    current_service_name: str | None = None,
+    exclude_subscription_id: str | None = None,
+) -> list[str]:
+    """Return the sorted names of all non-terminated digital services using a channel.
+
+    A normally muxed transport channel carries several digital services: the OLS
+    optical circuit label must list all of them. Users are resolved from the
+    freshly loaded channel's ``in_use_by`` (terminated subscriptions skipped);
+    the in-flight service is unioned via ``current_service_name`` because it may
+    not appear in ``in_use_by`` yet during create, and the departing service is
+    removed via ``exclude_subscription_id`` during terminate.
+
+    Args:
+        channel: The transport channel block to inspect.
+        current_service_name: User-facing name of the in-flight digital service to include.
+        exclude_subscription_id: Subscription id whose user entry is dropped (terminate prune).
+
+    Returns:
+        The sorted, deduped digital service names.
+    """
+    fresh = OpticalTransportChannelBlock.from_db(subscription_instance_id=channel.subscription_instance_id)
+    names: set[str] = set()
+    for instance in fresh.in_use_by:
+        subscription = instance.subscription
+        if subscription.status == SubscriptionLifecycle.TERMINATED:
+            continue
+        if exclude_subscription_id is not None and str(subscription.subscription_id) == str(exclude_subscription_id):
+            continue
+        name = _digital_service_name_of_subscription(subscription.subscription_id)
+        if name:
+            names.add(name.strip())
+    if current_service_name and exclude_subscription_id is None:
+        # Union the in-flight service: during create it may not appear in
+        # ``in_use_by`` yet. During terminate prune (exclude set) the departing
+        # service must never be re-added.
+        names.add(current_service_name.strip())
+    return sorted(name for name in names if name)
+
+
+def expected_optical_circuit_label(
+    channel: OpticalTransportChannelBlockProvisioning | OpticalTransportChannelBlock,
+    block: OpticalDigitalServiceBlockProvisioning,
+    exclude_subscription_id: str | None = None,
+) -> str:
+    """Return the composite OLS optical circuit label expected for a channel.
+
+    The label carries the conduit (own transport channel name) and every carried
+    digital service: ``"<channel>: <svcA> + <svcB>"``. Each reverse-multiplexed
+    channel of one service gets its own conduit with the shared digital name.
+
+    Args:
+        channel: The transport channel whose circuit label is derived.
+        block: The Optical Digital Service block in the state (provides the
+            in-flight service name).
+        exclude_subscription_id: Subscription id dropped from the carried set
+            (terminate prune of the departing service).
+
+    Returns:
+        The composite label, e.g. ``"ch-01: svcA+svcB"``.
+    """
+    channel_name = str(channel.optical_transport_channel_name)
+    service_name = str(block.optical_digital_service_name)
+    names = digital_service_names_for_channel(
+        channel, current_service_name=service_name, exclude_subscription_id=exclude_subscription_id
+    )
+    if not names:
+        # The channel always carries at least the in-flight service except while
+        # pruning the last client (whose circuits are deleted right after).
+        names = [service_name.strip()]
+    return build_optical_circuit_label(channel_name, names)
 
 
 def channel_spare_capacity(channel: OpticalTransportChannelBlock) -> int | None:
@@ -1027,7 +1335,9 @@ def populate_optical_digital_service_block(
         optical_digital_service_speed: Speed of the digital service in Gbit/s.
         optical_digital_service_type: Framing protocol type of the digital service.
     """
-    optical_module_block.optical_digital_service_name = optical_digital_service_name
+    optical_module_block.optical_digital_service_name = ensure_circuit_label_token_valid(
+        optical_digital_service_name, "digital service"
+    )
     optical_module_block.optical_digital_service_speed = optical_digital_service_speed
     optical_module_block.optical_digital_service_type = optical_digital_service_type
 
@@ -1100,9 +1410,13 @@ def build_optical_digital_service_block(
 
     Raises:
         ValueError: If a client port name is already in use, if a coherent
-            pluggable is already used by another digital service, or if a
-            packet-node side carries line ports other than the client pluggable.
+            pluggable is already used by another digital service, if a
+            packet-node side carries line ports other than the client pluggable,
+            or if the service/channel names contain circuit-label separators.
     """
+    ensure_circuit_label_token_valid(optical_digital_service_name, "digital service")
+    for channel_name in channel_names:
+        ensure_circuit_label_token_valid(channel_name, "transport channel")
     src_host = node_block_from_subscription(src_host_id)
     dst_host = node_block_from_subscription(dst_host_id)
     src_fqdn = _host_label(cast(AnyOpticalNodeBlockProvisioningUnion, src_host))
@@ -1411,42 +1725,87 @@ def _carrier_of_channel(channel: OpticalTransportChannelBlockProvisioning) -> tu
     return (channel.optical_transport_central_frequency, bandwidth)
 
 
+def _ensure_channel_circuits(
+    channels: list[OpticalTransportChannelBlockProvisioning],
+    block: OpticalDigitalServiceBlockProvisioning,
+) -> dict[str, Any]:
+    """Ensure the optical circuits of the given transport channels on the devices.
+
+    Single home for the OLS device push of the family: every channel section is
+    converged with the idempotent :func:`ensure_optical_circuit` primitive (missing
+    OEL/OSNC recreated, drifted passband/carrier/OEL/label edited in place, stale
+    composite labels converged), so owned and reused channels share one code path
+    with no duplicate-OSNC risk. The ``is_new_channel`` ownership gate lives in the
+    callers, never here: transponder configuration stays ownership-gated, OLS
+    circuits do not.
+
+    Args:
+        channels: The transport channel blocks whose sections are ensured.
+        block: The Optical Digital Service block in the state (provides the
+            in-flight service name for the composite circuit labels).
+
+    Returns:
+        The per-section ensure results keyed by ``"<spectrum> <fqdn>"``.
+    """
+    service_name = block.optical_digital_service_name
+    results: dict[str, Any] = {}
+    for channel in channels:
+        spectrum = channel.optical_transport_spectrum
+        spectrum_name = spectrum.optical_spectrum_name or service_name
+        carrier = _carrier_of_channel(channel)
+        circuit_identifier = str(spectrum.subscription_instance_id)
+        label = expected_optical_circuit_label(channel, block)
+        for section in spectrum.optical_spectrum_sections:
+            src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
+            key = f"{spectrum_name} {src_node.management.optical_module_node_fqdn}"
+            results[key] = ensure_optical_circuit(
+                cast(AnyOpticalNodeBlockProvisioningUnion, src_node),
+                section,
+                spectrum_name,
+                spectrum.optical_spectrum_passband,
+                carrier,
+                label=label,
+                circuit_identifier=circuit_identifier,
+            )
+    return results
+
+
 @step("Provisioning optical spectrum sections of the transport channels")
 def provision_optical_digital_sections(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
-    """Deploy the optical circuit of every section of the new transport channels.
+    """Ensure the optical circuit of every section of the new transport channels.
 
     Operates only on the Optical Digital Service block found in the state under
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The device push is idempotent (circuits
-    are found or created), so the step is shared by the shipped create and
-    reconcile workflows. Reused channels are skipped: their circuits already exist.
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. Reused channels are skipped: they are covered
+    by :func:`ensure_optical_digital_sections`. The ensure primitive recreates a
+    missing OSNC and converges a stale composite label (``"<channel>: <svcA> + <svcB>"``)
+    without duplicating, so this step is safe to retry and to run after borrowers exist.
 
     Args:
         optical_module_block: The Optical Digital Service block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     block = optical_digital_service_block_from_state(optical_module_block)
-    service_name = block.optical_digital_service_name
-    results: dict[str, Any] = {}
-    for channel in block.optical_digital_service_transport_channels:
-        if not is_new_channel(channel, block):
-            continue
-        spectrum = channel.optical_transport_spectrum
-        spectrum_name = spectrum.optical_spectrum_name or service_name
-        carrier = _carrier_of_channel(channel)
-        circuit_identifier = str(spectrum.subscription_instance_id)
-        for section in spectrum.optical_spectrum_sections:
-            src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-            key = f"{spectrum_name} {src_node.management.optical_module_node_fqdn}"
-            results[key] = deploy_optical_circuit(
-                cast(AnyOpticalNodeBlockProvisioningUnion, src_node),
-                section,
-                spectrum_name,
-                spectrum.optical_spectrum_passband,
-                carrier,
-                label=service_name,
-                circuit_identifier=circuit_identifier,
-            )
-    return {"configuration_results": results}
+    channels = [ch for ch in block.optical_digital_service_transport_channels if is_new_channel(ch, block)]
+    return {"configuration_results": _ensure_channel_circuits(channels, block)}
+
+
+@step("Ensuring the optical circuits of all transport channels")
+def ensure_optical_digital_sections(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
+    """Ensure the optical circuit of every section of every transport channel.
+
+    Operates only on the Optical Digital Service block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. Unlike :func:`provision_optical_digital_sections`
+    this covers reused channels too: a borrower heals a deleted shared OSNC (self-healing
+    reconcile) and converges its composite label in the same call. This is the OLS device
+    push of the shipped create and reconcile workflows.
+
+    Args:
+        optical_module_block: The Optical Digital Service block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    block = optical_digital_service_block_from_state(optical_module_block)
+    channels = list(block.optical_digital_service_transport_channels)
+    return {"configuration_results": _ensure_channel_circuits(channels, block)}
 
 
 @step("Updating the available passbands of the OLS ports in the paths")
@@ -1473,36 +1832,89 @@ def refresh_optical_digital_used_passbands(optical_module_block: OpticalDigitalS
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
 
-@step("Appending the service name to the labels of the reused channels")
-def append_reused_channel_labels(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
-    """Append the service name to the circuit labels of the reused channels.
+@step("Syncing the composite labels of the reused channels")
+def sync_reused_channel_labels(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
+    """Ensure the circuits of the reused channels and converge their composite labels.
 
     Operates only on the Optical Digital Service block found in the state under
     ``OPTICAL_MODULE_BLOCK_STATE_KEY``. Channels owned by the service itself are
-    skipped: their labels were set at deployment time.
+    skipped: they are covered by :func:`provision_optical_digital_sections`. Kept for
+    backward compatibility (consumers may still reference this step): new code should
+    use :func:`ensure_optical_digital_sections`, which covers every channel. The ensure
+    primitive recreates a missing shared OSNC instead of raising, then converges the
+    composite label (``"<channel>: <svcA> + <svcB>"``).
 
     Args:
         optical_module_block: The Optical Digital Service block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     block = optical_digital_service_block_from_state(optical_module_block)
-    service_name = block.optical_digital_service_name
+    channels = [ch for ch in block.optical_digital_service_transport_channels if not is_new_channel(ch, block)]
+    return {"configuration_results": _ensure_channel_circuits(channels, block)}
+
+
+#: Backward-compatible alias of :func:`sync_reused_channel_labels` for consumers
+#: whose step lists still reference the legacy step name.
+append_reused_channel_labels = sync_reused_channel_labels
+
+
+@step("Syncing the composite labels of all transport channels")
+def sync_optical_digital_circuit_labels(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
+    """Ensure every channel circuit and converge its composite label.
+
+    Operates only on the Optical Digital Service block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. Kept for backward compatibility (the shipped
+    reconcile workflow now uses :func:`ensure_optical_digital_sections` directly):
+    this delegates to the same ensure helper, so a missing shared OSNC is recreated
+    instead of raising and drifted labels converge before verification.
+
+    Args:
+        optical_module_block: The Optical Digital Service block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    block = optical_digital_service_block_from_state(optical_module_block)
+    channels = list(block.optical_digital_service_transport_channels)
+    return {"configuration_results": _ensure_channel_circuits(channels, block)}
+
+
+@step("Pruning the departing service from the labels of shared channels")
+def prune_departing_service_channel_labels(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
+    """Remove the terminating service name from the labels of its shared channels.
+
+    Operates only on the Optical Digital Service block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The step is a no-op when the service is
+    the last client of its channels: their circuits are deleted right after, so
+    no relabelling is needed. Otherwise each shared circuit label is rewritten
+    without the departing service; when no carried service would remain the
+    rewrite is skipped (the circuit stays for the remaining users resolved from
+    the database, and an empty label is never written).
+
+    Args:
+        optical_module_block: The Optical Digital Service block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+    """
+    block = optical_digital_service_block_from_state(optical_module_block)
+    if is_last_client_for_channels(list(block.optical_digital_service_transport_channels)):
+        return {"configuration_results": {}}
+    departing_subscription_id = str(block.owner_subscription_id)
     results: dict[str, Any] = {}
     for channel in block.optical_digital_service_transport_channels:
-        if is_new_channel(channel, block):
+        remaining = digital_service_names_for_channel(channel, exclude_subscription_id=departing_subscription_id)
+        if not remaining:
             continue
         spectrum = channel.optical_transport_spectrum
-        spectrum_name = spectrum.optical_spectrum_name or service_name
+        spectrum_name = spectrum.optical_spectrum_name or block.optical_digital_service_name
         circuit_identifier = str(spectrum.subscription_instance_id)
+        label = build_optical_circuit_label(str(channel.optical_transport_channel_name), remaining)
         for section in spectrum.optical_spectrum_sections:
             src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
             key = f"{spectrum_name} {src_node.management.optical_module_node_fqdn}"
-            results[key] = append_optical_circuit_label(
+            results[key] = set_optical_circuit_label(
                 cast(AnyOpticalNodeBlockProvisioningUnion, src_node),
                 section,
                 spectrum_name,
                 spectrum.optical_spectrum_passband,
-                service_name,
+                label,
                 circuit_identifier=circuit_identifier,
             )
     return {"configuration_results": results}
@@ -1641,7 +2053,9 @@ def verify_optical_digital_sections(optical_module_block: OpticalDigitalServiceB
     """Verify the optical circuit of every section of the transport channels on the devices.
 
     Operates only on the Optical Digital Service block found in the state under
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The step is read-only.
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The step is read-only. Every circuit must
+    carry the composite label (``"<channel>: <svcA> + <svcB>"``) with exact match:
+    all carried digital services and the conduit channel.
 
     Args:
         optical_module_block: The Optical Digital Service block in the state under
@@ -1654,6 +2068,7 @@ def verify_optical_digital_sections(optical_module_block: OpticalDigitalServiceB
         spectrum_name = spectrum.optical_spectrum_name or service_name
         carrier = _carrier_of_channel(channel)
         circuit_identifier = str(spectrum.subscription_instance_id)
+        label = expected_optical_circuit_label(channel, block)
         for section in spectrum.optical_spectrum_sections:
             src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
             validate_optical_circuit(
@@ -1662,7 +2077,7 @@ def verify_optical_digital_sections(optical_module_block: OpticalDigitalServiceB
                 spectrum_name,
                 spectrum.optical_spectrum_passband,
                 carrier,
-                service_name,
+                label,
                 circuit_identifier=circuit_identifier,
             )
     return {}
@@ -1671,38 +2086,40 @@ def verify_optical_digital_sections(optical_module_block: OpticalDigitalServiceB
 @step("Modifying the optical sections of the transport channels")
 def modify_optical_digital_sections(
     optical_module_block: OpticalDigitalServiceBlockInactive,
-    old_passbands: list[Passband],
 ) -> State:
-    """Modify the optical circuit of every section of the transport channels on the devices.
+    """Converge the optical circuit of every section of the transport channels on the devices.
 
     Operates only on the Optical Digital Service block found in the state under
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The new passbands drive the carriers;
-    the old passbands locate the existing circuits on the devices.
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The circuits are converged by identity
+    with the single idempotent optical-circuit primitive (missing circuits are
+    healed, drifted passbands/carriers/OEL references are edited in place, the
+    label is rewritten to the composite label
+    (``"<channel>: <svcA> + <svcB>"``)), so no old passband is needed to find
+    them.
 
     Args:
         optical_module_block: The Optical Digital Service block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
-        old_passbands: The passbands of the channels before the modification.
     """
     block = optical_digital_service_block_from_state(optical_module_block)
     service_name = block.optical_digital_service_name
     results: dict[str, Any] = {}
-    for channel, old_passband in zip(block.optical_digital_service_transport_channels, old_passbands, strict=True):
+    for channel in block.optical_digital_service_transport_channels:
         spectrum = channel.optical_transport_spectrum
         spectrum_name = spectrum.optical_spectrum_name or service_name
         carrier = _carrier_of_channel(channel)
         circuit_identifier = str(spectrum.subscription_instance_id)
+        label = expected_optical_circuit_label(channel, block)
         for section in spectrum.optical_spectrum_sections:
             src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
             key = f"{spectrum_name} {src_node.management.optical_module_node_fqdn}"
-            results[key] = modify_optical_circuit(
+            results[key] = ensure_optical_circuit(
                 cast(AnyOpticalNodeBlockProvisioningUnion, src_node),
                 section,
                 optical_spectrum_name=spectrum_name,
                 passband=spectrum.optical_spectrum_passband,
                 carrier=carrier,
-                label=service_name,
-                old_passband=old_passband,
+                label=label,
                 circuit_identifier=circuit_identifier,
             )
     return {"configuration_results": results}
@@ -1848,14 +2265,16 @@ def refresh_optical_digital_passbands_after_teardown(
 
 #: Provisioning steps shared by the create and reconcile workflows: the
 #: idempotent device push of the line/client/cross-connect configuration and of
-#: the optical circuits. Every step is block-level and operates on the block in
-#: the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+#: the optical circuits of every channel (owned and reused). Every step is
+#: block-level and operates on the block in the state under
+#: ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The OLS push ensures (recreates a missing
+#: OSNC, converges drift) instead of deploying owned-only plus relabelling reused.
 PROVISION_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS: StepList = (
     begin
     >> configure_optical_digital_line_ports
     >> configure_optical_digital_client_ports
     >> configure_optical_digital_crossconnects
-    >> provision_optical_digital_sections
+    >> ensure_optical_digital_sections
 )
 
 #: Verification steps shared by the validate and reconcile workflows. Every
@@ -1873,6 +2292,8 @@ VERIFY_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS: StepList = (
 __all__ = [
     "DIGITAL_ENDPOINT_ROLES",
     "DIRECT_CONNECTION",
+    "OPTICAL_CIRCUIT_LABEL_CONDUIT_SEPARATOR",
+    "OPTICAL_CIRCUIT_LABEL_SERVICE_SEPARATOR",
     "PROVISION_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS",
     "TX_POWER_REALIGN_DELAY_S",
     "VERIFY_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS",
@@ -1880,6 +2301,7 @@ __all__ = [
     "ChannelSpec",
     "align_optical_digital_tx_power",
     "append_reused_channel_labels",
+    "build_optical_circuit_label",
     "build_optical_digital_service_block",
     "channel_name_in_use",
     "channel_spare_capacity",
@@ -1887,6 +2309,10 @@ __all__ = [
     "configure_optical_digital_crossconnects",
     "configure_optical_digital_line_ports",
     "delete_optical_digital_sections",
+    "digital_service_names_for_channel",
+    "ensure_circuit_label_token_valid",
+    "ensure_optical_digital_sections",
+    "expected_optical_circuit_label",
     "factory_reset_optical_digital_clients",
     "factory_reset_optical_digital_crossconnects",
     "factory_reset_optical_digital_lines",
@@ -1903,14 +2329,18 @@ __all__ = [
     "optical_digital_endpoint_selector",
     "optical_digital_service_block_from_state",
     "optical_digital_service_subscription_description",
+    "parse_optical_circuit_label",
     "populate_optical_digital_service_block",
     "port_ids_used_by_digital_services",
     "provision_optical_digital_sections",
+    "prune_departing_service_channel_labels",
     "refresh_optical_digital_passbands_after_teardown",
     "refresh_optical_digital_used_passbands",
     "resolve_channels_by_names",
     "reusable_channel_groups",
     "set_optical_digital_service_subscription_description",
+    "sync_optical_digital_circuit_labels",
+    "sync_reused_channel_labels",
     "unused_coherent_pluggable_selector",
     "verify_optical_digital_client_ports",
     "verify_optical_digital_crossconnects",

@@ -27,18 +27,17 @@ from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequ
 from orchestrator.optical.utils.datadiff import DiffResult, compare_jsons
 
 __all__ = [
-    "append_optical_circuit_label",
     "create_optical_cross_connection",
     "delete_optical_circuit",
     "delete_optical_circuit_oel",
     "delete_optical_cross_connection",
-    "deploy_optical_circuit",
-    "modify_optical_circuit",
+    "ensure_optical_circuit",
+    "set_optical_circuit_label",
     "validate_optical_circuit",
 ]
 
 
-def deploy_optical_circuit(
+def ensure_optical_circuit(
     optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
@@ -47,7 +46,14 @@ def deploy_optical_circuit(
     label: str | None = None,
     circuit_identifier: str = "",
 ) -> DiffResult:
-    """Deploy an optical circuit for the given optical spectrum section.
+    """Ensure the optical circuit of the given section exists and converges to the desired state.
+
+    This is the single idempotent primitive for every optical-circuit write:
+    create, modify and reconcile all flow through it. The circuit is looked up
+    by identity (circuit identifier plus endpoints); the label, passband,
+    carrier and OEL reference converge in place. A missing OEL or OSNC is
+    created, so unlike :func:`set_optical_circuit_label` this never fails on a
+    deleted circuit. This is the idempotent primitive for shared (reused) channels.
 
     Args:
         optical_node_block: The source Optical Node of the section.
@@ -60,16 +66,16 @@ def deploy_optical_circuit(
             device-side OEL AID and OSNC CKTIDSUFFIX.
 
     Returns:
-        The difference between the circuit configuration before and after the
-        deployment. Platforms without internal cross-connections yield an empty diff.
+        The difference between the circuit configuration before and after the call.
+        Platforms without internal cross-connections yield an empty diff.
 
     Raises:
-        ValueError: If the circuit cannot be deployed.
+        ValueError: If the circuit cannot be ensured.
         UnsupportedPlatformError: If the vendor/platform combination is not supported.
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.deploy(
+            return flexils.ensure(
                 _as_flexils_block(optical_node_block),
                 optical_spectrum_section_block,
                 optical_spectrum_name,
@@ -81,61 +87,7 @@ def deploy_optical_circuit(
         case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
             return compare_jsons({}, {})
         case _:
-            msg = f"deploy_optical_circuit: {type(optical_node_block).__name__}"
-            raise UnsupportedPlatformError(msg)
-
-
-def modify_optical_circuit(
-    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
-    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
-    optical_spectrum_name: str,
-    passband: Passband,
-    carrier: tuple[Frequency, Bandwidth],
-    label: str | None = None,
-    old_passband: Passband | None = None,
-    circuit_identifier: str = "",
-) -> DiffResult:
-    """Modify an optical circuit for the given optical spectrum section.
-
-    The circuit is found by its circuit identifier, so the spectrum name is not
-    expected to change; when it does, the new name is only reflected in the OSNC
-    label if provided.
-
-    Args:
-        optical_node_block: The source Optical Node of the section.
-        optical_spectrum_section_block: The optical spectrum section configuration.
-        optical_spectrum_name: The user-facing name of the optical spectrum.
-        passband: The new frequency range allowed for transmission.
-        carrier: Tuple of (center frequency, bandwidth) for the carrier signal.
-        label: Optional label for the circuit.
-        old_passband: The old passband of the optical circuit.
-        circuit_identifier: The subscription instance id of the circuit; used to derive the
-            device-side OEL AID and OSNC CKTIDSUFFIX.
-
-    Returns:
-        The difference between the circuit configuration before and after the
-        modification. Platforms without internal cross-connections yield an empty diff.
-
-    Raises:
-        ValueError: If the circuit cannot be modified.
-        UnsupportedPlatformError: If the vendor/platform combination is not supported.
-    """
-    match _vendor_platform(optical_node_block):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.modify(
-                _as_flexils_block(optical_node_block),
-                optical_spectrum_section_block,
-                optical_spectrum_name,
-                passband,
-                carrier,
-                label,
-                old_passband,
-                circuit_identifier,
-            )
-        case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
-            return compare_jsons({}, {})
-        case _:
-            msg = f"modify_optical_circuit: {type(optical_node_block).__name__}"
+            msg = f"ensure_optical_circuit: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 
@@ -255,7 +207,7 @@ def validate_optical_circuit(
             raise UnsupportedPlatformError(msg)
 
 
-def append_optical_circuit_label(
+def set_optical_circuit_label(
     source_optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     optical_spectrum_name: str,
@@ -263,14 +215,21 @@ def append_optical_circuit_label(
     label: str,
     circuit_identifier: str = "",
 ) -> DiffResult:
-    """Append a label to the OSNC of the given optical spectrum section.
+    """Overwrite the OSNC label of the given optical spectrum section with the full label.
+
+    The composite digital-service circuit label (``"<channel>: <svcA> + <svcB>"``) is
+    always written in full, so reused channels converge and reconcile repairs drift.
+    The label is double-quoted on the TL1 wire so the ``":"`` separator survives
+    command framing. Label-only writes never touch the admin state; for
+    create/modify/reconcile paths (including healing a missing OSNC) use
+    :func:`ensure_optical_circuit` instead.
 
     Args:
         source_optical_node_block: The source Optical Node of the section.
         optical_spectrum_section_block: The optical spectrum section configuration.
         optical_spectrum_name: The user-facing name of the optical spectrum.
         passband: Frequency range allowed for transmission.
-        label: The label to append.
+        label: The full label to write.
         circuit_identifier: The subscription instance id of the circuit; used as the OSNC CKTIDSUFFIX.
 
     Returns:
@@ -283,7 +242,7 @@ def append_optical_circuit_label(
     """
     match _vendor_platform(source_optical_node_block):
         case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.append_label(
+            return flexils.set_label(
                 _as_flexils_block(source_optical_node_block),
                 optical_spectrum_section_block,
                 optical_spectrum_name,
@@ -294,7 +253,7 @@ def append_optical_circuit_label(
         case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
             return compare_jsons({}, {})
         case _:
-            msg = f"append_optical_circuit_label: {type(source_optical_node_block).__name__}"
+            msg = f"set_optical_circuit_label: {type(source_optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 

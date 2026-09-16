@@ -154,11 +154,15 @@ def configure_line_transceivers(
         shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
         uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
         before = uri.retrieve(depth=3, content="config")
-        updated = before.model_copy(deep=True)
-        updated.port_mode = PortModeEnum(mode)
-        updated.service_label = description
-        updated.admin_status = AdminStatusEnum.UP
-        uri.update(updated)
+        # Minimal parent PATCH: never resend system-created children (och-os,
+        # pluggable, ...) via the port resource — the device rejects them as
+        # read-only. The och-os facility is configured separately below.
+        uri.update(
+            port_id=port_id,
+            port_mode=mode,
+            service_label=description,
+            admin_status="up",
+        )
         modulation, rate = _get_modulation_and_rate_from_mode(mode)
         uri.och_os.update(
             modulation_format=modulation,
