@@ -34,6 +34,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
+from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlockInactive,
 )
@@ -41,6 +42,7 @@ from orchestrator.optical.products.product_types.optical_digital_service import 
 from orchestrator.optical.utils.custom_types.frequencies import (
     Frequency,
     SpectralWidth,
+    ensure_passband_aligned_to_grid,
     passband_from,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
@@ -116,6 +118,9 @@ def modify_optical_digital_service_form(
         @model_validator(mode="after")
         def validate_data(self) -> "ModifyOpticalDigitalServiceForm":
             reject_placeholder_transport_mode(str(self.optical_transport_mode))
+            ensure_passband_aligned_to_grid(
+                passband_from(self.frequency_1, self.bandwidth_1), FLEXILS_SPECTRAL_GRID_MHZ
+            )
             return self
 
     if len(channels) == 1:
@@ -127,6 +132,13 @@ def modify_optical_digital_service_form(
             channels[1].optical_transport_spectrum.optical_spectrum_passband[1]
             - channels[1].optical_transport_spectrum.optical_spectrum_passband[0]
         )
+
+        @model_validator(mode="after")
+        def validate_second_channel(self) -> "ModifyOpticalDigitalServiceDualForm":
+            ensure_passband_aligned_to_grid(
+                passband_from(self.frequency_2, self.bandwidth_2), FLEXILS_SPECTRAL_GRID_MHZ
+            )
+            return self
 
     return ModifyOpticalDigitalServiceDualForm
 

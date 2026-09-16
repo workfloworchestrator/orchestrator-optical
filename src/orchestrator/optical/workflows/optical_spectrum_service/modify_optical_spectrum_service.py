@@ -38,6 +38,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
+from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.spectrum import ensure_optical_circuit
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalOlsPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumServiceBlockProvisioning
@@ -45,7 +46,12 @@ from orchestrator.optical.products.product_blocks.optical_spectrum_section impor
     OpticalSpectrumSectionBlockProvisioning,
 )
 from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrumServiceSubscription
-from orchestrator.optical.utils.custom_types.frequencies import Frequency, Passband
+from orchestrator.optical.utils.custom_types.frequencies import (
+    Frequency,
+    Passband,
+    ensure_passband_aligned_to_grid,
+    snap_passband_to_grid,
+)
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
@@ -108,6 +114,7 @@ def modify_optical_spectrum_identity_form(
             if self.frequency_min > self.frequency_max:
                 msg = "Max frequency must be greater than min frequency. Did you make a typo?"
                 raise ValueError(msg)
+            ensure_passband_aligned_to_grid((self.frequency_min, self.frequency_max), FLEXILS_SPECTRAL_GRID_MHZ)
             return self
 
     return ModifyOpticalSpectrumIdentityForm
@@ -496,6 +503,16 @@ def modify_optical_sections(
     if spectrum_name is None:
         msg = "Optical spectrum name is not set"
         raise ValueError(msg)
+    snapped = snap_passband_to_grid(passband, FLEXILS_SPECTRAL_GRID_MHZ)
+    snapped_changed = tuple(snapped) != tuple(passband)
+    if snapped_changed:
+        logger.warning(
+            "Snapping off-grid spectrum passband to the 12.5 GHz grid",
+            expected_passband=list(passband),
+            snapped_passband=list(snapped),
+        )
+        block.optical_spectrum_passband = snapped
+        passband = snapped
     carrier_width = passband[1] - passband[0]
     central_frequency = int((passband[0] + passband[1]) / 2)
     carrier = (central_frequency, carrier_width)
@@ -517,7 +534,10 @@ def modify_optical_sections(
                 label=spectrum_name,
                 circuit_identifier=circuit_identifier,
             )
-        return {"configuration_results": results}
+        state: State = {"configuration_results": results}
+        if snapped_changed:
+            state[OPTICAL_MODULE_BLOCK_STATE_KEY] = block
+        return state
 
     # The path changed: tear down the old circuits (OSNCs) and their now-unused
     # OELs, then ensure the new ones. The OEL teardown rule lives in the shared
@@ -543,7 +563,10 @@ def modify_optical_sections(
             circuit_identifier=circuit_identifier,
         )
 
-    return {"configuration_results": results}
+    state = {"configuration_results": results}
+    if snapped_changed:
+        state[OPTICAL_MODULE_BLOCK_STATE_KEY] = block
+    return state
 
 
 #: Modify steps operating on the Optical Spectrum block in the state. The block

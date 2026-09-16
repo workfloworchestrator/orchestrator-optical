@@ -40,6 +40,81 @@ def passband_from(central_frequency: int, bandwidth: int) -> tuple[int, int]:
     return (central_frequency - bandwidth // 2, central_frequency + bandwidth // 2)
 
 
+def is_passband_aligned_to_grid(passband: tuple[int, int] | list[int], grid: int) -> bool:
+    """Return whether both edges of the given passband lie on the given frequency grid.
+
+    The check is purely arithmetic so it stays platform-neutral: callers pass
+    the grid of the target platform (e.g. ``12500`` MHz for FlexILS).
+
+    Args:
+        passband: The ``(start, end)`` frequency range in MHz.
+        grid: The required grid alignment in MHz.
+
+    Returns:
+        True when both edges are exact multiples of ``grid``.
+    """
+    return passband[0] % grid == 0 and passband[1] % grid == 0
+
+
+def ensure_passband_aligned_to_grid(passband: tuple[int, int] | list[int], grid: int) -> None:
+    """Raise if either edge of the given passband is off the given frequency grid.
+
+    Form-layer reject path: called while the operator can still fix the input,
+    so it fails instead of snapping.
+
+    Args:
+        passband: The ``(start, end)`` frequency range in MHz.
+        grid: The required grid alignment in MHz.
+
+    Raises:
+        ValueError: If either edge is not an exact multiple of ``grid``.
+    """
+    if not is_passband_aligned_to_grid(passband, grid):
+        msg = (
+            f"Passband edges must be aligned to {grid} MHz "
+            f"(12.5 GHz grid uses multiples of 12500 MHz); got ({passband[0]}, {passband[1]})"
+        )
+        raise ValueError(msg)
+
+
+def snap_passband_to_grid(
+    passband: tuple[int, int] | list[int],
+    grid: int,
+    carrier: tuple[int, int] | None = None,
+) -> tuple[int, int]:
+    """Snap the given passband to the given frequency grid, preserving the carrier when given.
+
+    Execution-layer safety net: called after workflow inputs are immutable, so
+    it adjusts instead of failing. Already aligned input is returned unchanged.
+    Otherwise the passband is shrunk inward to the nearest on-grid interval;
+    when that interval is empty or would clip the carrier span, it is expanded
+    outward instead. The carrier, when given as ``(center frequency, bandwidth)``,
+    is never modified: the snapped passband is guaranteed to still contain the
+    full ``carrier ± bandwidth / 2`` span.
+
+    Args:
+        passband: The ``(start, end)`` frequency range in MHz.
+        grid: The required grid alignment in MHz.
+        carrier: Optional ``(center frequency, bandwidth)`` in MHz that the
+            snapped passband must still contain.
+
+    Returns:
+        The on-grid ``(start, end)`` passband.
+    """
+    start, end = int(passband[0]), int(passband[1])
+    if start % grid == 0 and end % grid == 0:
+        return (start, end)
+    carrier_span: tuple[int, int] | None = None
+    if carrier is not None:
+        carrier_span = passband_from(int(carrier[0]), int(carrier[1]))
+    shrunk = (((start + grid - 1) // grid) * grid, (end // grid) * grid)
+    if shrunk[0] < shrunk[1] and (
+        carrier_span is None or (shrunk[0] <= carrier_span[0] and carrier_span[1] <= shrunk[1])
+    ):
+        return shrunk
+    return ((start // grid) * grid, ((end + grid - 1) // grid) * grid)
+
+
 def parse_if_string(value):
     """Parse a string value with :func:`ast.literal_eval`, returning other types unchanged."""
     if isinstance(value, str):

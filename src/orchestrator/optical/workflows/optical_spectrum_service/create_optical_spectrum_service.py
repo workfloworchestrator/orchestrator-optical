@@ -41,6 +41,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
+from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.port import set_port_description
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
@@ -54,7 +55,7 @@ from orchestrator.optical.products.product_types.optical_spectrum_service import
     OpticalSpectrumServiceSubscriptionInactive,
     OpticalSpectrumServiceSubscriptionProvisioning,
 )
-from orchestrator.optical.utils.custom_types.frequencies import Frequency
+from orchestrator.optical.utils.custom_types.frequencies import Frequency, ensure_passband_aligned_to_grid
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
@@ -117,6 +118,7 @@ def create_optical_spectrum_identity_form(product_name: str) -> type[FormPage]:
             if self.frequency_min > self.frequency_max:
                 msg = "Max frequency must be greater than min frequency. Did you make a typo?"
                 raise ValueError(msg)
+            ensure_passband_aligned_to_grid((self.frequency_min, self.frequency_max), FLEXILS_SPECTRAL_GRID_MHZ)
             return self
 
     return CreateOpticalSpectrumIdentityForm

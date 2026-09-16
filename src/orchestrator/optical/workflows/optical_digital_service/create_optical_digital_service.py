@@ -43,6 +43,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_subscription
+from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlockInactive,
 )
@@ -50,7 +51,12 @@ from orchestrator.optical.products.product_blocks.optical_port.abstracts import 
 from orchestrator.optical.products.product_types.optical_digital_service import (
     OpticalDigitalServiceSubscriptionProvisioning,
 )
-from orchestrator.optical.utils.custom_types.frequencies import Frequency, SpectralWidth, passband_from
+from orchestrator.optical.utils.custom_types.frequencies import (
+    Frequency,
+    SpectralWidth,
+    ensure_passband_aligned_to_grid,
+    passband_from,
+)
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
@@ -386,6 +392,9 @@ def create_optical_digital_service_channels_form(
         @model_validator(mode="after")
         def validate_channels(self) -> "CreateOpticalDigitalServiceChannelsForm":
             reject_placeholder_transport_mode(str(self.optical_transport_mode))
+            ensure_passband_aligned_to_grid(
+                passband_from(self.frequency_1, self.bandwidth_1), FLEXILS_SPECTRAL_GRID_MHZ
+            )
             return self
 
     if num_channels == 1:
@@ -394,6 +403,13 @@ def create_optical_digital_service_channels_form(
     class CreateOpticalDigitalServiceDualChannelsForm(CreateOpticalDigitalServiceChannelsForm):
         frequency_2: Frequency
         bandwidth_2: SpectralWidth
+
+        @model_validator(mode="after")
+        def validate_second_channel(self) -> "CreateOpticalDigitalServiceDualChannelsForm":
+            ensure_passband_aligned_to_grid(
+                passband_from(self.frequency_2, self.bandwidth_2), FLEXILS_SPECTRAL_GRID_MHZ
+            )
+            return self
 
     return CreateOpticalDigitalServiceDualChannelsForm
 

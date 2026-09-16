@@ -20,8 +20,16 @@ from orchestrator.optical.products.product_blocks.optical_spectrum_section impor
     OpticalSpectrumSectionBlockProvisioning,
 )
 from orchestrator.optical.services.nokia.flexils.exceptions import TL1CommandDeniedError
-from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
+from orchestrator.optical.utils.custom_types.frequencies import (
+    Bandwidth,
+    Frequency,
+    Passband,
+    snap_passband_to_grid,
+)
 from orchestrator.optical.utils.datadiff import DiffResult, compare_jsons
+
+#: Frequency grid the FlexILS cross-connect engine requires for PASSBANDLIST edges, in MHz.
+FLEXILS_SPECTRAL_GRID_MHZ = 12_500
 
 #: TL1 response marker returned when a requested object does not exist on the node.
 _OBJECT_DOES_NOT_EXIST = "SPECIFIED OBJECT ENTITY DOES NOT EXIST"
@@ -70,6 +78,37 @@ def _node_role(port: AnyOpticalPortBlockProvisioning) -> OpticalNodeRole:
 def _is_object_missing(exc: TL1CommandDeniedError) -> bool:
     """Return whether a TL1 command was denied because the requested object does not exist."""
     return _OBJECT_DOES_NOT_EXIST in str(exc.response).upper()
+
+
+def _snap_passband_for_device(
+    passband: Passband,
+    carrier: tuple[Frequency, Bandwidth] | None = None,
+    circuit_identifier: str = "",
+) -> Passband:
+    """Snap the given passband to the FlexILS grid, preserving the carrier span when given.
+
+    Execution-layer safety net: workflow inputs are immutable once the workflow
+    started, so an off-grid passband is adjusted (never rejected) before any TL1
+    write. Already aligned input is returned unchanged.
+
+    Args:
+        passband: The desired frequency range in MHz.
+        carrier: Optional ``(center frequency, bandwidth)`` in MHz that the
+            snapped passband must still contain.
+        circuit_identifier: The circuit identifier, used in log records.
+
+    Returns:
+        The on-grid passband to send on the TL1 wire.
+    """
+    snapped = snap_passband_to_grid(passband, FLEXILS_SPECTRAL_GRID_MHZ, carrier)
+    if tuple(snapped) != tuple(passband):
+        logger.warning(
+            "Snapping off-grid FlexILS passband to the 12.5 GHz grid",
+            circuit_identifier=circuit_identifier,
+            expected_passband=list(passband),
+            snapped_passband=list(snapped),
+        )
+    return snapped
 
 
 def _rtrv_oel_or_none(flex: FlexilsClientProtocol, aid: str) -> dict[str, Any] | None:
@@ -521,6 +560,8 @@ def _find_or_create_osnc(
         msg = "An OSNC circuit identifier is required to create or retrieve an OSNC"
         raise ValueError(msg)
 
+    passband = _snap_passband_for_device(passband, carrier, circuit_identifier)
+
     _src_node_name, src_flex, src_port_name = _get_flexils_name_client_tributary(src_device, src_port_name)
     dst_node_name, dst_flex, dst_port_name = _get_flexils_name_client_tributary(dst_device, dst_port_name)
 
@@ -794,6 +835,7 @@ def _converge_osnc(
         The ``(oel, spectrum, label)`` match flags, for the caller to decide
         whether a re-read is needed.
     """
+    passband = _snap_passband_for_device(passband, carrier, circuit_identifier)
     matches_oel, matches_spectrum, matches_label = _osnc_matches(osnc, passband, carrier, oel_aid, osnc_label)
     oos_drift = not matches_oel or not matches_spectrum
     logger.debug(
@@ -1043,6 +1085,7 @@ def ensure(
     Raises:
         ValueError: If the circuit identifier is empty or the FlexILS commands fail.
     """
+    passband = _snap_passband_for_device(passband, carrier, circuit_identifier)
     add_drop_ports = optical_spectrum_section_block.optical_spectrum_section_add_drop_ports
     express_ports = optical_spectrum_section_block.optical_spectrum_section_express_ports
 
@@ -1160,6 +1203,7 @@ def create_cross_connection(
         NotImplementedError: If the node vendor does not support this operation.
         ValueError: If the cross connection cannot be created.
     """
+    passband = _snap_passband_for_device(passband, carrier, circuit_identifier)
     from_port_name = _port_name(from_port)
     to_port_name = _port_name(to_port)
 

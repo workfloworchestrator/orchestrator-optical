@@ -40,6 +40,7 @@ from orchestrator.optical.db import (
     subscriptions_by_product_type,
     subscriptions_by_product_type_and_instance_value,
 )
+from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import retrieve_transceiver_modes
 from orchestrator.optical.hal.spectrum import (
@@ -73,7 +74,11 @@ from orchestrator.optical.products.product_types.optical_node.abstracts import A
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
-from orchestrator.optical.utils.custom_types.frequencies import Passband, disjoint_intervals_overlap_search
+from orchestrator.optical.utils.custom_types.frequencies import (
+    Passband,
+    disjoint_intervals_overlap_search,
+    snap_passband_to_grid,
+)
 from orchestrator.optical.utils.datadiff import DiffResult
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
@@ -337,6 +342,16 @@ def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlock
     if spectrum_name is None:
         msg = "Optical spectrum name is not set"
         raise ValueError(msg)
+    snapped = snap_passband_to_grid(passband, FLEXILS_SPECTRAL_GRID_MHZ)
+    snapped_changed = tuple(snapped) != tuple(passband)
+    if snapped_changed:
+        logger.warning(
+            "Snapping off-grid spectrum passband to the 12.5 GHz grid",
+            expected_passband=list(passband),
+            snapped_passband=list(snapped),
+        )
+        block.optical_spectrum_passband = snapped
+        passband = snapped
     carrier = (int(0.5 * (passband[0] + passband[1])), passband[1] - passband[0])
     circuit_identifier = str(block.subscription_instance_id)
     results = {}
@@ -352,7 +367,10 @@ def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlock
             circuit_identifier=circuit_identifier,
         )
 
-    return {"configuration_results": results}
+    state: State = {"configuration_results": results}
+    if snapped_changed:
+        state[OPTICAL_MODULE_BLOCK_STATE_KEY] = block
+    return state
 
 
 @step("Updating the available passbands of any Open Line System port in the path")

@@ -46,6 +46,7 @@ from orchestrator.optical.db import (
     subscriptions_by_product_type,
 )
 from orchestrator.optical.hal._common import UnsupportedPlatformError
+from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.port import (
     get_transceiver_capacity_from_mode as hal_get_transceiver_capacity_from_mode,
 )
@@ -109,6 +110,7 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     Passband,
     SpectralWidth,
     passband_from,
+    snap_passband_to_grid,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
@@ -1728,7 +1730,7 @@ def _carrier_of_channel(channel: OpticalTransportChannelBlockProvisioning) -> tu
 def _ensure_channel_circuits(
     channels: list[OpticalTransportChannelBlockProvisioning],
     block: OpticalDigitalServiceBlockProvisioning,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], bool]:
     """Ensure the optical circuits of the given transport channels on the devices.
 
     Single home for the OLS device push of the family: every channel section is
@@ -1739,20 +1741,37 @@ def _ensure_channel_circuits(
     callers, never here: transponder configuration stays ownership-gated, OLS
     circuits do not.
 
+    Off-grid passbands are snapped to the FlexILS 12.5 GHz grid (never rejected:
+    workflow inputs are immutable once the workflow started) and written back
+    onto the channel spectra, so the following save persists what was sent on
+    the wire instead of diverging from it.
+
     Args:
         channels: The transport channel blocks whose sections are ensured.
         block: The Optical Digital Service block in the state (provides the
             in-flight service name for the composite circuit labels).
 
     Returns:
-        The per-section ensure results keyed by ``"<spectrum> <fqdn>"``.
+        The per-section ensure results keyed by ``"<spectrum> <fqdn>"`` and
+        whether any channel passband was snapped to the grid.
     """
     service_name = block.optical_digital_service_name
     results: dict[str, Any] = {}
+    snapped_any = False
     for channel in channels:
         spectrum = channel.optical_transport_spectrum
         spectrum_name = spectrum.optical_spectrum_name or service_name
         carrier = _carrier_of_channel(channel)
+        snapped = snap_passband_to_grid(spectrum.optical_spectrum_passband, FLEXILS_SPECTRAL_GRID_MHZ, carrier)
+        if tuple(snapped) != tuple(spectrum.optical_spectrum_passband):
+            logger.warning(
+                "Snapping off-grid channel passband to the 12.5 GHz grid",
+                channel_name=str(channel.optical_transport_channel_name),
+                expected_passband=list(spectrum.optical_spectrum_passband),
+                snapped_passband=list(snapped),
+            )
+            spectrum.optical_spectrum_passband = snapped
+            snapped_any = True
         circuit_identifier = str(spectrum.subscription_instance_id)
         label = expected_optical_circuit_label(channel, block)
         for section in spectrum.optical_spectrum_sections:
@@ -1767,7 +1786,7 @@ def _ensure_channel_circuits(
                 label=label,
                 circuit_identifier=circuit_identifier,
             )
-    return results
+    return results, snapped_any
 
 
 @step("Provisioning optical spectrum sections of the transport channels")
@@ -1786,7 +1805,11 @@ def provision_optical_digital_sections(optical_module_block: OpticalDigitalServi
     """
     block = optical_digital_service_block_from_state(optical_module_block)
     channels = [ch for ch in block.optical_digital_service_transport_channels if is_new_channel(ch, block)]
-    return {"configuration_results": _ensure_channel_circuits(channels, block)}
+    results, snapped = _ensure_channel_circuits(channels, block)
+    state: State = {"configuration_results": results}
+    if snapped:
+        state[OPTICAL_MODULE_BLOCK_STATE_KEY] = block
+    return state
 
 
 @step("Ensuring the optical circuits of all transport channels")
@@ -1805,7 +1828,11 @@ def ensure_optical_digital_sections(optical_module_block: OpticalDigitalServiceB
     """
     block = optical_digital_service_block_from_state(optical_module_block)
     channels = list(block.optical_digital_service_transport_channels)
-    return {"configuration_results": _ensure_channel_circuits(channels, block)}
+    results, snapped = _ensure_channel_circuits(channels, block)
+    state: State = {"configuration_results": results}
+    if snapped:
+        state[OPTICAL_MODULE_BLOCK_STATE_KEY] = block
+    return state
 
 
 @step("Updating the available passbands of the OLS ports in the paths")
@@ -1850,7 +1877,11 @@ def sync_reused_channel_labels(optical_module_block: OpticalDigitalServiceBlockI
     """
     block = optical_digital_service_block_from_state(optical_module_block)
     channels = [ch for ch in block.optical_digital_service_transport_channels if not is_new_channel(ch, block)]
-    return {"configuration_results": _ensure_channel_circuits(channels, block)}
+    results, snapped = _ensure_channel_circuits(channels, block)
+    state: State = {"configuration_results": results}
+    if snapped:
+        state[OPTICAL_MODULE_BLOCK_STATE_KEY] = block
+    return state
 
 
 #: Backward-compatible alias of :func:`sync_reused_channel_labels` for consumers
@@ -1874,7 +1905,11 @@ def sync_optical_digital_circuit_labels(optical_module_block: OpticalDigitalServ
     """
     block = optical_digital_service_block_from_state(optical_module_block)
     channels = list(block.optical_digital_service_transport_channels)
-    return {"configuration_results": _ensure_channel_circuits(channels, block)}
+    results, snapped = _ensure_channel_circuits(channels, block)
+    state: State = {"configuration_results": results}
+    if snapped:
+        state[OPTICAL_MODULE_BLOCK_STATE_KEY] = block
+    return state
 
 
 @step("Pruning the departing service from the labels of shared channels")
@@ -2104,10 +2139,21 @@ def modify_optical_digital_sections(
     block = optical_digital_service_block_from_state(optical_module_block)
     service_name = block.optical_digital_service_name
     results: dict[str, Any] = {}
+    snapped_any = False
     for channel in block.optical_digital_service_transport_channels:
         spectrum = channel.optical_transport_spectrum
         spectrum_name = spectrum.optical_spectrum_name or service_name
         carrier = _carrier_of_channel(channel)
+        snapped = snap_passband_to_grid(spectrum.optical_spectrum_passband, FLEXILS_SPECTRAL_GRID_MHZ, carrier)
+        if tuple(snapped) != tuple(spectrum.optical_spectrum_passband):
+            logger.warning(
+                "Snapping off-grid channel passband to the 12.5 GHz grid",
+                channel_name=str(channel.optical_transport_channel_name),
+                expected_passband=list(spectrum.optical_spectrum_passband),
+                snapped_passband=list(snapped),
+            )
+            spectrum.optical_spectrum_passband = snapped
+            snapped_any = True
         circuit_identifier = str(spectrum.subscription_instance_id)
         label = expected_optical_circuit_label(channel, block)
         for section in spectrum.optical_spectrum_sections:
@@ -2122,7 +2168,10 @@ def modify_optical_digital_sections(
                 label=label,
                 circuit_identifier=circuit_identifier,
             )
-    return {"configuration_results": results}
+    state: State = {"configuration_results": results}
+    if snapped_any:
+        state[OPTICAL_MODULE_BLOCK_STATE_KEY] = block
+    return state
 
 
 @step("Factory resetting the transponder cross-connects")
