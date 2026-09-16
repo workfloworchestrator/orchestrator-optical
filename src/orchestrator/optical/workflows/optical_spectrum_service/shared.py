@@ -374,7 +374,10 @@ def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlock
 
 
 @step("Updating the available passbands of any Open Line System port in the path")
-def refresh_optical_spectrum_used_passbands(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
+def refresh_optical_spectrum_used_passbands(
+    optical_module_block: OpticalSpectrumServiceBlockInactive,
+    old_section_ids: list[UUIDstr] | None = None,
+) -> State:
     """Refresh the used passbands of the Open Line System ports in the path from the devices.
 
     Operates only on the Optical Spectrum block found in the state under
@@ -386,12 +389,26 @@ def refresh_optical_spectrum_used_passbands(optical_module_block: OpticalSpectru
     instances. The step is shared by the shipped create, modify, terminate and
     reconcile workflows.
 
+    After a path change the replaced sections are also refreshed from the
+    ``old_section_ids`` state key (snapshotted by the update step of the shipped
+    modify workflow): their ports would otherwise keep stale "occupied"
+    passbands in the database and future path computations would wrongly
+    exclude them. Sections already in the current block are skipped.
+
     Args:
         optical_module_block: The Optical Spectrum block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+        old_section_ids: Subscription instance ids of the sections before the
+            modification (only present in the modify workflow state).
     """
     block = optical_spectrum_block_from_state(optical_module_block)
     foreign_ports = update_used_passbands(block)
+    if old_section_ids:
+        current_ids = {str(section.subscription_instance_id) for section in block.optical_spectrum_sections}
+        replaced = [
+            load_spectrum_section(section_id) for section_id in old_section_ids if str(section_id) not in current_ids
+        ]
+        foreign_ports += refresh_sections_used_passbands(replaced, str(block.owner_subscription_id))
     save_foreign_passband_ports(foreign_ports)
 
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
@@ -1472,32 +1489,36 @@ def store_sections_into_spectrum_block(
     store_loaded_sections_into_spectrum_block(loaded_sections, optical_spectrum)
 
 
-def update_used_passbands(
-    optical_spectrum: OpticalSpectrumServiceBlockProvisioning,
+def refresh_sections_used_passbands(
+    sections: Sequence[OpticalSpectrumSectionBlockProvisioning],
+    owner_subscription_id: UUIDstr,
 ) -> list[AbstractOpticalOlsPortBlockInactive]:
-    """Refresh the ``optical_passbands`` of every Open Line System port in the path from the devices.
+    """Refresh the ``optical_passbands`` of the OLS ports of the given sections from the devices.
 
     Both the express ports and the section add/drop ports are refreshed, for every
     OLS host node role that carries passbands (``ROADM``, ``TRANSPONDER_XOADM`` and
-    ``AMPLIFIER``). The express ports are the OLS line port blocks owned by the pipe
-    subscriptions (fiber span, patch, leased spectrum), so they are *foreign* to the
-    spectrum subscription and ``ProductBlockModel.save`` skips them when the spectrum
-    block is persisted. The refreshed foreign ports are returned so the caller can
-    persist them under their own owner subscription (see
-    :func:`save_foreign_passband_ports`); the owned ports (the spectrum add/drop
-    ports) are persisted by the caller's block save.
+    ``AMPLIFIER``). The refresh reads the live spectral occupation of each device,
+    so it also frees ports whose circuits were deleted: call it with the replaced
+    (old) sections after a path change, otherwise their database rows keep stale
+    "occupied" passbands and future path computations wrongly exclude them.
+    The refreshed foreign ports (owned by another subscription than the given
+    owner) are returned so the caller can persist them under their own owner
+    subscription (see :func:`save_foreign_passband_ports`); the owned ports are
+    persisted by the caller's block save.
 
     Args:
-        optical_spectrum: The Optical Spectrum block whose ports are refreshed.
+        sections: The optical spectrum sections whose ports are refreshed.
+        owner_subscription_id: Subscription id owning the refreshed block; ports
+            owned by another subscription are reported as foreign.
 
     Returns:
-        The refreshed ports whose owner subscription is not the spectrum owner
+        The refreshed ports whose owner subscription is not the given owner
         (foreign ports), deduplicated by subscription instance id.
     """
     passbands_by_device: dict[str, dict[str, list[tuple[int, int]]]] = {}
     foreign_ports: list[AbstractOpticalOlsPortBlockInactive] = []
     seen_foreign_port_ids: set[UUID] = set()
-    for section in optical_spectrum.optical_spectrum_sections:
+    for section in sections:
         ports = [
             *section.optical_spectrum_section_express_ports,
             *section.optical_spectrum_section_add_drop_ports,
@@ -1520,12 +1541,39 @@ def update_used_passbands(
                 port.optical_port_name, []
             )
             if (
-                str(port.owner_subscription_id) != str(optical_spectrum.owner_subscription_id)
+                str(port.owner_subscription_id) != str(owner_subscription_id)
                 and port.subscription_instance_id not in seen_foreign_port_ids
             ):
                 seen_foreign_port_ids.add(port.subscription_instance_id)
                 foreign_ports.append(port)
     return foreign_ports
+
+
+def update_used_passbands(
+    optical_spectrum: OpticalSpectrumServiceBlockProvisioning,
+) -> list[AbstractOpticalOlsPortBlockInactive]:
+    """Refresh the ``optical_passbands`` of every Open Line System port in the path from the devices.
+
+    Both the express ports and the section add/drop ports are refreshed, for every
+    OLS host node role that carries passbands (``ROADM``, ``TRANSPONDER_XOADM`` and
+    ``AMPLIFIER``). The express ports are the OLS line port blocks owned by the pipe
+    subscriptions (fiber span, patch, leased spectrum), so they are *foreign* to the
+    spectrum subscription and ``ProductBlockModel.save`` skips them when the spectrum
+    block is persisted. The refreshed foreign ports are returned so the caller can
+    persist them under their own owner subscription (see
+    :func:`save_foreign_passband_ports`); the owned ports (the spectrum add/drop
+    ports) are persisted by the caller's block save.
+
+    Args:
+        optical_spectrum: The Optical Spectrum block whose ports are refreshed.
+
+    Returns:
+        The refreshed ports whose owner subscription is not the spectrum owner
+        (foreign ports), deduplicated by subscription instance id.
+    """
+    return refresh_sections_used_passbands(
+        list(optical_spectrum.optical_spectrum_sections), str(optical_spectrum.owner_subscription_id)
+    )
 
 
 def save_foreign_passband_ports(ports: list[AbstractOpticalOlsPortBlockInactive]) -> None:

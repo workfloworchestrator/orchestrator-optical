@@ -25,6 +25,7 @@ coherent-pluggable-hosted ports is not implemented yet: every step that would
 configure one raises ``NotImplementedError``.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from time import sleep
 from typing import Any, NamedTuple, cast
@@ -119,6 +120,8 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     delete_optical_spectrum_sections,
     find_add_drop_ports,
     get_optical_node_subscriptions_by_roles,
+    load_spectrum_section,
+    refresh_sections_used_passbands,
     save_foreign_passband_ports,
     store_list_of_ports_into_spectrum_sections,
     update_used_passbands,
@@ -1096,6 +1099,125 @@ def reusable_channel_groups(
     return sorted(groups, key=lambda group: group.spare_capacity)
 
 
+def channel_names_taken_by_others(own_instance_ids: set[str]) -> dict[str, str]:
+    """Return the transport channel names owned by other subscriptions.
+
+    Args:
+        own_instance_ids: Subscription instance ids of the caller's own
+            transport channels, excluded from the result.
+
+    Returns:
+        Mapping of channel name to owner subscription id for every channel
+        outside ``own_instance_ids`` in INITIAL, PROVISIONING or ACTIVE state.
+    """
+    taken: dict[str, str] = {}
+    instances = subscription_instances_by_block_type(
+        cast(str, OpticalTransportChannelBlock.name),
+        [
+            SubscriptionLifecycle.INITIAL,
+            SubscriptionLifecycle.PROVISIONING,
+            SubscriptionLifecycle.ACTIVE,
+        ],
+    )
+    for instance in instances:
+        if str(instance.subscription_instance_id) in own_instance_ids:
+            continue
+        channel = OpticalTransportChannelBlockInactive.from_db(
+            subscription_instance_id=instance.subscription_instance_id
+        )
+        taken[str(channel.optical_transport_channel_name)] = str(channel.owner_subscription_id)
+    return taken
+
+
+def validated_channel_names(
+    current_names: list[str],
+    owned_flags: list[bool],
+    channel_name_1: str | None,
+    channel_name_2: str | None,
+    taken_names: dict[str, str],
+) -> list[str]:
+    """Return the effective transport channel names after applying the requested renames.
+
+    A ``None`` request keeps the current name of that channel. Only service-owned
+    channels can be renamed: a reused channel belongs to another subscription,
+    so renaming it would relabel circuits shared with other services.
+
+    Args:
+        current_names: User-facing names of the service channels, in order.
+        owned_flags: Whether each channel is owned by the service being modified.
+        channel_name_1: Requested name of the first channel, or ``None`` to keep it.
+        channel_name_2: Requested name of the second channel, or ``None`` to keep it.
+        taken_names: Channel names owned by other subscriptions, mapped to their
+            owner (see :func:`channel_names_taken_by_others`).
+
+    Returns:
+        The effective channel names, in order.
+
+    Raises:
+        ValueError: If a second name is given for a single-channel service, if a
+            name is blank or contains a circuit-label separator, if the names
+            are not distinct, if a reused channel would be renamed, or if a name
+            collides with a channel of another service.
+    """
+    if channel_name_2 is not None and len(current_names) != 2:  # noqa: PLR2004
+        msg = "The second transport channel name requires a dual-channel service"
+        raise ValueError(msg)
+    requested = [channel_name_1, *([channel_name_2] if len(current_names) == 2 else [])]  # noqa: PLR2004
+    if all(name is None for name in requested):
+        return list(current_names)
+    merged = [
+        request.strip() if request is not None else current
+        for request, current in zip(requested, current_names, strict=True)
+    ]
+    for name in merged:
+        ensure_circuit_label_token_valid(name, "transport channel")
+    if len(set(merged)) != len(merged):
+        msg = "The transport channels must have different names"
+        raise ValueError(msg)
+    for current, new, owned in zip(current_names, merged, owned_flags, strict=True):
+        if new != current and not owned:
+            msg = (
+                f"Transport channel {current!r} is reused from another service and cannot be renamed: "
+                "only service-owned channels can be renamed"
+            )
+            raise ValueError(msg)
+        if new != current and new in taken_names:
+            msg = (
+                f"Transport channel name {new!r} is already used by another service: "
+                "renaming onto an existing channel would hijack its reuse identity"
+            )
+            raise ValueError(msg)
+    return merged
+
+
+def flattened_section_port_ids(sections: Sequence[Any]) -> list[str]:
+    """Return the ordered port instance ids of the given sections as one path.
+
+    Contiguous sections share their boundary add/drop port, which appears as
+    the last port of one section and the first of the next: consecutive
+    duplicates are collapsed so the result compares equal to the full chosen
+    optical path.
+
+    Args:
+        sections: The optical spectrum sections, in path order.
+
+    Returns:
+        The port subscription instance ids of the sections, in path order.
+    """
+    ids: list[str] = []
+    for section in sections:
+        add_drop_ports = section.optical_spectrum_section_add_drop_ports
+        sequence = [
+            str(add_drop_ports[0].subscription_instance_id),
+            *(str(port.subscription_instance_id) for port in section.optical_spectrum_section_express_ports),
+            str(add_drop_ports[-1].subscription_instance_id),
+        ]
+        for port_id in sequence:
+            if not ids or ids[-1] != port_id:
+                ids.append(port_id)
+    return ids
+
+
 def channel_name_in_use(name: str) -> bool:
     """Return whether a transport channel name is already used by any channel."""
     instances = subscription_instances_by_block_type(
@@ -1836,7 +1958,10 @@ def ensure_optical_digital_sections(optical_module_block: OpticalDigitalServiceB
 
 
 @step("Updating the available passbands of the OLS ports in the paths")
-def refresh_optical_digital_used_passbands(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
+def refresh_optical_digital_used_passbands(
+    optical_module_block: OpticalDigitalServiceBlockInactive,
+    old_channel_sections: dict[str, list[str]] | None = None,
+) -> State:
     """Refresh the used passbands of the OLS ports of the new transport channels.
 
     Operates only on the Optical Digital Service block found in the state under
@@ -1846,9 +1971,20 @@ def refresh_optical_digital_used_passbands(optical_module_block: OpticalDigitalS
     are persisted under their own owner subscription by this step. Reused
     channels are skipped: their passbands are unchanged.
 
+    After a path change the replaced sections are also refreshed from the
+    ``old_channel_sections`` state key (snapshotted per channel by the update
+    step of the shipped modify workflow): their ports would otherwise keep
+    stale "occupied" passbands in the database and future path computations
+    would wrongly exclude them. Ports still in the current block are skipped;
+    owned ports of replaced sections are refreshed in memory but no longer
+    persisted (their section rows are orphaned by the repath save).
+
     Args:
         optical_module_block: The Optical Digital Service block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+        old_channel_sections: Previous section subscription instance ids per
+            transport channel instance id (only present in the modify workflow
+            state).
     """
     block = optical_digital_service_block_from_state(optical_module_block)
     for channel in block.optical_digital_service_transport_channels:
@@ -1856,6 +1992,22 @@ def refresh_optical_digital_used_passbands(optical_module_block: OpticalDigitalS
             continue
         foreign_ports = update_used_passbands(channel.optical_transport_spectrum)
         save_foreign_passband_ports(foreign_ports)
+    if old_channel_sections:
+        replaced = []
+        for channel in block.optical_digital_service_transport_channels:
+            if not is_new_channel(channel, block):
+                continue
+            current_ids = {
+                str(section.subscription_instance_id)
+                for section in channel.optical_transport_spectrum.optical_spectrum_sections
+            }
+            replaced.extend(
+                load_spectrum_section(section_id)
+                for section_id in old_channel_sections.get(str(channel.subscription_instance_id), [])
+                if str(section_id) not in current_ids
+            )
+        if replaced:
+            save_foreign_passband_ports(refresh_sections_used_passbands(replaced, str(block.owner_subscription_id)))
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
 
 
@@ -2118,9 +2270,89 @@ def verify_optical_digital_sections(optical_module_block: OpticalDigitalServiceB
     return {}
 
 
+@step("Replacing the optical path of the transport channels")
+def update_optical_digital_sections_path(
+    optical_module_block: OpticalDigitalServiceBlockInactive,
+    optical_path: list[UUIDstr] | None = None,
+) -> State:
+    """Replace the OLS path of the service-owned transport channels with the chosen one.
+
+    Operates only on the Optical Digital Service block found in the state under
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The step is a no-op when the form chose
+    no path (``optical_path`` absent): endpoints, ports and direct connections
+    are never repathed. The first channel takes the chosen full port list
+    (add/drop ends included, as the form resolves them from the fixed line
+    ports); the second channel of a reverse-multiplexed pair derives its ends
+    from its own line ports while sharing the first channel interior, or shares
+    the path as-is on a packet-node side (mirrors
+    :func:`build_optical_digital_service_block`). Sections whose flattened port
+    sequence already equals the new path are left untouched.
+
+    Only service-owned channels are repathed: the sections of a reused channel
+    belong to another subscription, and mixed groups of owned and reused
+    channels are not supported (the step refuses loudly instead of repathing
+    half the service). The replaced section blocks are persisted
+    here (and not only by the final save step): workflow steps execute with the
+    state serialized between steps, which drops the in-memory ``db_model`` of
+    blocks not in the database yet (mirrors the spectrum
+    ``divide_path_into_sections`` step).
+
+    Args:
+        optical_module_block: The Optical Digital Service block in the state under
+            ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+        optical_path: The ordered port subscription instance ids of the chosen
+            path of the first channel, or ``None`` (or empty) to keep every path.
+
+    Raises:
+        ValueError: If a path was chosen while a channel is reused.
+    """
+    block = optical_digital_service_block_from_state(optical_module_block)
+    if not optical_path:
+        return {}
+    channels = list(block.optical_digital_service_transport_channels)
+    for channel in channels:
+        if not is_new_channel(channel, block):
+            msg = "The optical path can only be changed on service-owned transport channels"
+            raise ValueError(msg)
+    first_path = [str(port_id) for port_id in optical_path]
+    changed = False
+    for index, channel in enumerate(channels):
+        spectrum = channel.optical_transport_spectrum
+        if index == 0:
+            new_path = first_path
+        else:
+            line_ports = channel.optical_transport_line_ports
+            # Host roles are resolved from the database by subscription id: the
+            # line ports arrive rehydrated from the workflow state, and only
+            # their ids (not their runtime classes) are trustworthy here.
+            if is_packet_node_host(
+                str(line_ports[0].optical_port_host_node.owner_subscription_id)
+            ) or is_packet_node_host(str(line_ports[1].optical_port_host_node.owner_subscription_id)):
+                new_path = first_path
+            else:
+                first_add_drop, last_add_drop = find_add_drop_ports(
+                    str(line_ports[0].subscription_instance_id), str(line_ports[1].subscription_instance_id)
+                )
+                new_path = [
+                    str(first_add_drop.subscription_instance_id),
+                    *first_path[1:-1],
+                    str(last_add_drop.subscription_instance_id),
+                ]
+        if flattened_section_port_ids(list(spectrum.optical_spectrum_sections)) == new_path:
+            continue
+        store_list_of_ports_into_spectrum_sections(new_path, spectrum)
+        changed = True
+    if not changed:
+        return {}
+    block.save(subscription_id=block.owner_subscription_id, status=SubscriptionLifecycle.PROVISIONING)
+    return {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
+
+
 @step("Modifying the optical sections of the transport channels")
 def modify_optical_digital_sections(
     optical_module_block: OpticalDigitalServiceBlockInactive,
+    old_channel_sections: dict[str, list[str]] | None = None,
+    old_channel_passbands: dict[str, list[int]] | None = None,
 ) -> State:
     """Converge the optical circuit of every section of the transport channels on the devices.
 
@@ -2132,44 +2364,50 @@ def modify_optical_digital_sections(
     (``"<channel>: <svcA> + <svcB>"``)), so no old passband is needed to find
     them.
 
+    When the path of a service-owned channel changed (detected against the
+    ``old_channel_sections`` state key snapshotted by the update step), the OEL
+    explicit route cannot be updated in place, so the old circuits are deleted
+    first and the new ones ensured: the OEL of a source node is deleted only
+    when no other OSNC still references it (see
+    :func:`orchestrator.optical.workflows.optical_spectrum_service.shared.delete_optical_spectrum_sections`),
+    so circuits shared with borrower services survive. Reused channels never
+    take the delete branch: their sections belong to another subscription.
+
     Args:
         optical_module_block: The Optical Digital Service block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+        old_channel_sections: Previous section subscription instance ids per
+            transport channel instance id (only present in the modify workflow
+            state).
+        old_channel_passbands: Previous passbands per transport channel instance
+            id (only present in the modify workflow state).
     """
     block = optical_digital_service_block_from_state(optical_module_block)
-    service_name = block.optical_digital_service_name
     results: dict[str, Any] = {}
-    snapped_any = False
     for channel in block.optical_digital_service_transport_channels:
+        if not is_new_channel(channel, block):
+            continue
+        old_ids = (old_channel_sections or {}).get(str(channel.subscription_instance_id))
+        if not old_ids:
+            continue
+        old_sections = [load_spectrum_section(section_id) for section_id in old_ids]
+        new_sections = list(channel.optical_transport_spectrum.optical_spectrum_sections)
+        if flattened_section_port_ids(old_sections) == flattened_section_port_ids(new_sections):
+            continue
         spectrum = channel.optical_transport_spectrum
-        spectrum_name = spectrum.optical_spectrum_name or service_name
-        carrier = _carrier_of_channel(channel)
-        snapped = snap_passband_to_grid(spectrum.optical_spectrum_passband, FLEXILS_SPECTRAL_GRID_MHZ, carrier)
-        if tuple(snapped) != tuple(spectrum.optical_spectrum_passband):
-            logger.warning(
-                "Snapping off-grid channel passband to the 12.5 GHz grid",
-                channel_name=str(channel.optical_transport_channel_name),
-                expected_passband=list(spectrum.optical_spectrum_passband),
-                snapped_passband=list(snapped),
+        old_passband = (old_channel_passbands or {}).get(str(channel.subscription_instance_id))
+        results.update(
+            delete_optical_spectrum_sections(
+                old_sections,
+                cast(Passband, tuple(old_passband)) if old_passband else spectrum.optical_spectrum_passband,
+                spectrum.optical_spectrum_name or block.optical_digital_service_name,
+                str(spectrum.subscription_instance_id),
             )
-            spectrum.optical_spectrum_passband = snapped
-            snapped_any = True
-        circuit_identifier = str(spectrum.subscription_instance_id)
-        label = expected_optical_circuit_label(channel, block)
-        for section in spectrum.optical_spectrum_sections:
-            src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-            key = f"{spectrum_name} {src_node.management.optical_module_node_fqdn}"
-            results[key] = ensure_optical_circuit(
-                cast(AnyOpticalNodeBlockProvisioningUnion, src_node),
-                section,
-                optical_spectrum_name=spectrum_name,
-                passband=spectrum.optical_spectrum_passband,
-                carrier=carrier,
-                label=label,
-                circuit_identifier=circuit_identifier,
-            )
+        )
+    ensured, snapped = _ensure_channel_circuits(list(block.optical_digital_service_transport_channels), block)
+    results.update(ensured)
     state: State = {"configuration_results": results}
-    if snapped_any:
+    if snapped:
         state[OPTICAL_MODULE_BLOCK_STATE_KEY] = block
     return state
 
@@ -2353,6 +2591,7 @@ __all__ = [
     "build_optical_circuit_label",
     "build_optical_digital_service_block",
     "channel_name_in_use",
+    "channel_names_taken_by_others",
     "channel_spare_capacity",
     "configure_optical_digital_client_ports",
     "configure_optical_digital_crossconnects",
@@ -2365,6 +2604,7 @@ __all__ = [
     "factory_reset_optical_digital_clients",
     "factory_reset_optical_digital_crossconnects",
     "factory_reset_optical_digital_lines",
+    "flattened_section_port_ids",
     "get_transceiver_capacity_from_mode",
     "has_flexils_sections",
     "has_new_channels_with_sections",
@@ -2391,6 +2631,8 @@ __all__ = [
     "sync_optical_digital_circuit_labels",
     "sync_reused_channel_labels",
     "unused_coherent_pluggable_selector",
+    "update_optical_digital_sections_path",
+    "validated_channel_names",
     "verify_optical_digital_client_ports",
     "verify_optical_digital_crossconnects",
     "verify_optical_digital_line_ports",

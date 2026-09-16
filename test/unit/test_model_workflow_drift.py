@@ -29,6 +29,7 @@ from orchestrator.optical.products.product_blocks.optical_coherent_pluggable imp
 )
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlockInactive,
+    OpticalDigitalServiceBlockProvisioning,
 )
 from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlockInactive,
@@ -83,6 +84,7 @@ from orchestrator.optical.workflows.optical_digital_service.modify_optical_digit
 from orchestrator.optical.workflows.optical_digital_service.shared import (
     build_optical_digital_service_block,
     populate_optical_digital_service_block,
+    update_optical_digital_sections_path,
 )
 from orchestrator.optical.workflows.optical_location.create_optical_location import (
     populate_optical_module_location_block,
@@ -353,12 +355,24 @@ WRITERS = [
     ),
     _entry(
         update_optical_digital_service_block,
+        OpticalDigitalServiceBlockProvisioning,
+        ("optical_digital_service_name",),
+    ),
+    _entry(
+        update_optical_digital_service_block,
         OpticalTransportChannelBlockProvisioning,
         (
+            "optical_transport_channel_name",
             "optical_transport_central_frequency",
             "optical_transport_mode",
+            "optical_transport_spectrum.optical_spectrum_name",
             "optical_transport_spectrum.optical_spectrum_passband",
         ),
+    ),
+    _entry(
+        update_optical_digital_sections_path,
+        OpticalTransportChannelBlockProvisioning,
+        ("optical_transport_spectrum.optical_spectrum_sections",),
     ),
 ]
 
