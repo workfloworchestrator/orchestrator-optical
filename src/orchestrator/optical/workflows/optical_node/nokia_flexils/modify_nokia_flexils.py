@@ -4,7 +4,7 @@ This module ships the ready-to-use ``modify_optical_node_nokia_flexils``
 workflow for the shipped Nokia FlexILS product type, together with the
 importable parts: the FormPages of the modify form (as the
 :func:`modify_optical_node_nokia_flexils_form_pages` page sequence, prefilled
-with the current subscription values) and the step list that updates and
+with the current block values) and the step list that updates and
 persists the Nokia FlexILS node block found in the state under
 ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
@@ -13,10 +13,13 @@ consumers with their own model that has-a the shipped block compose their own
 ``@modify_workflow`` with the parts. The shipped form generator is a thin
 composition of the shipped pages and the summary form, without hooks:
 consumers build their own form generator by yielding from the shipped page
-sequence in one line and adding their own pages::
+sequence in one line and adding their own pages. The consumer extracts the
+block with plain Python at any nesting depth (shipped code never traverses
+the subscription)::
 
+    block = subscription.optical_module_block  # or subscription.router.optical_module
     user_input_dict = yield from modify_optical_node_nokia_flexils_form_pages(
-        subscription, block_field_name="router"
+        block, exclude_subscription_id=...
     )
     user_input_dict.update((yield my_own_page).model_dump())
 """
@@ -32,7 +35,10 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
+    NokiaFlexIlsBlock,
+    NokiaFlexIlsBlockProvisioning,
+)
 from orchestrator.optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIlsSubscription
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.flexils import FlexIlsTargetId
@@ -64,28 +70,28 @@ Instruction = Annotated[
 
 
 def modify_optical_node_nokia_flexils_vendor_form(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_node",
+    node: NokiaFlexIlsBlock,
+    *,
+    exclude_subscription_id: UUIDstr | None = None,
 ) -> type[FormPage]:
     """Return the vendor FormPage of the Nokia FlexILS Optical Node modify form.
 
     The page collects the FlexILS-specific fields of the node: the GMPLS ID and
     the Target Identifier (TID). It is prefilled with the current values of the
-    subscription, so unchanged fields remain intact, and validates that neither
+    block, so unchanged fields remain intact, and validates that neither
     the GMPLS ID nor the Target Identifier is already in use by another Nokia
     FlexILS subscription, excluding the subscription being modified.
 
     Args:
-        subscription: The ACTIVE subscription model of the Nokia FlexILS
-            Optical Node product being modified (any consumer model that has-a
-            the shipped block works).
-        block_field_name: Name of the attribute of the subscription model
-            holding the Nokia FlexILS node block.
+        node: The Nokia FlexILS node block being modified.
+        exclude_subscription_id: Identifier of the subscription being modified,
+            whose own node block is not a conflict. Defaults to the owner
+            subscription of the block.
 
     Returns:
         The vendor FormPage of the shipped modify form.
     """
-    node = getattr(subscription, block_field_name)
+    exclude = exclude_subscription_id if exclude_subscription_id is not None else str(node.owner_subscription_id)
 
     class ModifyNokiaFlexIlsVendorForm(FormPage):
         instruction: Instruction
@@ -103,11 +109,11 @@ def modify_optical_node_nokia_flexils_vendor_form(
             """Raise if the GMPLS ID or the Target Identifier is already in use by another subscription."""
             validate_gmpls_id_uniqueness(
                 self.optical_flexils_gmpls_id,
-                exclude_subscription_id=str(subscription.subscription_id),
+                exclude_subscription_id=exclude,
             )
             validate_optical_flexils_target_id_uniqueness(
                 self.optical_flexils_target_id,
-                exclude_subscription_id=str(subscription.subscription_id),
+                exclude_subscription_id=exclude,
             )
             return self
 
@@ -115,8 +121,9 @@ def modify_optical_node_nokia_flexils_vendor_form(
 
 
 def modify_optical_node_nokia_flexils_form_pages(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_node",
+    node: NokiaFlexIlsBlock,
+    *,
+    exclude_subscription_id: UUIDstr | None = None,
 ) -> FormGenerator:
     """Yield the FormPage of the Nokia FlexILS Optical Node modify form.
 
@@ -130,21 +137,23 @@ def modify_optical_node_nokia_flexils_form_pages(
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
-        subscription: The ACTIVE subscription model of the Nokia FlexILS
-            Optical Node product being modified (any consumer model that has-a
-            the shipped block works).
-        block_field_name: Name of the attribute of the subscription model
-            holding the Nokia FlexILS node block.
+        node: The Nokia FlexILS node block being modified.
+        exclude_subscription_id: Identifier of the subscription being modified,
+            whose own node block is not a conflict. Defaults to the owner
+            subscription of the block.
 
     Returns:
         The collected user input of the shipped pages.
     """
+    exclude = exclude_subscription_id if exclude_subscription_id is not None else str(node.owner_subscription_id)
     user_input_dict: dict[str, object] = {}
     user_input_dict.update(
-        (yield modify_optical_node_management_form(subscription, block_field_name, require_dcn_ip=False)).model_dump()
+        (
+            yield modify_optical_node_management_form(node, exclude_subscription_id=exclude, require_dcn_ip=False)
+        ).model_dump()
     )
     user_input_dict.update(
-        (yield modify_optical_node_nokia_flexils_vendor_form(subscription, block_field_name)).model_dump()
+        (yield modify_optical_node_nokia_flexils_vendor_form(node, exclude_subscription_id=exclude)).model_dump()
     )
     return user_input_dict
 
@@ -156,17 +165,16 @@ def modify_optical_node_nokia_flexils_form_generator(
 ) -> FormGenerator:
     """Generate the initial input form for modifying a Nokia FlexILS Optical Node subscription.
 
-    The form is prefilled with the current values of the subscription, so
+    The form is prefilled with the current values of the block, so
     unchanged fields remain intact. It is a thin composition of the shipped
     page sequence (:func:`modify_optical_node_nokia_flexils_form_pages`) and
-    the summary form.
+    the summary form. Shipped-product only: consumers compose their own form
+    generator from the shipped page sequence.
 
     Args:
         subscription_id: The identifier of the subscription being modified.
         subscription_model: The ACTIVE subscription model class of the Nokia
-            FlexILS Optical Node product. Consumers that compose the shipped
-            block under a different attribute name pass their own model class
-            here.
+            FlexILS Optical Node product.
         block_field_name: Name of the attribute of the subscription model
             holding the Nokia FlexILS node block.
     """
@@ -174,7 +182,13 @@ def modify_optical_node_nokia_flexils_form_generator(
     node = getattr(subscription, block_field_name)
 
     user_input_dict = yield from customer_choice_form_page(include=subscription.customer_id)
-    user_input_dict.update((yield from modify_optical_node_nokia_flexils_form_pages(subscription, block_field_name)))
+    user_input_dict.update(
+        (
+            yield from modify_optical_node_nokia_flexils_form_pages(
+                node, exclude_subscription_id=str(subscription.subscription_id)
+            )
+        )
+    )
 
     summary_fields = [
         "customer_id",

@@ -14,7 +14,7 @@ page for the vendors that need it. This module ships those shared pages:
   discover the role from the device);
 * :func:`modify_optical_node_management_form` — the fields of the
   ``OpticalModuleNodeManagementBlock`` composition block of the modify form,
-  prefilled with the current subscription values.
+  prefilled with the current block values.
 
 The node role is discovered from the device for all shipped vendors, so the
 role is not collected as user input.
@@ -23,9 +23,10 @@ role is not collected as user input.
 from typing import Annotated
 
 from pydantic import ConfigDict, Field, model_validator
+from pydantic_forms.types import UUIDstr
 
-from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlock
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
@@ -120,16 +121,16 @@ def create_optical_node_management_form(product_name: str, *, require_dcn_ip: bo
 
 
 def modify_optical_node_management_form(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_node",
+    node: AbstractOpticalNodeBlock,
     *,
+    exclude_subscription_id: UUIDstr | None = None,
     require_dcn_ip: bool = True,
 ) -> type[FormPage]:
     """Return the management FormPage of an Optical Node modify form.
 
     The page collects the fields of the ``OpticalModuleNodeManagementBlock``
     composition block: the node FQDN and the DCN loopback/interface IPs. It is
-    prefilled with the current values of the subscription, so unchanged fields
+    prefilled with the current values of the block, so unchanged fields
     remain intact. Either DCN IP can be deleted by ticking its ``delete_*``
     checkbox, which sets the IP to ``None`` in the emitted state. The page
     validates that the FQDN and the (non-deleted) management IPs are not
@@ -139,11 +140,10 @@ def modify_optical_node_management_form(
     block shared by all the Optical Node vendor modify forms.
 
     Args:
-        subscription: The ACTIVE subscription model of the Optical Node
-            product being modified (any consumer model that has-a the shipped
-            block works).
-        block_field_name: Name of the attribute of the subscription model
-            holding the Optical Node block.
+        node: The Optical Node block being modified.
+        exclude_subscription_id: Identifier of the subscription being modified,
+            whose own node block is not a conflict. Defaults to the owner
+            subscription of the block.
         require_dcn_ip: Require at least one of the two DCN IPs to remain after
             the requested deletions. The FlexILS modify form does not require
             one (mirroring its create form); Groove G30 and GX G42 do.
@@ -151,7 +151,7 @@ def modify_optical_node_management_form(
     Returns:
         The management FormPage of the shipped modify form.
     """
-    node = getattr(subscription, block_field_name)
+    exclude = exclude_subscription_id if exclude_subscription_id is not None else str(node.owner_subscription_id)
 
     class ModifyOpticalNodeManagementForm(FormPage):
         instruction: Instruction
@@ -186,7 +186,7 @@ def modify_optical_node_management_form(
                 raise ValueError(msg)
             validate_optical_node_fqdn_uniqueness(
                 self.optical_module_node_fqdn,
-                exclude_subscription_id=str(subscription.subscription_id),
+                exclude_subscription_id=exclude,
             )
             validate_management_ips_uniqueness(
                 [
@@ -194,7 +194,7 @@ def modify_optical_node_management_form(
                     for ip in (self.optical_module_node_dcn_loopback_ip, self.optical_module_node_dcn_interface_ip)
                     if ip is not None
                 ],
-                exclude_subscription_id=str(subscription.subscription_id),
+                exclude_subscription_id=exclude,
             )
             return self
 
