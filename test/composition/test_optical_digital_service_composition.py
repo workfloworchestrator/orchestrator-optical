@@ -139,7 +139,9 @@ def test_modify_form_pages_yield_routing_pages_for_owned_sections(monkeypatch: p
     """The modify page sequence yields identity, channels, routing and path pages for owned sections."""
     _monkeypatch_modify_selectors(monkeypatch)
     subscription = _make_digital_subscription()
-    generator = modify_optical_digital_service_form_pages(subscription)
+    generator = modify_optical_digital_service_form_pages(
+        subscription.optical_digital_service, product_name=subscription.product.name
+    )
     page_names: list[str] = []
 
     page_1 = next(generator)
@@ -188,7 +190,9 @@ def test_modify_form_pages_skip_routing_pages_for_reused_channels(monkeypatch: p
     """Reused channels keep their owner's path: the sequence stops after the channels page."""
     _monkeypatch_modify_selectors(monkeypatch)
     subscription = _make_digital_subscription(channel_owner="sub-other")
-    generator = modify_optical_digital_service_form_pages(subscription)
+    generator = modify_optical_digital_service_form_pages(
+        subscription.optical_digital_service, product_name=subscription.product.name
+    )
 
     page_1 = next(generator)
     assert page_1.__name__ == "ModifyOpticalDigitalServiceIdentityForm"
@@ -207,7 +211,9 @@ def test_modify_form_pages_skip_routing_pages_without_sections(monkeypatch: pyte
     """Directly connected services have no OLS path to change: the sequence stops after the channels page."""
     _monkeypatch_modify_selectors(monkeypatch)
     subscription = _make_digital_subscription(with_sections=False)
-    generator = modify_optical_digital_service_form_pages(subscription)
+    generator = modify_optical_digital_service_form_pages(
+        subscription.optical_digital_service, product_name=subscription.product.name
+    )
 
     page_1 = next(generator)
     page_2 = generator.send(
@@ -224,7 +230,9 @@ def test_modify_identity_form_rejects_reused_channel_rename(monkeypatch: pytest.
     """The identity page refuses to rename a channel owned by another service."""
     _monkeypatch_modify_selectors(monkeypatch)
     subscription = _make_digital_subscription(channel_owner="sub-other")
-    generator = modify_optical_digital_service_form_pages(subscription)
+    generator = modify_optical_digital_service_form_pages(
+        subscription.optical_digital_service, product_name=subscription.product.name
+    )
     page_1 = next(generator)
     with pytest.raises(ValueError, match="cannot be renamed"):
         page_1(optical_digital_service_name="svcA", channel_name_1="ch-renamed")
