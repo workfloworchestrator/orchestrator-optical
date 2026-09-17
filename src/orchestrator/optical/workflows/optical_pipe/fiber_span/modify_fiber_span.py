@@ -4,7 +4,7 @@ This module ships the ready-to-use ``modify_fiber_span`` workflow for the
 shipped Optical Fiber Span product type, together with the importable parts:
 the FormPage of the modify form (as the
 :func:`modify_fiber_span_form_pages` page sequence, prefilled with the
-current subscription values) and the step list that updates and persists the
+current block values) and the step list that updates and persists the
 Optical Pipe block found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
 Consumers that keep the shipped product type register the shipped workflow;
@@ -12,11 +12,12 @@ consumers with their own model that has-a the shipped block compose their own
 ``@modify_workflow`` with the parts. The shipped form generator is a thin
 composition of the shipped pages and the summary form, without hooks:
 consumers build their own form generator by yielding from the shipped page
-sequence in one line and adding their own pages::
+sequence in one line and adding their own pages. The consumer extracts the
+block with plain Python at any nesting depth (shipped code never traverses
+the subscription)::
 
-    user_input_dict = yield from modify_fiber_span_form_pages(
-        subscription, block_field_name="optical_pipe"
-    )
+    block = subscription.optical_module_block  # or subscription.router.optical_module
+    user_input_dict = yield from modify_fiber_span_form_pages(block)
     user_input_dict.update((yield my_own_page).model_dump())
 """
 
@@ -27,6 +28,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
+from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlock
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_pipe.shared import (
@@ -38,10 +40,7 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
 )
 
 
-def modify_fiber_span_form_pages(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_pipe",
-) -> FormGenerator:
+def modify_fiber_span_form_pages(pipe: OpticalFiberSpanBlock) -> FormGenerator:
     """Yield the FormPage of the Optical Fiber Span modify form.
 
     This is the shipped modify form as a page sequence: it yields the
@@ -54,16 +53,12 @@ def modify_fiber_span_form_pages(
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
-        subscription: The ACTIVE subscription model of the Optical Fiber Span
-            product being modified (any consumer model that has-a the shipped
-            block works).
-        block_field_name: Name of the attribute of the subscription model holding
-            the Optical Pipe block.
+        pipe: The Optical Pipe block being modified.
 
     Returns:
         The collected user input of the shipped pages.
     """
-    return modify_optical_pipe_form_pages(subscription, block_field_name)
+    return modify_optical_pipe_form_pages(pipe)
 
 
 def modify_fiber_span_form_generator(
@@ -73,16 +68,16 @@ def modify_fiber_span_form_generator(
 ) -> FormGenerator:
     """Generate the initial input form for modifying an Optical Fiber Span subscription.
 
-    The form is prefilled with the current values of the subscription, so
+    The form is prefilled with the current values of the block, so
     unchanged fields remain intact. It is a thin composition of the customer
     page, the shipped page sequence (:func:`modify_fiber_span_form_pages`) and
-    the summary form.
+    the summary form. Shipped-product only: consumers compose their own form
+    generator from the shipped page sequence.
 
     Args:
         subscription_id: The identifier of the subscription being modified.
         subscription_model: The ACTIVE subscription model class of the Optical
-            Fiber Span product. Consumers that compose the shipped block
-            under a different attribute name pass their own model class here.
+            Fiber Span product.
         block_field_name: Name of the attribute of the subscription model holding
             the Optical Pipe block.
     """

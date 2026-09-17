@@ -41,6 +41,7 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
+    AbstractOpticalPipeBlock,
     AbstractOpticalPipeBlockInactive,
     AbstractOpticalPipeBlockProvisioning,
     OpticalPipeType,
@@ -866,25 +867,18 @@ def create_optical_pipe_form_generator(
     return user_input_dict
 
 
-def modify_optical_pipe_form(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_pipe",
-) -> type[FormPage]:
+def modify_optical_pipe_form(pipe: AbstractOpticalPipeBlock) -> type[FormPage]:
     """Return the modify FormPage of an Optical Pipe subscription.
 
     The page is prefilled with the current ``optical_pipe_name`` of the
-    subscription, so unchanged fields remain intact.
+    block, so unchanged fields remain intact.
 
     Args:
-        subscription: The ACTIVE subscription model of the Optical Pipe product
-            being modified (any consumer model that has-a the shipped block works).
-        block_field_name: Name of the attribute of the subscription model holding
-            the Optical Pipe block.
+        pipe: The Optical Pipe block being modified.
 
     Returns:
         The prefilled modify FormPage of the shipped modify form.
     """
-    pipe = getattr(subscription, block_field_name)
 
     class ModifyOpticalPipeForm(FormPage):
         optical_pipe_name: str = pipe.optical_pipe_name
@@ -892,10 +886,7 @@ def modify_optical_pipe_form(
     return ModifyOpticalPipeForm
 
 
-def modify_optical_pipe_form_pages(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_pipe",
-) -> FormGenerator:
+def modify_optical_pipe_form_pages(pipe: AbstractOpticalPipeBlock) -> FormGenerator:
     """Yield the FormPage of an Optical Pipe modify form.
 
     This is the shipped modify form as a page sequence: it yields the prefilled
@@ -905,15 +896,12 @@ def modify_optical_pipe_form_pages(
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
-        subscription: The ACTIVE subscription model of the Optical Pipe product
-            being modified (any consumer model that has-a the shipped block works).
-        block_field_name: Name of the attribute of the subscription model holding
-            the Optical Pipe block.
+        pipe: The Optical Pipe block being modified.
 
     Returns:
         The collected user input of the shipped pages.
     """
-    user_input = yield modify_optical_pipe_form(subscription, block_field_name)
+    user_input = yield modify_optical_pipe_form(pipe)
     return user_input.model_dump()
 
 
@@ -924,9 +912,10 @@ def modify_optical_pipe_form_generator(
 ) -> FormGenerator:
     """Generate the initial input form for modifying an Optical Pipe subscription.
 
-    The form is prefilled with the current values of the subscription, so
+    The form is prefilled with the current values of the block, so
     unchanged fields remain intact. It is a thin composition of the customer
-    page, the modify page sequence and the summary form.
+    page, the modify page sequence and the summary form. Shipped-product only:
+    consumers compose their own form generator from the shipped page sequence.
 
     Args:
         subscription_id: The identifier of the subscription being modified.
@@ -939,7 +928,7 @@ def modify_optical_pipe_form_generator(
     pipe = getattr(subscription, block_field_name)
 
     user_input_dict = yield from customer_choice_form_page(include=subscription.customer_id)
-    user_input_dict.update((yield from modify_optical_pipe_form_pages(subscription, block_field_name)))
+    user_input_dict.update((yield from modify_optical_pipe_form_pages(pipe)))
 
     summary_fields = ["customer_id", "optical_pipe_name"]
     yield from modify_summary_form(

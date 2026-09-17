@@ -223,12 +223,8 @@ def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) ->
 def test_modify_form_pages_yield_the_prefilled_page() -> None:
     """The modify page sequence yields a page prefilled with the current pipe name."""
     block = _make_span_block("span-01")
-    subscription = cast(
-        Any,
-        SimpleNamespace(customer_id="cust-1", subscription_id=uuid.uuid4(), optical_pipe=block),
-    )
 
-    generator = fiber_span_modify.modify_fiber_span_form_pages(subscription)
+    generator = fiber_span_modify.modify_fiber_span_form_pages(block)
     page = next(generator)
     assert issubclass(page, FormPage)
     assert set(page.model_fields) == {"optical_pipe_name"}
