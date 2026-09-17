@@ -22,10 +22,10 @@ from pydantic_forms.exceptions import FormValidationError
 import orchestrator.core.db as core_db
 from orchestrator.core.db import SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.db import node_block_from_subscription
+from orchestrator.optical.db import node_block_from_instance
 from orchestrator.optical.products import ProductName
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
-from test.support.db import CUSTOMER_ID
+from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
 from test.support.devices import _fake_retrieve_optical_node_role_and_software_version
 from test.support.topology import _flexils_gmpls_id
 
@@ -147,7 +147,7 @@ def test_modify_flexils_deletes_loopback_ip(
     )
     assert_process_completed(process_id)
 
-    block = node_block_from_subscription(subscription_id)
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaFlexIlsBlock)
     assert block.management.optical_module_node_dcn_loopback_ip is None
     assert block.management.optical_module_node_dcn_interface_ip == "192.0.2.71"
@@ -191,7 +191,7 @@ def test_modify_flexils_deletes_both_dcn_ips(
     )
     assert_process_completed(process_id)
 
-    block = node_block_from_subscription(subscription_id)
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaFlexIlsBlock)
     assert block.management.optical_module_node_dcn_loopback_ip is None
     assert block.management.optical_module_node_dcn_interface_ip is None

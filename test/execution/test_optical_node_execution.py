@@ -18,14 +18,14 @@ from pydantic_forms.exceptions import FormValidationError
 import orchestrator.core.db as core_db
 from orchestrator.core.db import SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.db import node_block_from_subscription
+from orchestrator.optical.db import node_block_from_instance
 from orchestrator.optical.products import ProductName
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30Block
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42Block
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from test.support.db import CUSTOMER_ID
+from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
 from test.support.devices import FAKE_SOFTWARE_VERSION
 from test.support.topology import _flexils_gmpls_id
 
@@ -110,7 +110,7 @@ def test_create_nokia_flexils_node(
     assert subscription.customer_id == CUSTOMER_ID
     assert subscription.description == f"{fqdn} ({FLEXILS_PRODUCT})"
 
-    block = node_block_from_subscription(subscription_id)
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaFlexIlsBlock)
     # The role is discovered from the (stubbed) device, not taken from the form.
     assert block.optical_node_role == OpticalNodeRole.ROADM
@@ -148,7 +148,7 @@ def test_create_nokia_groove_g30_node(
     subscription_id = subscription_id_of_process(process_id)
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
 
-    block = node_block_from_subscription(subscription_id)
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaGrooveG30Block)
     assert block.optical_node_role == OpticalNodeRole.TRANSPONDER
     assert block.management.optical_module_node_fqdn == fqdn
@@ -183,7 +183,7 @@ def test_create_nokia_gx_g42_node(
     subscription_id = subscription_id_of_process(process_id)
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
 
-    block = node_block_from_subscription(subscription_id)
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaGxG42Block)
     assert block.optical_node_role == OpticalNodeRole.TRANSPONDER
     assert block.management.optical_module_node_fqdn == fqdn
@@ -225,7 +225,7 @@ def test_node_full_lifecycle_g30(
     )
     assert_process_completed(modify_process_id)
     # The shipped modify workflow updates and persists the block, keeping the subscription ACTIVE.
-    block = node_block_from_subscription(subscription_id)
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaGrooveG30Block)
     assert block.management.optical_module_node_fqdn == "g30-life-02.optical.test"
     assert block.management.optical_module_node_dcn_interface_ip == "192.0.2.41"
@@ -240,10 +240,8 @@ def test_node_full_lifecycle_g30(
     )
     assert_process_completed(validate_process_id)
     # The shared validate steps refresh the software version from the (stubbed) device.
-    assert (
-        node_block_from_subscription(subscription_id).management.optical_module_node_software_version
-        == FAKE_SOFTWARE_VERSION
-    )
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
+    assert block.management.optical_module_node_software_version == FAKE_SOFTWARE_VERSION
 
     terminate_process_id = run_process(
         "terminate_optical_node_nokia_groove_g30",
@@ -297,10 +295,8 @@ def test_validate_refreshes_software_version_in_db(
         "192.0.2.61",
         dcn_loopback_ip="192.0.2.62",
     )
-    assert (
-        node_block_from_subscription(subscription_id).management.optical_module_node_software_version
-        == FAKE_SOFTWARE_VERSION
-    )
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
+    assert block.management.optical_module_node_software_version == FAKE_SOFTWARE_VERSION
 
     new_version = "9.9.9"
     monkeypatch.setattr(
@@ -314,4 +310,5 @@ def test_validate_refreshes_software_version_in_db(
     )
     assert_process_completed(process_id)
 
-    assert node_block_from_subscription(subscription_id).management.optical_module_node_software_version == new_version
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
+    assert block.management.optical_module_node_software_version == new_version

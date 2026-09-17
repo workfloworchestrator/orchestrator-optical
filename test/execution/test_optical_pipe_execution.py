@@ -27,7 +27,7 @@ from orchestrator.optical.products.product_blocks.optical_port.ols_line import O
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
-from test.support.db import CUSTOMER_ID
+from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
 from test.support.devices import FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
 
 pytestmark = pytest.mark.db
@@ -50,10 +50,15 @@ def _subscription_table(subscription_id: str) -> SubscriptionTable:
         return subscription
 
 
+def _seed_node_instance(seed_optical_node: Any, product_name: str, fqdn: str, interface_ip: str) -> str:
+    """Seed an ACTIVE node and return its block instance id (the pipe forms select by instance id)."""
+    return node_instance_id_of_subscription(seed_optical_node(product_name, fqdn, interface_ip))
+
+
 def _create_pipe_user_inputs(
     product_id: str,
-    node_a_id: str,
-    node_b_id: str,
+    node_a_instance_id: str,
+    node_b_instance_id: str,
     port_a_name: str,
     port_b_name: str,
     pipe_name: str | None = None,
@@ -64,7 +69,7 @@ def _create_pipe_user_inputs(
     The three shipped pipe create forms share the same page sequence
     (product, customer, nodes, terminations); ``provider_name`` adds the
     dedicated provider page of the leased spectrum form, which sits between the
-    terminations page and the summary page.
+    terminations page and the summary page. The node ends are block instance ids.
     """
     terminations: dict[str, Any] = {"port_a_name": port_a_name, "port_b_name": port_b_name}
     if pipe_name is not None:
@@ -72,7 +77,7 @@ def _create_pipe_user_inputs(
     pages: list[dict[str, Any]] = [
         {"product": product_id},
         {"customer_id": CUSTOMER_ID},
-        {"node_a_id": node_a_id, "node_b_id": node_b_id},
+        {"node_a_instance_id": node_a_instance_id, "node_b_instance_id": node_b_instance_id},
         terminations,
     ]
     if provider_name is not None:
@@ -108,8 +113,8 @@ def test_fiber_span_full_lifecycle(
     stub_pipe_device,
 ) -> None:
     """The full create -> modify -> validate -> terminate cycle of the shipped Optical Fiber Span workflows."""
-    node_a = seed_optical_node(FLEXILS_NODE_PRODUCT, "span-a.optical.test", "10.9.0.11")
-    node_b = seed_optical_node(FLEXILS_NODE_PRODUCT, "span-b.optical.test", "10.9.0.12")
+    node_a = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "span-a.optical.test", "10.9.0.11")
+    node_b = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "span-b.optical.test", "10.9.0.12")
 
     create_process_id = run_process(
         "create_fiber_span",
@@ -167,8 +172,8 @@ def test_fiber_span_create_default_pipe_name(
     stub_pipe_device,
 ) -> None:
     """Leaving the identifier empty derives the default 'node A port A --- node B port B' name."""
-    node_a = seed_optical_node(FLEXILS_NODE_PRODUCT, "span-dflt-a.optical.test", "10.9.0.13")
-    node_b = seed_optical_node(FLEXILS_NODE_PRODUCT, "span-dflt-b.optical.test", "10.9.0.14")
+    node_a = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "span-dflt-a.optical.test", "10.9.0.13")
+    node_b = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "span-dflt-b.optical.test", "10.9.0.14")
 
     create_process_id = run_process(
         "create_fiber_span",
@@ -191,7 +196,7 @@ def test_fiber_span_create_rejects_same_node(
     stub_pipe_device,
 ) -> None:
     """A fiber span whose two ends are on the same node fails the form validation."""
-    node_a = seed_optical_node(FLEXILS_NODE_PRODUCT, "span-same-a.optical.test", "10.9.0.15")
+    node_a = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "span-same-a.optical.test", "10.9.0.15")
 
     with pytest.raises(FormValidationError, match="different nodes"):
         run_process(
@@ -199,7 +204,7 @@ def test_fiber_span_create_rejects_same_node(
             [
                 {"product": product_id_for(FIBER_SPAN_PRODUCT)},
                 {"customer_id": CUSTOMER_ID},
-                {"node_a_id": node_a, "node_b_id": node_a},
+                {"node_a_instance_id": node_a, "node_b_instance_id": node_a},
             ],
         )
 
@@ -213,8 +218,8 @@ def test_fiber_patch_create_validate_terminate(
     stub_pipe_device,
 ) -> None:
     """The shipped Optical Fiber Patch create/validate/terminate workflows, on FlexILS client ports."""
-    node_a = seed_optical_node(FLEXILS_NODE_PRODUCT, "patch-a.optical.test", "10.9.0.21")
-    node_b = seed_optical_node(FLEXILS_NODE_PRODUCT, "patch-b.optical.test", "10.9.0.22")
+    node_a = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "patch-a.optical.test", "10.9.0.21")
+    node_b = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "patch-b.optical.test", "10.9.0.22")
 
     create_process_id = run_process(
         "create_fiber_patch",
@@ -259,8 +264,8 @@ def test_leased_spectrum_create_validate_terminate(
     stub_pipe_device,
 ) -> None:
     """The shipped Optical Leased Spectrum create/validate/terminate workflows, on FlexILS client ports."""
-    node_a = seed_optical_node(FLEXILS_NODE_PRODUCT, "lease-a.optical.test", "10.9.0.31")
-    node_b = seed_optical_node(FLEXILS_NODE_PRODUCT, "lease-b.optical.test", "10.9.0.32")
+    node_a = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "lease-a.optical.test", "10.9.0.31")
+    node_b = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "lease-b.optical.test", "10.9.0.32")
 
     create_process_id = run_process(
         "create_leased_spectrum",

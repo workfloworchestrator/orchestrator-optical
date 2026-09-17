@@ -10,7 +10,6 @@ from orchestrator.optical.db import (
     location_block_from_instance,
     subscription_instances_by_block_type_and_resource_value,
 )
-from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
 from orchestrator.optical.products.product_blocks.optical_node.unions import (
     AnyOpticalNodeBlockInactiveUnion,
@@ -24,12 +23,6 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
-
-OPTICAL_NODE_PRODUCT_TYPES = [
-    ProductType.OPTICAL_NODE_NOKIA_FLEXILS.value,
-    ProductType.OPTICAL_NODE_NOKIA_GROOVE_G30.value,
-    ProductType.OPTICAL_NODE_NOKIA_GX_G42.value,
-]
 
 
 def _optical_node_block_of_subscription(subscription: SubscriptionModel) -> AnyOpticalNodeBlockInactiveUnion:

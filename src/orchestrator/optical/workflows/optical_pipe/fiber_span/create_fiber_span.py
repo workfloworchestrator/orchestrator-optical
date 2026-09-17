@@ -34,7 +34,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.db import node_block_from_subscription
+from orchestrator.optical.db import node_block_from_instance
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
@@ -96,15 +96,22 @@ def create_fiber_span_form_generator(product_name: str) -> FormGenerator:
         yield from create_optical_pipe_form_generator(
             product_name,
             create_fiber_span_form_pages,
-            ["customer_id", "optical_pipe_name", "node_a_id", "port_a_name", "node_b_id", "port_b_name"],
+            [
+                "customer_id",
+                "optical_pipe_name",
+                "node_a_instance_id",
+                "port_a_name",
+                "node_b_instance_id",
+                "port_b_name",
+            ],
         )
     )
 
 
 def build_fiber_span_block(
     subscription_id: UUID,
-    node_a_id: UUIDstr,
-    node_b_id: UUIDstr,
+    node_a_instance_id: UUIDstr,
+    node_b_instance_id: UUIDstr,
     port_a_name: str,
     port_b_name: str,
     optical_pipe_name: str,
@@ -119,8 +126,8 @@ def build_fiber_span_block(
 
     Args:
         subscription_id: Subscription id of the new pipe subscription.
-        node_a_id: Subscription id of the Optical Node hosting end A of the span.
-        node_b_id: Subscription id of the Optical Node hosting end B of the span.
+        node_a_instance_id: Subscription instance id of the Optical Node hosting end A of the span.
+        node_b_instance_id: Subscription instance id of the Optical Node hosting end B of the span.
         port_a_name: Name of the terminating line port on node A.
         port_b_name: Name of the terminating line port on node B.
         optical_pipe_name: Identifier of the span.
@@ -128,8 +135,8 @@ def build_fiber_span_block(
     Returns:
         The inactive Optical Fiber Span block with its two terminations.
     """
-    node_a_block = node_block_from_subscription(node_a_id)
-    node_b_block = node_block_from_subscription(node_b_id)
+    node_a_block = node_block_from_instance(node_a_instance_id)
+    node_b_block = node_block_from_instance(node_b_instance_id)
 
     port_block_class = PORT_BLOCK_CLASS_BY_ROLE[OpticalPortRole.OLS_LINE]
     port_a = new_pipe_port_block(
@@ -159,8 +166,8 @@ def build_fiber_span_block(
 def construct_fiber_span_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
-    node_a_id: UUIDstr,
-    node_b_id: UUIDstr,
+    node_a_instance_id: UUIDstr,
+    node_b_instance_id: UUIDstr,
     port_a_name: str,
     port_b_name: str,
     optical_pipe_name: str,
@@ -184,7 +191,7 @@ def construct_fiber_span_subscription(
     """
     subscription_id = uuid4()
     pipe_block = build_fiber_span_block(
-        subscription_id, node_a_id, node_b_id, port_a_name, port_b_name, optical_pipe_name
+        subscription_id, node_a_instance_id, node_b_instance_id, port_a_name, port_b_name, optical_pipe_name
     )
 
     subscription = new_optical_pipe_subscription(OpticalFiberSpanSubscriptionInactive, product, customer_id, pipe_block)

@@ -9,7 +9,6 @@ block with a has-a relation on their own model and inject it into the state.
 
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.optical_node.shared.create import (
-    OPTICAL_NODE_PRODUCT_TYPES,
     optical_node_block_from_state,
     optical_node_subscription_description,
     populate_abstract_optical_node_fields,
@@ -46,7 +45,6 @@ from orchestrator.optical.workflows.optical_node.shared.validate import (
 
 __all__ = [
     "OPTICAL_MODULE_BLOCK_STATE_KEY",
-    "OPTICAL_NODE_PRODUCT_TYPES",
     "OPTICAL_NODE_TERMINATE_STEPS",
     "VALIDATE_OPTICAL_NODE_BLOCK_STEPS",
     "create_optical_node_location_form",

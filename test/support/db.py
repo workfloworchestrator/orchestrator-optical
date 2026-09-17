@@ -44,13 +44,19 @@ import orchestrator.core.settings as core_settings
 import orchestrator.optical.migrations.generate as migrations
 import orchestrator.optical.products  # register the shipped product types in the registry
 import orchestrator.optical.workflows
-from orchestrator.core.db import ProcessSubscriptionTable, ProcessTable, ProductTable, SubscriptionTable
+from orchestrator.core.db import (
+    ProcessSubscriptionTable,
+    ProcessTable,
+    ProductTable,
+    SubscriptionTable,
+)
 from orchestrator.core.db.database import BaseModel as CoreBaseModel
 from orchestrator.core.services.processes import start_process
 from orchestrator.core.targets import Target
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import ProcessStatus
 from orchestrator.core.workflows import LazyWorkflowInstance
+from orchestrator.optical import db as optical_db
 from orchestrator.optical.workflows.customer import register_customer_choice
 
 #: PostgreSQL image shipping the pgvector extension required by the orchestrator-core migration head.
@@ -280,6 +286,12 @@ def _subscription_id_of_process(process_id: str) -> str:
         )
         assert relation is not None
         return str(relation.subscription_id)
+
+
+def node_instance_id_of_subscription(subscription_id: str) -> str:
+    """Return the node block instance id of a node subscription (test helper only)."""
+    with core_db.db.database_scope():
+        return optical_db.node_instance_id_of_subscription(subscription_id)
 
 
 def _set_subscription_status(subscription_id: str, status: SubscriptionLifecycle) -> None:

@@ -94,10 +94,10 @@ def _fake_port_choice(
     return cast(type[Choice], Choice(prompt, zip(options.keys(), options.items(), strict=False)))
 
 
-def _fake_node_block_from_subscription(node_subscription_id: str) -> SimpleNamespace:
+def _fake_node_block_from_instance(node_instance_id: str) -> SimpleNamespace:
     return SimpleNamespace(
         management=SimpleNamespace(
-            optical_module_node_fqdn=f"{node_subscription_id}.example.com",
+            optical_module_node_fqdn=f"{node_instance_id}.example.com",
             optical_module_node_vendor=Vendor.NOKIA,
             optical_module_node_platform=Platform.FLEXILS,
         )
@@ -110,8 +110,8 @@ def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     The node/port selectors and the role-based port universe are all resolved in
     the shared pipe module (``pipe_shared``), so every patch targets its namespace.
     """
-    monkeypatch.setattr(pipe_shared, "optical_node_selector", _fake_node_choice)
-    monkeypatch.setattr(pipe_shared, "node_block_from_subscription", _fake_node_block_from_subscription)
+    monkeypatch.setattr(pipe_shared, "optical_node_selector_of_roles", _fake_node_choice)
+    monkeypatch.setattr(pipe_shared, "node_block_from_instance", _fake_node_block_from_instance)
     monkeypatch.setattr(pipe_shared, "optical_port_selector", _fake_port_choice)
 
 
@@ -174,9 +174,9 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None
 
     page_1 = next(generator)
     assert issubclass(page_1, FormPage)
-    assert set(page_1.model_fields) == {"node_a_id", "node_b_id"}
+    assert set(page_1.model_fields) == {"node_a_instance_id", "node_b_instance_id"}
 
-    page_2 = generator.send(page_1(node_a_id="node-a", node_b_id="node-b"))
+    page_2 = generator.send(page_1(node_a_instance_id="node-a", node_b_instance_id="node-b"))
     assert issubclass(page_2, FormPage)
     assert set(page_2.model_fields) == {"optical_pipe_name", "port_a_name", "port_b_name"}
 
@@ -185,8 +185,8 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch) -> None
         page_2(optical_pipe_name="span-01", port_a_name="port-a-1", port_b_name="port-b-1"),
     )
     assert user_input == {
-        "node_a_id": "node-a",
-        "node_b_id": "node-b",
+        "node_a_instance_id": "node-a",
+        "node_b_instance_id": "node-b",
         "optical_pipe_name": "span-01",
         "port_a_name": "port-a-1",
         "port_b_name": "port-b-1",
@@ -206,15 +206,15 @@ def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) ->
     generator = my_create_form_generator("Optical Fiber Span")
     customer_page = next(generator)
     page_1 = generator.send(customer_page(customer_id="cust-1"))
-    page_2 = generator.send(page_1(node_a_id="node-a", node_b_id="node-b"))
+    page_2 = generator.send(page_1(node_a_instance_id="node-a", node_b_instance_id="node-b"))
     user_input = finish_form(
         generator,
         page_2(optical_pipe_name="span-01", port_a_name="port-a-1", port_b_name="port-b-1"),
     )
 
     assert user_input["customer_id"] == "cust-1"
-    assert user_input["node_a_id"] == "node-a"
-    assert user_input["node_b_id"] == "node-b"
+    assert user_input["node_a_instance_id"] == "node-a"
+    assert user_input["node_b_instance_id"] == "node-b"
     assert user_input["optical_pipe_name"] == "span-01"
     assert user_input["port_a_name"] == "port-a-1"
     assert user_input["port_b_name"] == "port-b-1"
@@ -363,7 +363,7 @@ def test_build_fiber_span_block(monkeypatch) -> None:
     """The anti-corruption block builder wires the two terminations without a database."""
     node_a = SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn="node-a.example.com"))
     node_b = SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn="node-b.example.com"))
-    monkeypatch.setattr(fiber_span_create, "node_block_from_subscription", Mock(side_effect=[node_a, node_b]))
+    monkeypatch.setattr(fiber_span_create, "node_block_from_instance", Mock(side_effect=[node_a, node_b]))
 
     def fake_new_pipe_port_block(subscription_id, host_node_block, port_name, port_description, port_block_class):
         return port_block_class.model_construct(
@@ -415,22 +415,22 @@ def test_pipe_nodes_form_enforces_span_same_vendor_and_patch_same_node(monkeypat
     """A span requires the two nodes to share vendor/platform; a patch may use one node."""
     monkeypatch.setattr(
         pipe_shared,
-        "node_block_from_subscription",
-        lambda node_id: _node_block_with(
-            f"{node_id}.example.com",
+        "node_block_from_instance",
+        lambda node_instance_id: _node_block_with(
+            f"{node_instance_id}.example.com",
             Vendor.NOKIA,
-            Platform.FLEXILS if node_id == "node-a" else Platform.GROOVE_G30,
+            Platform.FLEXILS if node_instance_id == "node-a" else Platform.GROOVE_G30,
         ),
     )
 
     span_form = pipe_shared.pipe_nodes_form("Span", _fake_node_choice(), _fake_node_choice(), require_same_vendor=True)
     with pytest.raises(ValueError, match="same vendor and platform"):
-        span_form(node_a_id="node-a", node_b_id="node-b")
+        span_form(node_a_instance_id="node-a", node_b_instance_id="node-b")
 
     patch_form = pipe_shared.pipe_nodes_form("Patch", _fake_node_choice(), _fake_node_choice(), allow_same_node=True)
-    instance = patch_form(node_a_id="node-a", node_b_id="node-a")
-    assert instance.node_a_id == instance.node_b_id
+    instance = patch_form(node_a_instance_id="node-a", node_b_instance_id="node-a")
+    assert instance.node_a_instance_id == instance.node_b_instance_id
 
     distinct_form = pipe_shared.pipe_nodes_form("Leased", _fake_node_choice(), _fake_node_choice())
     with pytest.raises(ValueError, match="different nodes"):
-        distinct_form(node_a_id="node-a", node_b_id="node-a")
+        distinct_form(node_a_instance_id="node-a", node_b_instance_id="node-a")

@@ -50,18 +50,18 @@ from orchestrator.core.targets import Target
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, done, step, workflow
 from orchestrator.optical.db import (
-    node_block_from_subscription,
+    node_block_from_instance,
+    node_instance_id_of_subscription,
     subscription_instances_by_block_type_and_resource_value,
 )
 from orchestrator.optical.products import ProductName
 from orchestrator.optical.products.product_blocks.optical_node_management import (
     OpticalModuleNodeManagementBlock,
-    Platform,
 )
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.workflows.customer import customer_choice_form_page
-from orchestrator.optical.workflows.optical_pipe.shared import default_pipe_identifier
+from orchestrator.optical.workflows.optical_pipe.shared import SPAN_NODE_ROLES, default_pipe_identifier
 from orchestrator.optical.workflows.shared import used_port_names_on_node
 from orchestrator.optical.workflows.tasks.shared import read_csv_rows
 
@@ -132,8 +132,8 @@ class ResolvedPipe(TypedDict):
     workflow_name: str
     product_name: str
     is_leased: bool
-    node_a_id: str
-    node_b_id: str
+    node_a_instance_id: str
+    node_b_instance_id: str
     port_a_name: str
     port_b_name: str
     optical_pipe_name: str
@@ -297,15 +297,19 @@ def parse_pipes_csv(csv_data: str, delimiter: str) -> list[PipeCsvRow]:
     return rows
 
 
-def _node_id_by_fqdn(fqdn: str, line_number: int) -> str:
-    """Resolve a node FQDN to its ACTIVE node subscription id.
+def _node_instance_id_by_fqdn(fqdn: str, line_number: int) -> str:
+    """Resolve a node FQDN to its ACTIVE node block instance id.
+
+    The FQDN is a resource value of the node's management block, so the lookup
+    first finds the management instance and then resolves the node block instance
+    of the owning subscription.
 
     Args:
         fqdn: The node FQDN from the CSV row.
         line_number: The CSV line number, used in error messages.
 
     Returns:
-        The subscription id of the matching node.
+        The subscription instance id of the matching node block.
 
     Raises:
         ValueError: If the FQDN matches zero or more than one ACTIVE node.
@@ -319,31 +323,32 @@ def _node_id_by_fqdn(fqdn: str, line_number: int) -> str:
     if len(instances) != 1:
         msg = f"Node FQDN {fqdn!r} at row {line_number} matches {len(instances)} ACTIVE nodes"
         raise ValueError(msg)
-    return str(instances[0].subscription_id)
+    return node_instance_id_of_subscription(str(instances[0].subscription_id))
 
 
-def _check_span_nodes(node_a_id: str, node_b_id: str, line_number: int) -> None:
+def _check_span_nodes(node_a_instance_id: str, node_b_instance_id: str, line_number: int) -> None:
     """Enforce the fiber span endpoint rules on two resolved nodes.
 
-    A span is OLS-line only and same-vendor by policy: the GX G42 node
-    (transponder-only) cannot terminate one, and the two ends must share
-    vendor and platform.
+    A span is OLS-line only and same-vendor by policy: only ROADM /
+    OADM-capable nodes can terminate one (plain-transponder nodes, including
+    the GX G42, cannot), and the two ends must share vendor and platform.
 
     Args:
-        node_a_id: Subscription id of the node hosting end A.
-        node_b_id: Subscription id of the node hosting end B.
+        node_a_instance_id: Subscription instance id of the node block hosting end A.
+        node_b_instance_id: Subscription instance id of the node block hosting end B.
         line_number: The CSV line number, used in error messages.
 
     Raises:
-        ValueError: If an end is a GX G42 node or the ends differ in
+        ValueError: If an end cannot terminate a span or the ends differ in
             vendor/platform.
     """
-    node_a_block = node_block_from_subscription(node_a_id)
-    node_b_block = node_block_from_subscription(node_b_id)
+    node_a_block = node_block_from_instance(node_a_instance_id)
+    node_b_block = node_block_from_instance(node_b_instance_id)
     for node_block in (node_a_block, node_b_block):
-        if node_block.management.optical_module_node_platform == Platform.GX_G42:
+        if node_block.optical_node_role not in SPAN_NODE_ROLES:
             fqdn = node_block.management.optical_module_node_fqdn
-            msg = f"Node {fqdn!r} at row {line_number} is a GX G42 node and cannot terminate a fiber span"
+            role = node_block.optical_node_role
+            msg = f"Node {fqdn!r} at row {line_number} has role {role!r} and cannot terminate a fiber span"
             raise ValueError(msg)
     vendor_platform_a = (
         node_a_block.management.optical_module_node_vendor,
@@ -358,11 +363,11 @@ def _check_span_nodes(node_a_id: str, node_b_id: str, line_number: int) -> None:
         raise ValueError(msg)
 
 
-def _check_pipe_ports_free(node_id: str, port_name: str, line_number: int) -> None:
+def _check_pipe_ports_free(node_instance_id: str, port_name: str, line_number: int) -> None:
     """Reject a pipe end whose port is already used by another subscription.
 
     Args:
-        node_id: Subscription id of the node hosting the port.
+        node_instance_id: Subscription instance id of the node block hosting the port.
         port_name: The device port name from the CSV row.
         line_number: The CSV line number, used in error messages.
 
@@ -370,7 +375,7 @@ def _check_pipe_ports_free(node_id: str, port_name: str, line_number: int) -> No
         ValueError: If the port is in use by an INITIAL, PROVISIONING or
             ACTIVE subscription.
     """
-    node_block = node_block_from_subscription(node_id)
+    node_block = node_block_from_instance(node_instance_id)
     if port_name in used_port_names_on_node(node_block):
         fqdn = node_block.management.optical_module_node_fqdn
         msg = f"Port {port_name!r} on {fqdn!r} at row {line_number} is already in use"
@@ -391,18 +396,18 @@ def _resolve_pipe_row(row: PipeCsvRow) -> ResolvedPipe:
             already in use.
     """
     line_number = row["line_number"]
-    node_a_id = _node_id_by_fqdn(row["node_a_fqdn"], line_number)
-    node_b_id = _node_id_by_fqdn(row["node_b_fqdn"], line_number)
+    node_a_instance_id = _node_instance_id_by_fqdn(row["node_a_fqdn"], line_number)
+    node_b_instance_id = _node_instance_id_by_fqdn(row["node_b_fqdn"], line_number)
     if row["pipe_type"] == OpticalPipeType.SPAN.value:
-        _check_span_nodes(node_a_id, node_b_id, line_number)
-    _check_pipe_ports_free(node_a_id, row["port_a_name"], line_number)
-    _check_pipe_ports_free(node_b_id, row["port_b_name"], line_number)
+        _check_span_nodes(node_a_instance_id, node_b_instance_id, line_number)
+    _check_pipe_ports_free(node_a_instance_id, row["port_a_name"], line_number)
+    _check_pipe_ports_free(node_b_instance_id, row["port_b_name"], line_number)
     optical_pipe_name = row["optical_pipe_name"]
     if optical_pipe_name is None:
         optical_pipe_name = default_pipe_identifier(
-            node_block_from_subscription(node_a_id),
+            node_block_from_instance(node_a_instance_id),
             row["port_a_name"],
-            node_block_from_subscription(node_b_id),
+            node_block_from_instance(node_b_instance_id),
             row["port_b_name"],
         )
     workflow_name, product_name = _PIPE_TARGETS[OpticalPipeType(row["pipe_type"])]
@@ -411,8 +416,8 @@ def _resolve_pipe_row(row: PipeCsvRow) -> ResolvedPipe:
         workflow_name=workflow_name,
         product_name=product_name,
         is_leased=row["pipe_type"] == OpticalPipeType.LEASED_SPECTRUM.value,
-        node_a_id=node_a_id,
-        node_b_id=node_b_id,
+        node_a_instance_id=node_a_instance_id,
+        node_b_instance_id=node_b_instance_id,
         port_a_name=row["port_a_name"],
         port_b_name=row["port_b_name"],
         optical_pipe_name=optical_pipe_name,
@@ -438,7 +443,7 @@ def _pipe_bulk_input(pipe: ResolvedPipe, customer_id: str) -> BulkPipeInput:
     user_inputs: list[dict[str, Any]] = [
         {"product": product_id},
         {"customer_id": customer_id},
-        {"node_a_id": pipe["node_a_id"], "node_b_id": pipe["node_b_id"]},
+        {"node_a_instance_id": pipe["node_a_instance_id"], "node_b_instance_id": pipe["node_b_instance_id"]},
         {
             "optical_pipe_name": pipe["optical_pipe_name"],
             "port_a_name": pipe["port_a_name"],

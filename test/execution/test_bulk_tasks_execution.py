@@ -16,13 +16,13 @@ from sqlalchemy import select
 import orchestrator.core.db as core_db
 from orchestrator.core.db import SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.db import node_block_from_subscription
+from orchestrator.optical.db import node_block_from_instance
 from orchestrator.optical.products import ProductName
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30Block
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
-from test.support.db import CUSTOMER_ID
+from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
 from test.support.devices import FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
 from test.support.topology import _flexils_gmpls_id
 
@@ -77,7 +77,7 @@ def test_bulk_create_optical_nodes(
 
     flexils_ids = _active_subscription_ids_by_description_prefix(flexils_fqdn)
     assert len(flexils_ids) == 1
-    flexils_block = node_block_from_subscription(flexils_ids[0])
+    flexils_block = node_block_from_instance(node_instance_id_of_subscription(flexils_ids[0]))
     assert isinstance(flexils_block, NokiaFlexIlsBlock)
     assert flexils_block.management.optical_module_node_dcn_loopback_ip == "192.0.2.1"
     assert flexils_block.optical_flexils_gmpls_id == _flexils_gmpls_id(flexils_fqdn)
@@ -85,7 +85,7 @@ def test_bulk_create_optical_nodes(
 
     g30_ids = _active_subscription_ids_by_description_prefix(g30_fqdn)
     assert len(g30_ids) == 1
-    g30_block = node_block_from_subscription(g30_ids[0])
+    g30_block = node_block_from_instance(node_instance_id_of_subscription(g30_ids[0]))
     assert isinstance(g30_block, NokiaGrooveG30Block)
     assert g30_block.management.optical_module_node_dcn_loopback_ip == "192.0.2.11"
     assert g30_block.management.optical_module_node_dcn_interface_ip is None
@@ -100,8 +100,8 @@ def test_bulk_create_optical_pipes(
     """The bulk pipes task fans out to the span and patch create sub-workflows."""
     node_a = seed_optical_node(FLEXILS_PRODUCT, "bulk-a.optical.test", "10.9.1.11")
     node_b = seed_optical_node(FLEXILS_PRODUCT, "bulk-b.optical.test", "10.9.1.12")
-    node_a_block = node_block_from_subscription(node_a)
-    node_b_block = node_block_from_subscription(node_b)
+    node_a_block = node_block_from_instance(node_instance_id_of_subscription(node_a))
+    node_b_block = node_block_from_instance(node_instance_id_of_subscription(node_b))
     fqdn_a = node_a_block.management.optical_module_node_fqdn
     fqdn_b = node_b_block.management.optical_module_node_fqdn
     csv_data = (

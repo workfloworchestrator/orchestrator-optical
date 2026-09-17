@@ -26,7 +26,6 @@ from orchestrator.core.db import (
 )
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import ProcessStatus
-from orchestrator.optical.db import node_block_from_subscription
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalPortBlockInactive,
@@ -41,7 +40,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spec
     construct_optical_spectrum_subscription,
 )
 from test.support.core_api import unwrap_step
-from test.support.db import CUSTOMER_ID
+from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
 from test.support.devices import FAKE_CLIENT_PORTS, FAKE_LINE_PORTS, install_device_stubs
 
 pytestmark = pytest.mark.db
@@ -127,18 +126,22 @@ def _orphan_section_instance_count(subscription_id: str) -> int:
 def _seed_topology(run_process, seed_optical_node) -> tuple[str, str, str]:
     """Seed two FlexILS ROADM nodes joined by one fiber span.
 
-    Returns the (node A, node B, fiber span) subscription ids. The span is created with
-    the shipped ``create_fiber_span`` workflow, so the terminating line port blocks are
-    persisted exactly the way the path engine expects to find them.
+    Returns the (node A instance id, node B instance id, fiber span subscription id). The
+    span is created with the shipped ``create_fiber_span`` workflow, so the terminating
+    line port blocks are persisted exactly the way the path engine expects to find them.
     """
-    node_a_id = seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, NODE_A[0], NODE_A[1])
-    node_b_id = seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, NODE_B[0], NODE_B[1])
+    node_a_instance_id = node_instance_id_of_subscription(
+        seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, NODE_A[0], NODE_A[1])
+    )
+    node_b_instance_id = node_instance_id_of_subscription(
+        seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, NODE_B[0], NODE_B[1])
+    )
     process_id = run_process(
         "create_fiber_span",
         [
             {"product": _product_id(FIBER_SPAN_PRODUCT_NAME)},
             {"customer_id": CUSTOMER_ID},
-            {"node_a_id": node_a_id, "node_b_id": node_b_id},
+            {"node_a_instance_id": node_a_instance_id, "node_b_instance_id": node_b_instance_id},
             {
                 "optical_pipe_name": f"{NODE_A[0]} {LINE_PORT} --- {NODE_B[0]} {LINE_PORT}",
                 "port_a_name": LINE_PORT,
@@ -148,12 +151,7 @@ def _seed_topology(run_process, seed_optical_node) -> tuple[str, str, str]:
         ],
     )
     _assert_process_completed(process_id)
-    return node_a_id, node_b_id, _subscription_id_of_process(process_id)
-
-
-def _node_instance_id(node_subscription_id: str) -> str:
-    """Resolve a node subscription id to its block instance id (test helper only)."""
-    return str(node_block_from_subscription(node_subscription_id).subscription_instance_id)
+    return node_a_instance_id, node_b_instance_id, _subscription_id_of_process(process_id)
 
 
 def _optical_path_value(span_subscription_id: str, src_node_instance_id: str) -> str:
@@ -174,8 +172,8 @@ def _optical_path_value(span_subscription_id: str, src_node_instance_id: str) ->
 
 
 def _create_user_inputs(
-    node_a_id: str,
-    node_b_id: str,
+    node_a_instance_id: str,
+    node_b_instance_id: str,
     optical_path: str,
     *,
     name: str = SPECTRUM_NAME,
@@ -193,7 +191,7 @@ def _create_user_inputs(
         {"product": _product_id(SPECTRUM_PRODUCT_NAME)},
         {"customer_id": CUSTOMER_ID},
         {"optical_spectrum_name": name, "frequency_min": passband[0], "frequency_max": passband[1]},
-        {"src_optical_node_instance_id": node_a_id, "dst_optical_node_instance_id": node_b_id},
+        {"src_optical_node_instance_id": node_a_instance_id, "dst_optical_node_instance_id": node_b_instance_id},
         {"src_optical_port_name": src_port, "dst_optical_port_name": dst_port},
         {"intermediate_node_instance_ids": []},
         {"exclude_node_instance_ids": [], "exclude_pipe_instance_ids": []},
@@ -204,8 +202,8 @@ def _create_user_inputs(
 
 def _run_create(
     run_process,
-    node_a_id: str,
-    node_b_id: str,
+    node_a_instance_id: str,
+    node_b_instance_id: str,
     optical_path: str,
     *,
     name: str = SPECTRUM_NAME,
@@ -217,8 +215,8 @@ def _run_create(
     process_id = run_process(
         "create_optical_spectrum",
         _create_user_inputs(
-            node_a_id,
-            node_b_id,
+            node_a_instance_id,
+            node_b_instance_id,
             optical_path,
             name=name,
             passband=passband,
@@ -234,10 +232,9 @@ def test_create_optical_spectrum_service_end_to_end(
     run_process, seed_optical_node, stub_pipe_device, stub_spectrum_device
 ) -> None:
     """The shipped create workflow executes end to end over a two-node fiber span topology."""
-    node_a_sub, node_b_sub, span_id = _seed_topology(run_process, seed_optical_node)
-    node_a_id, node_b_id = _node_instance_id(node_a_sub), _node_instance_id(node_b_sub)
+    node_a_instance_id, node_b_instance_id, span_id = _seed_topology(run_process, seed_optical_node)
     process_id, subscription_id = _run_create(
-        run_process, node_a_id, node_b_id, _optical_path_value(span_id, node_a_id)
+        run_process, node_a_instance_id, node_b_instance_id, _optical_path_value(span_id, node_a_instance_id)
     )
 
     table = _subscription_table(subscription_id)
@@ -258,8 +255,8 @@ def test_create_optical_spectrum_service_end_to_end(
     express_ports = section.optical_spectrum_section_express_ports
     assert [port.optical_port_name for port in add_drop_ports] == [CLIENT_PORT, CLIENT_PORT]
     assert [port.optical_port_name for port in express_ports] == [LINE_PORT, LINE_PORT]
-    assert str(add_drop_ports[0].optical_port_host_node.subscription_instance_id) == node_a_id
-    assert str(add_drop_ports[-1].optical_port_host_node.subscription_instance_id) == node_b_id
+    assert str(add_drop_ports[0].optical_port_host_node.subscription_instance_id) == node_a_instance_id
+    assert str(add_drop_ports[-1].optical_port_host_node.subscription_instance_id) == node_b_instance_id
     # The stubbed devices report no spectral occupations, so the refreshed passbands are empty.
     assert [port.optical_passbands for port in express_ports] == [[], []]
 
@@ -274,15 +271,14 @@ def test_create_persists_used_passbands_on_owning_pipe(
     passband step must persist them under the span subscription, otherwise the path
     engine keeps seeing stale occupations.
     """
-    node_a_sub, node_b_sub, span_id = _seed_topology(run_process, seed_optical_node)
-    node_a_id, node_b_id = _node_instance_id(node_a_sub), _node_instance_id(node_b_sub)
+    node_a_instance_id, node_b_instance_id, span_id = _seed_topology(run_process, seed_optical_node)
     occupied = [PASSBAND]
     monkeypatch.setattr(
         "orchestrator.optical.workflows.optical_spectrum_service.shared.retrieve_ports_spectral_occupations",
         lambda _block: {LINE_PORT: occupied},
     )
 
-    _run_create(run_process, node_a_id, node_b_id, _optical_path_value(span_id, node_a_id))
+    _run_create(run_process, node_a_instance_id, node_b_instance_id, _optical_path_value(span_id, node_a_instance_id))
 
     # Reload the fiber span from the database: its termination carries the passbands
     # refreshed by the spectrum workflow.
@@ -298,10 +294,9 @@ def test_construct_rejects_add_drop_port_already_in_use(
     The form selector already excludes the ports in use; this calls the construct step
     directly (bypassing the form) to exercise the execution-time guard.
     """
-    node_a_sub, node_b_sub, span_id = _seed_topology(run_process, seed_optical_node)
-    node_a_id, node_b_id = _node_instance_id(node_a_sub), _node_instance_id(node_b_sub)
-    optical_path = _optical_path_value(span_id, node_a_id)
-    _run_create(run_process, node_a_id, node_b_id, optical_path, name="spec-1")
+    node_a_instance_id, node_b_instance_id, span_id = _seed_topology(run_process, seed_optical_node)
+    optical_path = _optical_path_value(span_id, node_a_instance_id)
+    _run_create(run_process, node_a_instance_id, node_b_instance_id, optical_path, name="spec-1")
 
     product_id = _product_id(SPECTRUM_PRODUCT_NAME)
     with core_db.db.database_scope(), pytest.raises(ValueError, match="already in use"):
@@ -311,8 +306,8 @@ def test_construct_rejects_add_drop_port_already_in_use(
             optical_spectrum_name="spec-2",
             frequency_min=PASSBAND[0],
             frequency_max=PASSBAND[1],
-            src_optical_node_instance_id=node_a_id,
-            dst_optical_node_instance_id=node_b_id,
+            src_optical_node_instance_id=node_a_instance_id,
+            dst_optical_node_instance_id=node_b_instance_id,
             src_optical_port_name=CLIENT_PORT,
             dst_optical_port_name=CLIENT_PORT,
             optical_path=[],
@@ -326,11 +321,12 @@ def test_full_lifecycle_create_modify_validate_terminate(
     stub_spectrum_device,
 ) -> None:
     """The full create -> modify -> validate -> terminate cycle of the shipped workflows."""
-    node_a_sub, node_b_sub, span_id = _seed_topology(run_process, seed_optical_node)
-    node_a_id, node_b_id = _node_instance_id(node_a_sub), _node_instance_id(node_b_sub)
-    _, subscription_id = _run_create(run_process, node_a_id, node_b_id, _optical_path_value(span_id, node_a_id))
+    node_a_instance_id, node_b_instance_id, span_id = _seed_topology(run_process, seed_optical_node)
+    _, subscription_id = _run_create(
+        run_process, node_a_instance_id, node_b_instance_id, _optical_path_value(span_id, node_a_instance_id)
+    )
 
-    optical_path = _optical_path_value(span_id, node_a_id)
+    optical_path = _optical_path_value(span_id, node_a_instance_id)
     modify_process_id = run_process(
         "modify_optical_spectrum",
         [
@@ -386,15 +382,18 @@ def _leased_spectrum_termination_on(
 
 
 def _seed_leased_spectrum(
-    run_process, node_a_id: str, node_b_id: str, port_a_name: str, port_b_name: str, name: str
+    run_process, node_a_instance_id: str, node_b_instance_id: str, port_a_name: str, port_b_name: str, name: str
 ) -> str:
-    """Create an ACTIVE Optical Leased Spectrum pipe between two nodes via the shipped workflow."""
+    """Create an ACTIVE Optical Leased Spectrum pipe between two nodes via the shipped workflow.
+
+    The node ends are block instance ids, as the shipped pipe create form requires.
+    """
     process_id = run_process(
         "create_leased_spectrum",
         [
             {"product": _product_id(LEASED_SPECTRUM_PRODUCT_NAME)},
             {"customer_id": CUSTOMER_ID},
-            {"node_a_id": node_a_id, "node_b_id": node_b_id},
+            {"node_a_instance_id": node_a_instance_id, "node_b_instance_id": node_b_instance_id},
             {"optical_pipe_name": name, "port_a_name": port_a_name, "port_b_name": port_b_name},
             {"provider_name": "Test Provider"},
             {},
@@ -421,23 +420,21 @@ def test_create_optical_spectrum_multi_vendor_sections(run_process, seed_optical
         client_ports=MULTI_VENDOR_CLIENT_PORTS,
         line_ports=MULTI_VENDOR_LINE_PORTS,
     )
-    node_a_sub = seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, "mv-a.test.local", "10.9.2.11")
-    node_m_sub = seed_optical_node(G30_NODE_PRODUCT_NAME, "mv-m.test.local", "10.9.2.12")
-    node_z_sub = seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, "mv-z.test.local", "10.9.2.13")
-    node_a, node_m, node_z = (
-        _node_instance_id(node_a_sub),
-        _node_instance_id(node_m_sub),
-        _node_instance_id(node_z_sub),
+    node_a = node_instance_id_of_subscription(
+        seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, "mv-a.test.local", "10.9.2.11")
+    )
+    node_m = node_instance_id_of_subscription(seed_optical_node(G30_NODE_PRODUCT_NAME, "mv-m.test.local", "10.9.2.12"))
+    node_z = node_instance_id_of_subscription(
+        seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, "mv-z.test.local", "10.9.2.13")
     )
 
     # The "used ports" bookkeeping is per node: A and Z each use their first add/drop
     # port for the cross-vendor leased spectrum, M uses its first and second ones.
-    # Leased-spectrum creation still takes node subscription ids (pipe workflows, out of scope).
     pipe_am = _seed_leased_spectrum(
-        run_process, node_a_sub, node_m_sub, MULTI_VENDOR_CLIENT_PORTS[0], MULTI_VENDOR_CLIENT_PORTS[0], "mv-a-m"
+        run_process, node_a, node_m, MULTI_VENDOR_CLIENT_PORTS[0], MULTI_VENDOR_CLIENT_PORTS[0], "mv-a-m"
     )
     pipe_mz = _seed_leased_spectrum(
-        run_process, node_m_sub, node_z_sub, MULTI_VENDOR_CLIENT_PORTS[1], MULTI_VENDOR_CLIENT_PORTS[0], "mv-m-z"
+        run_process, node_m, node_z, MULTI_VENDOR_CLIENT_PORTS[1], MULTI_VENDOR_CLIENT_PORTS[0], "mv-m-z"
     )
 
     # The spectrum endpoint add/drop ports must not collide with the leased-spectrum ones.

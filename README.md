@@ -369,7 +369,7 @@ Then wire it up in one of two ways:
 
 The shipped **create** and **modify** page sequences (`create_<product>_form_pages` / `modify_<product>_form_pages`)
 do **not** collect the customer because customer management it is outside the scope of this module: they emit only the `optical_*` 
-(and `location_id`/`node_a_id`/...) state keys. However, complete workflows (not just steps) require the `customer_id`,
+(and `location_instance_id`/`node_a_instance_id`/...) state keys. However, complete workflows (not just steps) require the `customer_id`,
 and thus, when using the subscriptions/workflows as-is, the customer is collected separately by the shipped form
 generators through the reusable page sequence
 `customer_choice_form_page(include=None)` in `orchestrator.optical.workflows.customer` — a single page with one

@@ -23,9 +23,8 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
 from orchestrator.optical.db import (
-    node_block_from_subscription,
+    node_block_from_instance,
     pipe_blocks_all,
-    subscriptions_by_product_type,
 )
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import (
@@ -33,7 +32,6 @@ from orchestrator.optical.hal.port import (
     configure_termination_when_attaching_new_fiber,
     get_device_ports_by_role,
 )
-from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
@@ -65,7 +63,7 @@ from orchestrator.optical.products.product_types.optical_pipe.abstracts import (
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
-from orchestrator.optical.workflows.optical_node.shared import OPTICAL_NODE_PRODUCT_TYPES
+from orchestrator.optical.workflows.optical_spectrum_service.shared import optical_node_selector_of_roles
 from orchestrator.optical.workflows.shared import create_summary_form, modify_summary_form, optical_port_selector
 
 T = TypeVar("T", bound=AbstractOpticalPortBlockInactive)
@@ -80,14 +78,16 @@ PORT_BLOCK_CLASS_BY_ROLE: dict[OpticalPortRole, type[AbstractOpticalPortBlockIna
     OpticalPortRole.TRANSPONDER_LINE: OpticalTransponderLinePortBlockInactive,
 }
 
-#: Optical Node product types a fiber span can terminate on. A span is OLS line
-#: only and, by policy, same-vendor (Nokia FlexILS <-> Nokia FlexILS or Nokia
-#: Groove G30 <-> Nokia Groove G30); the GX G42 (transponder-only) node is not
-#: offered as a span endpoint.
-SPAN_NODE_PRODUCT_TYPES: list[str] = [
-    ProductType.OPTICAL_NODE_NOKIA_FLEXILS.value,
-    ProductType.OPTICAL_NODE_NOKIA_GROOVE_G30.value,
-]
+#: Optical Node roles a fiber span can terminate on: line-system nodes with OADM
+#: capability (FlexILS ROADMs and OADM-capable Groove G30 nodes). A span is OLS
+#: line only and, by policy, same-vendor; plain-transponder nodes (including
+#: the GX G42) are not offered as span endpoints.
+SPAN_NODE_ROLES = [OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER_XOADM]
+
+#: Optical Node roles a fiber patch or leased spectrum can terminate on: the
+#: footprint of the shipped node products (amplifiers and packet nodes stay
+#: excluded, as before).
+PIPE_NODE_ROLES = [OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER, OpticalNodeRole.TRANSPONDER_XOADM]
 
 
 def pipe_port_roles(
@@ -548,26 +548,6 @@ def multiple_optical_pipe_selector_of_types(
     return cast(type[list[Choice]], Annotated[dynamic_class, Field(title=prompt)])
 
 
-def optical_node_selector(
-    prompt: str = "Select an Optical Node",
-    product_types: list[str] | None = None,
-) -> type[Choice]:
-    """Create a Choice selector for active Optical Node subscriptions.
-
-    Args:
-        prompt: The prompt of the selector.
-        product_types: The Optical Node product types to offer; ``None`` (the
-            default) offers every shipped Optical Node product type.
-    """
-    node_product_types = product_types if product_types is not None else OPTICAL_NODE_PRODUCT_TYPES
-    subscriptions: list[SubscriptionTable] = []
-    for product_type in node_product_types:
-        subscriptions.extend(subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE]))
-
-    products = {str(sub.subscription_id): sub.description for sub in sorted(subscriptions, key=lambda x: x.description)}
-    return cast(type[Choice], Choice(prompt, zip(products.keys(), products.items(), strict=False)))
-
-
 def new_pipe_port_block[T: AbstractOpticalPortBlockInactive](
     subscription_id: UUID,
     host_node_block: AbstractOpticalNodeBlockInactive,
@@ -701,8 +681,8 @@ def pipe_nodes_form(
 
     Args:
         product_name: Name of the product being created, used as the page title.
-        node_a_choice: The ``Choice`` selector of the Optical Node subscriptions of node A.
-        node_b_choice: The ``Choice`` selector of the Optical Node subscriptions of node B.
+        node_a_choice: The ``Choice`` selector of the Optical Node blocks of node A.
+        node_b_choice: The ``Choice`` selector of the Optical Node blocks of node B.
         allow_same_node: When True, the two ends may be on the same node (fiber patches).
         require_same_vendor: When True, the two nodes must be of the same vendor and platform
             (fiber spans).
@@ -714,17 +694,17 @@ def pipe_nodes_form(
     class CreatePipeNodesForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        node_a_id: node_a_choice
-        node_b_id: node_b_choice
+        node_a_instance_id: node_a_choice
+        node_b_instance_id: node_b_choice
 
         @model_validator(mode="after")
         def validate_nodes(self) -> "CreatePipeNodesForm":
-            if not allow_same_node and self.node_a_id == self.node_b_id:
+            if not allow_same_node and self.node_a_instance_id == self.node_b_instance_id:
                 msg = "The two ends of the pipe must be on different nodes."
                 raise ValueError(msg)
             if require_same_vendor:
-                node_a_block = node_block_from_subscription(self.node_a_id)
-                node_b_block = node_block_from_subscription(self.node_b_id)
+                node_a_block = node_block_from_instance(self.node_a_instance_id)
+                node_b_block = node_block_from_instance(self.node_b_instance_id)
                 if (
                     node_a_block.management.optical_module_node_vendor,
                     node_a_block.management.optical_module_node_platform,
@@ -785,9 +765,9 @@ def create_pipe_form_pages(
     the two-nodes page and the terminations page, and returns the collected user
     input as a flat dict of the ``optical_*`` state keys, consumed by the shipped
     construct step. The pipe type drives the per-family differences: the node
-    endpoints offered (a fiber span only offers OLS-line nodes and requires the two
-    nodes to be of the same vendor/platform, a fiber patch allows the two ends to be
-    on the same node) and the device ports offered as terminations (the pipe's
+    endpoints offered (a fiber span only offers ROADM / OADM-capable nodes and
+    requires the two nodes to be of the same vendor/platform, a fiber patch allows
+    the two ends to be on the same node) and the device ports offered as terminations (the pipe's
     Optical Port roles on the node, see :func:`pipe_port_roles`). The terminations
     page is always the shared one. The customer of the subscription is collected
     separately by the consumer (see
@@ -802,13 +782,13 @@ def create_pipe_form_pages(
     """
     is_span = pipe_type is OpticalPipeType.SPAN
     is_patch = pipe_type is OpticalPipeType.PATCH
-    node_product_types = SPAN_NODE_PRODUCT_TYPES if is_span else None
+    node_roles = SPAN_NODE_ROLES if is_span else PIPE_NODE_ROLES
 
-    node_a_choice = optical_node_selector(
+    node_a_choice = optical_node_selector_of_roles(
+        node_roles,
         prompt=f"This {product_name.lower()} connects this node:",
-        product_types=node_product_types,
     )
-    node_b_choice = optical_node_selector(prompt="...to this other node:", product_types=node_product_types)
+    node_b_choice = optical_node_selector_of_roles(node_roles, prompt="...to this other node:")
 
     user_input_dict: dict[str, Any] = {}
     user_input_dict.update(
@@ -823,8 +803,8 @@ def create_pipe_form_pages(
         ).model_dump()
     )
 
-    node_a_block = node_block_from_subscription(user_input_dict["node_a_id"])
-    node_b_block = node_block_from_subscription(user_input_dict["node_b_id"])
+    node_a_block = node_block_from_instance(user_input_dict["node_a_instance_id"])
+    node_b_block = node_block_from_instance(user_input_dict["node_b_instance_id"])
 
     port_prompt = "Select an unused port on {fqdn}"
     port_a_choice = optical_port_selector(
@@ -943,8 +923,9 @@ def modify_optical_pipe_form_generator(
 
 __all__ = [
     "OPTICAL_MODULE_BLOCK_STATE_KEY",
+    "PIPE_NODE_ROLES",
     "PORT_BLOCK_CLASS_BY_ROLE",
-    "SPAN_NODE_PRODUCT_TYPES",
+    "SPAN_NODE_ROLES",
     "check_pipe_terminations",
     "configure_pipe_terminations",
     "create_optical_pipe_form_generator",
@@ -959,7 +940,6 @@ __all__ = [
     "multiple_optical_pipe_selector_of_types",
     "new_optical_pipe_subscription",
     "new_pipe_port_block",
-    "optical_node_selector",
     "optical_pipe_block_from_state",
     "optical_pipe_selector",
     "optical_pipe_subscription_description",

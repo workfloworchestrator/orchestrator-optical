@@ -35,8 +35,8 @@ from orchestrator.optical.products.product_blocks.optical_node.unions import Any
 __all__ = [
     "location_block_from_instance",
     "node_block_from_instance",
-    "node_block_from_subscription",
     "node_blocks_by_roles",
+    "node_instance_id_of_subscription",
     "node_instances_by_block_names",
     "packet_node_block_from_subscription",
     "pipe_blocks_all",
@@ -396,6 +396,31 @@ def node_block_from_instance(instance_id: UUIDstr) -> AnyOpticalNodeBlockUnion:
     return active_class.from_db(subscription_instance_id=instance.subscription_instance_id)
 
 
+def node_instance_id_of_subscription(subscription_id: UUIDstr) -> str:
+    """Return the block instance id of the Optical Node block of a node subscription.
+
+    The FQDN lives on the node's management block, whose instance id differs from the
+    node block's: callers holding a node subscription id (or one of its sub-block
+    instances) resolve the node block instance through this helper before calling
+    :func:`node_block_from_instance`.
+
+    Args:
+        subscription_id: Subscription id of an Optical Node subscription.
+
+    Returns:
+        The subscription instance id of the Optical Node block.
+
+    Raises:
+        ValueError: If the subscription has no Optical Node block, or more than one.
+    """
+    instance = _block_instance_of_subscription(
+        subscription_id,
+        AbstractOpticalNodeBlockInactive.__names__,
+        "Optical Node block",
+    )
+    return str(instance.subscription_instance_id)
+
+
 def node_blocks_by_roles(
     roles: list,
     states: list[SubscriptionLifecycle] | None = None,
@@ -492,42 +517,6 @@ def location_block_from_instance(instance_id: UUIDstr) -> OpticalModuleLocationB
     # The ACTIVE class is the most-derived subclass, so it can load INITIAL,
     # PROVISIONING and ACTIVE blocks (unlike the PROVISIONING class).
     return OpticalModuleLocationBlock.from_db(subscription_instance_id=instance.subscription_instance_id)
-
-
-def node_block_from_subscription(node_subscription_id: UUIDstr) -> AnyOpticalNodeBlockUnion:
-    """Return the Optical Node product block of the given node subscription.
-
-    The resolution is block-based: the subscription instance whose product
-    block is one of the concrete Optical Node block names (the ``__names__`` of
-    the abstract node block) is looked up by the subscription id, resolved to
-    its concrete block class through the product block registry and loaded as
-    the most-derived lifecycle class. This covers all the shipped vendor
-    blocks without hardcoding a vendor, a product type or the subscription
-    model registry. The subscription id is only an input parameter, not a
-    model dependency.
-
-    Args:
-        node_subscription_id: Subscription id of an active Optical Node subscription.
-
-    Returns:
-        The Optical Node product block of the subscription.
-
-    Raises:
-        ValueError: If the subscription has no Optical Node block.
-    """
-    instance = _block_instance_of_subscription(
-        node_subscription_id,
-        AbstractOpticalNodeBlockInactive.__names__,
-        "Optical Node block",
-    )
-    block_class = ProductBlockModel.registry[instance.product_block.name]
-    # The ACTIVE variant is the most-derived subclass, so it can load INITIAL,
-    # PROVISIONING and ACTIVE blocks (unlike the PROVISIONING class).
-    active_class = cast(
-        type[AnyOpticalNodeBlockUnion],
-        lookup_specialized_type(block_class, SubscriptionLifecycle.ACTIVE),
-    )
-    return active_class.from_db(subscription_instance_id=instance.subscription_instance_id)
 
 
 def packet_node_block_from_subscription(subscription_id: UUIDstr) -> OpticalModulePacketNodeBlock:

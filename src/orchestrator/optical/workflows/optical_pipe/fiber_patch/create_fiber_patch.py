@@ -36,7 +36,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.db import node_block_from_subscription
+from orchestrator.optical.db import node_block_from_instance
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_patch import OpticalFiberPatchBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.unions import PatchPortBlockInactive
@@ -101,15 +101,22 @@ def create_fiber_patch_form_generator(product_name: str) -> FormGenerator:
         yield from create_optical_pipe_form_generator(
             product_name,
             create_fiber_patch_form_pages,
-            ["customer_id", "optical_pipe_name", "node_a_id", "port_a_name", "node_b_id", "port_b_name"],
+            [
+                "customer_id",
+                "optical_pipe_name",
+                "node_a_instance_id",
+                "port_a_name",
+                "node_b_instance_id",
+                "port_b_name",
+            ],
         )
     )
 
 
 def build_fiber_patch_block(
     subscription_id: UUID,
-    node_a_id: UUIDstr,
-    node_b_id: UUIDstr,
+    node_a_instance_id: UUIDstr,
+    node_b_instance_id: UUIDstr,
     port_a_name: str,
     port_b_name: str,
     optical_pipe_name: str,
@@ -124,8 +131,8 @@ def build_fiber_patch_block(
 
     Args:
         subscription_id: Subscription id of the new pipe subscription.
-        node_a_id: Subscription id of the Optical Node hosting end A of the patch.
-        node_b_id: Subscription id of the Optical Node hosting end B of the patch.
+        node_a_instance_id: Subscription instance id of the Optical Node hosting end A of the patch.
+        node_b_instance_id: Subscription instance id of the Optical Node hosting end B of the patch.
         port_a_name: Name of the terminating port on node A.
         port_b_name: Name of the terminating port on node B.
         optical_pipe_name: Identifier of the patch.
@@ -133,8 +140,8 @@ def build_fiber_patch_block(
     Returns:
         The inactive Optical Fiber Patch block with its two terminations.
     """
-    node_a_block = node_block_from_subscription(node_a_id)
-    node_b_block = node_block_from_subscription(node_b_id)
+    node_a_block = node_block_from_instance(node_a_instance_id)
+    node_b_block = node_block_from_instance(node_b_instance_id)
 
     roles_a = pipe_port_roles(OpticalPipeType.PATCH, node_a_block)
     roles_b = pipe_port_roles(OpticalPipeType.PATCH, node_b_block)
@@ -165,8 +172,8 @@ def build_fiber_patch_block(
 def construct_fiber_patch_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
-    node_a_id: UUIDstr,
-    node_b_id: UUIDstr,
+    node_a_instance_id: UUIDstr,
+    node_b_instance_id: UUIDstr,
     port_a_name: str,
     port_b_name: str,
     optical_pipe_name: str,
@@ -190,7 +197,7 @@ def construct_fiber_patch_subscription(
     """
     subscription_id = uuid4()
     pipe_block = build_fiber_patch_block(
-        subscription_id, node_a_id, node_b_id, port_a_name, port_b_name, optical_pipe_name
+        subscription_id, node_a_instance_id, node_b_instance_id, port_a_name, port_b_name, optical_pipe_name
     )
 
     subscription = new_optical_pipe_subscription(

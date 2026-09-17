@@ -43,7 +43,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.db import node_block_from_subscription
+from orchestrator.optical.db import node_block_from_instance
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import (
     OpticalLeasedSpectrumBlockInactive,
@@ -141,9 +141,9 @@ def create_leased_spectrum_form_generator(product_name: str) -> FormGenerator:
                 "customer_id",
                 "provider_name",
                 "optical_pipe_name",
-                "node_a_id",
+                "node_a_instance_id",
                 "port_a_name",
-                "node_b_id",
+                "node_b_instance_id",
                 "port_b_name",
             ],
         )
@@ -152,8 +152,8 @@ def create_leased_spectrum_form_generator(product_name: str) -> FormGenerator:
 
 def build_leased_spectrum_block(
     subscription_id: UUID,
-    node_a_id: UUIDstr,
-    node_b_id: UUIDstr,
+    node_a_instance_id: UUIDstr,
+    node_b_instance_id: UUIDstr,
     port_a_name: str,
     port_b_name: str,
     provider_name: str,
@@ -171,8 +171,8 @@ def build_leased_spectrum_block(
 
     Args:
         subscription_id: Subscription id of the pipe subscription owning the block.
-        node_a_id: Subscription id of the optical node hosting the first termination.
-        node_b_id: Subscription id of the optical node hosting the second termination.
+        node_a_instance_id: Subscription instance id of the optical node hosting the first termination.
+        node_b_instance_id: Subscription instance id of the optical node hosting the second termination.
         port_a_name: Name of the first terminating port on its device.
         port_b_name: Name of the second terminating port on its device.
         provider_name: Name of the third-party provider; it is stripped and prefixed
@@ -182,8 +182,8 @@ def build_leased_spectrum_block(
     Returns:
         The inactive Optical Leased Spectrum block with its two terminations.
     """
-    node_a_block = node_block_from_subscription(node_a_id)
-    node_b_block = node_block_from_subscription(node_b_id)
+    node_a_block = node_block_from_instance(node_a_instance_id)
+    node_b_block = node_block_from_instance(node_b_instance_id)
 
     roles_a = pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, node_a_block)
     roles_b = pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, node_b_block)
@@ -219,8 +219,8 @@ def construct_leased_spectrum_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
     provider_name: str,
-    node_a_id: UUIDstr,
-    node_b_id: UUIDstr,
+    node_a_instance_id: UUIDstr,
+    node_b_instance_id: UUIDstr,
     port_a_name: str,
     port_b_name: str,
     optical_pipe_name: str,
@@ -247,8 +247,8 @@ def construct_leased_spectrum_subscription(
     subscription_id = uuid4()
     pipe_block = build_leased_spectrum_block(
         subscription_id,
-        node_a_id,
-        node_b_id,
+        node_a_instance_id,
+        node_b_instance_id,
         port_a_name,
         port_b_name,
         provider_name,
