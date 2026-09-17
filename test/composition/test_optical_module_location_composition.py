@@ -361,7 +361,12 @@ def test_modify_form_rejects_duplicate_location_code_excluding_self(monkeypatch)
         raise ValueError(msg)
 
     monkeypatch.setattr(location_modify, "check_location_code_uniqueness", fake_check)
-    page = cast(Any, location_modify.modify_optical_module_location_form(subscription))
+    page = cast(
+        Any,
+        location_modify.modify_optical_module_location_form(
+            block, exclude_subscription_id=str(subscription.subscription_id)
+        ),
+    )
 
     with pytest.raises(ValueError, match="already in use"):
         page(
@@ -528,7 +533,9 @@ def test_modify_form_pages_yield_the_prefilled_page() -> None:
         SimpleNamespace(customer_id="cust-1", subscription_id=uuid.uuid4(), optical_location=block),
     )
 
-    generator = location_modify.modify_optical_module_location_form_pages(subscription)
+    generator = location_modify.modify_optical_module_location_form_pages(
+        block, exclude_subscription_id=str(subscription.subscription_id)
+    )
     page = next(generator)
     assert issubclass(page, FormPage)
     assert page.model_fields["longitude"].default == "4.9041"
@@ -583,18 +590,30 @@ def test_shipped_type_modify_workflow_composition() -> None:
 
 
 def test_consumer_model_modify_workflow_composition() -> None:
-    # The core form-argument injection builds the generator arguments by name from the
-    # workflow state, so the shipped generator's subscription_model/block_field_name
-    # parameters cannot be pre-bound with functools.partial (the bound parameters would
-    # be passed positionally from their signature defaults). The consumer binds them
-    # with a thin wrapper that delegates to the shipped generator as a direct call.
+    # The consumer composes its own generator from the shipped block-based page
+    # sequence: it loads its own subscription, extracts the block with plain
+    # Python at any nesting depth, and yields from the shipped pages.
     def my_modify_form_generator(subscription_id):
-        user_input_dict = yield from modify_optical_module_location_form_generator(
-            subscription_id,
-            subscription_model=AbstractLocationRouter,
-            block_field_name="router",
+        from orchestrator.optical.workflows.customer import customer_choice_form_page
+        from orchestrator.optical.workflows.shared import modify_summary_form
+
+        subscription = AbstractLocationRouter.from_subscription(subscription_id)
+        location = subscription.router.for_the_optical_module
+        user_input_dict = yield from customer_choice_form_page(include=subscription.customer_id)
+        user_input_dict.update(
+            (
+                yield from location_modify.modify_optical_module_location_form_pages(
+                    location, exclude_subscription_id=str(subscription.subscription_id)
+                )
+            )
         )
-        return user_input_dict
+        yield from modify_summary_form(
+            user_input_dict,
+            location,
+            ["customer_id", "longitude", "latitude", "location_code", "location_name"],
+            extra_before={"customer_id": subscription.customer_id},
+        )
+        return user_input_dict | {"subscription": subscription}
 
     @modify_workflow(initial_input_form=my_modify_form_generator)
     def modify_my_router():

@@ -183,7 +183,13 @@ def modify_consumer_router_location_form_generator(subscription_id: UUIDstr) -> 
     location = subscription.router.for_the_optical_module
 
     user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
-    user_input_dict.update((yield from modify_optical_module_location_form_pages(subscription, location=location)))
+    user_input_dict.update(
+        (
+            yield from modify_optical_module_location_form_pages(
+                location, exclude_subscription_id=str(subscription.subscription_id)
+            )
+        )
+    )
     yield from modify_summary_form(
         user_input_dict,
         location,

@@ -4,7 +4,7 @@ This module ships the ready-to-use ``modify_optical_module_location``
 workflow for the shipped Optical Module Location product type, together
 with the importable parts: the FormPages of the modify form (as the
 :func:`modify_optical_module_location_form_pages` page sequence, prefilled
-with the current subscription values) and the step list that updates and
+with the current block values) and the step list that updates and
 persists the Optical Module Location block found in the state under
 ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The workflow also refreshes the
 subscription description from the updated block (falling back to the
@@ -15,18 +15,18 @@ consumers with their own model that has-a the shipped block compose their own
 ``@modify_workflow`` with the parts. The shipped form generator is a thin
 composition of the shipped pages and the summary form, without hooks:
 consumers build their own form generator by yielding from the shipped page
-sequence in one line and adding their own pages. When the block is not a
-direct attribute of the subscription (for example, when it is nested under one
-of the consumer's own product blocks), the consumer passes the block
-explicitly::
+sequence in one line and adding their own pages. The consumer extracts the
+block with plain Python at any nesting depth (shipped code never traverses
+the subscription)::
 
+    block = subscription.optical_module_block  # or subscription.router.for_the_optical_module
     user_input_dict = yield from modify_optical_module_location_form_pages(
-        subscription, location=subscription.router.for_the_optical_module
+        block, exclude_subscription_id=...
     )
     user_input_dict.update((yield my_own_page).model_dump())
 """
 
-from typing import Annotated, cast
+from typing import Annotated
 
 from pydantic import Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -67,33 +67,28 @@ Instruction = Annotated[
 
 
 def modify_optical_module_location_form(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_location",
-    location: OpticalModuleLocationBlock | None = None,
+    location: OpticalModuleLocationBlock,
+    *,
+    exclude_subscription_id: UUIDstr | None = None,
 ) -> type[FormPage]:
     """Return the modify FormPage of the Optical Module Location subscription.
 
-    The page is prefilled with the current values of the subscription, so
+    The page is prefilled with the current values of the block, so
     unchanged fields remain intact. The optional ``location_name`` field can be
     deleted by ticking the ``clear_location_name`` checkbox. The page validates
     that the entered ``location_code`` is not already in use by another
     location subscription, excluding the subscription being modified.
 
     Args:
-        subscription: The ACTIVE subscription model of the Optical Module
-            Location product being modified (any consumer model that has-a the
-            shipped block works).
-        block_field_name: Name of the attribute of the subscription model holding
-            the Optical Module Location block.
-        location: The Optical Module Location block, when it is not available
-            under the ``block_field_name`` attribute. Consumer models that
-            compose the block deeper (for example under one of their own product
-            blocks) pass the block explicitly.
+        location: The Optical Module Location block being modified.
+        exclude_subscription_id: Identifier of the subscription being modified,
+            whose own location block is not a conflict. Defaults to the owner
+            subscription of the block.
 
     Returns:
         The prefilled modify FormPage of the shipped modify form.
     """
-    location = location or cast(OpticalModuleLocationBlock, getattr(subscription, block_field_name))
+    exclude = exclude_subscription_id if exclude_subscription_id is not None else str(location.owner_subscription_id)
 
     class ModifyOpticalModuleLocationForm(FormPage):
         instruction: Instruction
@@ -125,18 +120,16 @@ def modify_optical_module_location_form(
         @model_validator(mode="after")
         def validate_unique_location_code(self) -> "ModifyOpticalModuleLocationForm":
             """Raise if the entered location code is already in use by another subscription."""
-            check_location_code_uniqueness(
-                self.location_code, exclude_subscription_id=str(subscription.subscription_id)
-            )
+            check_location_code_uniqueness(self.location_code, exclude_subscription_id=exclude)
             return self
 
     return ModifyOpticalModuleLocationForm
 
 
 def modify_optical_module_location_form_pages(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_location",
-    location: OpticalModuleLocationBlock | None = None,
+    location: OpticalModuleLocationBlock,
+    *,
+    exclude_subscription_id: UUIDstr | None = None,
 ) -> FormGenerator:
     """Yield the FormPage of the Optical Module Location modify form.
 
@@ -150,20 +143,15 @@ def modify_optical_module_location_form_pages(
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
-        subscription: The ACTIVE subscription model of the Optical Module
-            Location product being modified (any consumer model that has-a the
-            shipped block works).
-        block_field_name: Name of the attribute of the subscription model holding
-            the Optical Module Location block.
-        location: The Optical Module Location block, when it is not available
-            under the ``block_field_name`` attribute. Consumer models that
-            compose the block deeper (for example under one of their own product
-            blocks) pass the block explicitly.
+        location: The Optical Module Location block being modified.
+        exclude_subscription_id: Identifier of the subscription being modified,
+            whose own location block is not a conflict. Defaults to the owner
+            subscription of the block.
 
     Returns:
         The collected user input of the shipped pages.
     """
-    user_input = yield modify_optical_module_location_form(subscription, block_field_name, location)
+    user_input = yield modify_optical_module_location_form(location, exclude_subscription_id=exclude_subscription_id)
     return user_input.model_dump()
 
 
@@ -174,20 +162,16 @@ def modify_optical_module_location_form_generator(
 ) -> FormGenerator:
     """Generate the initial input form for modifying an Optical Module Location subscription.
 
-    The form is prefilled with the current values of the subscription, so
+    The form is prefilled with the current values of the block, so
     unchanged fields remain intact. It is a thin composition of the shipped
     page sequence (:func:`modify_optical_module_location_form_pages`) and the
-    summary form.
+    summary form. Shipped-product only: consumers compose their own form
+    generator from the shipped page sequence.
 
     Args:
         subscription_id: The identifier of the subscription being modified.
         subscription_model: The ACTIVE subscription model class of the Optical
-            Module Location product. Consumers that compose the shipped block
-            under a different attribute name pass their own model class when they
-            call this generator from their own form generator (a thin wrapper that
-            yields from it; pre-binding with ``functools.partial`` is not supported
-            by the core form-argument injection, which passes the bound parameters
-            positionally from their signature defaults).
+            Module Location product.
         block_field_name: Name of the attribute of the subscription model holding
             the Optical Module Location block.
     """
@@ -195,7 +179,13 @@ def modify_optical_module_location_form_generator(
     location = getattr(subscription, block_field_name)
 
     user_input_dict = yield from customer_choice_form_page(include=subscription.customer_id)
-    user_input_dict.update((yield from modify_optical_module_location_form_pages(subscription, block_field_name)))
+    user_input_dict.update(
+        (
+            yield from modify_optical_module_location_form_pages(
+                location, exclude_subscription_id=str(subscription.subscription_id)
+            )
+        )
+    )
 
     summary_fields = [
         "customer_id",
@@ -290,6 +280,7 @@ def modify_optical_module_location() -> StepList:
 __all__ = [
     "MODIFY_OPTICAL_MODULE_LOCATION_BLOCK_STEPS",
     "modify_optical_module_location",
+    "modify_optical_module_location_form",
     "modify_optical_module_location_form_pages",
     "update_optical_module_location_block",
 ]
