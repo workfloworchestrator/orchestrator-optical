@@ -340,7 +340,9 @@ def test_modify_form_pages_yield_the_prefilled_pages_in_order(monkeypatch: pytes
     """The modify page sequence yields the prefilled pages and returns a flat dict."""
     _monkeypatch_modify_selectors(monkeypatch)
     subscription = _make_spectrum_subscription()
-    generator = modify_optical_spectrum_form_pages(subscription)
+    generator = modify_optical_spectrum_form_pages(
+        subscription.optical_spectrum_service, product_name=subscription.product.name
+    )
     page_names: list[str] = []
 
     page_1 = next(generator)

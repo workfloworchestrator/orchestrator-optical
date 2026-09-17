@@ -4,7 +4,7 @@ This module ships the ready-to-use ``modify_optical_spectrum`` workflow for the
 shipped Optical Spectrum Service product type, together with the importable
 parts: the FormPages of the modify form (as the
 :func:`modify_optical_spectrum_form_pages` page sequence, prefilled with the
-current subscription values) and the step list that updates and persists the
+current block values) and the step list that updates and persists the
 Optical Spectrum block found in the state under
 ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The source and destination add/drop port
 blocks are reused from the existing sections, so the form only collects the
@@ -16,11 +16,12 @@ consumers with their own model that has-a the shipped block compose their own
 ``@modify_workflow`` with the parts. The shipped form generator is a thin
 composition of the shipped pages and the summary form, without hooks: consumers
 build their own form generator by yielding from the shipped page sequence in
-one line and adding their own pages::
+one line and adding their own pages. The consumer extracts the block with
+plain Python at any nesting depth (shipped code never traverses the
+subscription)::
 
-    user_input_dict = yield from modify_optical_spectrum_form_pages(
-        subscription, block_field_name="optical_spectrum_service"
-    )
+    block = subscription.optical_module_block  # or subscription.router.optical_module
+    user_input_dict = yield from modify_optical_spectrum_form_pages(block, product_name=...)
     user_input_dict.update((yield my_own_page).model_dump())
 """
 
@@ -41,7 +42,10 @@ from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.spectrum import ensure_optical_circuit
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import AbstractOpticalOlsPortBlockInactive
-from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumServiceBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_spectrum import (
+    OpticalSpectrumServiceBlock,
+    OpticalSpectrumServiceBlockProvisioning,
+)
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlockProvisioning,
 )
@@ -227,8 +231,9 @@ def modify_optical_spectrum_path_form(
 
 
 def modify_optical_spectrum_form_pages(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_spectrum_service",
+    block: OpticalSpectrumServiceBlock,
+    *,
+    product_name: str,
 ) -> FormGenerator:
     """Yield the FormPages of the Optical Spectrum modify form, in order.
 
@@ -246,17 +251,12 @@ def modify_optical_spectrum_form_pages(
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
-        subscription: The ACTIVE subscription model of the Optical Spectrum
-            product being modified (any consumer model that has-a the shipped
-            block works).
-        block_field_name: Name of the attribute of the subscription model holding
-            the Optical Spectrum block.
+        block: The Optical Spectrum block being modified.
+        product_name: Name of the product being modified, used as the page title.
 
     Returns:
         The collected user input of the shipped pages.
     """
-    block = getattr(subscription, block_field_name)
-    product_name = subscription.product.name
     old_name = block.optical_spectrum_name
     old_passband = block.optical_spectrum_passband
 
@@ -338,22 +338,28 @@ def modify_optical_spectrum_form_generator(
 ) -> FormGenerator:
     """Generate the initial input form for modifying an Optical Spectrum subscription.
 
-    The form is prefilled with the current values of the subscription, so
+    The form is prefilled with the current values of the block, so
     unchanged fields remain intact. It is a thin composition of the customer
     page, the shipped page sequence (:func:`modify_optical_spectrum_form_pages`)
-    and the summary form.
+    and the summary form. Shipped-product only: consumers compose their own
+    form generator from the shipped page sequence.
 
     Args:
         subscription_id: The identifier of the subscription being modified.
         subscription_model: The ACTIVE subscription model class of the Optical
-            Spectrum product. Consumers that compose the shipped block under a
-            different attribute name pass their own model class here.
+            Spectrum product.
         block_field_name: Name of the attribute of the subscription model holding
             the Optical Spectrum block.
     """
     subscription = subscription_model.from_subscription(subscription_id)
     user_input_dict = yield from customer_choice_form_page(include=subscription.customer_id)
-    user_input_dict.update((yield from modify_optical_spectrum_form_pages(subscription, block_field_name)))
+    user_input_dict.update(
+        (
+            yield from modify_optical_spectrum_form_pages(
+                getattr(subscription, block_field_name), product_name=subscription.product.name
+            )
+        )
+    )
 
     block = getattr(subscription, block_field_name)
     summary_fields = ["customer_id", "optical_spectrum_name", "frequency_min", "frequency_max"]
