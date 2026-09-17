@@ -4,7 +4,7 @@ This module ships the ready-to-use ``modify_optical_coherent_pluggable``
 workflow for the shipped Optical Coherent Pluggable product type, together
 with the importable parts: the FormPage of the modify form (as the
 :func:`modify_optical_coherent_pluggable_form_pages` page sequence, prefilled
-with the current subscription values) and the step list that updates and
+with the current block values) and the step list that updates and
 persists the Optical Coherent Pluggable block found in the state under
 ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
 
@@ -13,11 +13,12 @@ consumers with their own model that has-a the shipped block compose their own
 ``@modify_workflow`` with the parts. The shipped form generator is a thin
 composition of the shipped pages and the summary form, without hooks:
 consumers build their own form generator by yielding from the shipped page
-sequence in one line and adding their own pages::
+sequence in one line and adding their own pages. The consumer extracts the
+block with plain Python at any nesting depth (shipped code never traverses
+the subscription)::
 
-    user_input_dict = yield from modify_optical_coherent_pluggable_form_pages(
-        subscription, block_field_name="router"
-    )
+    block = subscription.optical_module_block  # or subscription.router.optical_module
+    user_input_dict = yield from modify_optical_coherent_pluggable_form_pages(block)
     user_input_dict.update((yield my_own_page).model_dump())
 """
 
@@ -33,6 +34,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
+    OpticalCoherentPluggableBlock,
     OpticalCoherentPluggableBlockProvisioning,
 )
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
@@ -58,26 +60,18 @@ Instruction = Annotated[
 ]
 
 
-def modify_optical_coherent_pluggable_form(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_coherent_pluggable",
-) -> type[FormPage]:
+def modify_optical_coherent_pluggable_form(pluggable: OpticalCoherentPluggableBlock) -> type[FormPage]:
     """Return the modify FormPage of the Optical Coherent Pluggable subscription.
 
-    The page is prefilled with the current values of the subscription, so
+    The page is prefilled with the current values of the block, so
     unchanged fields remain intact.
 
     Args:
-        subscription: The ACTIVE subscription model of the Optical Coherent
-            Pluggable product being modified (any consumer model that has-a the
-            shipped block works).
-        block_field_name: Name of the attribute of the subscription model holding
-            the Optical Coherent Pluggable block.
+        pluggable: The Optical Coherent Pluggable block being modified.
 
     Returns:
         The prefilled modify FormPage of the shipped modify form.
     """
-    pluggable = getattr(subscription, block_field_name)
 
     class ModifyOpticalCoherentPluggableForm(FormPage):
         instruction: Instruction
@@ -87,10 +81,7 @@ def modify_optical_coherent_pluggable_form(
     return ModifyOpticalCoherentPluggableForm
 
 
-def modify_optical_coherent_pluggable_form_pages(
-    subscription: SubscriptionModel,
-    block_field_name: str = "optical_coherent_pluggable",
-) -> FormGenerator:
+def modify_optical_coherent_pluggable_form_pages(pluggable: OpticalCoherentPluggableBlock) -> FormGenerator:
     """Yield the FormPage of the Optical Coherent Pluggable modify form.
 
     This is the shipped modify form as a page sequence: it yields the prefilled
@@ -103,16 +94,12 @@ def modify_optical_coherent_pluggable_form_pages(
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
-        subscription: The ACTIVE subscription model of the Optical Coherent
-            Pluggable product being modified (any consumer model that has-a the
-            shipped block works).
-        block_field_name: Name of the attribute of the subscription model holding
-            the Optical Coherent Pluggable block.
+        pluggable: The Optical Coherent Pluggable block being modified.
 
     Returns:
         The collected user input of the shipped pages.
     """
-    user_input = yield modify_optical_coherent_pluggable_form(subscription, block_field_name)
+    user_input = yield modify_optical_coherent_pluggable_form(pluggable)
     return user_input.model_dump()
 
 
@@ -123,16 +110,16 @@ def modify_optical_coherent_pluggable_form_generator(
 ) -> FormGenerator:
     """Generate the initial input form for modifying a Coherent Pluggable subscription.
 
-    The form is prefilled with the current values of the subscription, so
+    The form is prefilled with the current values of the block, so
     unchanged fields remain intact. It is a thin composition of the shipped
     page sequence (:func:`modify_optical_coherent_pluggable_form_pages`) and
-    the summary form.
+    the summary form. Shipped-product only: consumers compose their own form
+    generator from the shipped page sequence.
 
     Args:
         subscription_id: The identifier of the subscription being modified.
         subscription_model: The ACTIVE subscription model class of the Coherent
-            Pluggable product. Consumers that compose the shipped block under a
-            different attribute name pass their own model class here.
+            Pluggable product.
         block_field_name: Name of the attribute of the subscription model holding
             the Optical Coherent Pluggable block.
     """
@@ -140,7 +127,7 @@ def modify_optical_coherent_pluggable_form_generator(
     pluggable = getattr(subscription, block_field_name)
 
     user_input_dict = yield from customer_choice_form_page(include=str(subscription.customer_id))
-    user_input_dict.update((yield from modify_optical_coherent_pluggable_form_pages(subscription, block_field_name)))
+    user_input_dict.update((yield from modify_optical_coherent_pluggable_form_pages(pluggable)))
 
     summary_fields = [
         "customer_id",

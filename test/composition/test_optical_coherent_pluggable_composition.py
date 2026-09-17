@@ -515,12 +515,8 @@ def test_modify_form_pages_yield_the_prefilled_page() -> None:
     block = _make_pluggable_block()
     block.optical_port_description = "desc"
     block.optical_coherent_pluggable_firmware_version = "1.0"
-    subscription = cast(
-        Any,
-        SimpleNamespace(customer_id="cust-1", subscription_id=uuid.uuid4(), optical_coherent_pluggable=block),
-    )
 
-    generator = modify_parts.modify_optical_coherent_pluggable_form_pages(subscription)
+    generator = modify_parts.modify_optical_coherent_pluggable_form_pages(block)
     page = next(generator)
     assert issubclass(page, FormPage)
     assert page.model_fields["optical_port_description"].default == "desc"
