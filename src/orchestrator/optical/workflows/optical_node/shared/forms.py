@@ -4,7 +4,7 @@ The Optical Node vendor forms (Nokia FlexILS, Groove G30, GX G42) are
 compositions of the same pages: one per composed block plus a vendor-specific
 page for the vendors that need it. This module ships those shared pages:
 
-* :func:`create_optical_node_location_form` — the ``location_id`` selector of
+* :func:`create_optical_node_location_form` — the ``location_instance_id`` selector of
   the Optical Location composition block of the create form;
 * :func:`create_optical_node_management_form` — the fields of the
   ``OpticalModuleNodeManagementBlock`` composition block of the create form:
@@ -29,7 +29,7 @@ from orchestrator.core.forms import FormPage
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlock
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
-from orchestrator.optical.workflows.optical_location.shared import active_location_subscription_selector
+from orchestrator.optical.workflows.optical_location.shared import active_location_instance_selector
 from orchestrator.optical.workflows.optical_node.shared.create import (
     validate_management_ips_uniqueness,
     validate_optical_node_fqdn_uniqueness,
@@ -50,7 +50,7 @@ def create_optical_node_location_form(product_name: str) -> type[FormPage]:
     """Return the location FormPage of an Optical Node create form.
 
     The page collects the Optical Location composition block: the
-    ``location_id`` of the subscription hosting the node. It is a building
+    ``location_instance_id`` of the block hosting the node. It is a building
     block shared by all the Optical Node vendor create forms.
 
     Args:
@@ -59,12 +59,12 @@ def create_optical_node_location_form(product_name: str) -> type[FormPage]:
     Returns:
         The location FormPage of the shipped create form.
     """
-    location_choice = active_location_subscription_selector()
+    location_choice = active_location_instance_selector()
 
     class CreateOpticalNodeLocationForm(FormPage):
         model_config = ConfigDict(title=f"{product_name} - Location")
 
-        location_id: location_choice
+        location_instance_id: location_choice
 
     return CreateOpticalNodeLocationForm
 

@@ -142,7 +142,7 @@ class ResolvedNode(TypedDict):
     workflow_name: str
     product_name: str
     is_flexils: bool
-    location_id: str
+    location_instance_id: str
     fqdn: str
     dcn_loopback_ip: str | None
     dcn_interface_ip: str | None
@@ -376,15 +376,15 @@ def parse_nodes_csv(csv_data: str, delimiter: str) -> list[NodeCsvRow]:
     return rows
 
 
-def _location_id_by_code(location_code: str, line_number: int) -> str:
-    """Resolve a location code to its ACTIVE location subscription id.
+def _location_instance_id_by_code(location_code: str, line_number: int) -> str:
+    """Resolve a location code to its ACTIVE location block instance id.
 
     Args:
         location_code: The location code from the CSV row.
         line_number: The CSV line number, used in error messages.
 
     Returns:
-        The subscription id of the matching location.
+        The subscription instance id of the matching location block.
 
     Raises:
         ValueError: If the code matches zero or more than one ACTIVE location.
@@ -398,7 +398,7 @@ def _location_id_by_code(location_code: str, line_number: int) -> str:
     if len(instances) != 1:
         msg = f"Location code {location_code!r} at row {line_number} matches {len(instances)} ACTIVE locations"
         raise ValueError(msg)
-    return str(instances[0].subscription_id)
+    return str(instances[0].subscription_instance_id)
 
 
 def _resolve_node_row(row: NodeCsvRow) -> ResolvedNode:
@@ -415,7 +415,7 @@ def _resolve_node_row(row: NodeCsvRow) -> ResolvedNode:
             GMPLS ID or the Target Identifier is already in use.
     """
     line_number = row["line_number"]
-    location_id = _location_id_by_code(row["location_code"], line_number)
+    location_instance_id = _location_instance_id_by_code(row["location_code"], line_number)
     try:
         validate_optical_node_fqdn_uniqueness(row["fqdn"])
     except ValueError as exc:
@@ -446,7 +446,7 @@ def _resolve_node_row(row: NodeCsvRow) -> ResolvedNode:
         workflow_name=workflow_name,
         product_name=product_name,
         is_flexils=is_flexils,
-        location_id=location_id,
+        location_instance_id=location_instance_id,
         fqdn=row["fqdn"],
         dcn_loopback_ip=row["dcn_loopback_ip"],
         dcn_interface_ip=row["dcn_interface_ip"],
@@ -473,7 +473,7 @@ def _node_bulk_input(node: ResolvedNode, customer_id: str) -> BulkNodeInput:
     user_inputs: list[dict[str, Any]] = [
         {"product": product_id},
         {"customer_id": customer_id},
-        {"location_id": node["location_id"]},
+        {"location_instance_id": node["location_instance_id"]},
         {
             "optical_module_node_fqdn": node["fqdn"],
             "optical_module_node_dcn_loopback_ip": node["dcn_loopback_ip"],

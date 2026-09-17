@@ -22,6 +22,7 @@ from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import (
     subscription_instance_values_by_block_type_depending_on_instance_id,
+    subscription_instance_values_by_block_types_and_resource_types,
     subscriptions_by_product_type,
     subscriptions_by_product_type_and_instance_value,
 )
@@ -181,6 +182,52 @@ def active_subscription_selector_by_block_type(
         str(subscription.subscription_id): subscription.description
         for subscription in sorted(subscriptions, key=lambda x: x.description)
     }
+
+    if not prompt:
+        prompt = f"Select a {abstract_block_type.__name__}"
+
+    return Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))  # type:ignore  # noqa: PGH003
+
+
+def active_instance_selector_by_block_type(
+    abstract_block_type: type[ProductBlockModel],
+    label_fields: list[str],
+    prompt: str | None = None,
+) -> type[Choice]:
+    """Create a `Choice` selector for the blocks of any product implementing an abstract block type.
+
+    This is the instance-id twin of :func:`active_subscription_selector_by_block_type`:
+    the same block-filtered contract (every concrete block class inheriting from
+    the abstract block registers its product block name in ``__names__``), but
+    option values are the block subscription instance ids — never subscription
+    ids or models. Labels are built from the given resource values without
+    loading any block.
+
+    Args:
+        abstract_block_type: The abstract product block type of the contract (e.g.
+            ``OpticalModuleLocationBlockInactive``).
+        label_fields: Resource field names forming the human-readable label, in
+            order (e.g. ``["location_name", "location_code"]``). Unset fields
+            are skipped.
+        prompt: Prompt to display in the selection. If not provided, a default prompt
+            will be generated.
+
+    Returns:
+        type[Choice]: A `Choice` class configured with the block options of all
+        the products that implement the given abstract block type.
+    """
+    rows = subscription_instance_values_by_block_types_and_resource_types(
+        abstract_block_type.__names__, label_fields, [SubscriptionLifecycle.ACTIVE]
+    )
+    values_by_instance: dict[str, dict[str, str]] = {}
+    for row in rows:
+        instance_id = str(row.subscription_instance_id)
+        values_by_instance.setdefault(instance_id, {})[row.resource_type.resource_type] = str(row.value)
+    products = {}
+    for instance_id, values in values_by_instance.items():
+        label = " - ".join(values[field] for field in label_fields if values.get(field))
+        products[instance_id] = label if label else instance_id
+    products = dict(sorted(products.items(), key=lambda item: item[1]))
 
     if not prompt:
         prompt = f"Select a {abstract_block_type.__name__}"

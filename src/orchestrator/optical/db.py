@@ -33,7 +33,7 @@ from orchestrator.optical.products.product_blocks.optical_node.optical_packet_no
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockUnion
 
 __all__ = [
-    "location_block_from_subscription",
+    "location_block_from_instance",
     "node_block_from_instance",
     "node_block_from_subscription",
     "node_blocks_by_roles",
@@ -42,6 +42,7 @@ __all__ = [
     "pipe_blocks_all",
     "pipe_instances_by_block_names",
     "subscription_instance_values_by_block_type_depending_on_instance_id",
+    "subscription_instance_values_by_block_types_and_resource_types",
     "subscription_instances_by_block_type",
     "subscription_instances_by_block_type_and_resource_value",
     "subscriptions_by_product_type",
@@ -247,6 +248,54 @@ def subscription_instance_values_by_block_type_depending_on_instance_id(
     )
 
 
+def subscription_instance_values_by_block_types_and_resource_types(
+    block_names: set[str],
+    resource_types: list[str],
+    states: list[SubscriptionLifecycle],
+) -> list[SubscriptionInstanceValueTable]:
+    """Return the values of the given resource types for instances of the given block names.
+
+    This is the label backend of the block-filtered selectors: one query returns
+    the display values of every matching instance, so callers build human-readable
+    labels without loading any block. Instances missing all the given resource
+    types have no row and are not returned.
+
+    Args:
+        block_names: The product block names to match (e.g. the ``__names__`` of an
+            abstract block).
+        resource_types: The resource field names to return values for (e.g.
+            ``["location_name", "location_code"]``).
+        states: Lifecycle states the owner subscription must be in.
+
+    Returns:
+        The matching subscription instance values, each carrying its
+        ``subscription_instance_id`` and its resource type.
+    """
+    return (
+        SubscriptionInstanceValueTable.query.join(
+            SubscriptionInstanceTable,
+            SubscriptionInstanceTable.subscription_instance_id
+            == SubscriptionInstanceValueTable.subscription_instance_id,
+        )
+        .join(
+            SubscriptionTable,
+            SubscriptionInstanceTable.subscription_id == SubscriptionTable.subscription_id,
+        )
+        .join(
+            ProductBlockTable,
+            SubscriptionInstanceTable.product_block_id == ProductBlockTable.product_block_id,
+        )
+        .join(
+            ResourceTypeTable,
+            SubscriptionInstanceValueTable.resource_type_id == ResourceTypeTable.resource_type_id,
+        )
+        .filter(ProductBlockTable.name.in_(block_names))
+        .filter(ResourceTypeTable.resource_type.in_(resource_types))
+        .filter(SubscriptionTable.status.in_(states))
+        .all()
+    )
+
+
 def _block_instance_of_subscription(
     subscription_id: UUIDstr,
     block_names: set[str],
@@ -433,31 +482,33 @@ def pipe_blocks_all(
     return blocks
 
 
-def location_block_from_subscription(location_id: UUIDstr) -> OpticalModuleLocationBlock:
-    """Return the Optical Module Location product block of the given location subscription.
+def location_block_from_instance(instance_id: UUIDstr) -> OpticalModuleLocationBlock:
+    """Return the Optical Module Location product block of the given block instance id.
 
-    The resolution is block-based: the subscription instance whose product
-    block is an ``OpticalModuleLocationBlock`` is looked up by the subscription
-    id and loaded as the most-derived class. Because every consumer that
-    composes the shipped block persists it under the shipped block name, the
-    lookup also covers composed product types without hardcoding a product
-    type or depending on the subscription model registry. The subscription id
-    is only an input parameter, not a model dependency.
+    Block-based resolution: the instance is looked up by its
+    ``subscription_instance_id`` and loaded as the most-derived lifecycle class,
+    without touching subscription ids or the subscription model registry.
 
     Args:
-        location_id: Subscription id of an active Optical Location subscription.
+        instance_id: Subscription instance id of an Optical Module Location block.
 
     Returns:
-        The Optical Module Location product block of the subscription.
+        The Optical Module Location product block.
 
     Raises:
-        ValueError: If the subscription has no Optical Module Location block.
+        ValueError: If the instance does not exist or is not an Optical Module Location block.
     """
-    instance = _block_instance_of_subscription(
-        location_id,
-        OpticalModuleLocationBlock.__names__,
-        "Optical Module Location block",
+    instance = (
+        SubscriptionInstanceTable.query.join(ProductBlockTable)
+        .filter(SubscriptionInstanceTable.subscription_instance_id == instance_id)
+        .one_or_none()
     )
+    if instance is None:
+        msg = f"Subscription instance {instance_id} does not exist"
+        raise ValueError(msg)
+    if instance.product_block.name not in OpticalModuleLocationBlock.__names__:
+        msg = f"Subscription instance {instance_id} is not an Optical Module Location block"
+        raise ValueError(msg)
     # The ACTIVE class is the most-derived subclass, so it can load INITIAL,
     # PROVISIONING and ACTIVE blocks (unlike the PROVISIONING class).
     return OpticalModuleLocationBlock.from_db(subscription_instance_id=instance.subscription_instance_id)

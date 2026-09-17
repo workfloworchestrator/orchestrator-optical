@@ -95,7 +95,7 @@ def _seed_node(
     pages: list[dict] = [
         {"product": product_id_for(product_name)},
         {"customer_id": CUSTOMER_ID},
-        {"location_id": active_location},
+        {"location_instance_id": active_location},
         {
             "optical_module_node_fqdn": fqdn,
             "optical_module_node_dcn_interface_ip": interface_ip,

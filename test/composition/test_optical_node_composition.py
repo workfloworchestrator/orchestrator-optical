@@ -146,7 +146,7 @@ def _make_flexils_block() -> NokiaFlexIlsBlockInactive:
     )
 
 
-def _stub_location(_location_id) -> OpticalModuleLocationBlockInactive:
+def _stub_location(_location_instance_id) -> OpticalModuleLocationBlockInactive:
     subscription_id = uuid.uuid4()
     return OpticalModuleLocationBlockInactive(
         name="OpticalModuleLocationBlock",
@@ -193,7 +193,7 @@ def _make_flexils_block_provisioning() -> NokiaFlexIlsBlockProvisioning:
 
 
 def test_populate_optical_node_nokia_flexils_block(monkeypatch) -> None:
-    monkeypatch.setattr(shared_create, "location_block_from_subscription", _stub_location)
+    monkeypatch.setattr(shared_create, "location_block_from_instance", _stub_location)
     monkeypatch.setattr(
         shared_create,
         "subscription_instances_by_block_type_and_resource_value",
@@ -208,7 +208,7 @@ def test_populate_optical_node_nokia_flexils_block(monkeypatch) -> None:
 
     populate_optical_node_nokia_flexils_block(
         optical_module_block=block,
-        location_id=str(uuid.uuid4()),
+        location_instance_id=str(uuid.uuid4()),
         optical_module_node_fqdn="flex.ba01.example.com",
         optical_module_node_dcn_interface_ip="10.0.0.1",
         optical_module_node_dcn_loopback_ip="10.0.0.2",

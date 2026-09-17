@@ -23,7 +23,7 @@ from orchestrator.optical.products.product_blocks.optical_location import (
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
-from orchestrator.optical.workflows.shared import active_subscription_selector_by_block_type
+from orchestrator.optical.workflows.shared import active_instance_selector_by_block_type
 
 
 def check_location_code_uniqueness(
@@ -72,23 +72,27 @@ def check_location_code_uniqueness(
         raise ValueError(msg)
 
 
-def active_location_subscription_selector(prompt: str | None = None) -> type[Choice]:
-    """Create a `Choice` selector for active Optical Location subscriptions.
+def active_location_instance_selector(prompt: str | None = None) -> type[Choice]:
+    """Create a `Choice` selector for active Optical Location blocks.
 
     Every concrete Optical Location product implementing the abstract location contract
     is matched through the product block names registered in
     ``OpticalModuleLocationBlockInactive.__names__``, regardless of how the users
-    implement their concrete product blocks and subscriptions.
+    implement their concrete product blocks and subscriptions. Option values are
+    the location block subscription instance ids, resolved with
+    :func:`orchestrator.optical.db.location_block_from_instance`.
 
     Args:
         prompt: Prompt to display in the selection. If not provided, a default prompt
             will be generated.
 
     Returns:
-        type[Choice]: A `Choice` class configured with the active location subscription
+        type[Choice]: A `Choice` class configured with the active location block
         options.
     """
-    return active_subscription_selector_by_block_type(OpticalModuleLocationBlockInactive, prompt=prompt)
+    return active_instance_selector_by_block_type(
+        OpticalModuleLocationBlockInactive, ["location_name", "location_code"], prompt=prompt
+    )
 
 
 def optical_location_block_from_state(
@@ -263,7 +267,7 @@ def load_optical_module_location_block(subscription: SubscriptionModel) -> State
 
 __all__ = [
     "OPTICAL_MODULE_BLOCK_STATE_KEY",
-    "active_location_subscription_selector",
+    "active_location_instance_selector",
     "check_location_code_uniqueness",
     "load_optical_module_location_block",
     "optical_location_block_from_state",

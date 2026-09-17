@@ -20,7 +20,10 @@ import orchestrator.core.db as core_db
 from orchestrator.core.db import ProcessStepTable, ProcessTable, SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import ProcessStatus
-from orchestrator.optical.db import location_block_from_subscription
+from orchestrator.optical.db import (
+    location_block_from_instance,
+    subscription_instances_by_block_type,
+)
 from orchestrator.optical.products.product_blocks.optical_location import (
     OpticalModuleLocationBlock,
     OpticalModuleLocationBlockInactive,
@@ -44,6 +47,16 @@ pytestmark = pytest.mark.db
 
 PRODUCT_NAME = "Optical Module Location"
 CUSTOMER_ID = "cust-1"
+
+
+def _location_block(subscription_id: str) -> OpticalModuleLocationBlock:
+    """Load the location block of a subscription via its block instance id (model-agnostic)."""
+    instances = subscription_instances_by_block_type(
+        cast(str, OpticalModuleLocationBlock.name),
+        [SubscriptionLifecycle.INITIAL, SubscriptionLifecycle.PROVISIONING, SubscriptionLifecycle.ACTIVE],
+    )
+    instance = next(i for i in instances if str(i.subscription_id) == subscription_id)
+    return location_block_from_instance(str(instance.subscription_instance_id))
 
 
 def _create_user_inputs(product_id_for) -> list[dict]:
@@ -104,7 +117,7 @@ def test_create_optical_module_location_end_to_end(
     assert subscription.description == "Rome (rom-01)"
     assert subscription.customer_id == CUSTOMER_ID
 
-    block = location_block_from_subscription(subscription_id)
+    block = _location_block(subscription_id)
     assert isinstance(block, OpticalModuleLocationBlock)
     assert block.location_code == "rom-01"
     assert block.location_name == "Rome"
@@ -138,7 +151,7 @@ def test_full_lifecycle_create_modify_terminate_validate(
     assert_process_completed(modify_process_id)
     # The shipped modify workflow updates the block and refreshes the subscription description.
     assert _subscription_table(subscription_id).description == "Amsterdam (ams-01)"
-    block = location_block_from_subscription(subscription_id)
+    block = _location_block(subscription_id)
     assert isinstance(block, OpticalModuleLocationBlock)
     assert block.location_code == "ams-01"
     assert block.location_name == "Amsterdam"
@@ -163,7 +176,7 @@ def test_full_lifecycle_create_modify_terminate_validate(
         ],
     )
     assert_process_completed(clear_name_process_id)
-    block = location_block_from_subscription(subscription_id)
+    block = _location_block(subscription_id)
     assert block.location_name is None
     assert _subscription_table(subscription_id).description == "ams-01"
 
@@ -206,11 +219,11 @@ def test_block_rehydration_resolves_the_lifecycle_variant(
     """``optical_location_block_from_state`` rehydrates the round-tripped block as its matching variant."""
     _, subscription_id = _run_create(run_process, product_id_for, assert_process_completed, subscription_id_of_process)
 
-    block_dict = location_block_from_subscription(subscription_id).model_dump()
+    block_dict = _location_block(subscription_id).model_dump()
     assert isinstance(optical_location_block_from_state(block_dict), OpticalModuleLocationBlock)
 
     set_subscription_status(subscription_id, SubscriptionLifecycle.PROVISIONING)
-    block_dict = location_block_from_subscription(subscription_id).model_dump()
+    block_dict = _location_block(subscription_id).model_dump()
     assert isinstance(optical_location_block_from_state(block_dict), OpticalModuleLocationBlockProvisioning)
 
     set_subscription_status(subscription_id, SubscriptionLifecycle.INITIAL)

@@ -7,7 +7,7 @@ from pydantic_forms.types import UUIDstr
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import (
-    location_block_from_subscription,
+    location_block_from_instance,
     subscription_instances_by_block_type_and_resource_value,
 )
 from orchestrator.optical.products import ProductType
@@ -270,7 +270,7 @@ def validate_optical_flexils_target_id_uniqueness(
 def populate_abstract_optical_node_fields(
     optical_module_block: Any,
     *,
-    location_id: UUIDstr,
+    location_instance_id: UUIDstr,
     optical_module_node_fqdn: Fqdn,
     optical_module_node_dcn_loopback_ip: IPAddress | None = None,
     optical_module_node_dcn_interface_ip: IPAddress | None = None,
@@ -287,14 +287,14 @@ def populate_abstract_optical_node_fields(
 
     Args:
         optical_module_block: The Optical Node block to populate (any lifecycle variant).
-        location_id: Subscription id of the Optical Location hosting the node.
+        location_instance_id: Subscription instance id of the Optical Location block hosting the node.
         optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
         optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
         optical_module_node_vendor: Vendor of the node.
         optical_module_node_platform: Platform of the node.
     """
-    optical_module_block.location = location_block_from_subscription(location_id)
+    optical_module_block.location = location_block_from_instance(location_instance_id)
     optical_module_block.management.optical_module_node_fqdn = optical_module_node_fqdn
     optical_module_block.management.optical_module_node_dcn_loopback_ip = optical_module_node_dcn_loopback_ip
     optical_module_block.management.optical_module_node_dcn_interface_ip = optical_module_node_dcn_interface_ip

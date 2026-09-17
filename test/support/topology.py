@@ -16,7 +16,8 @@ import pytest
 
 import orchestrator.core.db as core_db
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.db import location_block_from_subscription
+from orchestrator.optical.db import location_block_from_instance
+from orchestrator.optical.products.product_types.optical_location import OpticalModuleLocationSubscription
 from orchestrator.optical.products.product_types.optical_packet_node import (
     OpticalModulePacketNodeSubscriptionInactive,
 )
@@ -38,7 +39,10 @@ def _flexils_gmpls_id(fqdn: str) -> str:
 
 @pytest.fixture
 def active_location(run_process: Callable[[str, list[dict[str, Any]]], str]) -> str:
-    """Create an ACTIVE Optical Module Location via the shipped create workflow."""
+    """Create an ACTIVE Optical Module Location via the shipped create workflow.
+
+    Returns the subscription instance id of the location block.
+    """
     process_id = run_process(
         "create_optical_module_location",
         [
@@ -50,7 +54,10 @@ def active_location(run_process: Callable[[str, list[dict[str, Any]]], str]) -> 
         ],
     )
     _assert_process_completed(process_id)
-    return _subscription_id_of_process(process_id)
+    subscription_id = _subscription_id_of_process(process_id)
+    with core_db.db.database_scope():
+        subscription = OpticalModuleLocationSubscription.from_subscription(subscription_id)
+        return str(subscription.optical_location.subscription_instance_id)
 
 
 @pytest.fixture
@@ -66,7 +73,7 @@ def active_packet_node(
             status=SubscriptionLifecycle.INITIAL,
         )
         subscription.optical_packet_node.management.optical_module_node_fqdn = "packet-node-01.test.local"
-        subscription.optical_packet_node.location = location_block_from_subscription(active_location)
+        subscription.optical_packet_node.location = location_block_from_instance(active_location)
         # A fully provisioned packet node is in sync; the shipped coherent pluggable workflows
         # would otherwise not be able to modify/terminate subscriptions depending on it.
         subscription.insync = True
@@ -100,7 +107,7 @@ def seed_optical_node(
         ``TRANSPONDER`` via the stub.
         """
         install_device_stubs(monkeypatch, families=("node",))
-        location: dict[str, Any] = {"location_id": active_location}
+        location: dict[str, Any] = {"location_instance_id": active_location}
         management: dict[str, Any] = {
             "optical_module_node_fqdn": fqdn,
             "optical_module_node_dcn_interface_ip": dcn_interface_ip,
@@ -177,7 +184,7 @@ def active_coherent_pluggable_host(
         management.optical_module_node_vendor = "Nokia"
         management.optical_module_node_platform = "NCS"
         management.optical_module_node_software_version = FAKE_SOFTWARE_VERSION
-        subscription.optical_packet_node.location = location_block_from_subscription(active_location)
+        subscription.optical_packet_node.location = location_block_from_instance(active_location)
         # A fully provisioned packet node is in sync; the shipped coherent pluggable workflows
         # would otherwise not be able to modify/terminate subscriptions depending on it.
         subscription.insync = True

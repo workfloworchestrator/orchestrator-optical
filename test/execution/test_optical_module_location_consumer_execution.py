@@ -8,10 +8,9 @@ has-a the shipped ``OpticalModuleLocationBlock`` under its own attributes
 
 - its own construct step (``from_product_id`` on the consumer model, the block put in
   the state under the shipped ``OPTICAL_MODULE_BLOCK_STATE_KEY``);
-- the shipped form generators, used as-is for create/terminate and, for modify, a thin
-  consumer wrapper that delegates to the shipped generator with the consumer model and
-  attribute (``functools.partial`` pre-binding does not work: the core form-argument
-  injection passes the bound parameters positionally from their defaults);
+- the shipped form pages (page sequences), used as-is for create/terminate and, for
+  modify, composed with the consumer's block extracted with plain Python
+  (``subscription.router.for_the_optical_module``);
 - its own one-step wiring (the consumer's block is not under the shipped
   ``optical_location`` attribute);
 - the shipped block step lists and the shipped description step, unchanged.
@@ -24,7 +23,7 @@ workflow is the pattern with the construct and wiring steps pre-filled for the
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic_forms.exceptions import FormValidationError
@@ -40,7 +39,10 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows import LazyWorkflowInstance
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow, modify_workflow, terminate_workflow, validate_workflow
-from orchestrator.optical.db import location_block_from_subscription
+from orchestrator.optical.db import (
+    location_block_from_instance,
+    subscription_instances_by_block_type,
+)
 from orchestrator.optical.products.product_blocks.optical_location import (
     LocationCode,
     OpticalModuleLocationBlock,
@@ -84,6 +86,17 @@ CONSUMER_PRODUCT_TYPE = AbstractLocationRouterInactive.__name__
 CONSUMER_BLOCK_NAME = "LocationRouterBlock"
 CUSTOMER_ID = "cust-1"
 SHIPPED_PRODUCT_NAME = "Optical Module Location"
+
+
+def _location_block(subscription_id: str) -> OpticalModuleLocationBlock:
+    """Load the location block of a subscription via its block instance id (model-agnostic)."""
+    instances = subscription_instances_by_block_type(
+        cast(str, OpticalModuleLocationBlock.name),
+        [SubscriptionLifecycle.INITIAL, SubscriptionLifecycle.PROVISIONING, SubscriptionLifecycle.ACTIVE],
+    )
+    instance = next(i for i in instances if str(i.subscription_id) == subscription_id)
+    return location_block_from_instance(str(instance.subscription_instance_id))
+
 
 #: The consumer workflows and their targets, seeded into the workflow catalog below.
 CONSUMER_WORKFLOWS: dict[str, Target] = {
@@ -342,7 +355,7 @@ def test_consumer_create_end_to_end(
     assert subscription.customer_id == CUSTOMER_ID
 
     # The block-based (model-agnostic) resolver finds the block of the consumer subscription.
-    block = location_block_from_subscription(subscription_id)
+    block = _location_block(subscription_id)
     assert isinstance(block, OpticalModuleLocationBlock)
     assert block.location_code == "rom-01"
     assert block.location_name == "Rome"
@@ -389,7 +402,7 @@ def test_consumer_full_lifecycle_create_modify_terminate_validate(
     # The consumer modify workflow composes the shipped block steps with the shipped
     # description step, so the subscription description is refreshed on modify.
     assert _subscription_table(subscription_id).description == "Amsterdam (ams-01)"
-    block = location_block_from_subscription(subscription_id)
+    block = _location_block(subscription_id)
     assert isinstance(block, OpticalModuleLocationBlock)
     assert block.location_code == "ams-01"
     assert block.location_name == "Amsterdam"

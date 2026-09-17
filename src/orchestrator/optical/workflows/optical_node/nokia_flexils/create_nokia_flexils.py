@@ -111,7 +111,7 @@ def create_optical_node_nokia_flexils_form_pages(product_name: str) -> FormGener
     This is the shipped create form as a page sequence: it yields the shared
     location page and management page, then the FlexILS vendor page, and
     returns the collected user input as a flat dict of the ``optical_*`` state
-    keys plus ``location_id``, consumed by the shipped construct step
+    keys plus ``location_instance_id``, consumed by the shipped construct step
     (:func:`construct_optical_node_nokia_flexils_subscription`). Consumers
     yield from it in one line inside their own create form generator,
     optionally interleaving their own pages. The customer of the subscription
@@ -147,7 +147,7 @@ def create_optical_node_nokia_flexils_form_generator(product_name: str) -> FormG
 
     summary_fields = [
         "customer_id",
-        "location_id",
+        "location_instance_id",
         "optical_module_node_fqdn",
         "optical_flexils_target_id",
         "optical_module_node_dcn_loopback_ip",
@@ -162,7 +162,7 @@ def create_optical_node_nokia_flexils_form_generator(product_name: str) -> FormG
 def populate_optical_node_nokia_flexils_block(
     optical_module_block: NokiaFlexIlsBlockInactive,
     *,
-    location_id: UUIDstr,
+    location_instance_id: UUIDstr,
     optical_module_node_fqdn: Fqdn,
     optical_flexils_gmpls_id: IPAddress,
     optical_flexils_target_id: FlexIlsTargetId,
@@ -183,7 +183,7 @@ def populate_optical_node_nokia_flexils_block(
 
     Args:
         optical_module_block: The Nokia FlexILS node block to populate (any lifecycle variant).
-        location_id: Subscription id of the Optical Location hosting the node.
+        location_instance_id: Subscription instance id of the Optical Location block hosting the node.
         optical_module_node_fqdn: Fully qualified domain name of the node.
         optical_flexils_gmpls_id: GMPLS ID of the node.
         optical_flexils_target_id: Target Identifier (TID) of the node.
@@ -208,7 +208,7 @@ def populate_optical_node_nokia_flexils_block(
     )
     populate_abstract_optical_node_fields(
         optical_module_block=optical_module_block,
-        location_id=location_id,
+        location_instance_id=location_instance_id,
         optical_module_node_fqdn=optical_module_node_fqdn,
         optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
         optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
@@ -223,7 +223,7 @@ def populate_optical_node_nokia_flexils_block(
 def construct_optical_node_nokia_flexils_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
-    location_id: UUIDstr,
+    location_instance_id: UUIDstr,
     optical_module_node_fqdn: Fqdn,
     optical_flexils_gmpls_id: IPAddress,
     optical_flexils_target_id: FlexIlsTargetId,
@@ -258,7 +258,7 @@ def construct_optical_node_nokia_flexils_subscription(
     )
     populate_optical_node_nokia_flexils_block(
         optical_module_block=subscription.optical_node,
-        location_id=location_id,
+        location_instance_id=location_instance_id,
         optical_module_node_fqdn=optical_module_node_fqdn,
         optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
         optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,

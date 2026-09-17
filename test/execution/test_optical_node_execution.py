@@ -45,13 +45,13 @@ def _subscription_table(subscription_id: str) -> SubscriptionTable:
 
 
 def _flexils_create_user_inputs(
-    product_id: str, location_id: str, fqdn: str, interface_ip: str, loopback_ip: str
+    product_id: str, location_instance_id: str, fqdn: str, interface_ip: str, loopback_ip: str
 ) -> list[dict[str, Any]]:
     """Return the create form inputs of a Nokia FlexILS node (product, customer, location, management, vendor, summary)."""  # noqa: E501
     return [
         {"product": product_id},
         {"customer_id": CUSTOMER_ID},
-        {"location_id": location_id},
+        {"location_instance_id": location_instance_id},
         {
             "optical_module_node_fqdn": fqdn,
             "optical_module_node_dcn_interface_ip": interface_ip,
@@ -66,13 +66,13 @@ def _flexils_create_user_inputs(
 
 
 def _transponder_create_user_inputs(
-    product_id: str, location_id: str, fqdn: str, interface_ip: str, loopback_ip: str
+    product_id: str, location_instance_id: str, fqdn: str, interface_ip: str, loopback_ip: str
 ) -> list[dict[str, Any]]:
     """Return the create form inputs of a G30 / G42 transponder node (product, customer, location, management, summary)."""  # noqa: E501
     return [
         {"product": product_id},
         {"customer_id": CUSTOMER_ID},
-        {"location_id": location_id},
+        {"location_instance_id": location_instance_id},
         {
             "optical_module_node_fqdn": fqdn,
             "optical_module_node_dcn_interface_ip": interface_ip,
