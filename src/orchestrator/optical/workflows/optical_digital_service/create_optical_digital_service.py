@@ -42,7 +42,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.db import node_block_from_subscription
+from orchestrator.optical.db import node_block_from_instance
 from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlockInactive,
@@ -163,9 +163,9 @@ SUMMARY_FIELDS_NEW = [
     "optical_transport_mode",
     "frequency_1",
     "bandwidth_1",
-    "intermediate_node_ids",
-    "exclude_devices_list",
-    "exclude_fibers_list",
+    "intermediate_node_instance_ids",
+    "exclude_node_instance_ids",
+    "exclude_pipe_instance_ids",
     "optical_path",
 ]
 
@@ -264,8 +264,8 @@ def create_optical_digital_service_client_ports_form(
 
     Args:
         product_name: Name of the product being created, used as the page title.
-        src_host_id: Subscription id of the source endpoint host.
-        dst_host_id: Subscription id of the destination endpoint host.
+        src_host_id: Subscription instance id of the source endpoint host block.
+        dst_host_id: Subscription instance id of the destination endpoint host block.
 
     Returns:
         The client ports FormPage of the shipped create form.
@@ -275,7 +275,7 @@ def create_optical_digital_service_client_ports_form(
         if is_packet_node_host(host_id):
             return unused_coherent_pluggable_selector(host_id, prompt)
         return optical_port_selector(
-            node_block_from_subscription(host_id),
+            node_block_from_instance(host_id),
             roles=[OpticalPortRole.TRANSPONDER_CLIENT],
             prompt=prompt,
         )
@@ -300,9 +300,7 @@ def create_optical_digital_service_client_ports_form(
                         msg = "This coherent pluggable is already in use by another digital service"
                         raise ValueError(msg)
                 else:
-                    check_optical_spectrum_add_drop_port_availability(
-                        node_block_from_subscription(host_id), str(port_ref)
-                    )
+                    check_optical_spectrum_add_drop_port_availability(node_block_from_instance(host_id), str(port_ref))
             return self
 
     return CreateOpticalDigitalServiceClientPortsForm
@@ -459,10 +457,10 @@ def create_optical_digital_service_path_form(path_choice: type[Choice]) -> type[
 def optical_digital_service_path_choice(
     line_a_1: UUIDstr,
     line_b_1: UUIDstr,
-    waypoint_node_ids: list[UUIDstr] | None,
+    waypoint_node_instance_ids: list[UUIDstr] | None,
     passband: tuple[int, int],
-    exclude_node_ids: list[UUIDstr] | None,
-    exclude_span_ids: list[UUIDstr] | None,
+    exclude_node_instance_ids: list[UUIDstr] | None,
+    exclude_pipe_instance_ids: list[UUIDstr] | None,
 ) -> type[Choice]:
     """Create the optical-path selector between two transponder line ports.
 
@@ -471,16 +469,17 @@ def optical_digital_service_path_choice(
     (or to themselves when directly connected), the waypoint engine computes
     the OLS interior, and each path is wrapped with the add/drop ends — the
     exact shape the trx engine produces, so :func:`build_optical_digital_service_block`
-    consumes it unchanged.
+    consumes it unchanged. Every node reference is a block subscription instance id;
+    subscription ids are never accepted here.
 
     Args:
         line_a_1: Subscription instance id of the first source line port block.
         line_b_1: Subscription instance id of the first destination line port block.
-        waypoint_node_ids: Ordered subscription instance ids of the intermediate
-            nodes the path must traverse.
+        waypoint_node_instance_ids: Ordered subscription instance ids of the intermediate
+            Optical Node blocks the path must traverse.
         passband: The passband configuration for the optical path.
-        exclude_node_ids: Subscription instance ids of nodes to exclude.
-        exclude_span_ids: Subscription instance ids of spans to exclude.
+        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
+        exclude_pipe_instance_ids: Subscription instance ids of pipe blocks to exclude.
 
     Returns:
         A ``Choice`` class whose values are ``";"``-joined port instance ids.
@@ -498,7 +497,7 @@ def optical_digital_service_path_choice(
         str(first_add_drop.subscription_instance_id) == line_b_1
         and str(last_add_drop.subscription_instance_id) == line_a_1
     ):
-        if waypoint_node_ids:
+        if waypoint_node_instance_ids:
             msg = "The endpoints are directly connected: clear the intermediate nodes to proceed"
             raise ValueError(msg)
         return human_readable_transport_channel_path_selector([[]], prompt)
@@ -515,7 +514,12 @@ def optical_digital_service_path_choice(
         passband=passband,
     )
     ols_paths = all_shortest_paths_through_waypoints(
-        src_ols_dev_id, dst_ols_dev_id, waypoint_node_ids, passband, exclude_node_ids, exclude_span_ids
+        src_ols_dev_id,
+        dst_ols_dev_id,
+        waypoint_node_instance_ids,
+        passband,
+        exclude_node_instance_ids,
+        exclude_pipe_instance_ids,
     )
     wrapped_paths = []
     for path in ols_paths:
@@ -611,8 +615,8 @@ def _yield_line_ports_pages(
     Args:
         product_name: Name of the product being created.
         num_channels: Number of new transport channels (1, or 2 for reverse multiplexing).
-        src_host_id: Subscription id of the source endpoint host.
-        dst_host_id: Subscription id of the destination endpoint host.
+        src_host_id: Subscription instance id of the source endpoint host block.
+        dst_host_id: Subscription instance id of the destination endpoint host block.
         src_client: The selected source client port (name or pluggable instance id).
         dst_client: The selected destination client port (name or pluggable instance id).
 
@@ -630,8 +634,8 @@ def _yield_line_ports_pages(
 def _yield_routing_constraint_pages(product_name: str) -> FormGenerator:
     """Yield the waypoints and constraints pages shared with the spectrum create form.
 
-    Returns the collected input (``intermediate_node_ids``,
-    ``exclude_devices_list``, ``exclude_fibers_list``); the caller merges it.
+    Returns the collected input (``intermediate_node_instance_ids``,
+    ``exclude_node_instance_ids``, ``exclude_pipe_instance_ids``); the caller merges it.
 
     Args:
         product_name: Name of the product being created.
@@ -694,10 +698,10 @@ def _yield_new_channel_spec_pages(
         path_choice = optical_digital_service_path_choice(
             src_line_ids[0],
             dst_line_ids[0],
-            collected["intermediate_node_ids"],
+            collected["intermediate_node_instance_ids"],
             passband,
-            collected["exclude_devices_list"],
-            collected["exclude_fibers_list"],
+            collected["exclude_node_instance_ids"],
+            collected["exclude_pipe_instance_ids"],
         )
     except (NoOpticalPathFoundError, ValueError):
         # No path (or an unresolvable fiber attachment, e.g. a coherent

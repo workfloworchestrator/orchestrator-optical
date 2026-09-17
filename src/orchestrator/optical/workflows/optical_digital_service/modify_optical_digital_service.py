@@ -234,8 +234,8 @@ def modify_optical_digital_service_form(
 def _yield_modify_routing_constraint_pages(product_name: str) -> FormGenerator:
     """Yield the waypoints and constraints pages of the Optical Digital Service modify form.
 
-    Returns the collected input (``intermediate_node_ids``,
-    ``exclude_devices_list``, ``exclude_fibers_list``); the caller merges it.
+    Returns the collected input (``intermediate_node_instance_ids``,
+    ``exclude_node_instance_ids``, ``exclude_pipe_instance_ids``); the caller merges it.
 
     Args:
         product_name: Name of the product being modified, used as the page title.
@@ -323,10 +323,10 @@ def modify_optical_digital_service_form_pages(
         path_choice = optical_digital_service_path_choice(
             str(line_ports[0].subscription_instance_id),
             str(line_ports[1].subscription_instance_id),
-            user_input_dict["intermediate_node_ids"],
+            user_input_dict["intermediate_node_instance_ids"],
             passband,
-            user_input_dict["exclude_devices_list"],
-            user_input_dict["exclude_fibers_list"],
+            user_input_dict["exclude_node_instance_ids"],
+            user_input_dict["exclude_pipe_instance_ids"],
         )
     except (NoOpticalPathFoundError, ValueError):
         # No path (or an unresolvable fiber attachment): the form offers the

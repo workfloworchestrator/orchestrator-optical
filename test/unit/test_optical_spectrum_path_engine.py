@@ -154,10 +154,12 @@ def test_build_graph_from_pipes_applies_exclusions() -> None:
     graph = build_graph_from_pipes(pipes, PASSBAND)
     assert _neighbors(graph, n1) == {_nid(n2)}
 
-    excluded_by_span = build_graph_from_pipes(pipes, PASSBAND, exclude_span_sub_ids=[str(span.owner_subscription_id)])
+    excluded_by_span = build_graph_from_pipes(
+        pipes, PASSBAND, exclude_span_instance_ids=[str(span.subscription_instance_id)]
+    )
     assert _nid(n1) not in excluded_by_span
 
-    excluded_by_node = build_graph_from_pipes(pipes, PASSBAND, exclude_node_sub_ids=[str(n2.owner_subscription_id)])
+    excluded_by_node = build_graph_from_pipes(pipes, PASSBAND, exclude_node_instance_ids=[_nid(n2)])
     assert _nid(n1) not in excluded_by_node
     assert _nid(n2) not in excluded_by_node
 

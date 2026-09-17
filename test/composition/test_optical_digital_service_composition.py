@@ -156,14 +156,14 @@ def test_modify_form_pages_yield_routing_pages_for_owned_sections(monkeypatch: p
         page_2(optical_transport_mode="opt-a", frequency_1=FREQUENCY_1, bandwidth_1=BANDWIDTH_1),
     )
     page_names.append(page_3.__name__)
-    assert set(page_3.model_fields) == {"intermediate_node_ids"}
+    assert set(page_3.model_fields) == {"intermediate_node_instance_ids"}
 
-    page_4 = generator.send(page_3(intermediate_node_ids=["opt-a"]))
+    page_4 = generator.send(page_3(intermediate_node_instance_ids=["opt-a"]))
     page_names.append(page_4.__name__)
-    assert set(page_4.model_fields) == {"exclude_devices_list", "divider1", "exclude_fibers_list"}
+    assert set(page_4.model_fields) == {"exclude_node_instance_ids", "divider1", "exclude_pipe_instance_ids"}
 
     page_5 = generator.send(
-        page_4(exclude_devices_list=["opt-a"], exclude_fibers_list=["opt-b"], divider1=None),
+        page_4(exclude_node_instance_ids=["opt-a"], exclude_pipe_instance_ids=["opt-b"], divider1=None),
     )
     page_names.append(page_5.__name__)
     assert set(page_5.model_fields) == {"optical_path"}

@@ -140,7 +140,7 @@ def modify_optical_spectrum_waypoints_form(
     class ModifyOpticalSpectrumWaypointsForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        intermediate_node_ids: waypoints_choice
+        intermediate_node_instance_ids: waypoints_choice
 
     return ModifyOpticalSpectrumWaypointsForm
 
@@ -167,9 +167,9 @@ def modify_optical_spectrum_constraints_form(
     class ModifyOpticalSpectrumConstraintsForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        exclude_devices_list: exclude_nodes_choice
+        exclude_node_instance_ids: exclude_nodes_choice
         divider1: Divider
-        exclude_fibers_list: exclude_spans_choice
+        exclude_pipe_instance_ids: exclude_spans_choice
 
     return ModifyOpticalSpectrumConstraintsForm
 
@@ -296,10 +296,10 @@ def modify_optical_spectrum_form_pages(
         path_choice = optical_spectrum_path_selector(
             str(src_node.subscription_instance_id),
             str(dst_node.subscription_instance_id),
-            user_input_dict["intermediate_node_ids"],
+            user_input_dict["intermediate_node_instance_ids"],
             passband,
-            user_input_dict["exclude_devices_list"],
-            user_input_dict["exclude_fibers_list"],
+            user_input_dict["exclude_node_instance_ids"],
+            user_input_dict["exclude_pipe_instance_ids"],
             prompt=(
                 "Select the optical path, if you don't see the desired path,"
                 " adjust constraints in previous step or validate fibers along the path."
@@ -308,11 +308,11 @@ def modify_optical_spectrum_form_pages(
     except NoOpticalPathFoundError:
         logger.exception(
             "No optical path found",
-            src_optical_device_id=str(src_node.subscription_instance_id),
-            dst_optical_device_id=str(dst_node.subscription_instance_id),
+            src_optical_node_instance_id=str(src_node.subscription_instance_id),
+            dst_optical_node_instance_id=str(dst_node.subscription_instance_id),
             passband=passband,
-            exclude_devices_list=user_input_dict["exclude_devices_list"],
-            exclude_fibers_list=user_input_dict["exclude_fibers_list"],
+            exclude_node_instance_ids=user_input_dict["exclude_node_instance_ids"],
+            exclude_pipe_instance_ids=user_input_dict["exclude_pipe_instance_ids"],
         )
         path_choice = cast(
             type[Choice],

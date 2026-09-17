@@ -29,12 +29,14 @@ adding their own pages::
 """
 
 from typing import Annotated, Any, cast
+from uuid import UUID
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
 from structlog import get_logger
 
+from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import Divider
 from orchestrator.core.types import SubscriptionLifecycle
@@ -50,7 +52,6 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
 from orchestrator.optical.products.product_blocks.optical_spectrum import OpticalSpectrumServiceBlockInactive
-from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNodeSubscription
 from orchestrator.optical.products.product_types.optical_spectrum_service import (
     OpticalSpectrumServiceSubscriptionInactive,
     OpticalSpectrumServiceSubscriptionProvisioning,
@@ -131,13 +132,14 @@ def create_optical_spectrum_nodes_form(
 ) -> type[FormPage]:
     """Return the two-nodes FormPage of the Optical Spectrum create form.
 
-    This is the second page of the shipped create form: the two Optical Nodes the
-    service connects. The page validates that the two nodes are different.
+    This is the second page of the shipped create form: the two Optical Node blocks the
+    service connects. Values are node block subscription instance ids. The page validates
+    that the two nodes are different.
 
     Args:
         product_name: Name of the product being created, used as the page title.
-        src_choice: The ``Choice`` selector of the source Optical Node subscriptions.
-        dst_choice: The ``Choice`` selector of the destination Optical Node subscriptions.
+        src_choice: The ``Choice`` selector of the source Optical Node blocks.
+        dst_choice: The ``Choice`` selector of the destination Optical Node blocks.
 
     Returns:
         The two-nodes FormPage of the shipped create form.
@@ -146,12 +148,12 @@ def create_optical_spectrum_nodes_form(
     class CreateOpticalSpectrumNodesForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        src_optical_device_id: src_choice
-        dst_optical_device_id: dst_choice
+        src_optical_node_instance_id: src_choice
+        dst_optical_node_instance_id: dst_choice
 
         @model_validator(mode="after")
         def validate_separate_nodes(self) -> "CreateOpticalSpectrumNodesForm":
-            if self.dst_optical_device_id == self.src_optical_device_id:
+            if self.dst_optical_node_instance_id == self.src_optical_node_instance_id:
                 msg = "Destination Optical Node cannot be the same as Source Optical Node"
                 raise ValueError(msg)
             return self
@@ -208,7 +210,7 @@ def create_optical_spectrum_waypoints_form(
     class CreateOpticalSpectrumWaypointsForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        intermediate_node_ids: waypoints_choice
+        intermediate_node_instance_ids: waypoints_choice
 
     return CreateOpticalSpectrumWaypointsForm
 
@@ -235,9 +237,9 @@ def create_optical_spectrum_constraints_form(
     class CreateOpticalSpectrumConstraintsForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        exclude_devices_list: exclude_nodes_choice
+        exclude_node_instance_ids: exclude_nodes_choice
         divider1: Divider
-        exclude_fibers_list: exclude_spans_choice
+        exclude_pipe_instance_ids: exclude_spans_choice
 
     return CreateOpticalSpectrumConstraintsForm
 
@@ -343,8 +345,14 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
         (yield create_optical_spectrum_nodes_form(product_name, node_a_choice, node_b_choice)).model_dump()
     )
 
-    node_a = AbstractOpticalNodeSubscription.from_subscription(user_input_dict["src_optical_device_id"]).optical_node
-    node_b = AbstractOpticalNodeSubscription.from_subscription(user_input_dict["dst_optical_device_id"]).optical_node
+    node_a = cast(
+        AbstractOpticalNodeBlockInactive,
+        ProductBlockModel.from_db(UUID(str(user_input_dict["src_optical_node_instance_id"]))),
+    )
+    node_b = cast(
+        AbstractOpticalNodeBlockInactive,
+        ProductBlockModel.from_db(UUID(str(user_input_dict["dst_optical_node_instance_id"]))),
+    )
 
     src_port_choice = optical_port_selector(
         node_a,
@@ -391,10 +399,10 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
         path_choice = optical_spectrum_path_selector(
             str(node_a.subscription_instance_id),
             str(node_b.subscription_instance_id),
-            user_input_dict["intermediate_node_ids"],
+            user_input_dict["intermediate_node_instance_ids"],
             passband,
-            user_input_dict["exclude_devices_list"],
-            user_input_dict["exclude_fibers_list"],
+            user_input_dict["exclude_node_instance_ids"],
+            user_input_dict["exclude_pipe_instance_ids"],
             prompt=(
                 "Select the optical path, if you don't see the desired path,"
                 " adjust constraints in previous step or validate fibers along the path."
@@ -403,11 +411,11 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
     except NoOpticalPathFoundError:
         logger.exception(
             "No optical path found",
-            src_optical_device_id=user_input_dict["src_optical_device_id"],
-            dst_optical_device_id=user_input_dict["dst_optical_device_id"],
+            src_optical_node_instance_id=user_input_dict["src_optical_node_instance_id"],
+            dst_optical_node_instance_id=user_input_dict["dst_optical_node_instance_id"],
             passband=passband,
-            exclude_devices_list=user_input_dict["exclude_devices_list"],
-            exclude_fibers_list=user_input_dict["exclude_fibers_list"],
+            exclude_node_instance_ids=user_input_dict["exclude_node_instance_ids"],
+            exclude_pipe_instance_ids=user_input_dict["exclude_pipe_instance_ids"],
         )
         path_choice = cast(
             type[Choice],
@@ -443,11 +451,11 @@ def create_optical_spectrum_form_generator(product_name: str) -> FormGenerator:
         "optical_spectrum_name",
         "frequency_min",
         "frequency_max",
-        "src_optical_device_id",
-        "dst_optical_device_id",
+        "src_optical_node_instance_id",
+        "dst_optical_node_instance_id",
         "src_optical_port_name",
         "dst_optical_port_name",
-        "intermediate_node_ids",
+        "intermediate_node_instance_ids",
         "optical_path",
     ]
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
@@ -484,8 +492,8 @@ def construct_optical_spectrum_subscription(
     optical_spectrum_name: str,
     frequency_min: Frequency,
     frequency_max: Frequency,
-    src_optical_device_id: UUIDstr,
-    dst_optical_device_id: UUIDstr,
+    src_optical_node_instance_id: UUIDstr,
+    dst_optical_node_instance_id: UUIDstr,
     src_optical_port_name: str,
     dst_optical_port_name: str,
     optical_path: list[UUIDstr],
@@ -521,8 +529,14 @@ def construct_optical_spectrum_subscription(
         frequency_max,
     )
 
-    src_device = AbstractOpticalNodeSubscription.from_subscription(src_optical_device_id).optical_node
-    dst_device = AbstractOpticalNodeSubscription.from_subscription(dst_optical_device_id).optical_node
+    src_device = cast(
+        AbstractOpticalNodeBlockInactive,
+        ProductBlockModel.from_db(UUID(str(src_optical_node_instance_id))),
+    )
+    dst_device = cast(
+        AbstractOpticalNodeBlockInactive,
+        ProductBlockModel.from_db(UUID(str(dst_optical_node_instance_id))),
+    )
 
     check_optical_spectrum_add_drop_port_availability(
         src_device,

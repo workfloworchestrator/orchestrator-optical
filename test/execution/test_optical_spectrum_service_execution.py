@@ -26,6 +26,7 @@ from orchestrator.core.db import (
 )
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import ProcessStatus
+from orchestrator.optical.db import node_block_from_subscription
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalPortBlockInactive,
@@ -150,7 +151,12 @@ def _seed_topology(run_process, seed_optical_node) -> tuple[str, str, str]:
     return node_a_id, node_b_id, _subscription_id_of_process(process_id)
 
 
-def _optical_path_value(span_subscription_id: str, src_node_subscription_id: str) -> str:
+def _node_instance_id(node_subscription_id: str) -> str:
+    """Resolve a node subscription id to its block instance id (test helper only)."""
+    return str(node_block_from_subscription(node_subscription_id).subscription_instance_id)
+
+
+def _optical_path_value(span_subscription_id: str, src_node_instance_id: str) -> str:
     """Build the optical path form value: the span's line port instance ids, ordered from the source node.
 
     The path selector offers the ``";"``-joined subscription instance ids of the OLS line
@@ -159,7 +165,7 @@ def _optical_path_value(span_subscription_id: str, src_node_subscription_id: str
     pipe = OpticalFiberSpanSubscription.from_subscription(span_subscription_id).optical_pipe
     terminations = pipe.optical_pipe_terminations
     src_port = next(
-        t for t in terminations if str(t.optical_port_host_node.owner_subscription_id) == src_node_subscription_id
+        t for t in terminations if str(t.optical_port_host_node.subscription_instance_id) == src_node_instance_id
     )
     dst_port = next(
         t for t in terminations if str(t.subscription_instance_id) != str(src_port.subscription_instance_id)
@@ -187,10 +193,10 @@ def _create_user_inputs(
         {"product": _product_id(SPECTRUM_PRODUCT_NAME)},
         {"customer_id": CUSTOMER_ID},
         {"optical_spectrum_name": name, "frequency_min": passband[0], "frequency_max": passband[1]},
-        {"src_optical_device_id": node_a_id, "dst_optical_device_id": node_b_id},
+        {"src_optical_node_instance_id": node_a_id, "dst_optical_node_instance_id": node_b_id},
         {"src_optical_port_name": src_port, "dst_optical_port_name": dst_port},
-        {"intermediate_node_ids": []},
-        {"exclude_devices_list": [], "exclude_fibers_list": []},
+        {"intermediate_node_instance_ids": []},
+        {"exclude_node_instance_ids": [], "exclude_pipe_instance_ids": []},
         {"optical_path": optical_path},
         {},
     ]
@@ -228,7 +234,8 @@ def test_create_optical_spectrum_service_end_to_end(
     run_process, seed_optical_node, stub_pipe_device, stub_spectrum_device
 ) -> None:
     """The shipped create workflow executes end to end over a two-node fiber span topology."""
-    node_a_id, node_b_id, span_id = _seed_topology(run_process, seed_optical_node)
+    node_a_sub, node_b_sub, span_id = _seed_topology(run_process, seed_optical_node)
+    node_a_id, node_b_id = _node_instance_id(node_a_sub), _node_instance_id(node_b_sub)
     process_id, subscription_id = _run_create(
         run_process, node_a_id, node_b_id, _optical_path_value(span_id, node_a_id)
     )
@@ -251,8 +258,8 @@ def test_create_optical_spectrum_service_end_to_end(
     express_ports = section.optical_spectrum_section_express_ports
     assert [port.optical_port_name for port in add_drop_ports] == [CLIENT_PORT, CLIENT_PORT]
     assert [port.optical_port_name for port in express_ports] == [LINE_PORT, LINE_PORT]
-    assert str(add_drop_ports[0].optical_port_host_node.owner_subscription_id) == node_a_id
-    assert str(add_drop_ports[-1].optical_port_host_node.owner_subscription_id) == node_b_id
+    assert str(add_drop_ports[0].optical_port_host_node.subscription_instance_id) == node_a_id
+    assert str(add_drop_ports[-1].optical_port_host_node.subscription_instance_id) == node_b_id
     # The stubbed devices report no spectral occupations, so the refreshed passbands are empty.
     assert [port.optical_passbands for port in express_ports] == [[], []]
 
@@ -267,7 +274,8 @@ def test_create_persists_used_passbands_on_owning_pipe(
     passband step must persist them under the span subscription, otherwise the path
     engine keeps seeing stale occupations.
     """
-    node_a_id, node_b_id, span_id = _seed_topology(run_process, seed_optical_node)
+    node_a_sub, node_b_sub, span_id = _seed_topology(run_process, seed_optical_node)
+    node_a_id, node_b_id = _node_instance_id(node_a_sub), _node_instance_id(node_b_sub)
     occupied = [PASSBAND]
     monkeypatch.setattr(
         "orchestrator.optical.workflows.optical_spectrum_service.shared.retrieve_ports_spectral_occupations",
@@ -290,7 +298,8 @@ def test_construct_rejects_add_drop_port_already_in_use(
     The form selector already excludes the ports in use; this calls the construct step
     directly (bypassing the form) to exercise the execution-time guard.
     """
-    node_a_id, node_b_id, span_id = _seed_topology(run_process, seed_optical_node)
+    node_a_sub, node_b_sub, span_id = _seed_topology(run_process, seed_optical_node)
+    node_a_id, node_b_id = _node_instance_id(node_a_sub), _node_instance_id(node_b_sub)
     optical_path = _optical_path_value(span_id, node_a_id)
     _run_create(run_process, node_a_id, node_b_id, optical_path, name="spec-1")
 
@@ -302,8 +311,8 @@ def test_construct_rejects_add_drop_port_already_in_use(
             optical_spectrum_name="spec-2",
             frequency_min=PASSBAND[0],
             frequency_max=PASSBAND[1],
-            src_optical_device_id=node_a_id,
-            dst_optical_device_id=node_b_id,
+            src_optical_node_instance_id=node_a_id,
+            dst_optical_node_instance_id=node_b_id,
             src_optical_port_name=CLIENT_PORT,
             dst_optical_port_name=CLIENT_PORT,
             optical_path=[],
@@ -317,7 +326,8 @@ def test_full_lifecycle_create_modify_validate_terminate(
     stub_spectrum_device,
 ) -> None:
     """The full create -> modify -> validate -> terminate cycle of the shipped workflows."""
-    node_a_id, node_b_id, span_id = _seed_topology(run_process, seed_optical_node)
+    node_a_sub, node_b_sub, span_id = _seed_topology(run_process, seed_optical_node)
+    node_a_id, node_b_id = _node_instance_id(node_a_sub), _node_instance_id(node_b_sub)
     _, subscription_id = _run_create(run_process, node_a_id, node_b_id, _optical_path_value(span_id, node_a_id))
 
     optical_path = _optical_path_value(span_id, node_a_id)
@@ -331,8 +341,8 @@ def test_full_lifecycle_create_modify_validate_terminate(
                 "frequency_min": MODIFIED_PASSBAND[0],
                 "frequency_max": MODIFIED_PASSBAND[1],
             },
-            {"intermediate_node_ids": []},
-            {"exclude_devices_list": [], "exclude_fibers_list": []},
+            {"intermediate_node_instance_ids": []},
+            {"exclude_node_instance_ids": [], "exclude_pipe_instance_ids": []},
             {"optical_path": optical_path},
             {},
         ],
@@ -364,14 +374,14 @@ def test_full_lifecycle_create_modify_validate_terminate(
 
 
 def _leased_spectrum_termination_on(
-    pipe_subscription_id: str, node_subscription_id: str
+    pipe_subscription_id: str, node_instance_id: str
 ) -> AbstractOpticalPortBlockInactive:
-    """Return the leased-spectrum termination hosted on the given node."""
+    """Return the leased-spectrum termination hosted on the given node block."""
     pipe = OpticalLeasedSpectrumSubscription.from_subscription(pipe_subscription_id).optical_pipe
     return next(
         termination
         for termination in pipe.optical_pipe_terminations
-        if str(termination.optical_port_host_node.owner_subscription_id) == node_subscription_id
+        if str(termination.optical_port_host_node.subscription_instance_id) == node_instance_id
     )
 
 
@@ -411,17 +421,23 @@ def test_create_optical_spectrum_multi_vendor_sections(run_process, seed_optical
         client_ports=MULTI_VENDOR_CLIENT_PORTS,
         line_ports=MULTI_VENDOR_LINE_PORTS,
     )
-    node_a = seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, "mv-a.test.local", "10.9.2.11")
-    node_m = seed_optical_node(G30_NODE_PRODUCT_NAME, "mv-m.test.local", "10.9.2.12")
-    node_z = seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, "mv-z.test.local", "10.9.2.13")
+    node_a_sub = seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, "mv-a.test.local", "10.9.2.11")
+    node_m_sub = seed_optical_node(G30_NODE_PRODUCT_NAME, "mv-m.test.local", "10.9.2.12")
+    node_z_sub = seed_optical_node(FLEXILS_NODE_PRODUCT_NAME, "mv-z.test.local", "10.9.2.13")
+    node_a, node_m, node_z = (
+        _node_instance_id(node_a_sub),
+        _node_instance_id(node_m_sub),
+        _node_instance_id(node_z_sub),
+    )
 
     # The "used ports" bookkeeping is per node: A and Z each use their first add/drop
     # port for the cross-vendor leased spectrum, M uses its first and second ones.
+    # Leased-spectrum creation still takes node subscription ids (pipe workflows, out of scope).
     pipe_am = _seed_leased_spectrum(
-        run_process, node_a, node_m, MULTI_VENDOR_CLIENT_PORTS[0], MULTI_VENDOR_CLIENT_PORTS[0], "mv-a-m"
+        run_process, node_a_sub, node_m_sub, MULTI_VENDOR_CLIENT_PORTS[0], MULTI_VENDOR_CLIENT_PORTS[0], "mv-a-m"
     )
     pipe_mz = _seed_leased_spectrum(
-        run_process, node_m, node_z, MULTI_VENDOR_CLIENT_PORTS[1], MULTI_VENDOR_CLIENT_PORTS[0], "mv-m-z"
+        run_process, node_m_sub, node_z_sub, MULTI_VENDOR_CLIENT_PORTS[1], MULTI_VENDOR_CLIENT_PORTS[0], "mv-m-z"
     )
 
     # The spectrum endpoint add/drop ports must not collide with the leased-spectrum ones.

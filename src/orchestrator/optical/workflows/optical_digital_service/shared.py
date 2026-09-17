@@ -41,10 +41,9 @@ from orchestrator.core.domain.base import ProductBlockModel, ProductModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.optical.db import (
-    node_block_from_subscription,
+    node_block_from_instance,
     subscription_instance_values_by_block_type_depending_on_instance_id,
     subscription_instances_by_block_type,
-    subscriptions_by_product_type,
 )
 from orchestrator.optical.hal._common import UnsupportedPlatformError
 from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
@@ -76,7 +75,6 @@ from orchestrator.optical.hal.transport_channel import (
     validate_trx_crossconnect,
     validate_trx_line,
 )
-from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import OpticalCoherentPluggableBlock
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlock,
@@ -116,10 +114,11 @@ from orchestrator.optical.utils.custom_types.frequencies import (
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
+    _node_choice_label,
     check_optical_spectrum_add_drop_port_availability,
     delete_optical_spectrum_sections,
     find_add_drop_ports,
-    get_optical_node_subscriptions_by_roles,
+    get_optical_node_blocks_by_roles,
     load_spectrum_section,
     refresh_sections_used_passbands,
     save_foreign_passband_ports,
@@ -374,40 +373,40 @@ def set_optical_digital_service_subscription_description(
     return {"subscription": subscription, "subscription_description": subscription.description}
 
 
-def is_packet_node_host(host_subscription_id: UUIDstr) -> bool:
-    """Return whether the given endpoint host subscription is a packet node.
+def is_packet_node_host(host_instance_id: UUIDstr) -> bool:
+    """Return whether the given endpoint host block is a packet node.
+
+    Block-based check: the host is loaded by block instance id, without subscriptions.
 
     Args:
-        host_subscription_id: Subscription id of the endpoint host.
+        host_instance_id: Subscription instance id of the endpoint host block.
 
     Returns:
         True when the host is an Optical Module Packet Node (``IPODWDM`` role),
         whose ports are coherent pluggables managed by their own subscriptions.
     """
-    return isinstance(node_block_from_subscription(host_subscription_id), OpticalModulePacketNodeBlock)
+    return isinstance(
+        ProductBlockModel.from_db(UUID(str(host_instance_id))),
+        OpticalModulePacketNodeBlock,
+    )
 
 
 def optical_digital_endpoint_selector(prompt: str | None = None) -> type[Choice]:
     """Create a ``Choice`` selector for the endpoint hosts of a digital service.
 
-    The endpoints are the transponder nodes (Groove G30 / GX G42) and the
-    packet nodes hosting coherent pluggables. The option values are the host
-    subscription ids.
+    Block-based selector: the endpoints are the transponder node blocks (Groove G30 /
+    GX G42) and the packet node blocks hosting coherent pluggables. Option values are
+    the host block subscription instance ids; labels are derived from the blocks. No
+    subscription is queried.
 
     Args:
         prompt: Prompt of the selector. When omitted, a default prompt is generated.
 
     Returns:
-        A ``Choice`` class whose values are host subscription ids.
+        A ``Choice`` class whose values are host block subscription instance ids.
     """
-    subscriptions = list(get_optical_node_subscriptions_by_roles(DIGITAL_ENDPOINT_ROLES))
-    subscriptions.extend(
-        subscriptions_by_product_type(ProductType.OPTICAL_MODULE_PACKET_NODE.value, [SubscriptionLifecycle.ACTIVE])
-    )
-    products = {
-        str(subscription.subscription_id): subscription.description
-        for subscription in sorted(subscriptions, key=lambda x: x.description)
-    }
+    blocks = get_optical_node_blocks_by_roles(DIGITAL_ENDPOINT_ROLES)
+    products = {str(block.subscription_instance_id): _node_choice_label(block) for block in blocks}
     if not prompt:
         prompt = "Select an endpoint host (transponder node or packet node)"
     return cast(type[Choice], Choice(prompt, zip(products.keys(), products.items(), strict=False)))
@@ -464,7 +463,7 @@ def has_flexils_sections(block: OpticalDigitalServiceBlockProvisioning) -> bool:
     )
 
 
-def line_port_selector(host_subscription_id: UUIDstr, client: str, prompt: str | None = None) -> type[Choice]:
+def line_port_selector(host_instance_id: UUIDstr, client: str, prompt: str | None = None) -> type[Choice]:
     """Create a ``Choice`` selector for the line ports of an endpoint host's card.
 
     On a packet node the selector holds a single option: the client pluggable
@@ -476,7 +475,7 @@ def line_port_selector(host_subscription_id: UUIDstr, client: str, prompt: str |
     termination of pluggables: the filter will apply here once, to both types.
 
     Args:
-        host_subscription_id: Subscription id of the endpoint host.
+        host_instance_id: Subscription instance id of the endpoint host block.
         client: The client port name (transponder host) or the client
             pluggable instance id (packet node), as selected on the client page.
         prompt: Prompt of the selector. When omitted, a default prompt is generated.
@@ -484,7 +483,7 @@ def line_port_selector(host_subscription_id: UUIDstr, client: str, prompt: str |
     Returns:
         A ``Choice`` class whose values are port block subscription instance ids.
     """
-    host_block = node_block_from_subscription(host_subscription_id)
+    host_block = node_block_from_instance(host_instance_id)
     if isinstance(host_block, OpticalModulePacketNodeBlock):
         pluggable_id = str(client)
         label = pluggable_id
@@ -539,7 +538,7 @@ def line_port_selector(host_subscription_id: UUIDstr, client: str, prompt: str |
     )
 
 
-def unused_coherent_pluggable_selector(host_subscription_id: UUIDstr, prompt: str | None = None) -> type[Choice]:
+def unused_coherent_pluggable_selector(host_instance_id: UUIDstr, prompt: str | None = None) -> type[Choice]:
     """Create a ``Choice`` selector for the unused coherent pluggables of a packet node.
 
     Coherent pluggables are managed by their own dedicated subscriptions: the
@@ -548,14 +547,13 @@ def unused_coherent_pluggable_selector(host_subscription_id: UUIDstr, prompt: st
     option values are the pluggable block subscription instance ids.
 
     Args:
-        host_subscription_id: Subscription id of the packet node.
+        host_instance_id: Subscription instance id of the packet node block.
         prompt: Prompt of the selector. When omitted, a default prompt is generated.
 
     Returns:
         A ``Choice`` class whose values are pluggable block subscription instance ids.
     """
-    host_block = node_block_from_subscription(host_subscription_id)
-    host_instance_id = str(host_block.subscription_instance_id)
+    host_instance_id = str(node_block_from_instance(host_instance_id).subscription_instance_id)
     in_use = port_ids_used_by_digital_services()
     candidates: dict[str, str] = {}
     for instance_value in subscription_instance_values_by_block_type_depending_on_instance_id(
@@ -753,15 +751,16 @@ def get_transceiver_capacity_from_mode(host_node_blocks: list[Any], mode: str) -
 
 
 def _channel_line_port_hosts(channel: OpticalTransportChannelBlock) -> set[str]:
-    """Return the owner subscription ids of the endpoint hosts of a channel.
+    """Return the block instance ids of the endpoint hosts of a channel.
 
     Each line port resolves to its host through ``optical_port_host_node``; for
-    a coherent pluggable that is the packet node hosting the pluggable.
+    a coherent pluggable that is the packet node hosting the pluggable. Block
+    instance ids are used (never subscription ids) so composed consumers match.
     """
     hosts = set()
     for line_port in channel.optical_transport_line_ports:
         host = cast(Any, line_port).optical_port_host_node
-        hosts.add(str(host.owner_subscription_id))
+        hosts.add(str(host.subscription_instance_id))
     return hosts
 
 
@@ -769,72 +768,75 @@ def _distinct_using_service_speeds(channel: OpticalTransportChannelBlock) -> dic
     """Return the speeds of the non-terminated digital services using a channel.
 
     A reused channel may carry several digital services; the speeds are keyed
-    by subscription id so a service coupled over several channels of one group
-    is counted once per group (see :func:`reusable_channel_groups`).
+    by digital block instance id so a service coupled over several channels of one
+    group is counted once per group (see :func:`reusable_channel_groups`). Blocks
+    are loaded directly by instance id, without subscription models.
 
     Args:
         channel: The transport channel block to inspect (freshly loaded).
 
     Returns:
-        Mapping of user subscription id to service speed in Gbit/s.
+        Mapping of user digital block instance id to service speed in Gbit/s.
     """
     speeds: dict[str, int] = {}
     for instance in channel.in_use_by:
         subscription = instance.subscription
         if subscription.status == SubscriptionLifecycle.TERMINATED:
             continue
-        model = SubscriptionModel.from_subscription(subscription.subscription_id)
-        speed = getattr(model, "optical_digital_service_speed", None)
+        try:
+            digital = OpticalDigitalServiceBlock.from_db(subscription_instance_id=instance.subscription_instance_id)
+        except Exception:  # noqa: BLE001 - not a digital service user, skip best-effort
+            logger.debug("Skipping non-digital channel user", instance_id=str(instance.subscription_instance_id))
+            continue
+        speed = getattr(digital, "optical_digital_service_speed", None)
         if speed is not None:
-            speeds[str(subscription.subscription_id)] = int(speed)
+            speeds[str(digital.subscription_instance_id)] = int(speed)
     return speeds
 
 
-def _digital_service_name_of_subscription(subscription_id: UUIDstr) -> str | None:
-    """Return the digital service name of a subscription, tolerating consumer models.
+def _digital_service_name_of_block(instance_id: UUIDstr) -> str | None:
+    """Return the digital service name of a digital block instance.
 
-    The shipped subscription models hold the block under ``optical_digital_service``;
-    consumers composing the shipped block under their own attribute hold it elsewhere,
-    so every attribute holding an Optical Digital Service block is accepted.
+    Block-based lookup: the digital block is loaded directly by instance id, so
+    consumers composing the shipped block under their own attribute are covered
+    without subscription models.
 
     Args:
-        subscription_id: Subscription id of a digital service subscription.
+        instance_id: Subscription instance id of a digital service block.
 
     Returns:
-        The user-facing digital service name, or ``None`` when the subscription
+        The user-facing digital service name, or ``None`` when the instance
         has no Optical Digital Service block (not a digital service user).
     """
-    model = SubscriptionModel.from_subscription(subscription_id)
-    direct = getattr(model, "optical_digital_service", None)
-    name = getattr(direct, "optical_digital_service_name", None)
-    if name:
-        return str(name)
-    for value in vars(model).values():
-        name = getattr(value, "optical_digital_service_name", None)
-        channels = getattr(value, "optical_digital_service_transport_channels", None)
-        if name and channels is not None:
-            return str(name)
-    return None
+    try:
+        digital = OpticalDigitalServiceBlock.from_db(subscription_instance_id=UUID(str(instance_id)))
+    except Exception:  # noqa: BLE001 - not a digital block, skip best-effort
+        logger.debug("Not a digital service block", instance_id=str(instance_id))
+        return None
+    name = getattr(digital, "optical_digital_service_name", None)
+    return str(name) if name else None
 
 
 def digital_service_names_for_channel(
     channel: OpticalTransportChannelBlockProvisioning | OpticalTransportChannelBlock,
     current_service_name: str | None = None,
-    exclude_subscription_id: str | None = None,
+    exclude_digital_instance_id: str | None = None,
 ) -> list[str]:
     """Return the sorted names of all non-terminated digital services using a channel.
 
     A normally muxed transport channel carries several digital services: the OLS
     optical circuit label must list all of them. Users are resolved from the
-    freshly loaded channel's ``in_use_by`` (terminated subscriptions skipped);
-    the in-flight service is unioned via ``current_service_name`` because it may
-    not appear in ``in_use_by`` yet during create, and the departing service is
-    removed via ``exclude_subscription_id`` during terminate.
+    freshly loaded channel's ``in_use_by`` (terminated subscriptions skipped) by
+    loading each user digital block directly; the in-flight service is unioned via
+    ``current_service_name`` because it may not appear in ``in_use_by`` yet during
+    create, and the departing service is removed via ``exclude_digital_instance_id``
+    during terminate.
 
     Args:
         channel: The transport channel block to inspect.
         current_service_name: User-facing name of the in-flight digital service to include.
-        exclude_subscription_id: Subscription id whose user entry is dropped (terminate prune).
+        exclude_digital_instance_id: Digital block instance id whose user entry is
+            dropped (terminate prune).
 
     Returns:
         The sorted, deduped digital service names.
@@ -845,12 +847,14 @@ def digital_service_names_for_channel(
         subscription = instance.subscription
         if subscription.status == SubscriptionLifecycle.TERMINATED:
             continue
-        if exclude_subscription_id is not None and str(subscription.subscription_id) == str(exclude_subscription_id):
+        if exclude_digital_instance_id is not None and str(instance.subscription_instance_id) == str(
+            exclude_digital_instance_id
+        ):
             continue
-        name = _digital_service_name_of_subscription(subscription.subscription_id)
+        name = _digital_service_name_of_block(instance.subscription_instance_id)
         if name:
             names.add(name.strip())
-    if current_service_name and exclude_subscription_id is None:
+    if current_service_name and exclude_digital_instance_id is None:
         # Union the in-flight service: during create it may not appear in
         # ``in_use_by`` yet. During terminate prune (exclude set) the departing
         # service must never be re-added.
@@ -861,7 +865,7 @@ def digital_service_names_for_channel(
 def expected_optical_circuit_label(
     channel: OpticalTransportChannelBlockProvisioning | OpticalTransportChannelBlock,
     block: OpticalDigitalServiceBlockProvisioning,
-    exclude_subscription_id: str | None = None,
+    exclude_digital_instance_id: str | None = None,
 ) -> str:
     """Return the composite OLS optical circuit label expected for a channel.
 
@@ -873,8 +877,8 @@ def expected_optical_circuit_label(
         channel: The transport channel whose circuit label is derived.
         block: The Optical Digital Service block in the state (provides the
             in-flight service name).
-        exclude_subscription_id: Subscription id dropped from the carried set
-            (terminate prune of the departing service).
+        exclude_digital_instance_id: Digital block instance id dropped from the carried
+            set (terminate prune of the departing service).
 
     Returns:
         The composite label, e.g. ``"ch-01: svcA+svcB"``.
@@ -882,7 +886,7 @@ def expected_optical_circuit_label(
     channel_name = str(channel.optical_transport_channel_name)
     service_name = str(block.optical_digital_service_name)
     names = digital_service_names_for_channel(
-        channel, current_service_name=service_name, exclude_subscription_id=exclude_subscription_id
+        channel, current_service_name=service_name, exclude_digital_instance_id=exclude_digital_instance_id
     )
     if not names:
         # The channel always carries at least the in-flight service except while
@@ -947,8 +951,8 @@ def resolve_channels_by_names(
         channel_names: User-facing names of the transport channels (one, or two
             for reverse multiplexing); blank entries are ignored.
         speed: Speed of the new digital service in Gbit/s.
-        src_host_id: Subscription id of the source endpoint host.
-        dst_host_id: Subscription id of the destination endpoint host.
+        src_host_id: Subscription instance id of the source endpoint host block.
+        dst_host_id: Subscription instance id of the destination endpoint host block.
 
     Returns:
         ``("new", None)``, or ``("reuse", group)`` with the owner group to link.
@@ -1060,8 +1064,8 @@ def reusable_channel_groups(
     composing their own forms.
 
     Args:
-        src_host_id: Subscription id of the source endpoint host.
-        dst_host_id: Subscription id of the destination endpoint host.
+        src_host_id: Subscription instance id of the source endpoint host block.
+        dst_host_id: Subscription instance id of the destination endpoint host block.
         speed: Speed of the new digital service in Gbit/s.
 
     Returns:
@@ -1504,8 +1508,8 @@ def build_optical_digital_service_block(
         optical_digital_service_name: User-facing name of the digital service.
         optical_digital_service_speed: Speed of the digital service in Gbit/s.
         optical_digital_service_type: Framing protocol type of the digital service.
-        src_host_id: Subscription id of the source endpoint host.
-        dst_host_id: Subscription id of the destination endpoint host.
+        src_host_id: Subscription instance id of the source endpoint host block.
+        dst_host_id: Subscription instance id of the destination endpoint host block.
         src_client_port: Name of the client port on a transponder source host,
             or subscription instance id of the existing coherent pluggable on a
             packet-node source host.
@@ -1541,8 +1545,8 @@ def build_optical_digital_service_block(
     ensure_circuit_label_token_valid(optical_digital_service_name, "digital service")
     for channel_name in channel_names:
         ensure_circuit_label_token_valid(channel_name, "transport channel")
-    src_host = node_block_from_subscription(src_host_id)
-    dst_host = node_block_from_subscription(dst_host_id)
+    src_host = node_block_from_instance(src_host_id)
+    dst_host = node_block_from_instance(dst_host_id)
     src_fqdn = _host_label(cast(AnyOpticalNodeBlockProvisioningUnion, src_host))
     dst_fqdn = _host_label(cast(AnyOpticalNodeBlockProvisioningUnion, dst_host))
 
@@ -2083,10 +2087,10 @@ def prune_departing_service_channel_labels(optical_module_block: OpticalDigitalS
     block = optical_digital_service_block_from_state(optical_module_block)
     if is_last_client_for_channels(list(block.optical_digital_service_transport_channels)):
         return {"configuration_results": {}}
-    departing_subscription_id = str(block.owner_subscription_id)
+    departing_instance_id = str(block.subscription_instance_id)
     results: dict[str, Any] = {}
     for channel in block.optical_digital_service_transport_channels:
-        remaining = digital_service_names_for_channel(channel, exclude_subscription_id=departing_subscription_id)
+        remaining = digital_service_names_for_channel(channel, exclude_digital_instance_id=departing_instance_id)
         if not remaining:
             continue
         spectrum = channel.optical_transport_spectrum
@@ -2322,12 +2326,12 @@ def update_optical_digital_sections_path(
             new_path = first_path
         else:
             line_ports = channel.optical_transport_line_ports
-            # Host roles are resolved from the database by subscription id: the
+            # Host roles are resolved from the database by block instance id: the
             # line ports arrive rehydrated from the workflow state, and only
             # their ids (not their runtime classes) are trustworthy here.
             if is_packet_node_host(
-                str(line_ports[0].optical_port_host_node.owner_subscription_id)
-            ) or is_packet_node_host(str(line_ports[1].optical_port_host_node.owner_subscription_id)):
+                str(line_ports[0].optical_port_host_node.subscription_instance_id)
+            ) or is_packet_node_host(str(line_ports[1].optical_port_host_node.subscription_instance_id)):
                 new_path = first_path
             else:
                 first_add_drop, last_add_drop = find_add_drop_ports(

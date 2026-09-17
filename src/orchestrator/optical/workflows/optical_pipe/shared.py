@@ -24,6 +24,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
 from orchestrator.optical.db import (
     node_block_from_subscription,
+    pipe_blocks_all,
     subscriptions_by_product_type,
 )
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
@@ -473,10 +474,26 @@ def retrieve_optical_pipe_used_passbands(
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
 
 
+def _pipe_choice_label(block: Any) -> str:
+    """Return the Choice label of an optical pipe block, tolerating unset values."""
+    name = block.optical_pipe_name or "<unknown>"
+    return str(name)
+
+
 def optical_pipe_selector(product_type: str, prompt: str | None = None) -> type[Choice]:
-    """Create a Choice selector for active optical pipe subscriptions of a given product type."""
-    subscriptions = subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE])
-    products = {str(sub.subscription_id): sub.description for sub in sorted(subscriptions, key=lambda x: x.description)}
+    """Create a Choice selector for active optical pipe blocks.
+
+    Block-based selector: option values are pipe block subscription instance ids and
+    labels are derived from the blocks. The ``product_type`` argument is kept for
+    backward compatibility and ignored: all active pipe blocks are offered so consumers
+    composing the shipped blocks under their own product types are covered.
+
+    Args:
+        product_type: Ignored (kept for compatibility).
+        prompt: Prompt of the selector.
+    """
+    blocks = sorted(pipe_blocks_all([SubscriptionLifecycle.ACTIVE]), key=_pipe_choice_label)
+    products = {str(block.subscription_instance_id): _pipe_choice_label(block) for block in blocks}
 
     if not prompt:
         prompt = f"Select an {product_type}"
@@ -500,36 +517,31 @@ def multiple_optical_pipe_selector(
 
 
 def multiple_optical_pipe_selector_of_types(
-    product_types: list[str],
+    product_types: list[str],  # noqa: ARG001 - kept for backward compatibility, ignored (all pipe blocks offered)
     prompt: str = "Select optical pipes",
     min_items: int = 0,
     max_items: int | None = None,
     *,
     unique_items: bool = True,
 ) -> type[list[Choice]]:
-    """Selector for multiple optical pipe subscriptions across several product types.
+    """Selector for multiple optical pipe blocks across several product types.
+
+    Block-based selector: option values are pipe block subscription instance ids.
+    The ``product_types`` argument is kept for backward compatibility and ignored:
+    all active pipe blocks are offered.
 
     Args:
-        product_types: The product type names of the pipes to offer (e.g. fiber
-            span, fiber patch and leased spectrum).
+        product_types: Ignored (kept for compatibility).
         prompt: Prompt of the selector.
         min_items: Minimum number of selections required.
         max_items: Maximum number of selections allowed.
         unique_items: Whether duplicate selections are allowed.
 
     Returns:
-        A ``Choice`` list type for selecting multiple pipes of any of the given
-        product types.
+        A ``Choice`` list type for selecting multiple pipes.
     """
-    subscriptions = [
-        subscription
-        for product_type in product_types
-        for subscription in subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE])
-    ]
-    products = {
-        str(subscription.subscription_id): subscription.description
-        for subscription in sorted(subscriptions, key=lambda x: x.description)
-    }
+    blocks = sorted(pipe_blocks_all([SubscriptionLifecycle.ACTIVE]), key=_pipe_choice_label)
+    products = {str(block.subscription_instance_id): _pipe_choice_label(block) for block in blocks}
     base_choice = cast(type[Choice], Choice(prompt, zip(products.keys(), products.items(), strict=False)))
     dynamic_class = choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items)
     return cast(type[list[Choice]], Annotated[dynamic_class, Field(title=prompt)])

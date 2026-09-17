@@ -94,12 +94,25 @@ EXPECTED_MODIFY_PAGE_NAMES = [
 ]
 
 
+FAKE_NODE_A = "11111111-1111-1111-1111-111111111111"
+FAKE_NODE_B = "22222222-2222-2222-2222-222222222222"
+
+
 def _fake_single_choice(*args: Any, **kwargs: Any) -> type[Choice]:
-    return cast(type[Choice], Choice("FakeChoice", {"opt-a": "opt-a", "opt-b": "opt-b"}))
+    return cast(
+        type[Choice],
+        Choice(
+            "FakeChoice",
+            {"opt-a": "opt-a", "opt-b": "opt-b", FAKE_NODE_A: FAKE_NODE_A, FAKE_NODE_B: FAKE_NODE_B},
+        ),
+    )
 
 
 def _fake_multiple_choice(*args: Any, **kwargs: Any) -> type[list[Choice]]:
-    base = Choice("FakeChoice", {"opt-a": "opt-a", "opt-b": "opt-b"})
+    base = Choice(
+        "FakeChoice",
+        {"opt-a": "opt-a", "opt-b": "opt-b", FAKE_NODE_A: FAKE_NODE_A, FAKE_NODE_B: FAKE_NODE_B},
+    )
     return cast(type[list[Choice]], choice_list(base))
 
 
@@ -115,12 +128,13 @@ class _FakeNode:
         self.management = SimpleNamespace(optical_module_node_fqdn=f"{subscription_instance_id}.example.com")
 
 
-class _FakeAbstractOpticalNode:
-    """Replaces ``AbstractOpticalNode.from_subscription`` in the create module namespace."""
+class _FakeProductBlockModel:
+    """Replaces ``ProductBlockModel.from_db`` node loads in the create module namespace."""
 
     @staticmethod
-    def from_subscription(subscription_id: str) -> SimpleNamespace:
-        return SimpleNamespace(optical_node=_FakeNode(subscription_id))
+    def from_db(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        instance_id = kwargs.get("subscription_instance_id", args[0] if args else "fake")
+        return _FakeNode(str(instance_id))  # type: ignore[return-value]
 
 
 def _make_spectrum_subscription(
@@ -159,7 +173,7 @@ def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(spectrum_create, "optical_port_selector", _fake_single_choice)
     monkeypatch.setattr(spectrum_create, "optical_spectrum_path_selector", _fake_path_choice)
     monkeypatch.setattr(spectrum_create, "validate_optical_spectrum_path", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(spectrum_create, "AbstractOpticalNode", _FakeAbstractOpticalNode)
+    monkeypatch.setattr(spectrum_create, "ProductBlockModel", _FakeProductBlockModel)
 
 
 def _monkeypatch_modify_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -281,21 +295,23 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch: pytest.
         )
     )
     page_names.append(page_2.__name__)
-    assert set(page_2.model_fields) == {"src_optical_device_id", "dst_optical_device_id"}
+    assert set(page_2.model_fields) == {"src_optical_node_instance_id", "dst_optical_node_instance_id"}
 
-    page_3 = generator.send(page_2(src_optical_device_id="opt-a", dst_optical_device_id="opt-b"))
+    page_3 = generator.send(page_2(src_optical_node_instance_id=FAKE_NODE_A, dst_optical_node_instance_id=FAKE_NODE_B))
     page_names.append(page_3.__name__)
     assert set(page_3.model_fields) == {"src_optical_port_name", "dst_optical_port_name"}
 
     page_4 = generator.send(page_3(src_optical_port_name="opt-a", dst_optical_port_name="opt-b"))
     page_names.append(page_4.__name__)
-    assert set(page_4.model_fields) == {"intermediate_node_ids"}
+    assert set(page_4.model_fields) == {"intermediate_node_instance_ids"}
 
-    page_5 = generator.send(page_4(intermediate_node_ids=["opt-a"]))
+    page_5 = generator.send(page_4(intermediate_node_instance_ids=[FAKE_NODE_A]))
     page_names.append(page_5.__name__)
-    assert set(page_5.model_fields) == {"exclude_devices_list", "divider1", "exclude_fibers_list"}
+    assert set(page_5.model_fields) == {"exclude_node_instance_ids", "divider1", "exclude_pipe_instance_ids"}
 
-    page_6 = generator.send(page_5(exclude_devices_list=["opt-a"], exclude_fibers_list=["opt-b"], divider1=None))
+    page_6 = generator.send(
+        page_5(exclude_node_instance_ids=[FAKE_NODE_A], exclude_pipe_instance_ids=["opt-b"], divider1=None)
+    )
     page_names.append(page_6.__name__)
     assert set(page_6.model_fields) == {"optical_path"}
 
@@ -307,14 +323,14 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch: pytest.
         "optical_spectrum_name",
         "frequency_min",
         "frequency_max",
-        "src_optical_device_id",
-        "dst_optical_device_id",
+        "src_optical_node_instance_id",
+        "dst_optical_node_instance_id",
         "src_optical_port_name",
         "dst_optical_port_name",
-        "intermediate_node_ids",
-        "exclude_devices_list",
+        "intermediate_node_instance_ids",
+        "exclude_node_instance_ids",
         "divider1",
-        "exclude_fibers_list",
+        "exclude_pipe_instance_ids",
         "optical_path",
     }
     assert user_input["optical_path"] == ["p1", "p2"]
@@ -342,13 +358,15 @@ def test_modify_form_pages_yield_the_prefilled_pages_in_order(monkeypatch: pytes
         )
     )
     page_names.append(page_2.__name__)
-    assert set(page_2.model_fields) == {"intermediate_node_ids"}
+    assert set(page_2.model_fields) == {"intermediate_node_instance_ids"}
 
-    page_3 = generator.send(page_2(intermediate_node_ids=["opt-a"]))
+    page_3 = generator.send(page_2(intermediate_node_instance_ids=[FAKE_NODE_A]))
     page_names.append(page_3.__name__)
-    assert set(page_3.model_fields) == {"exclude_devices_list", "divider1", "exclude_fibers_list"}
+    assert set(page_3.model_fields) == {"exclude_node_instance_ids", "divider1", "exclude_pipe_instance_ids"}
 
-    page_4 = generator.send(page_3(exclude_devices_list=["opt-a"], exclude_fibers_list=["opt-b"], divider1=None))
+    page_4 = generator.send(
+        page_3(exclude_node_instance_ids=[FAKE_NODE_A], exclude_pipe_instance_ids=["opt-b"], divider1=None)
+    )
     page_names.append(page_4.__name__)
     assert set(page_4.model_fields) == {"optical_path"}
 
@@ -360,10 +378,10 @@ def test_modify_form_pages_yield_the_prefilled_pages_in_order(monkeypatch: pytes
         "optical_spectrum_name",
         "frequency_min",
         "frequency_max",
-        "intermediate_node_ids",
-        "exclude_devices_list",
+        "intermediate_node_instance_ids",
+        "exclude_node_instance_ids",
         "divider1",
-        "exclude_fibers_list",
+        "exclude_pipe_instance_ids",
         "optical_path",
     }
     assert user_input["optical_path"] == ["p1", "p2"]

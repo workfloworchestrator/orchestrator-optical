@@ -34,8 +34,13 @@ from orchestrator.optical.products.product_blocks.optical_node.unions import Any
 
 __all__ = [
     "location_block_from_subscription",
+    "node_block_from_instance",
     "node_block_from_subscription",
+    "node_blocks_by_roles",
+    "node_instances_by_block_names",
     "packet_node_block_from_subscription",
+    "pipe_blocks_all",
+    "pipe_instances_by_block_names",
     "subscription_instance_values_by_block_type_depending_on_instance_id",
     "subscription_instances_by_block_type",
     "subscription_instances_by_block_type_and_resource_value",
@@ -273,6 +278,159 @@ def _block_instance_of_subscription(
         msg = f"Subscription {subscription_id} has more than one {block_description}"
         raise ValueError(msg)
     return instances[0]
+
+
+def node_instances_by_block_names(
+    block_names: set[str],
+    states: list[SubscriptionLifecycle],
+) -> list[SubscriptionInstanceTable]:
+    """Return the subscription instances whose product block is one of the given names.
+
+    Block-based listing: no product type or subscription model is involved, so the
+    lookup also covers consumers composing the shipped blocks under their own product
+    types. Callers load the blocks via :func:`node_block_from_instance`.
+
+    Args:
+        block_names: The product block names to match (e.g. the ``__names__`` of an
+            abstract block).
+        states: Lifecycle states the owner subscription must be in.
+
+    Returns:
+        The matching subscription instances.
+    """
+    return (
+        SubscriptionInstanceTable.query.join(SubscriptionTable)
+        .join(ProductBlockTable)
+        .filter(SubscriptionTable.status.in_(states))
+        .filter(ProductBlockTable.name.in_(block_names))
+        .all()
+    )
+
+
+def pipe_instances_by_block_names(
+    block_names: set[str],
+    states: list[SubscriptionLifecycle],
+) -> list[SubscriptionInstanceTable]:
+    """Return the pipe subscription instances whose product block is one of the given names.
+
+    Block-based listing, mirroring :func:`node_instances_by_block_names` for the
+    optical pipe family (span, patch, leased spectrum).
+
+    Args:
+        block_names: The product block names to match.
+        states: Lifecycle states the owner subscription must be in.
+
+    Returns:
+        The matching subscription instances.
+    """
+    return (
+        SubscriptionInstanceTable.query.join(SubscriptionTable)
+        .join(ProductBlockTable)
+        .filter(SubscriptionTable.status.in_(states))
+        .filter(ProductBlockTable.name.in_(block_names))
+        .all()
+    )
+
+
+def node_block_from_instance(instance_id: UUIDstr) -> AnyOpticalNodeBlockUnion:
+    """Return the Optical Node product block of the given block instance id.
+
+    Block-based resolution: the instance is looked up by its
+    ``subscription_instance_id`` and loaded as the most-derived lifecycle class,
+    without touching subscription ids or the subscription model registry.
+
+    Args:
+        instance_id: Subscription instance id of an Optical Node block.
+
+    Returns:
+        The Optical Node product block.
+
+    Raises:
+        ValueError: If the instance does not exist or is not an Optical Node block.
+    """
+    instance = (
+        SubscriptionInstanceTable.query.join(ProductBlockTable)
+        .filter(SubscriptionInstanceTable.subscription_instance_id == instance_id)
+        .one_or_none()
+    )
+    if instance is None:
+        msg = f"Subscription instance {instance_id} does not exist"
+        raise ValueError(msg)
+    if instance.product_block.name not in AbstractOpticalNodeBlockInactive.__names__:
+        msg = f"Subscription instance {instance_id} is not an Optical Node block"
+        raise ValueError(msg)
+    block_class = ProductBlockModel.registry[instance.product_block.name]
+    active_class = cast(
+        type[AnyOpticalNodeBlockUnion],
+        lookup_specialized_type(block_class, SubscriptionLifecycle.ACTIVE),
+    )
+    return active_class.from_db(subscription_instance_id=instance.subscription_instance_id)
+
+
+def node_blocks_by_roles(
+    roles: list,
+    states: list[SubscriptionLifecycle] | None = None,
+) -> list[AnyOpticalNodeBlockUnion]:
+    """Return the Optical Node blocks whose role is one of the given roles.
+
+    Block-based listing: instances are enumerated by block name (never by product
+    type or subscription), loaded via :func:`node_block_from_instance` and filtered
+    on ``optical_node_role`` in Python, so consumers composing the shipped blocks
+    under their own product types are covered.
+
+    Args:
+        roles: The node roles to filter by.
+        states: Lifecycle states the owner subscription must be in (ACTIVE by default).
+
+    Returns:
+        The matching Optical Node blocks.
+    """
+    wanted = {role.value if hasattr(role, "value") else str(role) for role in roles}
+    instances = node_instances_by_block_names(
+        AbstractOpticalNodeBlockInactive.__names__,
+        states or [SubscriptionLifecycle.ACTIVE],
+    )
+    blocks: list[AnyOpticalNodeBlockUnion] = []
+    for instance in instances:
+        block = node_block_from_instance(str(instance.subscription_instance_id))
+        role = getattr(block, "optical_node_role", None)
+        if role is not None and (getattr(role, "value", str(role)) in wanted):
+            blocks.append(block)
+    return blocks
+
+
+def pipe_blocks_all(
+    states: list[SubscriptionLifecycle] | None = None,
+) -> list:
+    """Return the optical pipe blocks (span, patch, leased spectrum) in the given states.
+
+    Block-based listing: instances are enumerated by the abstract pipe block names
+    and loaded via the product block registry, without product types or subscription
+    models.
+
+    Args:
+        states: Lifecycle states the owner subscription must be in (ACTIVE by default).
+
+    Returns:
+        The matching optical pipe blocks.
+    """
+    from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (  # noqa: PLC0415
+        AbstractOpticalPipeBlockInactive,
+    )
+
+    instances = pipe_instances_by_block_names(
+        set(AbstractOpticalPipeBlockInactive.__names__),
+        states or [SubscriptionLifecycle.ACTIVE],
+    )
+    blocks = []
+    for instance in instances:
+        block_class = ProductBlockModel.registry[instance.product_block.name]
+        active_class = cast(
+            type[ProductBlockModel],
+            lookup_specialized_type(block_class, SubscriptionLifecycle.ACTIVE),
+        )
+        blocks.append(active_class.from_db(subscription_instance_id=instance.subscription_instance_id))
+    return blocks
 
 
 def location_block_from_subscription(location_id: UUIDstr) -> OpticalModuleLocationBlock:

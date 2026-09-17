@@ -31,15 +31,11 @@ from pydantic_forms.types import State, UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 from structlog import get_logger
 
-from orchestrator.core.db import SubscriptionTable
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
-from orchestrator.optical.db import (
-    subscriptions_by_product_type,
-    subscriptions_by_product_type_and_instance_value,
-)
+from orchestrator.optical.db import node_blocks_by_roles, pipe_blocks_all
 from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import retrieve_transceiver_modes
@@ -70,10 +66,6 @@ from orchestrator.optical.products.product_blocks.optical_spectrum_section impor
     OpticalSpectrumSectionBlockInactive,
     OpticalSpectrumSectionBlockProvisioning,
 )
-from orchestrator.optical.products.product_types.optical_node.abstracts import AbstractOpticalNodeSubscription
-from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
-from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
-from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
 from orchestrator.optical.utils.custom_types.frequencies import (
     Passband,
     disjoint_intervals_overlap_search,
@@ -549,19 +541,19 @@ def check_optical_spectrum_add_drop_port_availability(
 
 def build_constrained_graph_from_active_fibers(
     passband: Passband,
-    exclude_node_sub_ids: list[UUIDstr] | None = None,
-    exclude_span_sub_ids: list[UUIDstr] | None = None,
+    exclude_node_instance_ids: list[UUIDstr] | None = None,
+    exclude_span_instance_ids: list[UUIDstr] | None = None,
 ) -> Graph:
     """Build a constrained graph representation of the active fiber spans.
 
-    The graph is built from the active ``OpticalFiberSpan`` subscriptions: each
-    node in the graph is an Optical Node block and each edge is a fiber span
-    connecting two of its ``OlsLinePortBlock`` terminations.
+    The graph is built from the active fiber span blocks: each node in the graph
+    is an Optical Node block and each edge is a fiber span connecting two of its
+    ``OlsLinePortBlock`` terminations.
 
     Args:
         passband: The passband used to filter fibers based on overlapping intervals.
-        exclude_node_sub_ids: A list of subscription ids of nodes to exclude.
-        exclude_span_sub_ids: A list of subscription ids of spans to exclude.
+        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
+        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
 
     Returns:
         An adjacency list representation of the graph where keys are the
@@ -570,36 +562,33 @@ def build_constrained_graph_from_active_fibers(
         the fiber span, e.g. ``{node_A: [(node_B, (port_A2B, port_B2A)), ...]}``.
 
     Notes:
-        - Spans are excluded if their owner subscription id matches any in ``exclude_span_sub_ids``.
-        - Spans are excluded if any of their terminations belong to nodes with subscription ids in
-          ``exclude_node_sub_ids``.
+        - Spans are excluded if their block instance id matches any in ``exclude_span_instance_ids``.
+        - Spans are excluded if any of their terminations belong to nodes with instance ids in
+          ``exclude_node_instance_ids``.
         - Spans are excluded if their terminations overlap with the provided passband.
         - Spans connected to transponder cards (ports without a dot in their name on Groove G30
           nodes) are excluded, as well as spans terminated on GX G42 nodes.
     """
-    # retrieve all active fiber subscriptions
-    fiber_subscriptions = subscriptions_by_product_type(
-        ProductType.OPTICAL_FIBER_SPAN.value, [SubscriptionLifecycle.ACTIVE]
-    )
+    # retrieve all active fiber span blocks (block-based, no subscriptions)
     active_fibers = [
-        OpticalFiberSpanSubscription.from_subscription(sub.subscription_id).optical_pipe for sub in fiber_subscriptions
+        pipe for pipe in pipe_blocks_all([SubscriptionLifecycle.ACTIVE]) if pipe.optical_pipe_type == "Span"
     ]
 
     # filter out fibers that are excluded by the constraints
-    exclude_node_sub_id_set = set(exclude_node_sub_ids or [])
-    exclude_span_sub_id_set = set(exclude_span_sub_ids or [])
+    exclude_node_sub_id_set = set(exclude_node_instance_ids or [])
+    exclude_span_sub_id_set = set(exclude_span_instance_ids or [])
     logger.debug(
         "Exclusion sets for path computation",
-        exclude_node_sub_ids=exclude_node_sub_id_set,
-        exclude_span_sub_ids=exclude_span_sub_id_set,
+        exclude_node_instance_ids=exclude_node_sub_id_set,
+        exclude_span_instance_ids=exclude_span_sub_id_set,
     )
 
     def does_fiber_pass_exclusion(fiber):
-        if str(fiber.owner_subscription_id) in exclude_span_sub_id_set:
+        if str(fiber.subscription_instance_id) in exclude_span_sub_id_set:
             return False
         for port in fiber.optical_pipe_terminations:
             node = port.optical_port_host_node
-            if str(node.owner_subscription_id) in exclude_node_sub_id_set:
+            if str(node.subscription_instance_id) in exclude_node_sub_id_set:
                 return False
             if disjoint_intervals_overlap_search(port.optical_passbands, passband):
                 return False
@@ -642,8 +631,8 @@ def build_constrained_graph_from_active_fibers(
 def build_graph_from_pipes(
     pipes: Iterable[AbstractOpticalPipeBlockInactive],
     passband: Passband,
-    exclude_node_sub_ids: list[UUIDstr] | None = None,
-    exclude_span_sub_ids: list[UUIDstr] | None = None,
+    exclude_node_instance_ids: list[UUIDstr] | None = None,
+    exclude_span_instance_ids: list[UUIDstr] | None = None,
 ) -> Graph:
     """Build a constrained graph representation from the given optical pipes.
 
@@ -655,8 +644,8 @@ def build_graph_from_pipes(
     Args:
         pipes: The optical pipe blocks to build the graph from.
         passband: The passband used to filter pipes based on overlapping intervals.
-        exclude_node_sub_ids: A list of subscription ids of nodes to exclude.
-        exclude_span_sub_ids: A list of subscription ids of pipes to exclude.
+        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
+        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
 
     Returns:
         An adjacency list representation of the graph where keys are the
@@ -667,12 +656,12 @@ def build_graph_from_pipes(
     Raises:
         ValueError: If a pipe does not have exactly two terminations.
     """
-    exclude_node_sub_id_set = set(exclude_node_sub_ids or [])
-    exclude_span_sub_id_set = set(exclude_span_sub_ids or [])
+    exclude_node_sub_id_set = set(exclude_node_instance_ids or [])
+    exclude_span_sub_id_set = set(exclude_span_instance_ids or [])
     logger.debug(
         "Exclusion sets for path computation",
-        exclude_node_sub_ids=sorted(exclude_node_sub_id_set),
-        exclude_span_sub_ids=sorted(exclude_span_sub_id_set),
+        exclude_node_instance_ids=sorted(exclude_node_sub_id_set),
+        exclude_span_instance_ids=sorted(exclude_span_sub_id_set),
         passband=passband,
     )
 
@@ -680,9 +669,9 @@ def build_graph_from_pipes(
     sifted: list[str] = []
     for pipe in pipes:
         pipe_name = pipe.optical_pipe_name
-        pipe_owner = str(pipe.owner_subscription_id)
+        pipe_owner = str(pipe.subscription_instance_id)
         if pipe_owner in exclude_span_sub_id_set:
-            logger.debug("Skipping pipe: excluded subscription", pipe_name=pipe_name, pipe_owner=pipe_owner)
+            logger.debug("Skipping pipe: excluded instance", pipe_name=pipe_name, pipe_owner=pipe_owner)
             continue
         terminations = pipe.optical_pipe_terminations
         if terminations is None or len(terminations) != 2:  # noqa: PLR2004
@@ -699,7 +688,7 @@ def build_graph_from_pipes(
         port_a = cast(AbstractOpticalOlsPortBlockInactive, terminations[0])
         port_b = cast(AbstractOpticalOlsPortBlockInactive, terminations[1])
         if any(
-            str(port.optical_port_host_node.owner_subscription_id) in exclude_node_sub_id_set
+            str(port.optical_port_host_node.subscription_instance_id) in exclude_node_sub_id_set
             for port in (port_a, port_b)
         ):
             logger.debug("Skipping pipe: excluded node", pipe_name=pipe_name, pipe_owner=pipe_owner)
@@ -729,52 +718,46 @@ def build_graph_from_pipes(
 def _load_active_pipes() -> list[AbstractOpticalPipeBlockInactive]:
     """Load the optical pipe blocks of all active pipe subscriptions.
 
+    Block-based listing: pipe blocks are enumerated by block name and loaded via the
+    product block registry, without product types or subscription models.
+
     Returns:
         The active Fiber Span, Fiber Patch and Leased Spectrum pipe blocks.
     """
-    pipes: list[AbstractOpticalPipeBlockInactive] = []
-    counts: dict[str, int] = {}
-    for product_type, subscription_model in (
-        (ProductType.OPTICAL_FIBER_SPAN.value, OpticalFiberSpanSubscription),
-        (ProductType.OPTICAL_FIBER_PATCH.value, OpticalFiberPatchSubscription),
-        (ProductType.OPTICAL_LEASED_SPECTRUM.value, OpticalLeasedSpectrumSubscription),
-    ):
-        subscriptions = subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE])
-        counts[product_type] = len(subscriptions)
-        pipes.extend(subscription_model.from_subscription(sub.subscription_id).optical_pipe for sub in subscriptions)
-    logger.debug("Loaded active pipes for path computation", counts=counts, total=len(pipes))
+    pipes = pipe_blocks_all([SubscriptionLifecycle.ACTIVE])
+    logger.debug("Loaded active pipes for path computation", total=len(pipes))
     return pipes
 
 
 def build_constrained_graph(
     passband: Passband,
-    exclude_node_sub_ids: list[UUIDstr] | None = None,
-    exclude_span_sub_ids: list[UUIDstr] | None = None,
+    exclude_node_instance_ids: list[UUIDstr] | None = None,
+    exclude_span_instance_ids: list[UUIDstr] | None = None,
 ) -> Graph:
     """Build a constrained graph from all active optical pipes.
 
-    The active Fiber Span, Fiber Patch and Leased Spectrum subscriptions are loaded
+    The active Fiber Span, Fiber Patch and Leased Spectrum blocks are loaded
     from the database and delegated to :func:`build_graph_from_pipes`.
 
     Args:
         passband: The passband used to filter pipes based on overlapping intervals.
-        exclude_node_sub_ids: A list of subscription ids of nodes to exclude.
-        exclude_span_sub_ids: A list of subscription ids of pipes to exclude.
+        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
+        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
 
     Returns:
         An adjacency list representation of the constrained graph (see
         :func:`build_graph_from_pipes`).
     """
     pipes = _load_active_pipes()
-    return build_graph_from_pipes(pipes, passband, exclude_node_sub_ids, exclude_span_sub_ids)
+    return build_graph_from_pipes(pipes, passband, exclude_node_instance_ids, exclude_span_instance_ids)
 
 
 def all_valid_shortest_paths_between_oadms(
     src_optical_device_block_id: UUIDstr,
     dst_optical_device_block_id: UUIDstr,
     passband: Passband,
-    exclude_node_sub_ids: list[UUIDstr] | None = None,
-    exclude_span_sub_ids: list[UUIDstr] | None = None,
+    exclude_node_instance_ids: list[UUIDstr] | None = None,
+    exclude_span_instance_ids: list[UUIDstr] | None = None,
 ) -> list[Path]:
     """Find all shortest paths between two Optical Add-Drop Multiplexers.
 
@@ -782,13 +765,15 @@ def all_valid_shortest_paths_between_oadms(
         src_optical_device_block_id: Subscription instance id of the source Optical Node block.
         dst_optical_device_block_id: Subscription instance id of the destination Optical Node block.
         passband: The passband configuration for the optical path.
-        exclude_node_sub_ids: A list of node subscription ids to exclude from the path.
-        exclude_span_sub_ids: A list of span subscription ids to exclude from the path.
+        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
+        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
 
     Returns:
         A list of all shortest paths between the two nodes.
     """
-    fiber_graph = build_constrained_graph_from_active_fibers(passband, exclude_node_sub_ids, exclude_span_sub_ids)
+    fiber_graph = build_constrained_graph_from_active_fibers(
+        passband, exclude_node_instance_ids, exclude_span_instance_ids
+    )
     return compute_all_shortest_paths(fiber_graph, src_optical_device_block_id, dst_optical_device_block_id)
 
 
@@ -796,8 +781,8 @@ def all_valid_shortest_paths_between_trxs(
     src_trx_port_block_id: UUIDstr,
     dst_trx_port_block_id: UUIDstr,
     passband: Passband,
-    exclude_node_sub_ids: list[UUIDstr] | None = None,
-    exclude_span_sub_ids: list[UUIDstr] | None = None,
+    exclude_node_instance_ids: list[UUIDstr] | None = None,
+    exclude_span_instance_ids: list[UUIDstr] | None = None,
 ) -> list[Path]:
     """Find all shortest paths between two transponder ports, considering the specified passband and constraints."""
     src_add_drop_port, dst_add_drop_port = find_add_drop_ports(src_trx_port_block_id, dst_trx_port_block_id)
@@ -814,8 +799,8 @@ def all_valid_shortest_paths_between_trxs(
         src_ols_dev_id,
         dst_ols_dev_id,
         passband,
-        exclude_node_sub_ids,
-        exclude_span_sub_ids,
+        exclude_node_instance_ids,
+        exclude_span_instance_ids,
     )
 
     valid_paths = []
@@ -1081,27 +1066,28 @@ def compute_all_shortest_paths(graph: Graph, src: Node, dst: Node) -> list[Path]
 
 
 def all_shortest_paths_through_waypoints(
-    src_node_sub_id: UUIDstr,
-    dst_node_sub_id: UUIDstr,
-    waypoint_node_sub_ids: list[UUIDstr] | None,
+    src_node_instance_id: UUIDstr,
+    dst_node_instance_id: UUIDstr,
+    waypoint_node_instance_ids: list[UUIDstr] | None,
     passband: Passband,
-    exclude_node_sub_ids: list[UUIDstr] | None = None,
-    exclude_span_sub_ids: list[UUIDstr] | None = None,
+    exclude_node_instance_ids: list[UUIDstr] | None = None,
+    exclude_span_instance_ids: list[UUIDstr] | None = None,
 ) -> list[Path]:
     """Find all shortest paths from source to destination through the ordered waypoints.
 
     The graph is built once from the active optical pipes; the path is then computed
     segment by segment between consecutive stops (source, the ordered waypoints and
-    destination). Consecutive duplicate stops are collapsed.
+    destination). Consecutive duplicate stops are collapsed. Every node reference is a
+    block subscription instance id; subscription ids are never accepted here.
 
     Args:
-        src_node_sub_id: Subscription instance id of the source Optical Node block.
-        dst_node_sub_id: Subscription instance id of the destination Optical Node block.
-        waypoint_node_sub_ids: Ordered subscription instance ids of the intermediate
-            nodes the path must traverse.
+        src_node_instance_id: Subscription instance id of the source Optical Node block.
+        dst_node_instance_id: Subscription instance id of the destination Optical Node block.
+        waypoint_node_instance_ids: Ordered subscription instance ids of the intermediate
+            Optical Node blocks the path must traverse.
         passband: The passband configuration for the optical path.
-        exclude_node_sub_ids: A list of node subscription ids to exclude from the path.
-        exclude_span_sub_ids: A list of pipe subscription ids to exclude from the path.
+        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
+        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
 
     Returns:
         A list of all shortest paths as lists of Optical Port subscription instance ids.
@@ -1109,12 +1095,12 @@ def all_shortest_paths_through_waypoints(
     Raises:
         NoOpticalPathFoundError: If any segment between two consecutive stops has no path.
     """
-    graph = build_constrained_graph(passband, exclude_node_sub_ids, exclude_span_sub_ids)
-    if not waypoint_node_sub_ids:
-        return compute_all_shortest_paths(graph, src_node_sub_id, dst_node_sub_id)
+    graph = build_constrained_graph(passband, exclude_node_instance_ids, exclude_span_instance_ids)
+    if not waypoint_node_instance_ids:
+        return compute_all_shortest_paths(graph, src_node_instance_id, dst_node_instance_id)
 
-    stops = [src_node_sub_id]
-    for stop in [*waypoint_node_sub_ids, dst_node_sub_id]:
+    stops = [src_node_instance_id]
+    for stop in [*waypoint_node_instance_ids, dst_node_instance_id]:
         if stop != stops[-1]:
             stops.append(stop)
 
@@ -1123,7 +1109,7 @@ def all_shortest_paths_through_waypoints(
         try:
             segments.append(compute_all_shortest_paths(graph, segment_src, segment_dst))
         except NoOpticalPathFoundError as exc:
-            raise NoOpticalPathFoundError(src=src_node_sub_id, dst=dst_node_sub_id) from exc
+            raise NoOpticalPathFoundError(src=src_node_instance_id, dst=dst_node_instance_id) from exc
 
     unique_paths: dict[tuple[Port, ...], Path] = {}
     for segment_combination in product(*segments):
@@ -1196,8 +1182,8 @@ def transport_channel_path_selector(
     src_trx_port_block_id: UUIDstr,
     dst_trx_port_block_id: UUIDstr,
     passband: Passband,
-    exclude_node_sub_ids: list[UUIDstr] | None = None,
-    exclude_span_sub_ids: list[UUIDstr] | None = None,
+    exclude_node_instance_ids: list[UUIDstr] | None = None,
+    exclude_span_instance_ids: list[UUIDstr] | None = None,
     prompt: str = "Select an optical path.",
 ) -> type[Choice]:
     """Select an optical path between two transceiver port blocks based on the given parameters.
@@ -1206,61 +1192,63 @@ def transport_channel_path_selector(
     of subscription instance ids of the Optical Port blocks.
 
     Args:
-        src_trx_port_block_id: The UUID of the source transceiver port block.
-        dst_trx_port_block_id: The UUID of the destination transceiver port block.
+        src_trx_port_block_id: Subscription instance id of the source transceiver port block.
+        dst_trx_port_block_id: Subscription instance id of the destination transceiver port block.
         passband: The passband configuration for the optical path.
-        exclude_node_sub_ids: A list of node subscription ids to exclude from the path. Defaults to an empty list.
-        exclude_span_sub_ids: A list of span subscription ids to exclude from the path. Defaults to an empty list.
+        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
+        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
         prompt: A prompt message for the user to select an optical path. Defaults to "Select an optical path.".
 
     Returns:
         A Choice object containing the prompt and a list of valid optical paths represented as
-        subscription ids and human-readable strings.
+        subscription instance ids and human-readable strings.
     """
     paths = all_valid_shortest_paths_between_trxs(
         src_trx_port_block_id,
         dst_trx_port_block_id,
         passband,
-        exclude_node_sub_ids,
-        exclude_span_sub_ids,
+        exclude_node_instance_ids,
+        exclude_span_instance_ids,
     )
     return human_readable_transport_channel_path_selector(paths, prompt)
 
 
 def optical_spectrum_path_selector(
-    src_node_sub_id: UUIDstr,
-    dst_node_sub_id: UUIDstr,
-    waypoint_node_sub_ids: list[UUIDstr] | None,
+    src_node_instance_id: UUIDstr,
+    dst_node_instance_id: UUIDstr,
+    waypoint_node_instance_ids: list[UUIDstr] | None,
     passband: Passband,
-    exclude_node_sub_ids: list[UUIDstr] | None = None,
-    exclude_span_sub_ids: list[UUIDstr] | None = None,
+    exclude_node_instance_ids: list[UUIDstr] | None = None,
+    exclude_span_instance_ids: list[UUIDstr] | None = None,
     prompt: str = "Select an optical path.",
 ) -> type[Choice]:
     """Select an optical path between two optical devices based on the given parameters.
 
-    The selected path MUST then be parsed using ``path.split(";")`` to obtain the sequence
-    of subscription instance ids of the Optical Port blocks.
+    Every node reference is a block subscription instance id; subscription ids are never
+    accepted here. The selected path MUST then be parsed using ``path.split(";")`` to obtain
+    the sequence of subscription instance ids of the Optical Port blocks.
 
     Args:
-        src_node_sub_id: The subscription instance id of the source Optical Node block.
-        dst_node_sub_id: The subscription instance id of the destination Optical Node block.
-        waypoint_node_sub_ids: Ordered subscription instance ids of the nodes the path must traverse.
+        src_node_instance_id: Subscription instance id of the source Optical Node block.
+        dst_node_instance_id: Subscription instance id of the destination Optical Node block.
+        waypoint_node_instance_ids: Ordered subscription instance ids of the Optical Node
+            blocks the path must traverse.
         passband: The passband configuration for the optical path.
-        exclude_node_sub_ids: A list of node subscription ids to exclude from the path. Defaults to an empty list.
-        exclude_span_sub_ids: A list of pipe subscription ids to exclude from the path. Defaults to an empty list.
+        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
+        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
         prompt: A prompt message for the user to select an optical path. Defaults to "Select an optical path.".
 
     Returns:
         A Choice object containing the prompt and a list of valid optical paths represented as
-        subscription ids and human-readable strings.
+        subscription instance ids and human-readable strings.
     """
     paths = all_shortest_paths_through_waypoints(
-        src_node_sub_id,
-        dst_node_sub_id,
-        waypoint_node_sub_ids,
+        src_node_instance_id,
+        dst_node_instance_id,
+        waypoint_node_instance_ids,
         passband,
-        exclude_node_sub_ids,
-        exclude_span_sub_ids,
+        exclude_node_instance_ids,
+        exclude_span_instance_ids,
     )
     return human_readable_optical_spectrum_path_selector(paths, prompt)
 
@@ -1613,46 +1601,52 @@ def save_foreign_passband_ports(ports: list[AbstractOpticalOlsPortBlockInactive]
         )
 
 
-def get_optical_node_subscriptions_by_roles(roles: list[OpticalNodeRole]) -> list[SubscriptionTable]:
-    """Retrieve the subscriptions of the Optical Node products whose nodes have any of the given roles.
+def get_optical_node_blocks_by_roles(
+    roles: list[OpticalNodeRole],
+) -> list[AnyOpticalNodeBlockProvisioningUnion]:
+    """Retrieve the Optical Node blocks whose nodes have any of the given roles.
+
+    Block-based listing: instances are enumerated by block name and filtered on
+    ``optical_node_role``, without product types, subscriptions or descriptions,
+    so consumers composing the shipped blocks under their own product types are covered.
 
     Args:
-        roles: The node roles to filter the Optical Node subscriptions by.
+        roles: The node roles to filter the Optical Node blocks by.
 
     Returns:
-        A list of active Optical Node subscriptions for the given node roles.
+        A list of active Optical Node blocks for the given node roles, sorted by label.
     """
-    subscriptions: list[SubscriptionTable] = []
-    for role in roles:
-        for product_type in OPTICAL_NODE_PRODUCT_TYPES:
-            subscriptions.extend(
-                subscriptions_by_product_type_and_instance_value(
-                    product_type=product_type,
-                    resource_type="optical_node_role",
-                    value=role.value,
-                    status=[
-                        SubscriptionLifecycle.ACTIVE,
-                    ],
-                )
-            )
-    return subscriptions
+    blocks = node_blocks_by_roles(roles, [SubscriptionLifecycle.ACTIVE])
+    return sorted(blocks, key=_node_choice_label)
+
+
+def _node_choice_label(block: AnyOpticalNodeBlockProvisioningUnion) -> str:
+    """Return the Choice label of an Optical Node block, tolerating unset values."""
+    fqdn = block.management.optical_module_node_fqdn
+    name = str(fqdn) if fqdn is not None else "<unknown>"
+    role = block.optical_node_role
+    role_label = role.value if role is not None and hasattr(role, "value") else str(role)
+    platform = block.management.optical_module_node_platform
+    platform_label = platform.value if platform is not None and hasattr(platform, "value") else str(platform)
+    return f"{name} ({role_label}, {platform_label})"
 
 
 def optical_node_selector_of_roles(roles: list[OpticalNodeRole], prompt: str | None = None) -> type[Choice]:
     """Select an Optical Node from a list of nodes.
+
+    Block-based selector: option values are the node block subscription instance ids
+    and labels are derived from the blocks (fqdn, role, platform). No subscription
+    is queried.
 
     Args:
         roles: A list of node roles to filter the Optical Nodes by.
         prompt: A custom prompt message for the selection. Defaults to None.
 
     Returns:
-        A Choice class containing the prompt and a list of tuples with subscription ids and descriptions.
+        A Choice class whose values are node block subscription instance ids.
     """
-    subscriptions = get_optical_node_subscriptions_by_roles(roles)
-    products = {
-        str(subscription.subscription_id): subscription.description
-        for subscription in sorted(subscriptions, key=lambda x: x.description)
-    }
+    blocks = get_optical_node_blocks_by_roles(roles)
+    products = {str(block.subscription_instance_id): _node_choice_label(block) for block in blocks}
 
     if not prompt:
         prompt = f"Select an Optical Node of role {', '.join(role.value for role in roles)}"
@@ -1695,14 +1689,14 @@ def multiple_optical_node_selector(
 
 
 def transceiver_mode_selector(
-    optical_node_subscription_id: UUIDstr,
+    optical_node_instance_id: UUIDstr,
     port_name: str,
     prompt: str | None = None,
 ) -> type[Choice]:
     """Create a Choice object for selecting a transceiver mode for a given port.
 
     Args:
-        optical_node_subscription_id: The subscription id of the Optical Node.
+        optical_node_instance_id: Subscription instance id of the Optical Node block.
         port_name: The name of the port belonging to the transceiver card.
             This can also be a client port of a CHM2T transponder.
         prompt: A custom prompt message for the selection. Defaults to None.
@@ -1710,8 +1704,10 @@ def transceiver_mode_selector(
     Returns:
         A Choice class containing the prompt and a list of available transceiver modes.
     """
-    subscription = AbstractOpticalNodeSubscription.from_subscription(optical_node_subscription_id)
-    node_block = cast(AnyOpticalNodeBlockProvisioningUnion, subscription.optical_node)
+    node_block = cast(
+        AnyOpticalNodeBlockProvisioningUnion,
+        ProductBlockModel.from_db(UUID(str(optical_node_instance_id))),
+    )
     modulations = retrieve_transceiver_modes(node_block, port_name)
     if not prompt:
         prompt = "Select a modulation"
