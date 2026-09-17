@@ -20,6 +20,18 @@ generators by yielding from the shipped page sequences in one line and
 optionally interleaving their own pages. See the README for the complete
 consumption model.
 
+Public surface (Path 2): ``*_form_pages`` sequences + ``*_BLOCK_STEPS`` lists +
+``populate_*_block`` helpers. Private to shipped products (Path 1): the
+``@*_workflow`` functions, ``*_form_generator`` (customer page + pages +
+summary), ``construct_*`` steps, ``load_*_block`` wiring, and subscription models.
+
+Page signatures: ``create_*_form_pages(product_name)``;
+``modify_*_form_pages(block, *, product_name, exclude_subscription_id=None)``;
+``terminate_*_form_pages(subscription_id)``. Pages emit flat ``optical_*`` keys,
+never collect ``customer_id``, never take ``subscription``/``block_field_name``/
+``subscription_model``, and never import ``product_types``. Selectors emit
+``subscription_instance_id``.
+
 This package never registers workflows itself. Consumers register the shipped
 workflows with the standard orchestrator-core mechanism, one
 ``LazyWorkflowInstance`` line per workflow in their own workflows package::

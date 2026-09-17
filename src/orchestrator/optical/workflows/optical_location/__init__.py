@@ -8,4 +8,8 @@ importable parts: the FormPages of the shipped forms (as page sequences that
 consumers yield from in one line, e.g. ``create_optical_module_location_form_pages``)
 and the step lists that operate on the shipped ``OpticalModuleLocationBlock``
 found in the state under ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
+
+Public parts: ``create/modify/terminate_*_form_pages`` (block/product_name/instance-id only)
+and ``*_BLOCK_STEPS`` on ``OPTICAL_MODULE_BLOCK_STATE_KEY``. Generators, workflows, and
+``construct/load`` steps are shipped-product-only.
 """

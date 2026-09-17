@@ -108,14 +108,22 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
 - Vendor/Platform dispatch is achieved in `hal/` with `match/case` wrt the enums in `optical_node_management.py`.
   Dynamic registration using singledispatch was removed — never reintroduce it.
 
-### Layering (hal depends on blocks, never on workflows)
+### Layering (hal and pages depend on blocks, never on workflows/subscriptions)
 
 - `hal/` implements device-facing logic (aka drivers) and depends only on public **blocks** — these are the shared
   contracts between the module and its consumers — never on subscription models: no module under `hal/` may import from
-  `orchestrator.optical.workflows.*`. Subscription ids are acceptable input parameters, but they are resolved to
-  blocks (never to subscription models), via the neutral DB query helpers in `orchestrator/optical/db.py` — the
-  shared home for database queries used by both `hal/` and `workflows/`. Workflow-layer code may load subscription
-  models; `hal/` may not.
+  `orchestrator.optical.workflows.*` or from `orchestrator.optical.products.product_types.*`. Subscription ids are
+  acceptable input parameters, but they are resolved to blocks (never to subscription models), via the neutral DB query
+  helpers in `orchestrator/optical/db.py` — the shared home for database queries used by both `hal/` and `workflows/`.
+- Shipped `*_form_pages` (the public form surface) follow the same rule: they depend only on shipped **blocks** plus
+  scalar ids (`product_name`, `subscription_instance_id` / `exclude_subscription_id`, `customer_id` include). They never
+  take `subscription: SubscriptionModel`, `block_field_name`, or `subscription_model`, and never import from
+  `product_types`. Full subscription objects appear only in private code: shipped `*_form_generator`, `construct_*`
+  steps, and `@*_workflow` functions, which are bound to the shipped subscription models.
+- Selectors emit block ids (`subscription_instance_id`), query via the `db.py` block helpers (`node_blocks_by_roles`,
+  `pipe_blocks_all`, `subscription_instances_by_block_type*`), never via product-type strings or
+  `SubscriptionTable.subscription_id`. Resolvers are `node_block_from_instance` / `ProductBlockModel.from_db`, never
+  `*_block_from_subscription`.
 
 ### Hard rules (generalization invariants)
 
@@ -151,15 +159,25 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
   returns the collected user input as a flat dict, e.g. `create_optical_module_location_form_pages(product_name)`);
   consumers compose their own form generator by yielding from the shipped page sequence in **one line** and
   optionally interleaving their own pages:
-  `user_input_dict = yield from create_optical_module_location_form_pages(product_name)`. Page factories returning 
+  `user_input_dict = yield from create_optical_module_location_form_pages(product_name)`. Page factories returning
   the prefilled pages
-  (e.g. `modify_optical_module_location_form(subscription, block_field_name)`) are also exported for consumers that
+  (e.g. `modify_optical_module_location_form(block, exclude_subscription_id=...)`) are also exported for consumers that
   pick pages individually. The `optical_location` family is the reference implementation of this model; the
-  `optical_node`, `optical_pipe`, `optical_coherent_pluggable` and `optical_spectrum_service` families follow it. Only
-  `optical_digital_service` still carries the legacy hook-style generators (`extra_form_pages`), mid-port. Consumers
+  `optical_node`, `optical_pipe`, `optical_coherent_pluggable` and `optical_spectrum_service` families follow it, and
+  `optical_digital_service` follows it as well. Consumers
   with their own model compose their own workflows with these parts and their own construct/store steps. Shipped create
   workflows pass the raw form generator (no `partial`): core injects `product_name`/`subscription_id` from the database
   at runtime.
+- Public surface of a family is its `*_form_pages` page sequences and its `*_BLOCK_STEPS` lists
+  (+ `populate_*_block` helpers). Private (shipped-product only) are the `@*_workflow` functions, `*_form_generator`
+  (thin `customer_choice_form_page` + pages + summary compositions, never reused by consumers), `construct_*` steps,
+  and `load_*_block` shipped-attribute wiring. Page signatures: `create_*_form_pages(product_name[, Choice...])`;
+  `modify_*_form_pages(block, *, product_name, exclude_subscription_id=None)` prefilled from the block, at any nesting
+  depth (`block = subscription.optical_module_block` or `subscription.router.optical_module` — shipped code never
+  traverses the subscription, the consumer extracts with plain Python); `terminate_*_form_pages(subscription_id)`.
+  Pages never collect `customer_id` (generators do, via `customer_choice_form_page`). `*_BLOCK_STEPS` bind
+  `optical_module_block` (PROVISIONING, terminal `save_optical_module_block`) — except reconcile (`save` then `verify`)
+  and validate (read-only).
 - **Composition, not inheritance**: consumers never subclass the shipped blocks; their model has-a the shipped block
   under an attribute of their choosing. The shipped block steps bind to the common state key
   (`optical_module_block`) and never to a consumer model. Shipped blocks always expect the block to be in the

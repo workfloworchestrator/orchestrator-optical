@@ -113,7 +113,9 @@ The module is strictly layered: `products/` (blocks and subscription models) →
 contracts**: `hal/` depends only on blocks, never on subscription models — a subscription id may be an input
 parameter, but it is resolved to a block, never to a model. Consequently nothing under `hal/` imports from
 `workflows/`; the database queries both layers need live in the neutral `orchestrator/optical/db.py`. This keeps the
-hardware layer usable, maintainable and evolvable independently of any workflow or consumer model.
+hardware layer usable, maintainable and evolvable independently of any workflow or consumer model. The same
+blocks-only rule applies to the shipped form pages: `*_form_pages` take blocks plus scalar ids and never
+subscription models (see "Consumption model" below).
 
 There are two consumption paths:
 
@@ -268,7 +270,8 @@ class RouterBlock(RouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTI
 ```
 
 The shipped workflows of path 1 are not reusable here — they are bound to the shipped subscription models. Thus, you
-compose your own workflows from the shipped **parts**: the importable form generators and the step lists. The shipped
+compose your own workflows from the shipped **parts**: the importable page sequences (`*_form_pages`) and the step
+lists (`*_BLOCK_STEPS`). Form generators (`*_form_generator`) are shipped-workflow-only and are never reused. The shipped
 block steps never know your model: they bind to the state key `optical_module_block` (see "State contract" below), so
 you wire your block into the state and back out of it — that is the thin anti-corruption wiring:
 
@@ -306,8 +309,15 @@ Notes:
       return user_input_dict
   ```
 
-  For modify, the shipped page sequence is prefilled from the subscription and is composed the same way:
-  `user_input_dict = yield from modify_optical_module_location_form_pages(subscription, block_field_name="optical_location")`.
+  For modify, the shipped page sequence is prefilled from the block and is composed the same way:
+
+  ```python
+  # mywfo/forms.py
+  block = subscription.optical_module_block  # your attribute name, any nesting depth (e.g. subscription.router.optical_module)
+  user_input_dict = yield from modify_optical_module_location_form_pages(
+      block, product_name=..., exclude_subscription_id=...
+  )
+  ```
 - How much of your own information you keep is up to you: you can mirror your own fields into the shipped block (a
   thin anti-corruption layer, representing some information twice — in your shape and in the shipped block) or store
   everything in the shipped block only. Both are the same consumption path with different amounts of duplication and coupling;
@@ -317,8 +327,12 @@ Notes:
 ## State contract
 
 The shipped block steps take the shipped block from the workflow state always under the same key: `optical_module_block`. Consumers put their
-composed block in the state under this key (one small step); the block steps read and write it, and the shipped
-persistence step (`save_optical_module_block`) saves it back into the owner subscription.
+composed block in the state under this key (one small step, extracting the block with plain Python at any nesting depth —
+shipped code never traverses the subscription); the block steps read and write it, and the shipped
+persistence step (`save_optical_module_block`) saves it back into the owner subscription. Choice values crossing the
+form→step boundary are block ids (`subscription_instance_id`), resolved with `node_block_from_instance` /
+`ProductBlockModel.from_db`. The only `save`-not-terminal lists are reconcile (`save` then `verify`) and validate
+(read-only); pipe `TERMINATE_*` teardown lists are subscription-bound by design (see per-family docs).
 
 ## Configuring the customer selection
 
