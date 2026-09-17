@@ -42,7 +42,7 @@ __all__ = [
     "pipe_blocks_all",
     "pipe_instances_by_block_names",
     "subscription_instance_values_by_block_type_depending_on_instance_id",
-    "subscription_instance_values_by_block_types_and_resource_types",
+    "subscription_instances_by_block_names",
     "subscription_instances_by_block_type",
     "subscription_instances_by_block_type_and_resource_value",
     "subscriptions_by_product_type",
@@ -248,50 +248,30 @@ def subscription_instance_values_by_block_type_depending_on_instance_id(
     )
 
 
-def subscription_instance_values_by_block_types_and_resource_types(
+def subscription_instances_by_block_names(
     block_names: set[str],
-    resource_types: list[str],
     states: list[SubscriptionLifecycle],
-) -> list[SubscriptionInstanceValueTable]:
-    """Return the values of the given resource types for instances of the given block names.
+) -> list[SubscriptionInstanceTable]:
+    """Return the subscription instances whose product block is one of the given names.
 
-    This is the label backend of the block-filtered selectors: one query returns
-    the display values of every matching instance, so callers build human-readable
-    labels without loading any block. Instances missing all the given resource
-    types have no row and are not returned.
+    Block-based listing: no product type or subscription model is involved, so the
+    lookup also covers consumers composing the shipped blocks under their own product
+    types. This is the generic form of :func:`node_instances_by_block_names` and
+    :func:`pipe_instances_by_block_names`, backing the block-filtered selectors.
 
     Args:
         block_names: The product block names to match (e.g. the ``__names__`` of an
             abstract block).
-        resource_types: The resource field names to return values for (e.g.
-            ``["location_name", "location_code"]``).
         states: Lifecycle states the owner subscription must be in.
 
     Returns:
-        The matching subscription instance values, each carrying its
-        ``subscription_instance_id`` and its resource type.
+        The matching subscription instances.
     """
     return (
-        SubscriptionInstanceValueTable.query.join(
-            SubscriptionInstanceTable,
-            SubscriptionInstanceTable.subscription_instance_id
-            == SubscriptionInstanceValueTable.subscription_instance_id,
-        )
-        .join(
-            SubscriptionTable,
-            SubscriptionInstanceTable.subscription_id == SubscriptionTable.subscription_id,
-        )
-        .join(
-            ProductBlockTable,
-            SubscriptionInstanceTable.product_block_id == ProductBlockTable.product_block_id,
-        )
-        .join(
-            ResourceTypeTable,
-            SubscriptionInstanceValueTable.resource_type_id == ResourceTypeTable.resource_type_id,
-        )
-        .filter(ProductBlockTable.name.in_(block_names))
-        .filter(ResourceTypeTable.resource_type.in_(resource_types))
+        SubscriptionInstanceTable.query.join(SubscriptionTable)
+        .join(ProductBlockTable)
         .filter(SubscriptionTable.status.in_(states))
+        .filter(ProductBlockTable.name.in_(block_names))
         .all()
     )
 

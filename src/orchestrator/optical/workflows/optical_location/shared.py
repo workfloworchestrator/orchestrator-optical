@@ -90,9 +90,7 @@ def active_location_instance_selector(prompt: str | None = None) -> type[Choice]
         type[Choice]: A `Choice` class configured with the active location block
         options.
     """
-    return active_instance_selector_by_block_type(
-        OpticalModuleLocationBlockInactive, ["location_name", "location_code"], prompt=prompt
-    )
+    return active_instance_selector_by_block_type(OpticalModuleLocationBlockInactive, prompt=prompt)
 
 
 def optical_location_block_from_state(
