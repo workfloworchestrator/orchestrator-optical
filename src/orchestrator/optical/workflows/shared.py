@@ -17,14 +17,12 @@ from pydantic_forms.validators import (
     migration_summary,
 )
 
-from orchestrator.core.db import ProductBlockTable, SubscriptionInstanceTable, SubscriptionTable, db
+from orchestrator.core.db import SubscriptionInstanceTable, db
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import (
     subscription_instance_values_by_block_type_depending_on_instance_id,
     subscription_instances_by_block_names,
-    subscriptions_by_product_type,
-    subscriptions_by_product_type_and_instance_value,
 )
 from orchestrator.optical.hal.port import get_device_ports_by_role
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
@@ -122,86 +120,18 @@ def modify_summary_form(
     )
 
 
-def active_subscription_selector(product_type: str, prompt: str | None = None) -> type[Choice]:
-    """Create a `Choice` selector for subscriptions of a given product type.
-
-    Args:
-        product_type (str): The type of product to filter subscriptions by.
-        prompt (str, optional): Prompt to display in the selection. If not provided,
-            a default prompt will be generated.
-
-    Returns:
-        type[Choice]: A `Choice` class configured with subscription options
-        for the specified product type.
-    """
-    subscriptions = subscriptions_by_product_type(product_type, [SubscriptionLifecycle.ACTIVE])
-
-    products = {
-        str(subscription.subscription_id): subscription.description
-        for subscription in sorted(subscriptions, key=lambda x: x.description)
-    }
-
-    if not prompt:
-        prompt = f"Select a {product_type}"
-
-    return Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))  # type:ignore  # noqa: PGH003
-
-
-def active_subscription_selector_by_block_type(
-    abstract_block_type: type[ProductBlockModel],
-    prompt: str | None = None,
-) -> type[Choice]:
-    """Create a `Choice` selector for subscriptions of any product implementing an abstract block type.
-
-    The abstract product block is a contract between the developers of this package and
-    the users that implement concrete products: every concrete block class inheriting
-    from it registers its own product block name in ``__names__`` at class definition
-    time, so all the concrete implementations can be matched without knowing them
-    upfront.
-
-    Args:
-        abstract_block_type: The abstract product block type of the contract (e.g.
-            ``OpticalModuleLocationBlockInactive``).
-        prompt: Prompt to display in the selection. If not provided, a default prompt
-            will be generated.
-
-    Returns:
-        type[Choice]: A `Choice` class configured with subscription options for all the
-        products that implement the given abstract block type.
-    """
-    subscriptions = (
-        SubscriptionTable.query.join(SubscriptionInstanceTable)
-        .join(ProductBlockTable)
-        .filter(ProductBlockTable.name.in_(abstract_block_type.__names__))
-        .filter(SubscriptionTable.status.in_([SubscriptionLifecycle.ACTIVE]))
-        .distinct()
-        .all()
-    )
-
-    products = {
-        str(subscription.subscription_id): subscription.description
-        for subscription in sorted(subscriptions, key=lambda x: x.description)
-    }
-
-    if not prompt:
-        prompt = f"Select a {abstract_block_type.__name__}"
-
-    return Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))  # type:ignore  # noqa: PGH003
-
-
 def active_instance_selector_by_block_type(
     abstract_block_type: type[ProductBlockModel],
     prompt: str | None = None,
 ) -> type[Choice]:
     """Create a `Choice` selector for the blocks of any product implementing an abstract block type.
 
-    This is the instance-id twin of :func:`active_subscription_selector_by_block_type`:
-    the same block-filtered contract (every concrete block class inheriting from
-    the abstract block registers its product block name in ``__names__``), but
-    option values are the block subscription instance ids — never subscription
-    ids or models. Labels are the owner subscriptions' descriptions, exactly as
-    in the subscription-id twin, so the selector works for any current or future
-    block family without knowing its fields.
+    The same block-filtered contract as the former subscription-id twin (every
+    concrete block class inheriting from the abstract block registers its
+    product block name in ``__names__``), but option values are the block
+    subscription instance ids — never subscription ids or models. Labels are
+    the owner subscriptions' descriptions, so the selector works for any
+    current or future block family without knowing its fields.
 
     Args:
         abstract_block_type: The abstract product block type of the contract (e.g.
@@ -222,35 +152,6 @@ def active_instance_selector_by_block_type(
 
     if not prompt:
         prompt = f"Select a {abstract_block_type.__name__}"
-
-    return Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))  # type:ignore  # noqa: PGH003
-
-
-def active_subscription_with_instance_value_selector(
-    product_type: str, resource_type: str, value: str, prompt: str | None = None
-) -> type[Choice]:
-    """Create a Choice selector for subscriptions filtered by product type and instance value.
-
-    Args:
-        product_type: The type of product to filter subscriptions by
-        resource_type: The resource type to filter by
-        value: The instance value to match
-        prompt: Optional custom prompt text
-
-    Returns:
-        A Choice class configured with filtered subscription options
-    """
-    subscriptions = subscriptions_by_product_type_and_instance_value(
-        product_type, resource_type, value, [SubscriptionLifecycle.ACTIVE]
-    )
-
-    products = {
-        str(subscription.subscription_id): subscription.description
-        for subscription in sorted(subscriptions, key=lambda x: x.description)
-    }
-
-    if not prompt:
-        prompt = f"Select a {product_type} with {resource_type}={value}"
 
     return Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))  # type:ignore  # noqa: PGH003
 

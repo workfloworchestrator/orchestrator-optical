@@ -14,7 +14,6 @@ from pydantic_forms.types import UUIDstr
 
 from orchestrator.core.db import (
     ProductBlockTable,
-    ProductTable,
     ResourceTypeTable,
     SubscriptionInstanceRelationTable,
     SubscriptionInstanceTable,
@@ -46,67 +45,7 @@ __all__ = [
     "subscription_instances_by_block_names",
     "subscription_instances_by_block_type",
     "subscription_instances_by_block_type_and_resource_value",
-    "subscriptions_by_product_type",
-    "subscriptions_by_product_type_and_instance_value",
 ]
-
-
-def subscriptions_by_product_type(product_type: str, status: list[SubscriptionLifecycle]) -> list[SubscriptionTable]:
-    """Retrieve_subscription_list_by_product.
-
-    This function lets you retrieve a list of all subscriptions of a
-    given product type. For example, you could call this like so:
-
-    >>> subscriptions_by_product_type("Node", [SubscriptionLifecycle.ACTIVE, SubscriptionLifecycle.PROVISIONING])
-        [SubscriptionTable(su...note=None), SubscriptionTable(su...note=None)]
-
-    You now have a list of all active Node subscription instances and can then
-    use them in your workflow.
-
-    Args:
-        product_type (str): The product type in the DB (i.e. Node, User, etc.)
-        status (List[SubscriptionLifecycle]): The lifecycle states you want returned (i.e. SubscriptionLifecycle.ACTIVE)
-
-    Returns:
-        List[SubscriptionTable]: A list of all the subscriptions that match
-            your criteria.
-    """
-    return (
-        SubscriptionTable.query.join(ProductTable)
-        .filter(ProductTable.product_type == product_type)
-        .filter(SubscriptionTable.status.in_(status))
-        .all()
-    )
-
-
-def subscriptions_by_product_type_and_instance_value(
-    product_type: str,
-    resource_type: str,
-    value: str,
-    status: list[SubscriptionLifecycle],
-) -> list[SubscriptionTable]:
-    """Retrieve a list of Subscriptions by product_type, resource_type and value.
-
-    Args:
-        product_type: type of subscriptions
-        resource_type: name of the resource type
-        value: value of the resource type
-        status: lifecycle status of the subscriptions
-
-    Returns:
-        list[SubscriptionTable]: List of matching subscriptions.
-    """
-    return (
-        SubscriptionTable.query.join(ProductTable)
-        .join(SubscriptionInstanceTable)
-        .join(SubscriptionInstanceValueTable)
-        .join(ResourceTypeTable)
-        .filter(ProductTable.product_type == product_type)
-        .filter(SubscriptionInstanceValueTable.value == value)
-        .filter(ResourceTypeTable.resource_type == resource_type)
-        .filter(SubscriptionTable.status.in_(status))
-        .all()
-    )
 
 
 def subscription_instances_by_block_type(
