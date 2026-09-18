@@ -261,11 +261,13 @@ def configure_line_transceivers(
         shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
         navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
         before = navigator.retrieve(content="config", depth=2)
-        conf = before.model_copy(deep=True)
-        conf.admin_state = AdminStateEnum.UNLOCK
-        conf.label = description
-        conf.alarm_report_control = AlarmReportControlEnum.ALLOWED
-        navigator.update(conf)
+        # Minimal PATCH: list key plus changed leaves only.
+        navigator.update(
+            name=port_id,
+            admin_state=AdminStateEnum.UNLOCK,
+            label=description,
+            alarm_report_control=AlarmReportControlEnum.ALLOWED,
+        )
         after = navigator.retrieve(content="config", depth=2)
         diffs = compare_pydantic_objects(before, after)
         configurations[f"port-{port_name}"] = diffs
@@ -312,7 +314,7 @@ def configure_line_transceivers(
     return configurations
 
 
-def configure_transceiver_client(  # noqa: PLR0915
+def configure_transceiver_client(
     optical_node_block: NokiaGxG42BlockProvisioning,
     port_name: str,
     description: str,
@@ -342,11 +344,13 @@ def configure_transceiver_client(  # noqa: PLR0915
     # port
     navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
     before = navigator.retrieve(content="config", depth=2)
-    conf = before.model_copy(deep=True)
-    conf.admin_state = AdminStateEnum.UNLOCK
-    conf.label = description
-    conf.alarm_report_control = AlarmReportControlEnum.ALLOWED
-    navigator.update(conf)
+    # Minimal PATCH: list key plus changed leaves only.
+    navigator.update(
+        name=port_id,
+        admin_state=AdminStateEnum.UNLOCK,
+        label=description,
+        alarm_report_control=AlarmReportControlEnum.ALLOWED,
+    )
     after = navigator.retrieve(content="config", depth=2)
     diffs = compare_pydantic_objects(before, after)
     configurations["1.port"] = diffs
@@ -354,14 +358,15 @@ def configure_transceiver_client(  # noqa: PLR0915
     # TOM
     navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
     before = navigator.retrieve(content="config", depth=2)
-    conf = before.model_copy(deep=True)
-    conf.admin_state = AdminStateEnum.UNLOCK
-    conf.label = description
-    conf.required_type = required_type
-    conf.required_subtype = required_subtype
-    conf.phy_mode = PhyModeEnum(phy_mode)
-    conf.alarm_report_control = AlarmReportControlEnum.ALLOWED
-    navigator.update(conf)
+    # Minimal PATCH on the singleton TOM facility: only the changed leaves.
+    navigator.update(
+        admin_state=AdminStateEnum.UNLOCK,
+        label=description,
+        required_type=required_type,
+        required_subtype=required_subtype,
+        phy_mode=PhyModeEnum(phy_mode),
+        alarm_report_control=AlarmReportControlEnum.ALLOWED,
+    )
     after = navigator.retrieve(content="config", depth=2)
     diffs = compare_pydantic_objects(before, after)
     configurations["2.tom"] = diffs
@@ -369,12 +374,13 @@ def configure_transceiver_client(  # noqa: PLR0915
     # trib-ptp
     navigator = g42.data.ne.facilities.trib_ptp(port_name)
     before = navigator.retrieve(content="config", depth=2)
-    conf = before.model_copy(deep=True)
-    conf.admin_state = AdminStateEnum.UNLOCK
-    conf.label = description
-    conf.alarm_report_control = AlarmReportControlEnum.ALLOWED
-    conf.service_type = ServiceTypeEnum(service_type)
-    navigator.update(conf)
+    navigator.update(
+        name=port_name,
+        admin_state=AdminStateEnum.UNLOCK,
+        label=description,
+        alarm_report_control=AlarmReportControlEnum.ALLOWED,
+        service_type=ServiceTypeEnum(service_type),
+    )
     after = navigator.retrieve(content="config", depth=2)
     diffs = compare_pydantic_objects(before, after)
     configurations["3.trib-ptp"] = diffs
@@ -382,19 +388,20 @@ def configure_transceiver_client(  # noqa: PLR0915
     # ethernet
     navigator = g42.data.ne.facilities.ethernet(port_name)
     before = navigator.retrieve(content="config", depth=2)
-    conf = before.model_copy(deep=True)
-    conf.admin_state = AdminStateEnum.UNLOCK
-    conf.label = description
-    conf.alarm_report_control = AlarmReportControlEnum.ALLOWED
-    conf.fec_mode = EnableSwitchEnum.ENABLED
-    conf.loopback = LoopbackEnum.NONE
-    conf.test_signal_type = SignalTypeEnum.NONE
-    conf.test_signal_direction = PrbsDirectionEnum.EGRESS
-    conf.test_signal_monitoring = False
-    conf.lldp_admin_status = LldpAdminStatusEnum.RX_ONLY
-    conf.lldp_ingress_mode = LldpModeEnum.SNOOP
-    conf.lldp_egress_mode = LldpModeEnum.SNOOP
-    navigator.update(conf)
+    navigator.update(
+        name=port_name,
+        admin_state=AdminStateEnum.UNLOCK,
+        label=description,
+        alarm_report_control=AlarmReportControlEnum.ALLOWED,
+        fec_mode=EnableSwitchEnum.ENABLED,
+        loopback=LoopbackEnum.NONE,
+        test_signal_type=SignalTypeEnum.NONE,
+        test_signal_direction=PrbsDirectionEnum.EGRESS,
+        test_signal_monitoring=False,
+        lldp_admin_status=LldpAdminStatusEnum.RX_ONLY,
+        lldp_ingress_mode=LldpModeEnum.SNOOP,
+        lldp_egress_mode=LldpModeEnum.SNOOP,
+    )
     after = navigator.retrieve(content="config", depth=2)
     diffs = compare_pydantic_objects(before, after)
     configurations["4.ethernet"] = diffs
@@ -435,10 +442,8 @@ def configure_transponder_crossconnect(
     if xcon:
         endpoint = g42.data.ne.services.xcon(xcon.name)
         before = endpoint.retrieve(depth=2, content="config")
-        xcon = before.model_copy(deep=True)
-        xcon.label = label
-        xcon.circuit_id_suffix = label
-        endpoint.update(xcon)
+        # Minimal PATCH: list key plus changed leaves only.
+        endpoint.update(name=before.name, label=label, circuit_id_suffix=label)
         after = endpoint.retrieve(depth=2, content="config")
         return compare_pydantic_objects(before, after)
 
@@ -540,20 +545,16 @@ def factory_reset_transponder_client(
     # 3. TOM configuration
     navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
     conf = navigator.retrieve(content="config", depth=2)
-    updated_conf = conf.model_copy(deep=True)
-    updated_conf.label = ""
-    updated_conf.admin_state = AdminStateEnum.LOCK
-    navigator.update(updated_conf)
+    # Minimal PATCH on the singleton TOM facility: only the changed leaves.
+    navigator.update(label="", admin_state="lock")
     diff = compare_pydantic_objects(conf, navigator.retrieve(depth=2, content="config"))
     configurations["3.tom"] = diff
 
     # 4. Port configuration
     navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
     conf = navigator.retrieve(content="config", depth=2)
-    updated_conf = conf.model_copy(deep=True)
-    updated_conf.label = ""
-    updated_conf.admin_state = AdminStateEnum.LOCK
-    navigator.update(updated_conf)
+    # Minimal PATCH: list key plus changed leaves only.
+    navigator.update(name=port_id, label="", admin_state="lock")
     diff = compare_pydantic_objects(conf, navigator.retrieve(depth=2, content="config"))
     configurations["4.port"] = diff
 
@@ -581,11 +582,13 @@ def factory_reset_transponder_lines(
         shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
         navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
         before = navigator.retrieve(content="config", depth=2)
-        conf = before.model_copy(deep=True)
-        conf.admin_state = AdminStateEnum.LOCK
-        conf.label = ""
-        conf.alarm_report_control = AlarmReportControlEnum.ALLOWED
-        navigator.update(conf)
+        # Minimal PATCH: list key plus changed leaves only.
+        navigator.update(
+            name=port_id,
+            admin_state=AdminStateEnum.LOCK,
+            label="",
+            alarm_report_control=AlarmReportControlEnum.ALLOWED,
+        )
         after = navigator.retrieve(content="config", depth=2)
         diff = compare_pydantic_objects(before, after)
         configurations[f"port-{port_name}"] = diff
@@ -891,7 +894,8 @@ def align_tx_power_to_target(
     new_tx_power = round(current_tx_power - db_from_target, 2)
     new_tx_power = min(max_tx_power, new_tx_power)
     new_tx_power = max(min_tx_power, new_tx_power)
+    # Minimal PATCH: list key plus the changed leaf only.
+    uri.update(name=f"{line_port_name}-1", tx_power=new_tx_power)
     new_conf = conf.model_copy(deep=True)
     new_conf.tx_power = new_tx_power
-    uri.update(new_conf)
     return compare_pydantic_objects(conf, new_conf)

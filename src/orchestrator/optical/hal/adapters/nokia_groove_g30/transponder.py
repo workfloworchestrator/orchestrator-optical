@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 from re import search
-from typing import Any, cast
+from typing import Any
 
 from requests.exceptions import HTTPError
 
@@ -14,7 +14,6 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
-from orchestrator.optical.services.nokia.g30.data_models.ne import AdminStatusEnum, PortModeEnum
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
 from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects
 
@@ -199,17 +198,29 @@ def configure_transceiver_client(
     Returns:
         A dictionary of configuration diffs, keyed by facility name.
     """
-    navigator, *_ = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
+    navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
     port_mode, eth_name, fec_type = _client_speed_config(speed)
     eth = getattr(navigator, eth_name)
 
     before = navigator.retrieve(content="config", depth=3)
 
-    updated = before.model_copy(deep=True)
-    updated.admin_status = AdminStatusEnum.UP
-    updated.service_label = description
-    updated.port_mode = PortModeEnum(port_mode)
-    navigator.update(cast(Any, updated))
+    # Minimal parent PATCH: never resend system-created children (eth*, och-os,
+    # pluggable, ...) via the port resource — the device rejects stale child
+    # combinations (e.g. mapping-mode GMP with an explicit gfp-payload-fcs).
+    if subport_id is not None:
+        navigator.update(
+            subport_id=subport_id,
+            admin_status="up",
+            service_label=description,
+            port_mode=port_mode,
+        )
+    else:
+        navigator.update(
+            port_id=port_id,
+            admin_status="up",
+            service_label=description,
+            port_mode=port_mode,
+        )
 
     eth.update(
         admin_status="up",
@@ -471,13 +482,24 @@ def factory_reset_transponder_client(
     Returns:
         The reset configuration.
     """
-    navigator, *_ = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
+    navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
     before = navigator.retrieve(depth=3, content="config")
-    updated = before.model_copy(deep=True)
-    updated.admin_status = AdminStatusEnum.DOWN
-    updated.service_label = ""
-    updated.port_mode = PortModeEnum.NOT_APPLICABLE
-    navigator.update(cast(Any, updated))
+    # Minimal parent PATCH (see configure_transceiver_client): resetting the
+    # port-mode must not resend the stale eth* children.
+    if subport_id is not None:
+        navigator.update(
+            subport_id=subport_id,
+            admin_status="down",
+            service_label="",
+            port_mode="not-applicable",
+        )
+    else:
+        navigator.update(
+            port_id=port_id,
+            admin_status="down",
+            service_label="",
+            port_mode="not-applicable",
+        )
     after = navigator.retrieve(depth=3, content="config")
     return compare_pydantic_objects(before, after)
 
@@ -497,13 +519,23 @@ def factory_reset_transponder_lines(
     """
     result = []
     for port_name in line_port_names:
-        navigator, *_ = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
+        navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
         before = navigator.retrieve(depth=3, content="config")
-        updated = before.model_copy(deep=True)
-        updated.admin_status = AdminStatusEnum.DOWN
-        updated.service_label = ""
-        updated.port_mode = PortModeEnum.NOT_APPLICABLE
-        navigator.update(cast(Any, updated))
+        # Minimal parent PATCH (see configure_transceiver_client).
+        if subport_id is not None:
+            navigator.update(
+                subport_id=subport_id,
+                admin_status="down",
+                service_label="",
+                port_mode="not-applicable",
+            )
+        else:
+            navigator.update(
+                port_id=port_id,
+                admin_status="down",
+                service_label="",
+                port_mode="not-applicable",
+            )
         after = navigator.retrieve(depth=3, content="config")
         result.append(compare_pydantic_objects(before, after))
     return result
@@ -710,8 +742,9 @@ def align_tx_power_to_target(
     new_tx_power = current_tx_power - db_from_target
     new_tx_power = min(max_tx_power, new_tx_power)
     new_tx_power = max(min_tx_power, new_tx_power)
+    # Minimal PATCH on the singleton och-os facility: only the changed leaf.
+    och_uri.update(required_tx_optical_power=new_tx_power)
     new_och_os = och_os.model_copy(deep=True)
     new_och_os.required_tx_optical_power = new_tx_power
-    och_uri.update(new_och_os)
 
     return compare_pydantic_objects(och_os, new_och_os)

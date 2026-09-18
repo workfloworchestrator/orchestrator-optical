@@ -3,7 +3,7 @@
 import json
 import re
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from orchestrator.optical.hal._common import (
     _node_id,
@@ -197,11 +197,13 @@ def set_port_description(
     """
     host_node = port_block.optical_port_host_node
     port_name = _port_name(port_block)
-    endpoint, *_ = g30_port_navigator_node_from_port_name(host_node, port_name)
+    endpoint, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
     before = endpoint.retrieve(content="config", depth=2)
-    updated = before.model_copy(deep=True)
-    updated.service_label = port_description
-    endpoint.update(cast(Any, updated))
+    # Minimal PATCH: only the changed leaf plus the list key.
+    if subport_id is not None:
+        endpoint.update(subport_id=subport_id, service_label=port_description)
+    else:
+        endpoint.update(port_id=port_id, service_label=port_description)
     return compare_pydantic_objects(before, endpoint.retrieve(content="config", depth=2))
 
 
@@ -227,9 +229,8 @@ def set_channel_description(
     shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(facility_id)
     uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os
 
-    och_os = uri.retrieve(content="config", depth=2)
-    och_os.service_label = description
-    uri.update(och_os)
+    # Minimal PATCH on the singleton och-os facility.
+    uri.update(service_label=description)
 
     return uri.retrieve(content="config", depth=2).model_dump()
 
@@ -259,12 +260,14 @@ def set_port_admin_state(
     }
     status = mapping[admin_state]
 
-    port_uri, *_ = g30_port_navigator_node_from_port_name(host_node, port_name)
+    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
 
     before = port_uri.retrieve(depth=2, content="config")
-    updated = before.model_copy(deep=True)
-    updated.admin_status = status
-    port_uri.update(cast(Any, updated))
+    # Minimal PATCH: only the changed leaf plus the list key.
+    if subport_id is not None:
+        port_uri.update(subport_id=subport_id, admin_status=status)
+    else:
+        port_uri.update(port_id=port_id, admin_status=status)
     return compare_pydantic_objects(before, port_uri.retrieve(depth=2, content="config"))
 
 
@@ -304,36 +307,40 @@ def _configure_g30_amplifier_port(
 
     booster_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(2).subcard.amplifier("ba")
     booster_before = booster_uri.retrieve(content="config", depth=2)
-    booster = booster_before.model_copy(deep=True)
-    booster.admin_status = AdminStatusEnum.UP
-    booster.amplifier_enable = EnableSwitchEnum.ENABLED
-    booster.input_los_shutdown = EnableSwitchEnum.DISABLED
-    booster.control_mode = ControlModeEnum.MANUAL
-    booster.gain_range_control = GainRangeControlEnum.MANUAL
-    booster.target_gain_range = GainRangeTypeEnum.STANDARD
-    booster.target_gain = Decimal("22.0")
-    booster.output_voa = Decimal("10.0")
-    booster.tilt_control_mode = TiltControlModeEnum.MANUAL
-    booster.gain_tilt = Decimal("0.0")
-    booster_uri.update(booster)
+    # Minimal PATCH: list key plus changed leaves only.
+    booster_uri.update(
+        amplifier_name="ba",
+        admin_status=AdminStatusEnum.UP,
+        amplifier_enable=EnableSwitchEnum.ENABLED,
+        input_los_shutdown=EnableSwitchEnum.DISABLED,
+        control_mode=ControlModeEnum.MANUAL,
+        gain_range_control=GainRangeControlEnum.MANUAL,
+        target_gain_range=GainRangeTypeEnum.STANDARD,
+        target_gain=Decimal("22.0"),
+        output_voa=Decimal("10.0"),
+        tilt_control_mode=TiltControlModeEnum.MANUAL,
+        gain_tilt=Decimal("0.0"),
+    )
 
     preamp_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(subslot_id).subcard.amplifier("pa")
     preamp_before = preamp_uri.retrieve(content="config", depth=2)
-    preamp = preamp_before.model_copy(deep=True)
-    preamp.admin_status = AdminStatusEnum.UP
-    preamp.amplifier_enable = EnableSwitchEnum.ENABLED
-    preamp.input_los_shutdown = EnableSwitchEnum.DISABLED
-    preamp.control_mode = ControlModeEnum.AUTO
-    preamp.gain_range_control = GainRangeControlEnum.AUTO
-    preamp.target_gain_range = GainRangeTypeEnum.STANDARD
-    preamp.tilt_control_mode = TiltControlModeEnum.AUTO
-    preamp_uri.update(preamp)
+    preamp_uri.update(
+        amplifier_name="pa",
+        admin_status=AdminStatusEnum.UP,
+        amplifier_enable=EnableSwitchEnum.ENABLED,
+        input_los_shutdown=EnableSwitchEnum.DISABLED,
+        control_mode=ControlModeEnum.AUTO,
+        gain_range_control=GainRangeControlEnum.AUTO,
+        target_gain_range=GainRangeTypeEnum.STANDARD,
+        tilt_control_mode=TiltControlModeEnum.AUTO,
+    )
 
-    updated = port_before.model_copy(deep=True)
-    updated.external_connectivity = YesNoEnum.YES
-    updated.connected_to = f"{_node_id(remote_host_node)} {remote_port_name}"
-    updated.admin_status = AdminStatusEnum.UP
-    endpoint.update(updated)
+    endpoint.update(
+        port_id=port_before.port_id,
+        external_connectivity=YesNoEnum.YES,
+        connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
+        admin_status=AdminStatusEnum.UP,
+    )
 
     return {
         "port": compare_pydantic_objects(port_before, endpoint.retrieve(depth=2, content="config")),
@@ -352,7 +359,17 @@ def configure_termination(
     port_name = _port_name(optical_port_block)
     remote_port_name = _port_name(remote_port_block)
 
-    endpoint, shelf_id, slot_id, subslot_id, port_id, _ = g30_port_navigator_node_from_port_name(host_node, port_name)
+    endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id = g30_port_navigator_node_from_port_name(
+        host_node, port_name
+    )
+
+    def _minimal_port_update(**leaves: Any) -> None:
+        # Minimal PATCH: only changed leaves plus the list key; never resend
+        # the eth*/och-os/pluggable children via the port resource.
+        if subport_id is not None:
+            endpoint.update(subport_id=subport_id, **leaves)
+        else:
+            endpoint.update(port_id=port_id, **leaves)
 
     match (
         remote_host_node.management.optical_module_node_vendor,
@@ -360,11 +377,11 @@ def configure_termination(
     ):
         case (Vendor.NOKIA, Platform.FLEXILS):
             before = endpoint.retrieve(depth=2, content="config")
-            updated = before.model_copy(deep=True)
-            updated.external_connectivity = YesNoEnum.YES
-            updated.connected_to = f"{_node_id(remote_host_node)} {remote_port_name}"
-            updated.admin_status = AdminStatusEnum.UP
-            endpoint.update(cast(Any, updated))
+            _minimal_port_update(
+                external_connectivity=YesNoEnum.YES,
+                connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
+                admin_status=AdminStatusEnum.UP,
+            )
             return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             is_same_device = _same_node(host_node, remote_host_node)
@@ -372,20 +389,20 @@ def configure_termination(
 
             if is_same_device:
                 before = endpoint.retrieve(depth=2, content="config")
-                updated = before.model_copy(deep=True)
-                updated.external_connectivity = YesNoEnum.NO
-                updated.connected_to = f"patched to {remote_port_name}"
-                updated.admin_status = AdminStatusEnum.UP
-                endpoint.update(cast(Any, updated))
+                _minimal_port_update(
+                    external_connectivity=YesNoEnum.NO,
+                    connected_to=f"patched to {remote_port_name}",
+                    admin_status=AdminStatusEnum.UP,
+                )
                 return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
 
             if not is_amplifier_port:
                 before = endpoint.retrieve(depth=2, content="config")
-                updated = before.model_copy(deep=True)
-                updated.external_connectivity = YesNoEnum.YES
-                updated.connected_to = f"{_node_id(remote_host_node)} {remote_port_name}"
-                updated.admin_status = AdminStatusEnum.UP
-                endpoint.update(cast(Any, updated))
+                _minimal_port_update(
+                    external_connectivity=YesNoEnum.YES,
+                    connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
+                    admin_status=AdminStatusEnum.UP,
+                )
                 return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
 
             # link H4: the port is an amplifier port of a different Groove G30 device
@@ -410,19 +427,33 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
     """Prune the configuration of a Groove G30 port."""
     host_node = optical_port_block.optical_port_host_node
     port_name = _port_name(optical_port_block)
-    port_uri, *_ = g30_port_navigator_node_from_port_name(host_node, port_name)
+    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
 
     before = port_uri.retrieve(content="config", depth=2)
-    updated = before.model_copy(deep=True)
+    # Minimal PATCH: only changed leaves plus the list key.
     if "." in port_name:  # inside OCC2 card
-        updated.connected_to = ""
+        if subport_id is not None:
+            port_uri.update(subport_id=subport_id, connected_to="")
+        else:
+            port_uri.update(port_id=port_id, connected_to="")
+    elif subport_id is not None:
+        port_uri.update(
+            subport_id=subport_id,
+            external_connectivity=YesNoEnum.NO,
+            connected_to="",
+            admin_status=AdminStatusEnum.DOWN,
+            port_mode=PortModeEnum.NOT_APPLICABLE,
+            service_label="",
+        )
     else:
-        updated.external_connectivity = YesNoEnum.NO
-        updated.connected_to = ""
-        updated.admin_status = AdminStatusEnum.DOWN
-        updated.port_mode = PortModeEnum.NOT_APPLICABLE
-        updated.service_label = ""
-    port_uri.update(cast(Any, updated))
+        port_uri.update(
+            port_id=port_id,
+            external_connectivity=YesNoEnum.NO,
+            connected_to="",
+            admin_status=AdminStatusEnum.DOWN,
+            port_mode=PortModeEnum.NOT_APPLICABLE,
+            service_label="",
+        )
 
     return compare_pydantic_objects(before, port_uri.retrieve(content="config", depth=2))
 

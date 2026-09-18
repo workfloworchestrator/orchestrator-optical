@@ -179,10 +179,8 @@ def set_port_description(port_block: AnyOpticalPortBlockProvisioning, port_descr
     port_uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
 
     before = port_uri.retrieve(content="config", depth=2)
-    port_config = before.model_copy(deep=True)
-    port_config.label = port_description
-
-    port_uri.update(port_config)
+    # Minimal PATCH: list key plus changed leaves only.
+    port_uri.update(name=port_id, label=port_description)
 
     return compare_pydantic_objects(before, port_uri.retrieve(content="config", depth=2))
 
@@ -217,9 +215,8 @@ def set_channel_description(
         raise ValueError(msg)
 
     uri = g42.data.ne.facilities.super_channel(channel_name)
-    conf = uri.retrieve(depth=2, content="config")
-    conf.label = description
-    uri.update(conf)
+    # Minimal PATCH: list key plus changed leaves only.
+    uri.update(name=channel_name, label=description)
     return uri.retrieve(depth=2, content="config").model_dump()
 
 
@@ -251,9 +248,8 @@ def set_port_admin_state(
     uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
 
     before = uri.retrieve(content="config", depth=2)
-    conf = before.model_copy(deep=True)
-    conf.admin_state = status
-    uri.update(conf)
+    # Minimal PATCH: list key plus changed leaves only.
+    uri.update(name=port_id, admin_state=status)
 
     return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
 
@@ -298,12 +294,14 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
     shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
     uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
     before = uri.retrieve(content="config", depth=2)
-    conf = before.model_copy(deep=True)
-    conf.external_connectivity = ExternalConnectivityEnum.NO
-    conf.connected_to = ""
-    conf.admin_state = AdminStateEnum.LOCK
-    conf.label = ""
-    uri.update(conf)
+    # Minimal PATCH: list key plus changed leaves only.
+    uri.update(
+        name=port_id,
+        external_connectivity=ExternalConnectivityEnum.NO,
+        connected_to="",
+        admin_state=AdminStateEnum.LOCK,
+        label="",
+    )
     return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
 
 
