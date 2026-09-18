@@ -78,12 +78,6 @@ from orchestrator.optical.workflows.shared import used_port_names_on_node
 
 logger = get_logger(__name__)
 
-OPTICAL_NODE_PRODUCT_TYPES = [
-    ProductType.OPTICAL_NODE_NOKIA_FLEXILS.value,
-    ProductType.OPTICAL_NODE_NOKIA_GROOVE_G30.value,
-    ProductType.OPTICAL_NODE_NOKIA_GX_G42.value,
-]
-
 OPTICAL_PIPE_PRODUCT_TYPES = [
     ProductType.OPTICAL_FIBER_SPAN.value,
     ProductType.OPTICAL_FIBER_PATCH.value,
