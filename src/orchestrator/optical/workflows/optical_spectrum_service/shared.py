@@ -35,7 +35,7 @@ from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
-from orchestrator.optical.db import pipe_blocks_all
+from orchestrator.optical.db import pipe_blocks_all, pipe_blocks_by_types
 from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import retrieve_transceiver_modes
@@ -557,9 +557,7 @@ def build_constrained_graph_from_active_fibers(
           nodes) are excluded, as well as spans terminated on GX G42 nodes.
     """
     # retrieve all active fiber span blocks (block-based, no subscriptions)
-    active_fibers = [
-        pipe for pipe in pipe_blocks_all([SubscriptionLifecycle.ACTIVE]) if pipe.optical_pipe_type == "Span"
-    ]
+    active_fibers = pipe_blocks_by_types(["Span"], [SubscriptionLifecycle.ACTIVE])
 
     # filter out fibers that are excluded by the constraints
     exclude_node_sub_id_set = set(exclude_node_instance_ids or [])

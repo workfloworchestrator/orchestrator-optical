@@ -62,31 +62,6 @@ def active_location(run_process: Callable[[str, list[dict[str, Any]]], str]) -> 
 
 
 @pytest.fixture
-def active_packet_node(
-    run_process: Callable[[str, list[dict[str, Any]]], str],
-    active_location: str,
-) -> str:
-    """Create an ACTIVE Optical Module Packet Node (there is no shipped workflow for it)."""
-    with core_db.db.database_scope():
-        subscription = OpticalModulePacketNodeSubscriptionInactive.from_product_id(
-            product_id=UUID(_product_id_of("Optical Module Packet Node")),
-            customer_id=CUSTOMER_ID,
-            status=SubscriptionLifecycle.INITIAL,
-        )
-        subscription.optical_packet_node.management.optical_module_node_fqdn = "packet-node-01.test.local"
-        subscription.optical_packet_node.location = location_block_from_instance(active_location)
-        # A fully provisioned packet node is in sync; the shipped coherent pluggable workflows
-        # would otherwise not be able to modify/terminate subscriptions depending on it.
-        subscription.insync = True
-        subscription.save()
-        subscription_id = str(subscription.subscription_id)
-        core_db.db.session.commit()
-    core_db.db.session.expire_all()
-    _set_subscription_status(subscription_id, SubscriptionLifecycle.ACTIVE)
-    return subscription_id
-
-
-@pytest.fixture
 def seed_optical_node(
     run_process: Callable[[str, list[dict[str, Any]]], str],
     active_location: str,
@@ -169,8 +144,7 @@ def active_coherent_pluggable_host(
 ) -> str:
     """Create an ACTIVE Optical Module Packet Node fully provisioned as a coherent pluggable host.
 
-    Unlike ``active_packet_node`` (which only sets the management block FQDN), this seeder
-    also fills the fields the ACTIVE management block requires. The coherent pluggable
+    This seeder fills the fields the ACTIVE management block requires. The coherent pluggable
     workflows resolve the host node through ``packet_node_block_from_instance`` (the
     most-derived lifecycle class), which cannot load a partially provisioned node.
 

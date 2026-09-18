@@ -36,7 +36,6 @@ __all__ = [
     "location_block_from_instance",
     "node_block_from_instance",
     "node_instance_id_of_subscription",
-    "node_instances_by_block_names",
     "packet_node_block_from_instance",
     "packet_node_instance_id_of_subscription",
     "pipe_blocks_all",
@@ -290,8 +289,8 @@ def subscription_instances_by_block_names(
 
     Block-based listing: no product type or subscription model is involved, so the
     lookup also covers consumers composing the shipped blocks under their own product
-    types. This is the generic form of :func:`node_instances_by_block_names` and
-    :func:`pipe_instances_by_block_names`, backing the block-filtered selectors.
+    types. This is the generic form of :func:`pipe_instances_by_block_names`,
+    backing the block-filtered selectors.
 
     Args:
         block_names: The product block names to match (e.g. the ``__names__`` of an
@@ -343,41 +342,13 @@ def _block_instance_of_subscription(
     return instances[0]
 
 
-def node_instances_by_block_names(
-    block_names: set[str],
-    states: list[SubscriptionLifecycle],
-) -> list[SubscriptionInstanceTable]:
-    """Return the subscription instances whose product block is one of the given names.
-
-    Block-based listing: no product type or subscription model is involved, so the
-    lookup also covers consumers composing the shipped blocks under their own product
-    types. Callers load the blocks via :func:`node_block_from_instance`.
-
-    Args:
-        block_names: The product block names to match (e.g. the ``__names__`` of an
-            abstract block).
-        states: Lifecycle states the owner subscription must be in.
-
-    Returns:
-        The matching subscription instances.
-    """
-    return (
-        SubscriptionInstanceTable.query.join(SubscriptionTable)
-        .join(ProductBlockTable)
-        .filter(SubscriptionTable.status.in_(states))
-        .filter(ProductBlockTable.name.in_(block_names))
-        .all()
-    )
-
-
 def pipe_instances_by_block_names(
     block_names: set[str],
     states: list[SubscriptionLifecycle],
 ) -> list[SubscriptionInstanceTable]:
     """Return the pipe subscription instances whose product block is one of the given names.
 
-    Block-based listing, mirroring :func:`node_instances_by_block_names` for the
-    optical pipe family (span, patch, leased spectrum).
+    Block-based listing for the optical pipe family (span, patch, leased spectrum).
 
     Args:
         block_names: The product block names to match.

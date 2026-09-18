@@ -24,6 +24,5 @@ from test.support.devices import (  # noqa: F401
 from test.support.topology import (  # noqa: F401
     active_coherent_pluggable_host,
     active_location,
-    active_packet_node,
     seed_optical_node,
 )

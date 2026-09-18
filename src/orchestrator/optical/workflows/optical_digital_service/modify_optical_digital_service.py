@@ -181,7 +181,7 @@ def modify_optical_digital_service_form(block: OpticalDigitalServiceBlock) -> ty
     mode_choice = optical_transport_mode_selector(line_port_ids, extra_options=[str(old_mode)])
 
     class ModifyOpticalDigitalServiceForm(FormPage):
-        optical_transport_mode: mode_choice = old_mode
+        optical_transport_mode: mode_choice = mode_choice(old_mode)
         frequency_1: Frequency = channels[0].optical_transport_central_frequency
         bandwidth_1: SpectralWidth = (
             channels[0].optical_transport_spectrum.optical_spectrum_passband[1]
