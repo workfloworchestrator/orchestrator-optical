@@ -508,7 +508,7 @@ def test_node_form_optical_fields_are_consumed_by_a_block_step(vendor: str) -> N
 
 #: Flat ``optical_*`` fields the shipped coherent pluggable create form declares.
 COHERENT_PLUGGABLE_FORM_OPTICAL_FIELDS: set[str] = {
-    "optical_packet_node_id",
+    "optical_packet_node_instance_id",
     "optical_coherent_pluggable_part_number",
     "optical_port_name",
     "optical_port_description",

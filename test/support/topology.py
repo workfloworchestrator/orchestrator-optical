@@ -27,6 +27,7 @@ from test.support.db import (
     _product_id_of,
     _set_subscription_status,
     _subscription_id_of_process,
+    packet_node_instance_id_of_subscription,
 )
 from test.support.devices import FAKE_SOFTWARE_VERSION, install_device_stubs
 
@@ -170,8 +171,10 @@ def active_coherent_pluggable_host(
 
     Unlike ``active_packet_node`` (which only sets the management block FQDN), this seeder
     also fills the fields the ACTIVE management block requires. The coherent pluggable
-    workflows resolve the host node through ``packet_node_block_from_subscription`` (the
+    workflows resolve the host node through ``packet_node_block_from_instance`` (the
     most-derived lifecycle class), which cannot load a partially provisioned node.
+
+    Returns the subscription instance id of the packet node block.
     """
     with core_db.db.database_scope():
         subscription = OpticalModulePacketNodeSubscriptionInactive.from_product_id(
@@ -193,4 +196,4 @@ def active_coherent_pluggable_host(
         core_db.db.session.commit()
     core_db.db.session.expire_all()
     _set_subscription_status(subscription_id, SubscriptionLifecycle.ACTIVE)
-    return subscription_id
+    return packet_node_instance_id_of_subscription(subscription_id)

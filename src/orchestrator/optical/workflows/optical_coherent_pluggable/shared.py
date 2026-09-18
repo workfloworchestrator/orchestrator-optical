@@ -2,8 +2,7 @@
 
 This module ships the parts shared by the create, modify and validate
 workflows of the family: the state key under which the shipped Coherent
-Pluggable block travels in the workflow state, the resolution of the Optical
-Module Packet Node block hosting a pluggable, the human-readable subscription
+Pluggable block travels in the workflow state, the human-readable subscription
 description (a shipped-product-type concept, because the part number lives on
 the subscription) and the block persistence steps.
 """
@@ -14,7 +13,6 @@ from pydantic_forms.types import State
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import step
-from orchestrator.optical.db import packet_node_block_from_subscription
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
     OpticalCoherentPluggableBlockProvisioning,
 )
@@ -215,6 +213,5 @@ __all__ = [
     "load_optical_coherent_pluggable_block",
     "optical_coherent_pluggable_block_from_state",
     "optical_coherent_pluggable_subscription_description",
-    "packet_node_block_from_subscription",
     "update_optical_coherent_pluggable_subscription_description",
 ]

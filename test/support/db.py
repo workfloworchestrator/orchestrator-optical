@@ -294,6 +294,12 @@ def node_instance_id_of_subscription(subscription_id: str) -> str:
         return optical_db.node_instance_id_of_subscription(subscription_id)
 
 
+def packet_node_instance_id_of_subscription(subscription_id: str) -> str:
+    """Return the packet node block instance id of a packet node subscription (test helper only)."""
+    with core_db.db.database_scope():
+        return optical_db.packet_node_instance_id_of_subscription(subscription_id)
+
+
 def _set_subscription_status(subscription_id: str, status: SubscriptionLifecycle) -> None:
     """Set the lifecycle status of a subscription row in the database."""
     with core_db.db.database_scope():

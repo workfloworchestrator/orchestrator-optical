@@ -36,7 +36,10 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.db import subscription_instances_by_block_type_and_resource_value
+from orchestrator.optical.db import (
+    packet_node_block_from_instance,
+    subscription_instances_by_block_type_and_resource_value,
+)
 from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
     OpticalCoherentPluggableBlock,
     OpticalCoherentPluggableBlockInactive,
@@ -53,10 +56,9 @@ from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
-    packet_node_block_from_subscription,
     update_optical_coherent_pluggable_subscription_description,
 )
-from orchestrator.optical.workflows.shared import active_subscription_selector_by_block_type, create_summary_form
+from orchestrator.optical.workflows.shared import active_instance_selector_by_block_type, create_summary_form
 
 
 def check_optical_coherent_pluggable_port_uniqueness(
@@ -136,8 +138,8 @@ def create_optical_coherent_pluggable_form(
     Args:
         product_name: Name of the product being created, used as the page title.
         packet_node_choice: The ``Choice`` selector of the Optical Module
-            Packet Node subscriptions, as built by
-            :func:`orchestrator.optical.workflows.shared.active_subscription_selector_by_block_type`.
+            Packet Node blocks, as built by
+            :func:`orchestrator.optical.workflows.shared.active_instance_selector_by_block_type`.
         part_number_choice: The ``Choice`` selector of the pluggable part numbers.
 
     Returns:
@@ -147,7 +149,7 @@ def create_optical_coherent_pluggable_form(
     class CreateOpticalCoherentPluggableForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        optical_packet_node_id: packet_node_choice
+        optical_packet_node_instance_id: packet_node_choice
         optical_coherent_pluggable_part_number: part_number_choice
         optical_port_name: Annotated[
             str,
@@ -158,7 +160,7 @@ def create_optical_coherent_pluggable_form(
 
         @model_validator(mode="after")
         def validate_unique_port_on_node(self) -> "CreateOpticalCoherentPluggableForm":
-            node_block = packet_node_block_from_subscription(self.optical_packet_node_id)
+            node_block = packet_node_block_from_instance(self.optical_packet_node_instance_id)
             check_optical_coherent_pluggable_port_uniqueness(
                 self.optical_port_name,
                 node_block,
@@ -186,7 +188,7 @@ def create_optical_coherent_pluggable_form_pages(product_name: str) -> FormGener
     Returns:
         The collected user input of the shipped pages.
     """
-    packet_node_choice = active_subscription_selector_by_block_type(
+    packet_node_choice = active_instance_selector_by_block_type(
         OpticalModulePacketNodeBlockInactive, prompt="Select an Optical Packet Node"
     )
     part_number_choice = cast(
@@ -223,7 +225,7 @@ def create_optical_coherent_pluggable_form_generator(product_name: str) -> FormG
 
     summary_fields = [
         "customer_id",
-        "optical_packet_node_id",
+        "optical_packet_node_instance_id",
         "optical_coherent_pluggable_part_number",
         "optical_port_name",
         "optical_port_description",
@@ -250,7 +252,7 @@ def populate_optical_coherent_pluggable_block(
     their own construct step on the shipped block they compose. The host node
     block comes from the Optical Packet Node subscription hosting the
     pluggable: the shipped construct step resolves it from the form's
-    ``optical_packet_node_id``, consumers pass the shipped packet node block of
+    ``optical_packet_node_instance_id``, consumers pass the shipped packet node block of
     their own model. It re-checks the uniqueness of the port on the host node
     at execution time, so consumers bypassing the form validation are still
     guarded against duplicates.
@@ -283,7 +285,7 @@ def populate_optical_coherent_pluggable_block(
 def construct_optical_coherent_pluggable_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
-    optical_packet_node_id: UUIDstr,
+    optical_packet_node_instance_id: UUIDstr,
     optical_port_name: str,
     optical_coherent_pluggable_part_number: OpticalCoherentPluggablePartNumber,
     optical_coherent_pluggable_firmware_version: str,
@@ -318,7 +320,7 @@ def construct_optical_coherent_pluggable_subscription(
 
     populate_optical_coherent_pluggable_block(
         optical_module_block=subscription.optical_coherent_pluggable,
-        optical_port_host_node=packet_node_block_from_subscription(optical_packet_node_id),
+        optical_port_host_node=packet_node_block_from_instance(optical_packet_node_instance_id),
         optical_port_name=optical_port_name,
         optical_port_description=optical_port_description,
         optical_coherent_pluggable_firmware_version=optical_coherent_pluggable_firmware_version,

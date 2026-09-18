@@ -22,7 +22,7 @@ from sqlalchemy import update
 import orchestrator.core.db as core_db
 from orchestrator.core.db import FixedInputTable, SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.db import packet_node_block_from_subscription
+from orchestrator.optical.db import packet_node_block_from_instance
 from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import OpticalModulePacketNodeBlock
 from orchestrator.optical.products.product_types.optical_coherent_pluggable import (
     OpticalCoherentPluggablePartNumber,
@@ -77,7 +77,7 @@ def _create_user_inputs(product_id_for, host_node_id: str) -> list[dict]:
         {"product": product_id_for(PRODUCT_NAME)},
         {"customer_id": CUSTOMER_ID},
         {
-            "optical_packet_node_id": host_node_id,
+            "optical_packet_node_instance_id": host_node_id,
             "optical_coherent_pluggable_part_number": PART_NUMBER.value,
             "optical_port_name": PORT_NAME,
             "optical_port_description": PORT_DESCRIPTION,
@@ -124,7 +124,7 @@ def test_create_coherent_pluggable_end_to_end(
     assert str(host_node.management.optical_module_node_fqdn) == HOST_NODE_FQDN
     assert (
         host_node.subscription_instance_id
-        == packet_node_block_from_subscription(active_coherent_pluggable_host).subscription_instance_id
+        == packet_node_block_from_instance(active_coherent_pluggable_host).subscription_instance_id
     )
 
 

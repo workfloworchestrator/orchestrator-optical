@@ -442,20 +442,20 @@ def _fake_packet_node_choice(*args, **kwargs) -> type[Choice]:
     return cast(type[Choice], Choice.__call__("FakePacketNodeChoice", {"node-1": "node-1"}))
 
 
-def _fake_packet_node_block_from_subscription(_subscription_id) -> OpticalModulePacketNodeBlockInactive:
+def _fake_packet_node_block_from_instance(_instance_id) -> OpticalModulePacketNodeBlockInactive:
     return _make_packet_node_block()
 
 
 def test_create_form_pages_yield_the_shipped_page(monkeypatch) -> None:
-    monkeypatch.setattr(create_parts, "active_subscription_selector_by_block_type", _fake_packet_node_choice)
-    monkeypatch.setattr(create_parts, "packet_node_block_from_subscription", _fake_packet_node_block_from_subscription)
+    monkeypatch.setattr(create_parts, "active_instance_selector_by_block_type", _fake_packet_node_choice)
+    monkeypatch.setattr(create_parts, "packet_node_block_from_instance", _fake_packet_node_block_from_instance)
 
     generator = create_parts.create_optical_coherent_pluggable_form_pages("Coherent Pluggable")
 
     page = next(generator)
     assert issubclass(page, FormPage)
     assert set(page.model_fields) == {
-        "optical_packet_node_id",
+        "optical_packet_node_instance_id",
         "optical_coherent_pluggable_part_number",
         "optical_port_name",
         "optical_port_description",
@@ -465,7 +465,7 @@ def test_create_form_pages_yield_the_shipped_page(monkeypatch) -> None:
     user_input = finish_form(
         generator,
         page(
-            optical_packet_node_id="node-1",
+            optical_packet_node_instance_id="node-1",
             optical_coherent_pluggable_part_number=OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S.value,
             optical_port_name="port-1",
             optical_port_description="desc",
@@ -473,7 +473,7 @@ def test_create_form_pages_yield_the_shipped_page(monkeypatch) -> None:
         ),
     )
     assert user_input == {
-        "optical_packet_node_id": "node-1",
+        "optical_packet_node_instance_id": "node-1",
         "optical_coherent_pluggable_part_number": OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S.value,
         "optical_port_name": "port-1",
         "optical_port_description": "desc",
@@ -483,8 +483,8 @@ def test_create_form_pages_yield_the_shipped_page(monkeypatch) -> None:
 
 def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) -> None:
     monkeypatch.setattr(customer_parts, "customer_choice_selector", _fake_customer_choice)
-    monkeypatch.setattr(create_parts, "active_subscription_selector_by_block_type", _fake_packet_node_choice)
-    monkeypatch.setattr(create_parts, "packet_node_block_from_subscription", _fake_packet_node_block_from_subscription)
+    monkeypatch.setattr(create_parts, "active_instance_selector_by_block_type", _fake_packet_node_choice)
+    monkeypatch.setattr(create_parts, "packet_node_block_from_instance", _fake_packet_node_block_from_instance)
 
     def my_create_form_generator(product_name):
         user_input_dict = yield from customer_parts.customer_choice_form_page()
@@ -497,7 +497,7 @@ def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) ->
     user_input = finish_form(
         generator,
         page(
-            optical_packet_node_id="node-1",
+            optical_packet_node_instance_id="node-1",
             optical_coherent_pluggable_part_number=OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S.value,
             optical_port_name="port-1",
             optical_port_description="desc",
@@ -506,7 +506,7 @@ def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) ->
     )
 
     assert user_input["customer_id"] == "cust-1"
-    assert user_input["optical_packet_node_id"] == "node-1"
+    assert user_input["optical_packet_node_instance_id"] == "node-1"
     assert user_input["optical_port_name"] == "port-1"
     assert user_input["optical_coherent_pluggable_firmware_version"] == "1.0"
 

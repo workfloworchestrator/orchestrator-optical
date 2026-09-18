@@ -38,7 +38,8 @@ __all__ = [
     "node_blocks_by_roles",
     "node_instance_id_of_subscription",
     "node_instances_by_block_names",
-    "packet_node_block_from_subscription",
+    "packet_node_block_from_instance",
+    "packet_node_instance_id_of_subscription",
     "pipe_blocks_all",
     "pipe_instances_by_block_names",
     "subscription_instance_values_by_block_type_depending_on_instance_id",
@@ -519,31 +520,56 @@ def location_block_from_instance(instance_id: UUIDstr) -> OpticalModuleLocationB
     return OpticalModuleLocationBlock.from_db(subscription_instance_id=instance.subscription_instance_id)
 
 
-def packet_node_block_from_subscription(subscription_id: UUIDstr) -> OpticalModulePacketNodeBlock:
-    """Return the Optical Module Packet Node product block of the given subscription.
+def packet_node_block_from_instance(instance_id: UUIDstr) -> OpticalModulePacketNodeBlock:
+    """Return the Optical Module Packet Node product block of the given block instance id.
 
-    The resolution is block-based: the subscription instance whose product
-    block is an ``OpticalModulePacketNode`` is looked up by the subscription id
-    and loaded as the most-derived class. Because every consumer that composes
-    the shipped block persists it under the shipped block name, the lookup
-    also covers composed product types without hardcoding a product type or
-    depending on the subscription model registry. The subscription id is only
-    an input parameter, not a model dependency.
+    Block-based resolution: the instance is looked up by its
+    ``subscription_instance_id`` and loaded as the most-derived lifecycle class,
+    without touching subscription ids or the subscription model registry.
 
     Args:
-        subscription_id: Subscription id of an active Optical Packet Node subscription.
+        instance_id: Subscription instance id of an Optical Module Packet Node block.
 
     Returns:
-        The Optical Module Packet Node product block of the subscription.
+        The Optical Module Packet Node product block.
 
     Raises:
-        ValueError: If the subscription has no Optical Module Packet Node block.
+        ValueError: If the instance does not exist or is not an Optical Module Packet Node block.
+    """
+    instance = (
+        SubscriptionInstanceTable.query.join(ProductBlockTable)
+        .filter(SubscriptionInstanceTable.subscription_instance_id == instance_id)
+        .one_or_none()
+    )
+    if instance is None:
+        msg = f"Subscription instance {instance_id} does not exist"
+        raise ValueError(msg)
+    if instance.product_block.name not in OpticalModulePacketNodeBlock.__names__:
+        msg = f"Subscription instance {instance_id} is not an Optical Module Packet Node block"
+        raise ValueError(msg)
+    # The ACTIVE class is the most-derived subclass, so it can load INITIAL,
+    # PROVISIONING and ACTIVE blocks (unlike the PROVISIONING class).
+    return OpticalModulePacketNodeBlock.from_db(subscription_instance_id=instance.subscription_instance_id)
+
+
+def packet_node_instance_id_of_subscription(subscription_id: UUIDstr) -> str:
+    """Return the block instance id of the Optical Module Packet Node block of a packet node subscription.
+
+    Callers holding a packet node subscription id resolve the packet node block
+    instance through this helper before calling :func:`packet_node_block_from_instance`.
+
+    Args:
+        subscription_id: Subscription id of an Optical Module Packet Node subscription.
+
+    Returns:
+        The subscription instance id of the Optical Module Packet Node block.
+
+    Raises:
+        ValueError: If the subscription has no Optical Module Packet Node block, or more than one.
     """
     instance = _block_instance_of_subscription(
         subscription_id,
         OpticalModulePacketNodeBlockInactive.__names__,
         "Optical Module Packet Node block",
     )
-    # The ACTIVE class is the most-derived subclass, so it can load INITIAL,
-    # PROVISIONING and ACTIVE blocks (unlike the PROVISIONING class).
-    return OpticalModulePacketNodeBlock.from_db(subscription_instance_id=instance.subscription_instance_id)
+    return str(instance.subscription_instance_id)
