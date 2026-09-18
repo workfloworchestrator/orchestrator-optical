@@ -64,6 +64,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     LINE_SYSTEM_ROLES,
     NO_OPTICAL_PATH_FOUND_MSG,
     NoOpticalPathFoundError,
+    OwnOccupancy,
     delete_optical_spectrum_sections,
     load_ols_port,
     load_optical_spectrum_block,
@@ -243,7 +244,10 @@ def modify_optical_spectrum_form_pages(
     :data:`MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS`. The source and destination
     add/drop port blocks are reused from the existing sections: the path is
     recomputed between the existing source and destination nodes, with the
-    ordered waypoints and the exclusions collected by the form. Consumers yield
+    ordered waypoints and the exclusions collected by the form. The service's
+    own old passband is forgiven on the service's current path ports in the
+    overlap test so an unchanged passband on the same path does not block
+    itself. Consumers yield
     from it in one line inside their own modify form generator, optionally
     interleaving their own pages. The customer of the subscription is collected
     separately by the consumer (see
@@ -301,6 +305,21 @@ def modify_optical_spectrum_form_pages(
             prompt=(
                 "Select the optical path, if you don't see the desired path,"
                 " adjust constraints in previous step or validate fibers along the path."
+            ),
+            # The stored used passbands still contain this service's own circuit:
+            # forgive its old passband, but only on the service's current path
+            # ports — a same-frequency interval on any other pipe belongs to a
+            # different service (spatial frequency reuse) and still blocks.
+            own_occupancy=OwnOccupancy(
+                passbands=((int(old_passband[0]), int(old_passband[1])),),
+                port_ids=frozenset(
+                    str(port.subscription_instance_id)
+                    for section in sections
+                    for port in (
+                        *section.optical_spectrum_section_add_drop_ports,
+                        *section.optical_spectrum_section_express_ports,
+                    )
+                ),
             ),
         )
     except NoOpticalPathFoundError:

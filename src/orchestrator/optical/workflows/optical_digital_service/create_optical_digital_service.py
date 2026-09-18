@@ -93,6 +93,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     LINE_SYSTEM_ROLES,
     NO_OPTICAL_PATH_FOUND_MSG,
     NoOpticalPathFoundError,
+    OwnOccupancy,
     all_shortest_paths_through_waypoints,
     are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path,
     check_optical_spectrum_add_drop_port_availability,
@@ -460,6 +461,7 @@ def optical_digital_service_path_choice(
     passband: tuple[int, int],
     exclude_node_instance_ids: list[UUIDstr] | None,
     exclude_pipe_instance_ids: list[UUIDstr] | None,
+    own_occupancy: OwnOccupancy | None = None,
 ) -> type[Choice]:
     """Create the optical-path selector between two transponder line ports.
 
@@ -479,6 +481,8 @@ def optical_digital_service_path_choice(
         passband: The passband configuration for the optical path.
         exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
         exclude_pipe_instance_ids: Subscription instance ids of pipe blocks to exclude.
+        own_occupancy: The service's own current circuits, forgiven only on their own
+            path ports (modify workflows).
 
     Returns:
         A ``Choice`` class whose values are ``";"``-joined port instance ids.
@@ -519,6 +523,7 @@ def optical_digital_service_path_choice(
         passband,
         exclude_node_instance_ids,
         exclude_pipe_instance_ids,
+        own_occupancy,
     )
     wrapped_paths = []
     for path in ols_paths:

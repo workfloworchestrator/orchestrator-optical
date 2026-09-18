@@ -14,6 +14,7 @@
 """Frequency, bandwidth and passband types plus passband arithmetic helpers."""
 
 import ast
+from collections.abc import Sequence
 from typing import Annotated
 
 from pydantic import AfterValidator, BeforeValidator, Field
@@ -172,6 +173,78 @@ def disjoint_intervals_overlap_search(
             low = mid + 1
 
     return None
+
+
+def subtract_intervals(
+    intervals: Sequence[tuple[int, int] | list[int]],
+    ignored: Sequence[tuple[int, int] | list[int]] | None,
+) -> list[tuple[int, int]]:
+    """Subtract the ignored intervals from a sorted list of disjoint intervals.
+
+    Half-open semantics (``[start, end)``), matching
+    :func:`disjoint_intervals_overlap_search`: edge-touching intervals do not
+    overlap. A stored interval fully covered by the ignored set disappears; a
+    partially covered one is split so the foreign remainder survives (e.g. a
+    device-merged ``[100, 300]`` minus own ``[100, 200]`` keeps ``[200, 300]``).
+
+    Args:
+        intervals: Sorted disjoint ``(start, end)`` intervals (e.g. the used
+            passbands stored on an OLS port).
+        ignored: ``(start, end)`` intervals to remove (e.g. the service's own
+            old passbands being replaced by the modify). Unsorted or overlapping
+            entries are tolerated; ``None``/empty returns the input unchanged.
+
+    Returns:
+        The sorted disjoint remainder after subtraction.
+    """
+    if not ignored:
+        return [(int(start), int(end)) for start, end in intervals]
+    ordered = sorted((int(start), int(end)) for start, end in ignored)
+    remainder: list[tuple[int, int]] = []
+    for start, end in intervals:
+        fragments = [(int(start), int(end))]
+        for ignored_start, ignored_end in ordered:
+            next_fragments: list[tuple[int, int]] = []
+            for fragment_start, fragment_end in fragments:
+                if ignored_end <= fragment_start or ignored_start >= fragment_end:
+                    next_fragments.append((fragment_start, fragment_end))
+                    continue
+                if ignored_start > fragment_start:
+                    next_fragments.append((fragment_start, min(ignored_start, fragment_end)))
+                if ignored_end < fragment_end:
+                    next_fragments.append((max(ignored_end, fragment_start), fragment_end))
+            fragments = next_fragments
+            if not fragments:
+                break
+        remainder.extend(fragments)
+    return remainder
+
+
+def passband_overlaps_excluding_ignored(
+    intervals: Sequence[tuple[int, int] | list[int]],
+    target_interval: tuple[int, int] | list[int],
+    ignored: Sequence[tuple[int, int] | list[int]] | None,
+) -> tuple[int, int] | None:
+    """Search for an overlap with the target interval, ignoring the given own intervals.
+
+    In-memory equivalent of "freeing" the service's own old passbands before
+    building the path graph: the modify form runs before any device change, so
+    the stored used passbands still contain the circuit being replaced. Only the
+    ignored contribution is forgiven; any foreign overlap still blocks.
+
+    Args:
+        intervals: Sorted disjoint ``(start, end)`` intervals (stored used passbands).
+        target_interval: The new ``(start, end)`` passband to test.
+        ignored: The service's own old ``(start, end)`` passbands to subtract first.
+
+    Returns:
+        The overlapping foreign interval, or None when the target is free.
+    """
+    target = (int(target_interval[0]), int(target_interval[1]))
+    if not ignored:
+        return disjoint_intervals_overlap_search([(int(start), int(end)) for start, end in intervals], target)
+    remainder = subtract_intervals(intervals, list(ignored))
+    return disjoint_intervals_overlap_search(remainder, target)
 
 
 def available_to_used_passbands(

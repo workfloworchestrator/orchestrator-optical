@@ -23,7 +23,7 @@ device selectors to the generalized Optical Node/Port model:
 from collections import deque
 from collections.abc import Iterable, Sequence
 from itertools import pairwise, product
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, NamedTuple, cast
 from uuid import UUID
 
 from pydantic import Field
@@ -68,6 +68,7 @@ from orchestrator.optical.products.product_blocks.optical_spectrum_section impor
 from orchestrator.optical.utils.custom_types.frequencies import (
     Passband,
     disjoint_intervals_overlap_search,
+    passband_overlaps_excluding_ignored,
     snap_passband_to_grid,
 )
 from orchestrator.optical.utils.datadiff import DiffResult
@@ -100,6 +101,21 @@ Edge = tuple[Port, Port]
 NeighborConnection = tuple[Node, Edge]
 Graph = dict[Node, list[NeighborConnection]]  # {node_id: [(neighbor_id, (port_a_id, port_b_id)), ...]}
 Path = list[Port]  # list of ``AbstractOpticalOlsPortBlockInactive.subscription_instance_id``
+
+
+class OwnOccupancy(NamedTuple):
+    """A service's own circuits to forgive during path computation (modify workflows).
+
+    The stored used passbands still contain the circuit being replaced (the modify
+    form runs before any device change), so an unchanged passband on the same path
+    would block itself. Forgiveness is scoped to the service's current path: the
+    old passbands are subtracted only on the given port instance ids, everywhere
+    else the strict overlap test applies — a same-frequency interval on another
+    pipe belongs to a different service (spatial frequency reuse) and still blocks.
+    """
+
+    passbands: tuple[tuple[int, int], ...]
+    port_ids: frozenset[str]
 
 
 class NoOpticalPathFoundError(RuntimeError):
@@ -613,11 +629,30 @@ def build_constrained_graph_from_active_fibers(
     return graph
 
 
+def _port_blocks_passband(
+    port: AbstractOpticalOlsPortBlockInactive,
+    passband: Passband,
+    own_occupancy: OwnOccupancy | None,
+) -> bool:
+    """Return whether the stored used passbands of a port block the given passband.
+
+    On the ports of the service's own current path the service's old passbands are
+    subtracted first (in-memory equivalent of freeing the circuit being replaced);
+    on every other port the strict overlap test applies.
+    """
+    if own_occupancy is not None and str(port.subscription_instance_id) in own_occupancy.port_ids:
+        return (
+            passband_overlaps_excluding_ignored(port.optical_passbands, passband, own_occupancy.passbands) is not None
+        )
+    return disjoint_intervals_overlap_search(port.optical_passbands, passband) is not None
+
+
 def build_graph_from_pipes(
     pipes: Iterable[AbstractOpticalPipeBlockInactive],
     passband: Passband,
     exclude_node_instance_ids: list[UUIDstr] | None = None,
     exclude_span_instance_ids: list[UUIDstr] | None = None,
+    own_occupancy: OwnOccupancy | None = None,
 ) -> Graph:
     """Build a constrained graph representation from the given optical pipes.
 
@@ -631,6 +666,9 @@ def build_graph_from_pipes(
         passband: The passband used to filter pipes based on overlapping intervals.
         exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
         exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
+        own_occupancy: The service's own current circuits, forgiven only on their own
+            path ports (modify workflows). ``None`` (create workflows) keeps the
+            strict check everywhere.
 
     Returns:
         An adjacency list representation of the graph where keys are the
@@ -678,7 +716,7 @@ def build_graph_from_pipes(
         ):
             logger.debug("Skipping pipe: excluded node", pipe_name=pipe_name, pipe_owner=pipe_owner)
             continue
-        if any(disjoint_intervals_overlap_search(port.optical_passbands, passband) for port in (port_a, port_b)):
+        if any(_port_blocks_passband(port, passband, own_occupancy) for port in (port_a, port_b)):
             logger.debug("Skipping pipe: passband overlap", pipe_name=pipe_name, pipe_owner=pipe_owner)
             continue
 
@@ -718,6 +756,7 @@ def build_constrained_graph(
     passband: Passband,
     exclude_node_instance_ids: list[UUIDstr] | None = None,
     exclude_span_instance_ids: list[UUIDstr] | None = None,
+    own_occupancy: OwnOccupancy | None = None,
 ) -> Graph:
     """Build a constrained graph from all active optical pipes.
 
@@ -728,13 +767,15 @@ def build_constrained_graph(
         passband: The passband used to filter pipes based on overlapping intervals.
         exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
         exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
+        own_occupancy: The service's own current circuits, forgiven only on their own
+            path ports (modify workflows).
 
     Returns:
         An adjacency list representation of the constrained graph (see
         :func:`build_graph_from_pipes`).
     """
     pipes = _load_active_pipes()
-    return build_graph_from_pipes(pipes, passband, exclude_node_instance_ids, exclude_span_instance_ids)
+    return build_graph_from_pipes(pipes, passband, exclude_node_instance_ids, exclude_span_instance_ids, own_occupancy)
 
 
 def all_valid_shortest_paths_between_oadms(
@@ -1057,6 +1098,7 @@ def all_shortest_paths_through_waypoints(
     passband: Passband,
     exclude_node_instance_ids: list[UUIDstr] | None = None,
     exclude_span_instance_ids: list[UUIDstr] | None = None,
+    own_occupancy: OwnOccupancy | None = None,
 ) -> list[Path]:
     """Find all shortest paths from source to destination through the ordered waypoints.
 
@@ -1073,6 +1115,8 @@ def all_shortest_paths_through_waypoints(
         passband: The passband configuration for the optical path.
         exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
         exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
+        own_occupancy: The service's own current circuits, forgiven only on their own
+            path ports (modify workflows).
 
     Returns:
         A list of all shortest paths as lists of Optical Port subscription instance ids.
@@ -1080,7 +1124,7 @@ def all_shortest_paths_through_waypoints(
     Raises:
         NoOpticalPathFoundError: If any segment between two consecutive stops has no path.
     """
-    graph = build_constrained_graph(passband, exclude_node_instance_ids, exclude_span_instance_ids)
+    graph = build_constrained_graph(passband, exclude_node_instance_ids, exclude_span_instance_ids, own_occupancy)
     if not waypoint_node_instance_ids:
         return compute_all_shortest_paths(graph, src_node_instance_id, dst_node_instance_id)
 
@@ -1206,6 +1250,7 @@ def optical_spectrum_path_selector(
     exclude_node_instance_ids: list[UUIDstr] | None = None,
     exclude_span_instance_ids: list[UUIDstr] | None = None,
     prompt: str = "Select an optical path.",
+    own_occupancy: OwnOccupancy | None = None,
 ) -> type[Choice]:
     """Select an optical path between two optical devices based on the given parameters.
 
@@ -1222,6 +1267,8 @@ def optical_spectrum_path_selector(
         exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
         exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
         prompt: A prompt message for the user to select an optical path. Defaults to "Select an optical path.".
+        own_occupancy: The service's own current circuits, forgiven only on their own
+            path ports (modify workflows).
 
     Returns:
         A Choice object containing the prompt and a list of valid optical paths represented as
@@ -1234,6 +1281,7 @@ def optical_spectrum_path_selector(
         passband,
         exclude_node_instance_ids,
         exclude_span_instance_ids,
+        own_occupancy,
     )
     return human_readable_optical_spectrum_path_selector(paths, prompt)
 
