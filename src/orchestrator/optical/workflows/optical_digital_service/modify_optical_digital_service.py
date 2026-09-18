@@ -82,14 +82,13 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
     validate_line_port_mode,
     validated_channel_names,
 )
-from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
+from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
     create_optical_spectrum_constraints_form,
     create_optical_spectrum_waypoints_form,
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     LINE_SYSTEM_ROLES,
-    OPTICAL_PIPE_PRODUCT_TYPES,
     NoOpticalPathFoundError,
     multiple_optical_node_selector,
 )
@@ -239,8 +238,7 @@ def _yield_modify_routing_constraint_pages(product_name: str) -> FormGenerator:
         roles=LINE_SYSTEM_ROLES,
         prompt="Do *not* pass through these Optical Nodes",
     )
-    exclude_spans_choice = multiple_optical_pipe_selector_of_types(
-        OPTICAL_PIPE_PRODUCT_TYPES,
+    exclude_spans_choice = multiple_optical_pipe_selector(
         prompt="Do *not* pass through these Optical Pipes",
     )
     collected.update(

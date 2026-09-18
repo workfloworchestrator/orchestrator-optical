@@ -331,7 +331,10 @@ composed block in the state under this key (one small step, extracting the block
 shipped code never traverses the subscription); the block steps read and write it, and the shipped
 persistence step (`save_optical_module_block`) saves it back into the owner subscription. Choice values crossing the
 form→step boundary are block ids (`subscription_instance_id`), resolved with `node_block_from_instance` /
-`ProductBlockModel.from_db`. The only `save`-not-terminal lists are reconcile (`save` then `verify`) and validate
+`ProductBlockModel.from_db`. Selectors never load blocks to build their options: option values come from the instance
+query, and labels either from the stored resource values (e.g. the pipe name) or — when the block has no simple
+identifying field of its own — from the owner subscription's description (e.g. packet nodes, identified by their
+management sub-block). Rendering a form therefore never hydrates blocks, however many options exist. The only `save`-not-terminal lists are reconcile (`save` then `verify`) and validate
 (read-only); pipe `TERMINATE_*` teardown lists are subscription-bound by design (see per-family docs).
 
 ## Configuring the customer selection

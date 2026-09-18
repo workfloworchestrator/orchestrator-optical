@@ -45,7 +45,6 @@ from orchestrator.optical.hal.spectrum import (
     ensure_optical_circuit,
     validate_optical_circuit,
 )
-from orchestrator.optical.products import ProductType
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
@@ -77,12 +76,6 @@ from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.shared import used_port_names_on_node
 
 logger = get_logger(__name__)
-
-OPTICAL_PIPE_PRODUCT_TYPES = [
-    ProductType.OPTICAL_FIBER_SPAN.value,
-    ProductType.OPTICAL_FIBER_PATCH.value,
-    ProductType.OPTICAL_LEASED_SPECTRUM.value,
-]
 
 #: Roles of the Optical Nodes forming the line system (ROADMs, XOADMs, amplifiers).
 #: Single home for the constant previously duplicated across the spectrum

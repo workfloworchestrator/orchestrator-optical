@@ -106,7 +106,7 @@ def _monkeypatch_modify_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch the DB/device-backed modify page selectors with DB-free fakes."""
     monkeypatch.setattr(digital_modify, "optical_transport_mode_selector", _fake_single_choice)
     monkeypatch.setattr(digital_modify, "multiple_optical_node_selector", _fake_multiple_choice)
-    monkeypatch.setattr(digital_modify, "multiple_optical_pipe_selector_of_types", _fake_multiple_choice)
+    monkeypatch.setattr(digital_modify, "multiple_optical_pipe_selector", _fake_multiple_choice)
     monkeypatch.setattr(digital_modify, "optical_digital_service_path_choice", _fake_path_choice)
     monkeypatch.setattr(digital_modify, "channel_names_taken_by_others", lambda _ids: {})
 

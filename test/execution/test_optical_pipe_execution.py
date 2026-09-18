@@ -21,12 +21,18 @@ from pydantic_forms.exceptions import FormValidationError
 import orchestrator.core.db as core_db
 from orchestrator.core.db import SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.optical.db import pipe_blocks_by_types
 from orchestrator.optical.products import ProductName
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlock
 from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlock
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
+from orchestrator.optical.workflows.optical_pipe.shared import (
+    multiple_optical_pipe_selector,
+    optical_pipe_selector,
+)
 from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
 from test.support.devices import FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
 
@@ -305,3 +311,77 @@ def test_leased_spectrum_create_validate_terminate(
     assert_process_completed(terminate_process_id)
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.TERMINATED
     assert subscription_id_of_process(terminate_process_id) == subscription_id
+
+
+def test_pipe_blocks_by_types_matches_stored_pipe_types(
+    run_process,
+    product_id_for,
+    assert_process_completed,
+    seed_optical_node,
+    stub_pipe_device,
+) -> None:
+    """pipe_blocks_by_types filters on the stored optical_pipe_type resource values.
+
+    A span and a patch are seeded through the shipped create workflows; the
+    ["Span"] filter must return only the span (proving the filter matches the
+    representation the database actually stores), ["Span", "Patch"] both, and a
+    non-seeded type nothing.
+    """
+    node_a = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "types-a.optical.test", "10.9.0.41")
+    node_b = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "types-b.optical.test", "10.9.0.42")
+    for workflow_name, product_name, port_name, pipe_name in (
+        ("create_fiber_span", FIBER_SPAN_PRODUCT, LINE_PORT, "types-span-01"),
+        ("create_fiber_patch", FIBER_PATCH_PRODUCT, CLIENT_PORT, "types-patch-01"),
+    ):
+        process_id = run_process(
+            workflow_name,
+            _create_pipe_user_inputs(product_id_for(product_name), node_a, node_b, port_name, port_name, pipe_name),
+        )
+        assert_process_completed(process_id)
+
+    assert sorted(block.optical_pipe_name for block in pipe_blocks_by_types(["Span"])) == ["types-span-01"]
+    assert sorted(block.optical_pipe_name for block in pipe_blocks_by_types(["Span", "Patch"])) == [
+        "types-patch-01",
+        "types-span-01",
+    ]
+    assert pipe_blocks_by_types(["Leased Spectrum"]) == []
+
+
+def test_optical_pipe_selector_reads_options_from_stored_values(
+    run_process,
+    product_id_for,
+    assert_process_completed,
+    seed_optical_node,
+    stub_pipe_device,
+) -> None:
+    """The pipe selector offers instance ids labelled with the stored pipe names, without loading blocks.
+
+    A span and a patch are seeded through the shipped create workflows; the
+    unfiltered selector must offer both instance ids with their names, and the
+    type-filtered selector only the span.
+    """
+    node_a = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "sel-a.optical.test", "10.9.0.51")
+    node_b = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "sel-b.optical.test", "10.9.0.52")
+    for workflow_name, product_name, port_name, pipe_name in (
+        ("create_fiber_span", FIBER_SPAN_PRODUCT, LINE_PORT, "sel-span-01"),
+        ("create_fiber_patch", FIBER_PATCH_PRODUCT, CLIENT_PORT, "sel-patch-01"),
+    ):
+        process_id = run_process(
+            workflow_name,
+            _create_pipe_user_inputs(product_id_for(product_name), node_a, node_b, port_name, port_name, pipe_name),
+        )
+        assert_process_completed(process_id)
+
+    span_instance_id = str(pipe_blocks_by_types(["Span"])[0].subscription_instance_id)
+    patch_instance_id = str(pipe_blocks_by_types(["Patch"])[0].subscription_instance_id)
+
+    # Choice members submit the instance id (value) and display the pipe name (label).
+    assert {member.value: member.label for member in optical_pipe_selector()} == {
+        span_instance_id: "sel-span-01",
+        patch_instance_id: "sel-patch-01",
+    }
+    assert {member.value: member.label for member in optical_pipe_selector(pipe_types=[OpticalPipeType.SPAN])} == {
+        span_instance_id: "sel-span-01"
+    }
+    # The multiple selector delegates to the single one.
+    multiple_optical_pipe_selector(pipe_types=[OpticalPipeType.SPAN])

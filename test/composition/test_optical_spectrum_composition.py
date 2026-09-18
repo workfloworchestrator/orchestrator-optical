@@ -169,7 +169,7 @@ def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr(spectrum_create, "optical_node_selector_of_roles", _fake_single_choice)
     monkeypatch.setattr(spectrum_create, "multiple_optical_node_selector", _fake_multiple_choice)
-    monkeypatch.setattr(spectrum_create, "multiple_optical_pipe_selector_of_types", _fake_multiple_choice)
+    monkeypatch.setattr(spectrum_create, "multiple_optical_pipe_selector", _fake_multiple_choice)
     monkeypatch.setattr(spectrum_create, "optical_port_selector", _fake_single_choice)
     monkeypatch.setattr(spectrum_create, "optical_spectrum_path_selector", _fake_path_choice)
     monkeypatch.setattr(spectrum_create, "validate_optical_spectrum_path", lambda *_args, **_kwargs: None)
@@ -179,7 +179,7 @@ def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
 def _monkeypatch_modify_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch the DB/device-backed modify page selectors with DB-free fakes."""
     monkeypatch.setattr(spectrum_modify, "multiple_optical_node_selector", _fake_multiple_choice)
-    monkeypatch.setattr(spectrum_modify, "multiple_optical_pipe_selector_of_types", _fake_multiple_choice)
+    monkeypatch.setattr(spectrum_modify, "multiple_optical_pipe_selector", _fake_multiple_choice)
     monkeypatch.setattr(spectrum_modify, "optical_spectrum_path_selector", _fake_path_choice)
     monkeypatch.setattr(spectrum_modify, "validate_optical_spectrum_path", lambda *_args, **_kwargs: None)
 

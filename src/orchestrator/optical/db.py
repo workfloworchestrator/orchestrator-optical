@@ -11,6 +11,7 @@ only, never model dependencies.
 from typing import cast
 
 from pydantic_forms.types import UUIDstr
+from sqlalchemy.orm import aliased
 
 from orchestrator.core.db import (
     ProductBlockTable,
@@ -40,11 +41,14 @@ __all__ = [
     "packet_node_block_from_instance",
     "packet_node_instance_id_of_subscription",
     "pipe_blocks_all",
+    "pipe_blocks_by_types",
     "pipe_instances_by_block_names",
     "subscription_instance_values_by_block_type_depending_on_instance_id",
+    "subscription_instance_values_by_instance_ids_and_resource_type",
     "subscription_instances_by_block_names",
     "subscription_instances_by_block_type",
     "subscription_instances_by_block_type_and_resource_value",
+    "subscription_instances_by_block_types_and_resource_values",
 ]
 
 
@@ -71,6 +75,71 @@ def subscription_instances_by_block_type(
     )
 
 
+def subscription_instances_by_block_types_and_resource_values(
+    block_names: set[str],
+    resource_values: dict[str, str | list[str] | set[str]],
+    states: list[SubscriptionLifecycle] = [SubscriptionLifecycle.ACTIVE],  # noqa: B006
+) -> list[SubscriptionInstanceTable]:
+    """From the database, retrieve the subscription instances matching block names and resource values.
+
+    This is the general form of :func:`subscription_instances_by_block_type_and_resource_value`:
+    several block names can be matched at once (e.g. the ``__names__`` of an abstract block)
+    and several ``(resource type, values)`` conditions can be combined. Conditions on
+    different resource types are AND-ed (each gets its own join on the instance values,
+    all tied to the same subscription instance); values of the same resource type are
+    OR-ed (``IN``). Everything is filtered in a single SQL query: callers offering a
+    subset of blocks (e.g. a selector filtered by type) never pay the load cost of
+    every block in the database.
+
+    Usage example:
+        >>> sis = subscription_instances_by_block_types_and_resource_values(
+        ...     {"OpticalFiberSpanBlock", "OpticalFiberPatchBlock"},
+        ...     {"optical_pipe_type": ["Span"]},
+        ...     [SubscriptionLifecycle.ACTIVE]
+        ... )
+        >>> for si in sis:
+        ...     print(si.subscription_instance_id).
+
+    This function finds subscription instances that:
+    1. are instances of a product block of one of the specified names
+    2. for every specified resource type, hold a value matching one of the specified values
+    3. Belong to a subscription in one of the specified lifecycle states
+
+    Args:
+        block_names: The product block names to match (e.g. the ``__names__`` of an
+            abstract block).
+        resource_values: Mapping of resource type (e.g. ``"optical_pipe_type"``) to the
+            acceptable value or values. A key mapped to no values matches nothing.
+        states: List of subscription lifecycle states to include in the search
+
+    Returns:
+        List of SubscriptionInstanceTable objects (i.e. entries of the subscription_instances table in the DB)
+            matching all criteria
+    """
+    query = (
+        SubscriptionInstanceTable.query.join(SubscriptionTable)
+        .join(ProductBlockTable)
+        .filter(SubscriptionTable.status.in_(states))
+        .filter(ProductBlockTable.name.in_(block_names))
+    )
+    for resource_type, values in resource_values.items():
+        wanted = [values] if isinstance(values, str) else list(values)
+        if not wanted:
+            return []
+        values_table = aliased(SubscriptionInstanceValueTable)
+        resource_table = aliased(ResourceTypeTable)
+        query = (
+            query.join(
+                values_table,
+                values_table.subscription_instance_id == SubscriptionInstanceTable.subscription_instance_id,
+            )
+            .join(resource_table, values_table.resource_type_id == resource_table.resource_type_id)
+            .filter(resource_table.resource_type == resource_type)
+            .filter(values_table.value.in_(wanted))
+        )
+    return query.all()
+
+
 def subscription_instances_by_block_type_and_resource_value(
     product_block_type: str,
     resource_type: str,
@@ -78,6 +147,9 @@ def subscription_instances_by_block_type_and_resource_value(
     states: list[SubscriptionLifecycle] = [SubscriptionLifecycle.ACTIVE],  # noqa: B006
 ) -> list[SubscriptionInstanceTable]:
     """From the database, retrieve the subscription instances that match specific product block type and resource value.
+
+    Single-name, single-value subcase of
+    :func:`subscription_instances_by_block_types_and_resource_values`, kept for its callers.
 
     Usage example:
         >>> sis = subscription_instances_by_block_type_and_resource_value(
@@ -104,16 +176,8 @@ def subscription_instances_by_block_type_and_resource_value(
         List of SubscriptionInstanceTable objects (i.e. entries of the subscription_instances table in the DB)
             matching all criteria
     """
-    return (
-        SubscriptionInstanceTable.query.join(SubscriptionInstanceValueTable)
-        .join(ResourceTypeTable)
-        .join(SubscriptionTable)
-        .join(ProductBlockTable)
-        .filter(SubscriptionTable.status.in_(states))
-        .filter(ProductBlockTable.name == product_block_type)
-        .filter(ResourceTypeTable.resource_type == resource_type)
-        .filter(SubscriptionInstanceValueTable.value == resource_value)
-        .all()
+    return subscription_instances_by_block_types_and_resource_values(
+        {product_block_type}, {resource_type: resource_value}, states
     )
 
 
@@ -183,6 +247,37 @@ def subscription_instance_values_by_block_type_depending_on_instance_id(
         .filter(SubscriptionInstanceRelationTable.depends_on_id == depending_on_instance_id)
         .filter(SubscriptionTable.status.in_(states))
         .filter(ProductBlockTable.name == product_block_type)
+        .filter(ResourceTypeTable.resource_type == resource_type)
+        .all()
+    )
+
+
+def subscription_instance_values_by_instance_ids_and_resource_type(
+    instance_ids: list[str],
+    resource_type: str,
+) -> list[SubscriptionInstanceValueTable]:
+    """Return the stored values of one resource type for the given block instances.
+
+    Single query over the instance values table: selectors that only need a label
+    (e.g. the pipe name) read it here instead of loading every block. Instances
+    without a stored value simply have no row; callers fall back to a placeholder.
+
+    Args:
+        instance_ids: Subscription instance ids to read the values of.
+        resource_type: The resource type in the DB (i.e. product block attribute name).
+
+    Returns:
+        The matching SubscriptionInstanceValueTable rows (at most one per instance
+        for scalar block fields).
+    """
+    if not instance_ids:
+        return []
+    return (
+        SubscriptionInstanceValueTable.query.join(
+            ResourceTypeTable,
+            SubscriptionInstanceValueTable.resource_type_id == ResourceTypeTable.resource_type_id,
+        )
+        .filter(SubscriptionInstanceValueTable.subscription_instance_id.in_(instance_ids))
         .filter(ResourceTypeTable.resource_type == resource_type)
         .all()
     )
@@ -393,6 +488,19 @@ def node_blocks_by_roles(
     return blocks
 
 
+def _load_pipe_blocks(instances: list[SubscriptionInstanceTable]) -> list:
+    """Load optical pipe blocks for the given instances as the most-derived lifecycle class."""
+    blocks = []
+    for instance in instances:
+        block_class = ProductBlockModel.registry[instance.product_block.name]
+        active_class = cast(
+            type[ProductBlockModel],
+            lookup_specialized_type(block_class, SubscriptionLifecycle.ACTIVE),
+        )
+        blocks.append(active_class.from_db(subscription_instance_id=instance.subscription_instance_id))
+    return blocks
+
+
 def pipe_blocks_all(
     states: list[SubscriptionLifecycle] | None = None,
 ) -> list:
@@ -416,15 +524,37 @@ def pipe_blocks_all(
         set(AbstractOpticalPipeBlockInactive.__names__),
         states or [SubscriptionLifecycle.ACTIVE],
     )
-    blocks = []
-    for instance in instances:
-        block_class = ProductBlockModel.registry[instance.product_block.name]
-        active_class = cast(
-            type[ProductBlockModel],
-            lookup_specialized_type(block_class, SubscriptionLifecycle.ACTIVE),
-        )
-        blocks.append(active_class.from_db(subscription_instance_id=instance.subscription_instance_id))
-    return blocks
+    return _load_pipe_blocks(instances)
+
+
+def pipe_blocks_by_types(
+    pipe_types: list[str],
+    states: list[SubscriptionLifecycle] | None = None,
+) -> list:
+    """Return the optical pipe blocks of the given pipe types in the given states.
+
+    Block-based listing with the type filter pushed into the instance query: only
+    matching instances are loaded, so callers offering a subset of pipe types never
+    pay the load cost of every pipe in the database.
+
+    Args:
+        pipe_types: Stored ``optical_pipe_type`` resource values to match (i.e.
+            ``OpticalPipeType.<member>.value``, e.g. ``"Span"``).
+        states: Lifecycle states the owner subscription must be in (ACTIVE by default).
+
+    Returns:
+        The matching optical pipe blocks.
+    """
+    from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (  # noqa: PLC0415
+        AbstractOpticalPipeBlockInactive,
+    )
+
+    instances = subscription_instances_by_block_types_and_resource_values(
+        set(AbstractOpticalPipeBlockInactive.__names__),
+        {"optical_pipe_type": pipe_types},
+        states or [SubscriptionLifecycle.ACTIVE],
+    )
+    return _load_pipe_blocks(instances)
 
 
 def location_block_from_instance(instance_id: UUIDstr) -> OpticalModuleLocationBlock:

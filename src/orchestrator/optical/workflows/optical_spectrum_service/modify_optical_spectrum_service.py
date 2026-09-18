@@ -59,11 +59,10 @@ from orchestrator.optical.utils.custom_types.frequencies import (
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
-from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
+from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     LINE_SYSTEM_ROLES,
     NO_OPTICAL_PATH_FOUND_MSG,
-    OPTICAL_PIPE_PRODUCT_TYPES,
     NoOpticalPathFoundError,
     delete_optical_spectrum_sections,
     load_ols_port,
@@ -281,8 +280,7 @@ def modify_optical_spectrum_form_pages(
         roles=LINE_SYSTEM_ROLES,
         prompt="Do *not* pass through these Optical Nodes",
     )
-    exclude_spans_choice = multiple_optical_pipe_selector_of_types(
-        OPTICAL_PIPE_PRODUCT_TYPES,
+    exclude_spans_choice = multiple_optical_pipe_selector(
         prompt="Do *not* pass through these Optical Pipes",
     )
     user_input_dict.update(

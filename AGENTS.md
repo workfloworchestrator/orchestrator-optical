@@ -123,7 +123,12 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
 - Selectors emit block ids (`subscription_instance_id`), query via the `db.py` block helpers (`node_blocks_by_roles`,
   `pipe_blocks_all`, `subscription_instances_by_block_type*`), never via product-type strings or
   `SubscriptionTable.subscription_id`. Resolvers are `node_block_from_instance` / `ProductBlockModel.from_db`, never
-  `*_block_from_subscription`.
+  `*_block_from_subscription`. Selectors never load blocks: option values come from the instance query and labels
+  either from the stored resource values (`subscription_instance_values_by_instance_ids_and_resource_type`, e.g. the
+  pipe name — a constant number of queries however many blocks exist) or, when the block has no simple identifying
+  field of its own, from the owner subscription's description
+  (`subscription_instance.subscription.description`, as `active_instance_selector_by_block_type` does for packet
+  nodes, whose identity lives in the management sub-block). Either way, never N+1 `from_db` loads.
 
 ### Hard rules (generalization invariants)
 

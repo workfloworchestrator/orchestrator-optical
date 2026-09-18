@@ -24,7 +24,9 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
 from orchestrator.optical.db import (
     node_block_from_instance,
-    pipe_blocks_all,
+    pipe_instances_by_block_names,
+    subscription_instance_values_by_instance_ids_and_resource_type,
+    subscription_instances_by_block_types_and_resource_values,
 )
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import (
@@ -475,75 +477,81 @@ def retrieve_optical_pipe_used_passbands(
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
 
 
-def _pipe_choice_label(block: Any) -> str:
-    """Return the Choice label of an optical pipe block, tolerating unset values."""
-    name = block.optical_pipe_name or "<unknown>"
-    return str(name)
-
-
-def optical_pipe_selector(product_type: str, prompt: str | None = None) -> type[Choice]:
+def optical_pipe_selector(
+    prompt: str | None = None, *, pipe_types: list[OpticalPipeType] | None = None
+) -> type[Choice]:
     """Create a Choice selector for active optical pipe blocks.
 
     Block-based selector: option values are pipe block subscription instance ids and
-    labels are derived from the blocks. The ``product_type`` argument is kept for
-    backward compatibility and ignored: all active pipe blocks are offered so consumers
-    composing the shipped blocks under their own product types are covered.
+    labels are the stored pipe names, so consumers composing the shipped blocks
+    under their own product types are covered. No block is loaded: instances are
+    enumerated by block name (filtered by pipe type in the database query when
+    requested) and labels are read from the stored resource values in two queries
+    total,     however many pipes exist.
 
     Args:
-        product_type: Ignored (kept for compatibility).
         prompt: Prompt of the selector.
+        pipe_types: Pipe types to offer; None or empty (default) offers all
+            active pipe blocks.
     """
-    blocks = sorted(pipe_blocks_all([SubscriptionLifecycle.ACTIVE]), key=_pipe_choice_label)
-    products = {str(block.subscription_instance_id): _pipe_choice_label(block) for block in blocks}
+    if pipe_types:
+        instances = subscription_instances_by_block_types_and_resource_values(
+            set(AbstractOpticalPipeBlockInactive.__names__),
+            {"optical_pipe_type": [pipe_type.value for pipe_type in pipe_types]},
+            [SubscriptionLifecycle.ACTIVE],
+        )
+    else:
+        instances = pipe_instances_by_block_names(
+            set(AbstractOpticalPipeBlockInactive.__names__),
+            [SubscriptionLifecycle.ACTIVE],
+        )
+    names = {
+        str(value.subscription_instance_id): str(value.value)
+        for value in subscription_instance_values_by_instance_ids_and_resource_type(
+            [str(instance.subscription_instance_id) for instance in instances], "optical_pipe_name"
+        )
+        if value.value
+    }
+    options = sorted(
+        (
+            (str(instance.subscription_instance_id), names.get(str(instance.subscription_instance_id), "<unknown>"))
+            for instance in instances
+        ),
+        key=lambda item: item[1],
+    )
+    products = dict(options)
 
     if not prompt:
-        prompt = f"Select an {product_type}"
+        prompt = "Select an optical pipe"
 
     dynamic_class = Choice(prompt, zip(products.keys(), products.items(), strict=False))
     return cast(type[Choice], dynamic_class)
 
 
 def multiple_optical_pipe_selector(
-    product_type: str,
     prompt: str = "Select optical pipes",
     min_items: int = 0,
     max_items: int | None = None,
     *,
     unique_items: bool = True,
+    pipe_types: list[OpticalPipeType] | None = None,
 ) -> type[list[Choice]]:
-    """Selector for multiple optical pipe subscriptions."""
-    base_choice = optical_pipe_selector(product_type, prompt)
-    dynamic_class = choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items)
-    return cast(type[list[Choice]], Annotated[dynamic_class, Field(title=prompt)])
-
-
-def multiple_optical_pipe_selector_of_types(
-    product_types: list[str],  # noqa: ARG001 - kept for backward compatibility, ignored (all pipe blocks offered)
-    prompt: str = "Select optical pipes",
-    min_items: int = 0,
-    max_items: int | None = None,
-    *,
-    unique_items: bool = True,
-) -> type[list[Choice]]:
-    """Selector for multiple optical pipe blocks across several product types.
+    """Selector for multiple optical pipe blocks.
 
     Block-based selector: option values are pipe block subscription instance ids.
-    The ``product_types`` argument is kept for backward compatibility and ignored:
-    all active pipe blocks are offered.
 
     Args:
-        product_types: Ignored (kept for compatibility).
         prompt: Prompt of the selector.
         min_items: Minimum number of selections required.
         max_items: Maximum number of selections allowed.
         unique_items: Whether duplicate selections are allowed.
+        pipe_types: Pipe types to offer; None or empty (default) offers all
+            active pipe blocks.
 
     Returns:
         A ``Choice`` list type for selecting multiple pipes.
     """
-    blocks = sorted(pipe_blocks_all([SubscriptionLifecycle.ACTIVE]), key=_pipe_choice_label)
-    products = {str(block.subscription_instance_id): _pipe_choice_label(block) for block in blocks}
-    base_choice = cast(type[Choice], Choice(prompt, zip(products.keys(), products.items(), strict=False)))
+    base_choice = optical_pipe_selector(prompt, pipe_types=pipe_types)
     dynamic_class = choice_list(base_choice, min_items=min_items, max_items=max_items, unique_items=unique_items)
     return cast(type[list[Choice]], Annotated[dynamic_class, Field(title=prompt)])
 
@@ -937,7 +945,6 @@ __all__ = [
     "modify_optical_pipe_form_generator",
     "modify_optical_pipe_form_pages",
     "multiple_optical_pipe_selector",
-    "multiple_optical_pipe_selector_of_types",
     "new_optical_pipe_subscription",
     "new_pipe_port_block",
     "optical_pipe_block_from_state",

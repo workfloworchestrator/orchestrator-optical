@@ -84,7 +84,7 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
     unused_coherent_pluggable_selector,
     validate_line_port_mode,
 )
-from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector_of_types
+from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
     create_optical_spectrum_constraints_form,
     create_optical_spectrum_waypoints_form,
@@ -92,7 +92,6 @@ from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spec
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     LINE_SYSTEM_ROLES,
     NO_OPTICAL_PATH_FOUND_MSG,
-    OPTICAL_PIPE_PRODUCT_TYPES,
     NoOpticalPathFoundError,
     all_shortest_paths_through_waypoints,
     are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path,
@@ -653,8 +652,7 @@ def _yield_routing_constraint_pages(product_name: str) -> FormGenerator:
         roles=LINE_SYSTEM_ROLES,
         prompt="Do *not* pass through these Optical Nodes",
     )
-    exclude_spans_choice = multiple_optical_pipe_selector_of_types(
-        OPTICAL_PIPE_PRODUCT_TYPES,
+    exclude_spans_choice = multiple_optical_pipe_selector(
         prompt="Do *not* pass through these Optical Pipes",
     )
     collected.update(
