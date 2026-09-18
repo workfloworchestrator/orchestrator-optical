@@ -39,6 +39,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --all-groups
       - run: uv run pytest -m "not db" --cov=orchestrator.optical --cov-report=json:coverage.json
+      # Per-family ratchet over the DB-free lane; DB-bound families (db.py, see
+      # coverage-floors.toml `exclude`) are not gated here by design.
       - run: uv run python scripts/coverage_ratchet.py
 
   test-integration:
@@ -73,6 +75,8 @@ jobs:
       # Ratchet: raise this threshold as patch coverage improves, never lower it.
       # Kept as a real gate (not continue-on-error): measured patch coverage on this
       # in-progress branch is ~56-67%, so 50 passes now with headroom.
+      # This is also the gate for DB-bound code excluded from the fast-lane ratchet
+      # (db.py, see coverage-floors.toml `exclude`): new/changed lines there are covered here.
       - run: uv run diff-cover coverage.xml --compare-branch=origin/main --fail-under=50
 
   core-latest:

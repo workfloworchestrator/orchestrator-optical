@@ -23,6 +23,11 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     Passband,
     available_to_used_passbands,
     disjoint_intervals_overlap_search,
+    ensure_passband_aligned_to_grid,
+    is_passband_aligned_to_grid,
+    passband_overlaps_excluding_ignored,
+    snap_passband_to_grid,
+    subtract_intervals,
 )
 from orchestrator.optical.utils.custom_types.ip_address import (
     AddressSpace,
@@ -179,6 +184,83 @@ def test_disjoint_intervals_overlap_search_returns_none_without_overlap(target: 
 
 def test_disjoint_intervals_overlap_search_empty_intervals() -> None:
     assert disjoint_intervals_overlap_search([], (0, 10)) is None
+
+
+_GRID = 12_500
+
+
+def test_is_passband_aligned_to_grid() -> None:
+    assert is_passband_aligned_to_grid((191_325_000, 196_125_000), _GRID)
+    assert not is_passband_aligned_to_grid((191_325_001, 196_125_000), _GRID)
+    assert not is_passband_aligned_to_grid((191_325_000, 196_124_999), _GRID)
+
+
+def test_ensure_passband_aligned_to_grid_accepts_on_grid() -> None:
+    assert ensure_passband_aligned_to_grid((191_325_000, 196_125_000), _GRID) is None
+
+
+def test_ensure_passband_aligned_to_grid_rejects_off_grid() -> None:
+    with pytest.raises(ValueError, match="aligned"):
+        ensure_passband_aligned_to_grid((191_325_001, 196_125_000), _GRID)
+
+
+def test_snap_passband_to_grid_returns_aligned_input_unchanged() -> None:
+    assert snap_passband_to_grid((191_325_000, 196_125_000), _GRID) == (191_325_000, 196_125_000)
+
+
+def test_snap_passband_to_grid_shrinks_inward_without_carrier() -> None:
+    assert snap_passband_to_grid((191_325_001, 196_124_999), _GRID) == (191_337_500, 196_112_500)
+
+
+def test_snap_passband_to_grid_expands_when_shrunk_interval_is_empty() -> None:
+    assert snap_passband_to_grid((100, 200), _GRID) == (0, 12_500)
+
+
+def test_snap_passband_to_grid_expands_to_preserve_the_carrier() -> None:
+    snapped = snap_passband_to_grid((193_081_251, 193_118_749), _GRID, carrier=(193_100_000, 37_500))
+
+    assert snapped == (193_075_000, 193_125_000)
+    assert snapped[0] <= 193_081_250
+    assert snapped[1] >= 193_118_750
+
+
+def test_subtract_intervals_without_ignored_returns_input_unchanged() -> None:
+    assert subtract_intervals([(100, 200)], None) == [(100, 200)]
+    assert subtract_intervals([(100, 200)], []) == [(100, 200)]
+
+
+def test_subtract_intervals_drops_fully_covered_intervals() -> None:
+    assert subtract_intervals([(100, 200)], [(0, 300)]) == []
+
+
+def test_subtract_intervals_splits_partially_covered_intervals() -> None:
+    assert subtract_intervals([(100, 400)], [(200, 300)]) == [(100, 200), (300, 400)]
+    assert subtract_intervals([(100, 300)], [(100, 200)]) == [(200, 300)]
+
+
+def test_subtract_intervals_ignores_edge_touching_intervals() -> None:
+    assert subtract_intervals([(100, 200)], [(200, 300)]) == [(100, 200)]
+
+
+def test_subtract_intervals_tolerates_unsorted_overlapping_ignored() -> None:
+    assert subtract_intervals([(100, 400)], [(200, 300), (150, 250)]) == [(100, 150), (300, 400)]
+
+
+def test_passband_overlaps_excluding_ignored_without_ignored() -> None:
+    assert passband_overlaps_excluding_ignored([(0, 10)], (5, 8), None) == (0, 10)
+    assert passband_overlaps_excluding_ignored([(0, 10)], (20, 30), []) is None
+
+
+def test_passband_overlaps_excluding_ignored_forgives_own_passband() -> None:
+    assert passband_overlaps_excluding_ignored([(100, 200)], (150, 180), [(100, 200)]) is None
+
+
+def test_passband_overlaps_excluding_ignored_still_blocks_foreign_overlap() -> None:
+    assert passband_overlaps_excluding_ignored([(100, 200), (300, 400)], (350, 380), [(100, 200)]) == (300, 400)
+
+
+def test_available_to_used_passbands_keeps_band_for_disjoint_available() -> None:
+    assert available_to_used_passbands([(200_000_000, 201_000_000)]) == [_ENTIRE_BAND]
 
 
 @pytest.mark.parametrize("value", ["example.com", "www.example.com", "a.b.c.example", "example.com.", "Example.COM"])

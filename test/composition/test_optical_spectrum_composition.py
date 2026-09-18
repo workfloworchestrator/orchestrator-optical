@@ -144,10 +144,14 @@ def _make_spectrum_subscription(
     """Build a DB-free subscription whose block has two endpoint add/drop sections."""
     node_a = _FakeNode("node-a")
     node_b = _FakeNode("node-b")
-    port_a = SimpleNamespace(optical_port_host_node=node_a)
-    port_b = SimpleNamespace(optical_port_host_node=node_b)
-    section_a = SimpleNamespace(optical_spectrum_section_add_drop_ports=[port_a])
-    section_b = SimpleNamespace(optical_spectrum_section_add_drop_ports=[port_b])
+    port_a = SimpleNamespace(subscription_instance_id="port-a", optical_port_host_node=node_a)
+    port_b = SimpleNamespace(subscription_instance_id="port-b", optical_port_host_node=node_b)
+    section_a = SimpleNamespace(
+        optical_spectrum_section_add_drop_ports=[port_a], optical_spectrum_section_express_ports=[]
+    )
+    section_b = SimpleNamespace(
+        optical_spectrum_section_add_drop_ports=[port_b], optical_spectrum_section_express_ports=[]
+    )
     block = SimpleNamespace(
         optical_spectrum_name=name,
         optical_spectrum_passband=passband,

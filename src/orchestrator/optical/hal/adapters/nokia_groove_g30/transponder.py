@@ -14,6 +14,7 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
+from orchestrator.optical.services.nokia.g30.data_models.ne import AdminStatusEnum, PortModeEnum
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
 from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects
 
@@ -160,7 +161,7 @@ def configure_line_transceivers(
             port_id=port_id,
             port_mode=mode,
             service_label=description,
-            admin_status="up",
+            admin_status=AdminStatusEnum.UP,
         )
         modulation, rate = _get_modulation_and_rate_from_mode(mode)
         uri.och_os.update(
@@ -169,7 +170,7 @@ def configure_line_transceivers(
             frequency=central_frequency,
             rx_frequency=central_frequency,
             service_label=description,
-            admin_status="up",
+            admin_status=AdminStatusEnum.UP,
             laser_enable="enabled",
             loopback_enable="disabled",
             loopback_type="none",
@@ -210,20 +211,20 @@ def configure_transceiver_client(
     if subport_id is not None:
         navigator.update(
             subport_id=subport_id,
-            admin_status="up",
+            admin_status=AdminStatusEnum.UP,
             service_label=description,
-            port_mode=port_mode,
+            port_mode=PortModeEnum(port_mode),
         )
     else:
         navigator.update(
             port_id=port_id,
-            admin_status="up",
+            admin_status=AdminStatusEnum.UP,
             service_label=description,
-            port_mode=port_mode,
+            port_mode=PortModeEnum(port_mode),
         )
 
     eth.update(
-        admin_status="up",
+        admin_status=AdminStatusEnum.UP,
         service_label=description,
         loopback_enable="disabled",
         test_signal_enable="NONE",
@@ -489,14 +490,14 @@ def factory_reset_transponder_client(
     if subport_id is not None:
         navigator.update(
             subport_id=subport_id,
-            admin_status="down",
+            admin_status=AdminStatusEnum.DOWN,
             service_label="",
             port_mode="not-applicable",
         )
     else:
         navigator.update(
             port_id=port_id,
-            admin_status="down",
+            admin_status=AdminStatusEnum.DOWN,
             service_label="",
             port_mode="not-applicable",
         )
@@ -525,14 +526,14 @@ def factory_reset_transponder_lines(
         if subport_id is not None:
             navigator.update(
                 subport_id=subport_id,
-                admin_status="down",
+                admin_status=AdminStatusEnum.DOWN,
                 service_label="",
                 port_mode="not-applicable",
             )
         else:
             navigator.update(
                 port_id=port_id,
-                admin_status="down",
+                admin_status=AdminStatusEnum.DOWN,
                 service_label="",
                 port_mode="not-applicable",
             )

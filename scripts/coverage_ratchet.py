@@ -5,6 +5,11 @@ Reads a coverage.py JSON report, aggregates coverage per immediate child of
 ``src/orchestrator/optical/`` (``products``, ``hal``, ``settings.py``, ...), and
 fails when a family drops below its floor declared in ``coverage-floors.toml``.
 
+Families listed in the top-level ``exclude`` list of the floors file are shown
+for visibility but never gated: this is for modules a lane cannot observe (e.g.
+``db.py`` holds live-Postgres query helpers the DB-free lane never executes;
+its new code is gated by the diff-cover patch gate in the DB lane instead).
+
 Floors are a ratchet: raise them as coverage improves, never lower them silently.
 Stdlib only; no third-party dependencies.
 """
@@ -56,14 +61,43 @@ def aggregate(files: dict[str, Any]) -> dict[str, float]:
     return percentages
 
 
-def load_floors(path: Path) -> dict[str, int]:
-    """Load the ``[floors]`` table from a TOML file."""
+def load_floors(path: Path) -> tuple[dict[str, int], set[str]]:
+    """Load the ``[floors]`` table and the top-level ``exclude`` list from a TOML file.
+
+    Args:
+        path: Path to the floors TOML file.
+
+    Returns:
+        A ``(floors, excluded)`` pair of per-family floors and excluded families.
+    """
     with path.open("rb") as handle:
         document = tomllib.load(handle)
     floors = document.get("floors", {})
     if not isinstance(floors, dict):
         sys.exit(f"invalid floors file {path}: [floors] must be a table")
-    return {str(name): int(value) for name, value in floors.items()}
+    excluded_raw = document.get("exclude", [])
+    if not isinstance(excluded_raw, list) or not all(isinstance(name, str) for name in excluded_raw):
+        sys.exit(f"invalid floors file {path}: 'exclude' must be a list of strings")
+    return {str(name): int(value) for name, value in floors.items()}, set(excluded_raw)
+
+
+def check_family(value: float | None, floor: int | None) -> tuple[str, bool, bool]:
+    """Decide the ratchet status of one family.
+
+    Args:
+        value: Measured coverage percentage, or None when the family was not measured.
+        floor: Configured floor, or None when the family has no floor.
+
+    Returns:
+        A ``(status, is_failure, is_missing_floor)`` triple for the report table.
+    """
+    if floor is None:
+        return "NO FLOOR", False, True
+    if value is None:
+        return "not measured (omitted)", False, False
+    if value + 1e-9 < floor:
+        return "FAIL", True, False
+    return "ok", False, False
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -89,10 +123,11 @@ def main(argv: list[str] | None = None) -> int:
 
     report = json.loads(report_path.read_text())
     actual = aggregate(report.get("files", {}))
-    floors = load_floors(floors_path)
+    floors, excluded = load_floors(floors_path)
 
-    families = sorted(set(actual) | set(floors))
-    width = max([len(name) for name in families] + [len("family")])
+    families = sorted((set(actual) | set(floors)) - excluded)
+    excluded_measured = sorted(set(actual) & excluded)
+    width = max([len(name) for name in families + excluded_measured] + [len("family")])
     print(f"{'family'.ljust(width)} | {'actual%':>8} | {'floor':>5} | status")
     print(f"{'-' * width}-+----------+-------+-------")
 
@@ -101,19 +136,17 @@ def main(argv: list[str] | None = None) -> int:
     for family in families:
         value = actual.get(family)
         floor = floors.get(family)
+        status, is_failure, is_missing_floor = check_family(value, floor)
+        if is_failure:
+            failures.append(family)
+        if is_missing_floor:
+            missing.append(family)
         actual_text = "n/a" if value is None else f"{value:8.2f}"
         floor_text = "n/a" if floor is None else f"{floor:5d}"
-        if floor is None:
-            status = "NO FLOOR"
-            missing.append(family)
-        elif value is None:
-            status = "not measured (omitted)"
-        elif value + 1e-9 < floor:
-            status = "FAIL"
-            failures.append(family)
-        else:
-            status = "ok"
         print(f"{family.ljust(width)} | {actual_text} | {floor_text} | {status}")
+    for family in excluded_measured:
+        value = actual[family]
+        print(f"{family.ljust(width)} | {value:8.2f} | {'n/a':>5} | excluded (gated per-patch in the DB lane)")
 
     if missing:
         print(f"\nmissing floors (add them to {floors_path.name}): {', '.join(missing)}", file=sys.stderr)
