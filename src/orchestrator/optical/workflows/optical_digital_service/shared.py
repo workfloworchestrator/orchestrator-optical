@@ -826,6 +826,7 @@ def digital_service_names_for_channel(
     channel: OpticalTransportChannelBlockProvisioning | OpticalTransportChannelBlock,
     current_service_name: str | None = None,
     exclude_digital_instance_id: str | None = None,
+    own_digital_instance_id: UUID | UUIDstr | None = None,
 ) -> list[str]:
     """Return the sorted names of all non-terminated digital services using a channel.
 
@@ -837,11 +838,19 @@ def digital_service_names_for_channel(
     create, and the departing service is removed via ``exclude_digital_instance_id``
     during terminate.
 
+    The in-flight service's own database entry is skipped via
+    ``own_digital_instance_id``: during modify the database still holds the old
+    service name (the block is only persisted by the final save step), so unioning
+    the state name without skipping would keep both the stale and the new name
+    (``"newCh: oldSvc + newSvc"``). Borrower entries are kept.
+
     Args:
         channel: The transport channel block to inspect.
         current_service_name: User-facing name of the in-flight digital service to include.
         exclude_digital_instance_id: Digital block instance id whose user entry is
             dropped (terminate prune).
+        own_digital_instance_id: Digital block instance id of the in-flight service
+            whose database entry is skipped in favour of ``current_service_name``.
 
     Returns:
         The sorted, deduped digital service names.
@@ -856,13 +865,18 @@ def digital_service_names_for_channel(
             exclude_digital_instance_id
         ):
             continue
+        if own_digital_instance_id is not None and str(instance.subscription_instance_id) == str(
+            own_digital_instance_id
+        ):
+            continue
         name = _digital_service_name_of_block(instance.subscription_instance_id)
         if name:
             names.add(name.strip())
     if current_service_name and exclude_digital_instance_id is None:
         # Union the in-flight service: during create it may not appear in
-        # ``in_use_by`` yet. During terminate prune (exclude set) the departing
-        # service must never be re-added.
+        # ``in_use_by`` yet, and during modify its database entry was skipped
+        # above so the stale name is replaced, not duplicated. During terminate
+        # prune (exclude set) the departing service must never be re-added.
         names.add(current_service_name.strip())
     return sorted(name for name in names if name)
 
@@ -871,6 +885,7 @@ def expected_optical_circuit_label(
     channel: OpticalTransportChannelBlockProvisioning | OpticalTransportChannelBlock,
     block: OpticalDigitalServiceBlockProvisioning,
     exclude_digital_instance_id: str | None = None,
+    own_digital_instance_id: UUID | UUIDstr | None = None,
 ) -> str:
     """Return the composite OLS optical circuit label expected for a channel.
 
@@ -884,14 +899,23 @@ def expected_optical_circuit_label(
             in-flight service name).
         exclude_digital_instance_id: Digital block instance id dropped from the carried
             set (terminate prune of the departing service).
+        own_digital_instance_id: Digital block instance id of the in-flight service
+            whose database entry is skipped in favour of the state name. Defaults
+            to the block's own instance id, so a modify rename replaces the stale
+            database name instead of duplicating it.
 
     Returns:
         The composite label, e.g. ``"ch-01: svcA+svcB"``.
     """
     channel_name = str(channel.optical_transport_channel_name)
     service_name = str(block.optical_digital_service_name)
+    if own_digital_instance_id is None:
+        own_digital_instance_id = block.subscription_instance_id
     names = digital_service_names_for_channel(
-        channel, current_service_name=service_name, exclude_digital_instance_id=exclude_digital_instance_id
+        channel,
+        current_service_name=service_name,
+        exclude_digital_instance_id=exclude_digital_instance_id,
+        own_digital_instance_id=own_digital_instance_id,
     )
     if not names:
         # The channel always carries at least the in-flight service except while
