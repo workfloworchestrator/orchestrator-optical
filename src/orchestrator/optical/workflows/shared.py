@@ -23,6 +23,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import (
     subscription_instance_values_by_block_type_depending_on_instance_id,
     subscription_instances_by_block_names,
+    subscription_instances_by_block_types_and_resource_values,
 )
 from orchestrator.optical.hal.port import get_device_ports_by_role
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
@@ -123,6 +124,7 @@ def modify_summary_form(
 def active_instance_selector_by_block_type(
     abstract_block_type: type[ProductBlockModel],
     prompt: str | None = None,
+    resource_values: dict[str, str | list[str] | set[str]] | None = None,
 ) -> type[Choice]:
     """Create a `Choice` selector for the blocks of any product implementing an abstract block type.
 
@@ -138,12 +140,21 @@ def active_instance_selector_by_block_type(
             ``OpticalModuleLocationBlockInactive``).
         prompt: Prompt to display in the selection. If not provided, a default prompt
             will be generated.
+        resource_values: Optional mapping of stored resource type to acceptable
+            value(s), restricting the offered blocks (e.g.
+            ``{"optical_node_role": ["ROADM"]}``). The filter runs in the
+            database query; None (default) offers every active block.
 
     Returns:
         type[Choice]: A `Choice` class configured with the block options of all
         the products that implement the given abstract block type.
     """
-    instances = subscription_instances_by_block_names(abstract_block_type.__names__, [SubscriptionLifecycle.ACTIVE])
+    if resource_values:
+        instances = subscription_instances_by_block_types_and_resource_values(
+            abstract_block_type.__names__, resource_values, [SubscriptionLifecycle.ACTIVE]
+        )
+    else:
+        instances = subscription_instances_by_block_names(abstract_block_type.__names__, [SubscriptionLifecycle.ACTIVE])
     options = []
     for instance in instances:
         description = instance.subscription.description if instance.subscription is not None else ""

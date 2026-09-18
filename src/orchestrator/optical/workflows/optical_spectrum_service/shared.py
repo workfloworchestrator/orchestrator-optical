@@ -35,7 +35,7 @@ from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
-from orchestrator.optical.db import node_blocks_by_roles, pipe_blocks_all
+from orchestrator.optical.db import pipe_blocks_all
 from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import retrieve_transceiver_modes
@@ -73,7 +73,7 @@ from orchestrator.optical.utils.custom_types.frequencies import (
 from orchestrator.optical.utils.datadiff import DiffResult
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
-from orchestrator.optical.workflows.shared import used_port_names_on_node
+from orchestrator.optical.workflows.shared import active_instance_selector_by_block_type, used_port_names_on_node
 
 logger = get_logger(__name__)
 
@@ -1588,42 +1588,12 @@ def save_foreign_passband_ports(ports: list[AbstractOpticalOlsPortBlockInactive]
         )
 
 
-def get_optical_node_blocks_by_roles(
-    roles: list[OpticalNodeRole],
-) -> list[AnyOpticalNodeBlockProvisioningUnion]:
-    """Retrieve the Optical Node blocks whose nodes have any of the given roles.
-
-    Block-based listing: instances are enumerated by block name and filtered on
-    ``optical_node_role``, without product types, subscriptions or descriptions,
-    so consumers composing the shipped blocks under their own product types are covered.
-
-    Args:
-        roles: The node roles to filter the Optical Node blocks by.
-
-    Returns:
-        A list of active Optical Node blocks for the given node roles, sorted by label.
-    """
-    blocks = node_blocks_by_roles(roles, [SubscriptionLifecycle.ACTIVE])
-    return sorted(blocks, key=_node_choice_label)
-
-
-def _node_choice_label(block: AnyOpticalNodeBlockProvisioningUnion) -> str:
-    """Return the Choice label of an Optical Node block, tolerating unset values."""
-    fqdn = block.management.optical_module_node_fqdn
-    name = str(fqdn) if fqdn is not None else "<unknown>"
-    role = block.optical_node_role
-    role_label = role.value if role is not None and hasattr(role, "value") else str(role)
-    platform = block.management.optical_module_node_platform
-    platform_label = platform.value if platform is not None and hasattr(platform, "value") else str(platform)
-    return f"{name} ({role_label}, {platform_label})"
-
-
 def optical_node_selector_of_roles(roles: list[OpticalNodeRole], prompt: str | None = None) -> type[Choice]:
     """Select an Optical Node from a list of nodes.
 
     Block-based selector: option values are the node block subscription instance ids
-    and labels are derived from the blocks (fqdn, role, platform). No subscription
-    is queried.
+    and labels are the owner subscriptions' descriptions. No block is loaded and no
+    subscription is queried by product type.
 
     Args:
         roles: A list of node roles to filter the Optical Nodes by.
@@ -1632,13 +1602,16 @@ def optical_node_selector_of_roles(roles: list[OpticalNodeRole], prompt: str | N
     Returns:
         A Choice class whose values are node block subscription instance ids.
     """
-    blocks = get_optical_node_blocks_by_roles(roles)
-    products = {str(block.subscription_instance_id): _node_choice_label(block) for block in blocks}
+    base_choice = active_instance_selector_by_block_type(
+        AbstractOpticalNodeBlockInactive,
+        resource_values={"optical_node_role": [role.value for role in roles]},
+    )
+    options = {member.value: member.label for member in base_choice}
 
     if not prompt:
         prompt = f"Select an Optical Node of role {', '.join(role.value for role in roles)}"
 
-    dynamic_class = Choice(prompt, zip(products.keys(), products.items(), strict=False))
+    dynamic_class = Choice(prompt, zip(options.keys(), options.items(), strict=False))
     return cast(type[Choice], dynamic_class)
 
 

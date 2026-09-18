@@ -120,8 +120,8 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
   take `subscription: SubscriptionModel`, `block_field_name`, or `subscription_model`, and never import from
   `product_types`. Full subscription objects appear only in private code: shipped `*_form_generator`, `construct_*`
   steps, and `@*_workflow` functions, which are bound to the shipped subscription models.
-- Selectors emit block ids (`subscription_instance_id`), query via the `db.py` block helpers (`node_blocks_by_roles`,
-  `pipe_blocks_all`, `subscription_instances_by_block_type*`), never via product-type strings or
+- Selectors emit block ids (`subscription_instance_id`), query via the `db.py` block helpers (`pipe_blocks_all`,
+  `pipe_blocks_by_types`, `subscription_instances_by_block_type*`), never via product-type strings or
   `SubscriptionTable.subscription_id`. Resolvers are `node_block_from_instance` / `ProductBlockModel.from_db`, never
   `*_block_from_subscription`. Selectors never load blocks: option values come from the instance query and labels
   either from the stored resource values (`subscription_instance_values_by_instance_ids_and_resource_type`, e.g. the

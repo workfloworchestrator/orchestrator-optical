@@ -35,7 +35,6 @@ from orchestrator.optical.products.product_blocks.optical_node.unions import Any
 __all__ = [
     "location_block_from_instance",
     "node_block_from_instance",
-    "node_blocks_by_roles",
     "node_instance_id_of_subscription",
     "node_instances_by_block_names",
     "packet_node_block_from_instance",
@@ -454,38 +453,6 @@ def node_instance_id_of_subscription(subscription_id: UUIDstr) -> str:
         "Optical Node block",
     )
     return str(instance.subscription_instance_id)
-
-
-def node_blocks_by_roles(
-    roles: list,
-    states: list[SubscriptionLifecycle] | None = None,
-) -> list[AnyOpticalNodeBlockUnion]:
-    """Return the Optical Node blocks whose role is one of the given roles.
-
-    Block-based listing: instances are enumerated by block name (never by product
-    type or subscription), loaded via :func:`node_block_from_instance` and filtered
-    on ``optical_node_role`` in Python, so consumers composing the shipped blocks
-    under their own product types are covered.
-
-    Args:
-        roles: The node roles to filter by.
-        states: Lifecycle states the owner subscription must be in (ACTIVE by default).
-
-    Returns:
-        The matching Optical Node blocks.
-    """
-    wanted = {role.value if hasattr(role, "value") else str(role) for role in roles}
-    instances = node_instances_by_block_names(
-        AbstractOpticalNodeBlockInactive.__names__,
-        states or [SubscriptionLifecycle.ACTIVE],
-    )
-    blocks: list[AnyOpticalNodeBlockUnion] = []
-    for instance in instances:
-        block = node_block_from_instance(str(instance.subscription_instance_id))
-        role = getattr(block, "optical_node_role", None)
-        if role is not None and (getattr(role, "value", str(role)) in wanted):
-            blocks.append(block)
-    return blocks
 
 
 def _load_pipe_blocks(instances: list[SubscriptionInstanceTable]) -> list:

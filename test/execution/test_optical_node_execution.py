@@ -25,6 +25,7 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils imp
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30Block
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42Block
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.workflows.optical_spectrum_service.shared import optical_node_selector_of_roles
 from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
 from test.support.devices import FAKE_SOFTWARE_VERSION
 from test.support.topology import _flexils_gmpls_id
@@ -312,3 +313,27 @@ def test_validate_refreshes_software_version_in_db(
 
     block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert block.management.optical_module_node_software_version == new_version
+
+
+def test_optical_node_selector_of_roles_offers_descriptions_filtered_by_role(
+    seed_optical_node,
+    stub_node_device,
+) -> None:
+    """The node selector offers block instance ids labelled with subscription descriptions, by role.
+
+    The role is discovered from the stubbed device (ROADM for FlexILS,
+    TRANSPONDER for Groove G30): the SPAN-role selector must offer only the
+    FlexILS node, the TRANSPONDER selector only the G30 node. No block is loaded.
+    """
+    flexils_sub = seed_optical_node(FLEXILS_PRODUCT, "roles-flexils.optical.test", "10.9.0.61")
+    g30_sub = seed_optical_node(GROOVE_G30_PRODUCT, "roles-g30.optical.test", "10.9.0.62")
+    flexils_instance_id = node_instance_id_of_subscription(flexils_sub)
+    g30_instance_id = node_instance_id_of_subscription(g30_sub)
+
+    assert {
+        member.value: member.label
+        for member in optical_node_selector_of_roles([OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER_XOADM])
+    } == {flexils_instance_id: f"roles-flexils.optical.test ({FLEXILS_PRODUCT})"}
+    assert {member.value: member.label for member in optical_node_selector_of_roles([OpticalNodeRole.TRANSPONDER])} == {
+        g30_instance_id: f"roles-g30.optical.test ({GROOVE_G30_PRODUCT})"
+    }

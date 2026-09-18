@@ -83,7 +83,10 @@ from orchestrator.optical.products.product_blocks.optical_digital_service import
     OpticalDigitalServiceSpeed,
     OpticalDigitalServiceType,
 )
-from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlockInactive,
+    OpticalNodeRole,
+)
 from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
     OpticalModulePacketNodeBlock,
 )
@@ -114,17 +117,16 @@ from orchestrator.optical.utils.custom_types.frequencies import (
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
-    _node_choice_label,
     check_optical_spectrum_add_drop_port_availability,
     delete_optical_spectrum_sections,
     find_add_drop_ports,
-    get_optical_node_blocks_by_roles,
     load_spectrum_section,
     refresh_sections_used_passbands,
     save_foreign_passband_ports,
     store_list_of_ports_into_spectrum_sections,
     update_used_passbands,
 )
+from orchestrator.optical.workflows.shared import active_instance_selector_by_block_type
 
 logger = get_logger(__name__)
 
@@ -396,8 +398,8 @@ def optical_digital_endpoint_selector(prompt: str | None = None) -> type[Choice]
 
     Block-based selector: the endpoints are the transponder node blocks (Groove G30 /
     GX G42) and the packet node blocks hosting coherent pluggables. Option values are
-    the host block subscription instance ids; labels are derived from the blocks. No
-    subscription is queried.
+    the host block subscription instance ids; labels are the owner subscriptions'
+    descriptions. No block is loaded and no subscription is queried by product type.
 
     Args:
         prompt: Prompt of the selector. When omitted, a default prompt is generated.
@@ -405,11 +407,14 @@ def optical_digital_endpoint_selector(prompt: str | None = None) -> type[Choice]
     Returns:
         A ``Choice`` class whose values are host block subscription instance ids.
     """
-    blocks = get_optical_node_blocks_by_roles(DIGITAL_ENDPOINT_ROLES)
-    products = {str(block.subscription_instance_id): _node_choice_label(block) for block in blocks}
+    base_choice = active_instance_selector_by_block_type(
+        AbstractOpticalNodeBlockInactive,
+        resource_values={"optical_node_role": [role.value for role in DIGITAL_ENDPOINT_ROLES]},
+    )
+    options = {member.value: member.label for member in base_choice}
     if not prompt:
         prompt = "Select an endpoint host (transponder node or packet node)"
-    return cast(type[Choice], Choice(prompt, zip(products.keys(), products.items(), strict=False)))
+    return cast(type[Choice], Choice(prompt, zip(options.keys(), options.items(), strict=False)))
 
 
 def port_ids_used_by_digital_services() -> set[str]:
