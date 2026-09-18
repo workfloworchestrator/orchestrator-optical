@@ -5,8 +5,8 @@ shipped Optical Node products (Nokia FlexILS, Groove G30 and GX G42) end to
 end through the real orchestrator-core process engine, with the device-facing
 HAL calls stubbed (``stub_node_device`` / ``seed_optical_node``). They cover
 the create workflow of every vendor (discovery step, block population and
-persistence), the shared modify/validate/terminate steps of one vendor and
-the FQDN uniqueness check of the create form.
+persistence), the full create -> modify -> validate -> terminate cycle of
+every vendor and the FQDN uniqueness check of the create form.
 """
 
 from typing import Any
@@ -246,6 +246,117 @@ def test_node_full_lifecycle_g30(
 
     terminate_process_id = run_process(
         "terminate_optical_node_nokia_groove_g30",
+        [{"subscription_id": subscription_id}, {"subscription_id": subscription_id}],
+    )
+    assert_process_completed(terminate_process_id)
+    assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.TERMINATED
+    assert subscription_id_of_process(terminate_process_id) == subscription_id
+
+
+def test_node_full_lifecycle_flexils(
+    run_process,
+    seed_optical_node,
+    assert_process_completed,
+    subscription_id_of_process,
+    stub_node_device,
+) -> None:
+    """The full create -> modify -> validate -> terminate cycle of the shipped FlexILS workflows."""
+    subscription_id = seed_optical_node(
+        FLEXILS_PRODUCT,
+        "flexils-life-01.optical.test",
+        "192.0.2.71",
+        dcn_loopback_ip="192.0.2.72",
+    )
+    assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
+
+    new_fqdn = "flexils-life-02.optical.test"
+    modify_process_id = run_process(
+        "modify_optical_node_nokia_flexils",
+        [
+            {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
+            {
+                "optical_module_node_fqdn": new_fqdn,
+                "optical_module_node_dcn_interface_ip": "192.0.2.71",
+                "optical_module_node_dcn_loopback_ip": "192.0.2.72",
+            },
+            {
+                "optical_flexils_gmpls_id": _flexils_gmpls_id(new_fqdn),
+                "optical_flexils_target_id": new_fqdn[:20],
+            },
+            {},
+        ],
+    )
+    assert_process_completed(modify_process_id)
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
+    assert isinstance(block, NokiaFlexIlsBlock)
+    assert block.management.optical_module_node_fqdn == new_fqdn
+    assert _subscription_table(subscription_id).description == f"{new_fqdn} ({FLEXILS_PRODUCT})"
+    assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
+
+    validate_process_id = run_process(
+        "validate_optical_node_nokia_flexils",
+        [{"subscription_id": subscription_id}],
+    )
+    assert_process_completed(validate_process_id)
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
+    assert block.management.optical_module_node_software_version == FAKE_SOFTWARE_VERSION
+
+    terminate_process_id = run_process(
+        "terminate_optical_node_nokia_flexils",
+        [{"subscription_id": subscription_id}, {"subscription_id": subscription_id}],
+    )
+    assert_process_completed(terminate_process_id)
+    assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.TERMINATED
+    assert subscription_id_of_process(terminate_process_id) == subscription_id
+
+
+def test_node_full_lifecycle_g42(
+    run_process,
+    seed_optical_node,
+    assert_process_completed,
+    subscription_id_of_process,
+    stub_node_device,
+) -> None:
+    """The full create -> modify -> validate -> terminate cycle of the shipped GX G42 workflows."""
+    subscription_id = seed_optical_node(
+        GX_G42_PRODUCT,
+        "g42-life-01.optical.test",
+        "192.0.2.81",
+        dcn_loopback_ip="192.0.2.82",
+    )
+    assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
+
+    modify_process_id = run_process(
+        "modify_optical_node_nokia_gx_g42",
+        [
+            {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
+            {
+                "optical_module_node_fqdn": "g42-life-02.optical.test",
+                "optical_module_node_dcn_interface_ip": "192.0.2.81",
+                "optical_module_node_dcn_loopback_ip": "192.0.2.82",
+            },
+            {},
+        ],
+    )
+    assert_process_completed(modify_process_id)
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
+    assert isinstance(block, NokiaGxG42Block)
+    assert block.management.optical_module_node_fqdn == "g42-life-02.optical.test"
+    assert _subscription_table(subscription_id).description == f"g42-life-02.optical.test ({GX_G42_PRODUCT})"
+    assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
+
+    validate_process_id = run_process(
+        "validate_optical_node_nokia_gx_g42",
+        [{"subscription_id": subscription_id}],
+    )
+    assert_process_completed(validate_process_id)
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
+    assert block.management.optical_module_node_software_version == FAKE_SOFTWARE_VERSION
+
+    terminate_process_id = run_process(
+        "terminate_optical_node_nokia_gx_g42",
         [{"subscription_id": subscription_id}, {"subscription_id": subscription_id}],
     )
     assert_process_completed(terminate_process_id)

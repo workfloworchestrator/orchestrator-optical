@@ -196,6 +196,9 @@ def install_device_stubs(
     def _retrieve_transceiver_modes(block: Any, port_name: str) -> list[str]:
         return list(modes)
 
+    def _retrieve_common_transceiver_modes(node_ports: Any) -> list[str]:
+        return list(modes)
+
     stubs: dict[str, dict[str, dict[str, Callable[..., Any]]]] = {
         "node": {
             "orchestrator.optical.workflows.optical_node.shared.retrieve": {
@@ -243,6 +246,9 @@ def install_device_stubs(
             },
         },
         "ods": {
+            "orchestrator.optical.workflows.shared": {
+                "get_device_ports_by_role": _get_device_ports_by_role,
+            },
             "orchestrator.optical.workflows.optical_digital_service.shared": {
                 "configure_line_transceivers": _fake_configure_line_transceivers,
                 "configure_transceiver_client": _fake_configure_transceiver_client,
@@ -259,6 +265,8 @@ def install_device_stubs(
                 "ensure_optical_circuit": _fake_ensure_optical_circuit,
                 "set_optical_circuit_label": _fake_set_optical_circuit_label,
                 "validate_optical_circuit": _fake_validate_optical_circuit,
+                "retrieve_transceiver_modes": _retrieve_transceiver_modes,
+                "retrieve_common_transceiver_modes": _retrieve_common_transceiver_modes,
                 "sleep": _fake_sleep,
             },
             "orchestrator.optical.workflows.optical_spectrum_service.shared": {
@@ -266,7 +274,6 @@ def install_device_stubs(
                 "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
             },
             "orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service": {
-                "retrieve_transceiver_modes": _retrieve_transceiver_modes,
                 "sleep": _fake_sleep,
             },
             "orchestrator.optical.workflows.optical_digital_service.modify_optical_digital_service": {

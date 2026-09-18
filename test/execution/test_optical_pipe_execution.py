@@ -313,6 +313,91 @@ def test_leased_spectrum_create_validate_terminate(
     assert subscription_id_of_process(terminate_process_id) == subscription_id
 
 
+def test_fiber_patch_modify(
+    run_process,
+    product_id_for,
+    assert_process_completed,
+    subscription_id_of_process,
+    seed_optical_node,
+    stub_pipe_device,
+) -> None:
+    """The shipped Optical Fiber Patch modify workflow renames the pipe and keeps it ACTIVE."""
+    node_a = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "patch-mod-a.optical.test", "10.9.0.61")
+    node_b = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "patch-mod-b.optical.test", "10.9.0.62")
+
+    create_process_id = run_process(
+        "create_fiber_patch",
+        _create_pipe_user_inputs(
+            product_id_for(FIBER_PATCH_PRODUCT), node_a, node_b, CLIENT_PORT, CLIENT_PORT, "patch-mod-01"
+        ),
+    )
+    assert_process_completed(create_process_id)
+    subscription_id = subscription_id_of_process(create_process_id)
+
+    modify_process_id = run_process(
+        "modify_fiber_patch",
+        [
+            {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
+            {"optical_pipe_name": "patch-mod-02"},
+            {},
+        ],
+    )
+    assert_process_completed(modify_process_id)
+    assert _subscription_table(subscription_id).description == f"patch-mod-02 ({FIBER_PATCH_PRODUCT})"
+    assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
+    assert (
+        OpticalFiberPatchSubscription.from_subscription(subscription_id).optical_pipe.optical_pipe_name
+        == "patch-mod-02"
+    )
+
+
+def test_leased_spectrum_modify(
+    run_process,
+    product_id_for,
+    assert_process_completed,
+    subscription_id_of_process,
+    seed_optical_node,
+    stub_pipe_device,
+) -> None:
+    """The shipped Optical Leased Spectrum modify workflow renames the pipe and keeps it ACTIVE."""
+    node_a = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "lease-mod-a.optical.test", "10.9.0.71")
+    node_b = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "lease-mod-b.optical.test", "10.9.0.72")
+
+    create_process_id = run_process(
+        "create_leased_spectrum",
+        _create_pipe_user_inputs(
+            product_id_for(LEASED_SPECTRUM_PRODUCT),
+            node_a,
+            node_b,
+            CLIENT_PORT,
+            CLIENT_PORT,
+            "circuit-mod-01",
+            provider_name="Acme Telecom",
+        ),
+    )
+    assert_process_completed(create_process_id)
+    subscription_id = subscription_id_of_process(create_process_id)
+
+    modify_process_id = run_process(
+        "modify_leased_spectrum",
+        [
+            {"subscription_id": subscription_id},
+            {"customer_id": CUSTOMER_ID},
+            {"optical_pipe_name": "Acme Telecom circuit-mod-02"},
+            {},
+        ],
+    )
+    assert_process_completed(modify_process_id)
+    expected_description = f"Acme Telecom circuit-mod-02 ({LEASED_SPECTRUM_PRODUCT})"
+    assert _subscription_table(subscription_id).description == expected_description
+    assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
+    assert (
+        OpticalLeasedSpectrumSubscription.from_subscription(subscription_id).optical_pipe.optical_pipe_name
+        == "Acme Telecom circuit-mod-02"
+    )
+
+
 def test_pipe_blocks_by_types_matches_stored_pipe_types(
     run_process,
     product_id_for,
