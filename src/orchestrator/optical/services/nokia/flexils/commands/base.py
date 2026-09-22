@@ -102,7 +102,7 @@ class TL1BaseResponse(BaseModel):
 
         for raw_line in lines[1:]:
             line = raw_line.strip(" ;")
-            if not line or line[0] != '"':  # Skip lines that don't start with a quote
+            if not line or not line.startswith('"'):  # Skip lines that don't start with a quote
                 continue
             line = line.strip('"')
             record = {}
