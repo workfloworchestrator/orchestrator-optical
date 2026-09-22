@@ -13,10 +13,6 @@ from pathlib import Path
 from orchestrator.optical.settings import OpticalSettings, get_settings
 
 _EXPECTED_FIELDS = {
-    "netbox_url",
-    "netbox_token",
-    "ipv4_loopback_prefix",
-    "ipv6_loopback_prefix",
     "flexils_user",
     "flexils_password",
     "g30_user",

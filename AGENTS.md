@@ -40,10 +40,8 @@ src/orchestrator/optical/
 │   ├── transport_channel.py  #   transponder line/client/crossconnect config + validation + power alignment
 │   └── adapters/             #   per-device implementations: nokia_flexils (TL1) / nokia_groove_g30, nokia_gx_g42 (RESTCONF)
 ├── services/                 # Device integrations (do not "fix" the auto-generated parts)
-│   ├── nokia/                #   flexils (TL1 client + per-command modules), g30, g42 (RESTCONF clients with
-│   │                         #   auto-generated data_models/data_navigators), tnms (TAPI client)
-│   ├── netbox.py             #   lazy Netbox client (settings-driven)
-│   └── asyncsshcli/          #   async SSH terminal helper
+│   └── nokia/                #   flexils (TL1 client + per-command modules), g30, g42 (RESTCONF clients with
+│                             #   auto-generated data_models/data_navigators), tnms (TAPI client)
 ├── workflows/                # WFO workflows of the shipped product types (ready-to-use) + importable parts
 │   ├── __init__.py           #   docs the consumption model (register shipped workflows with LazyWorkflowInstance,
 │   │                         #   compose your own with the parts)
@@ -142,7 +140,7 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
 
 - All env-driven config lives in `settings.py` (`OPTICAL_`-prefixed; e.g. `OPTICAL_FLEXILS_USER`,
   `OPTICAL_TNMS_ENDPOINT`). **No import-time side effects**: importing any module must work with zero env vars.
-  Use `get_settings()`; keep clients lazy (`get_netbox_api()`, `get_tnms_client()`).
+  Use `get_settings()`; keep clients lazy (`get_tnms_client()`).
 
 ### Workflows
 
@@ -228,7 +226,7 @@ uv build                        # package build
 
 ### Current status (branch `porting/workflows`)
 
-- The legacy `optical.old/` and the GARR admin `tasks/` workflows are there for reference only (`/hal` corresponds to old `products/services`) — do not reintroduce.
+- The legacy `optical.old/` tree and the GARR admin `tasks/` workflows were removed (`/hal` corresponds to old `products/services`) — do not reintroduce.
 - Model files are actively being refined by maintainers: **ask before changing `products/`**; adapt code to their
   changes instead (e.g. field renames must be propagated to `hal/` and `workflows/`).
 - workflows: done create,modify,validate,terminate for `optical_location`; create,modify,validate,terminate for the 3

@@ -10,10 +10,8 @@ authors = [
 license = "Apache-2.0"
 requires-python = ">=3.12,<3.15"
 dependencies = [
-    "asyncssh~=2.22.0",
     "orchestrator-core>=5",
     "paramiko>=3.5",
-    "pynetbox>=7.8.0",
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -88,7 +86,6 @@ exclude = [
     # Test suite and dev tooling are behavior-verified by pytest / run manually, not type-gated.
     "test",
     "scripts",
-    "src/orchestrator/optical.old",
     "src/orchestrator/optical/services",
     # Pre-existing ty diagnostics in the form/selector helpers (see AGENTS.md).
     "src/orchestrator/optical/workflows/shared.py"
@@ -104,8 +101,6 @@ unused-type-ignore-comment = "error"
 exclude = [
     "venv",
     ".venv",
-    # Legacy GARR-specific implementation kept for reference only (see AGENTS.md).
-    "src/orchestrator/optical.old",
     # Auto-generated Nokia YANG models/navigators; never hand-edit (see AGENTS.md).
     "src/orchestrator/optical/services/nokia/g30/data_models",
     "src/orchestrator/optical/services/nokia/g30/data_navigators",
@@ -194,7 +189,7 @@ ban-relative-imports = "all"
 "scripts/**" = ["T201"]
 "orchestrator/optical/workflows/*" = ["PLR0917", "PLR0914"]
 "test/**" = ["ARG001", "D", "S101", "PLR2004", "PLR0917", "PLR0914", "PLC0415", "PLC2701"]
-# Ported vendor driver / integration code (Netbox, Nokia FlexILS/G30/G42/TNMS): excluded from the
+# Ported vendor driver / integration code (Nokia FlexILS/G30/G42/TNMS): excluded from the
 # type checkers and its docstrings are not maintained, so do not require them here.
 "src/orchestrator/optical/services/**" = ["D"]
 # TL1 command modules are derived from device help text (see
@@ -205,8 +200,6 @@ ban-relative-imports = "all"
 "src/orchestrator/optical/services/nokia/flexils/utils/tl1_command_help_to_pydantic_generator.py" = ["E501", "T201"]
 # Endpoints deliberately call the client's package-internal `_request` helper.
 "src/orchestrator/optical/services/nokia/tnms/endpoints.py" = ["SLF001"]
-# Registered singledispatch handlers keep the public `id` parameter name for API compatibility.
-"src/orchestrator/optical/services/netbox.py" = ["A002"]
 # Alembic-generated revision files (do not hand-edit).
 "src/orchestrator/optical/migrations/**" = ["D", "INP001"]
 # Maintainer-owned product model: leave the location-code length literal untouched.
@@ -240,7 +233,6 @@ TRANSLATIONS_DIR = "orchestrator/optical/translations"
 [tool.coverage.run]
 branch = true
 omit = [
-    "*/optical.old/*",
     "*/services/nokia/g30/data_models/*",
     "*/services/nokia/g30/data_navigators/*",
     "*/services/nokia/g42/data_models/*",
@@ -266,7 +258,6 @@ project-excludes = [
     # Test suite and dev tooling are behavior-verified by pytest / run manually, not type-gated.
     "test/**",
     "scripts/**",
-    "src/orchestrator/optical.old/**",
     "src/orchestrator/optical/services/**",
     # Pre-existing diagnostics in the form/selector helpers (see AGENTS.md).
     "src/orchestrator/optical/workflows/shared.py",

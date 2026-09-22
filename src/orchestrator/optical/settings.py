@@ -29,12 +29,6 @@ class OpticalSettings(BaseSettings):
     it is missing.
 
     Attributes:
-        netbox_url: Base URL of the Netbox instance (``OPTICAL_NETBOX_URL``).
-        netbox_token: API token for Netbox (``OPTICAL_NETBOX_TOKEN``).
-        ipv4_loopback_prefix: IPv4 prefix used for Netbox loopback address reservation
-            (``OPTICAL_IPV4_LOOPBACK_PREFIX``).
-        ipv6_loopback_prefix: IPv6 prefix used for Netbox loopback address reservation
-            (``OPTICAL_IPV6_LOOPBACK_PREFIX``).
         flexils_user: Username for the FlexILS TL1 client (``OPTICAL_FLEXILS_USER``).
         flexils_password: Password for the FlexILS TL1 client (``OPTICAL_FLEXILS_PASSWORD``).
         g30_user: Username for the Nokia G30 restconf client (``OPTICAL_G30_USER``).
@@ -52,11 +46,6 @@ class OpticalSettings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(env_prefix="OPTICAL_", env_file=".env", extra="ignore")
-
-    netbox_url: str | None = None
-    netbox_token: str | None = None
-    ipv4_loopback_prefix: str | None = None
-    ipv6_loopback_prefix: str | None = None
 
     flexils_user: str | None = None
     flexils_password: str | None = None
