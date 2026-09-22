@@ -4,7 +4,7 @@ This package ships the **ready-to-use workflows of the shipped product types**:
 one module-level ``@create_workflow`` / ``@modify_workflow`` /
 ``@terminate_workflow`` / ``@validate_workflow``-decorated function per product
 and lifecycle target (plus a ``@reconcile_workflow`` for each optical pipe
-family and for the Optical Spectrum service), named exactly as the shipped name
+family and for the Optical Spectrum and Optical Digital services), named exactly as the shipped name
 (the translation keys in
 ``orchestrator/optical/translations/en-GB.json``). The workflows are bound
 to the shipped subscription models and are therefore only valid when the
@@ -26,7 +26,9 @@ Public surface (Path 2): ``*_form_pages`` sequences + ``*_BLOCK_STEPS`` lists +
 summary), ``construct_*`` steps, ``load_*_block`` wiring, and subscription models.
 
 Page signatures: ``create_*_form_pages(product_name)``;
-``modify_*_form_pages(block, *, product_name, exclude_subscription_id=None)``;
+``modify_*_form_pages`` per family (location and nodes take
+``(block, *, exclude_subscription_id=None)``; spectrum and digital services take
+``(block, *, product_name)``; pipes and coherent pluggables take ``(block)``);
 ``terminate_*_form_pages(subscription_id)``. Pages emit flat ``optical_*`` keys,
 never collect ``customer_id``, never take ``subscription``/``block_field_name``/
 ``subscription_model``, and never import ``product_types``. Selectors emit

@@ -37,10 +37,11 @@ module owns **no tables** — everything lives in the core catalog tables.
 
 ### Until the first stable release (module < 1.0)
 
-The models are still being finalized and shipped Alembic revisions would have to be rewritten between releases
-(rewriting a shipped revision breaks consumers mid-upgrade). Until 1.0 the shipped `versions/schema` directory is
-**empty** and consumers provision the catalog with the orchestrator-core CLI, the same way they provision their own
-products:
+The models are still being finalized and shipped Alembic revisions may be rewritten between releases
+(rewriting a shipped revision breaks consumers mid-upgrade). Until 1.0 consumers provision the catalog with the
+orchestrator-core CLI, the same way they provision their own
+products (a baseline revision is kept in `versions/schema` for development and drift detection, but it is not
+yet a stable upgrade path):
 
 ```shell
 orchestrator db migrate-domain-models -m "add optical products"
@@ -93,15 +94,15 @@ python -m orchestrator.optical.migrations --verify    # apply pending migrations
 
 `--verify` is the drift gate: it applies the migrations to a scratch database and re-runs the orchestrator-core
 domain-model diff, failing if the applied catalog is not a faithful projection of the shipped models. It is exercised
-end to end by the DB-backed test suite (`test/test_migrations.py`, `test/conftest.py`), which provisions the test
+end to end by the DB-backed test suite (`test/migrations/test_migrations.py`, `test/conftest.py`), which provisions the test
 database exactly the way a consumer would.
 
 ## Consumption model
 
 The module ships **concrete product blocks** (e.g. `OpticalFiberSpanBlock`), the matching
  subscription product types, hardware abstraction layer `hal/` services, the **ready-to-use workflows of the shipped product types** (one
- create/modify/terminate/validate per product, plus a reconcile workflow for each optical pipe family and the
- Optical Spectrum service) and the
+ create/modify/terminate/validate per product, plus a reconcile workflow for each optical pipe family and for the
+ Optical Spectrum and Optical Digital services) and the
  **parts of the workflows** (the FormPages of the shipped forms, as page sequences, and the step lists).
 
 > The module expects you to use the shipped concrete blocks as a **shared interface** that you compose with your own model.
@@ -124,7 +125,7 @@ There are two consumption paths:
  Keep the shipped subscription product types. The module ships one ready-to-use workflow per product type and
  lifecycle target (create / modify / terminate / validate), as plain `@create_workflow` / `@modify_workflow` /
  `@terminate_workflow` / `@validate_workflow`-decorated functions bound to the shipped subscription models, plus a
- `@reconcile_workflow` for each optical pipe family and for the Optical Spectrum service (it re-applies the
+ `@reconcile_workflow` for each optical pipe family and for the Optical Spectrum and Optical Digital services (it re-applies the
  subscription's existing device configuration and re-verifies it, with no user input). They are only valid when you
  keep the shipped product types.
 
@@ -189,6 +190,7 @@ The full list of shipped workflows and their import paths:
 | `modify_optical_digital_service`      | `orchestrator.optical.workflows.optical_digital_service.modify_optical_digital_service`             |
 | `terminate_optical_digital_service`   | `orchestrator.optical.workflows.optical_digital_service.terminate_optical_digital_service`          |
 | `validate_optical_digital_service`    | `orchestrator.optical.workflows.optical_digital_service.validate_optical_digital_service`           |
+| `reconcile_optical_digital_service`   | `orchestrator.optical.workflows.optical_digital_service.reconcile_optical_digital_service`         |
 | `create_optical_module_location`      | `orchestrator.optical.workflows.optical_location.create_optical_location`                                            |
 | `modify_optical_module_location`      | `orchestrator.optical.workflows.optical_location.modify_optical_location`                                            |
 | `terminate_optical_module_location`   | `orchestrator.optical.workflows.optical_location.terminate_optical_location`                                         |
@@ -243,30 +245,30 @@ and to use thin "anti-corruption" wiring code that links your custom fields to t
 This way the changes to this module's domain models will always be clearly decoupled from your models and your logic.
 
 For example, if you already have subscriptions to manage your routers and you want to use this module (that needs
-to access the routers to configure the optical coherent pluggables), then you must add the `OpticalModulePacketNode` block
+to access the routers to configure the optical coherent pluggables), then you must add the `OpticalModulePacketNodeBlock` block
 to your existing `RouterBlock`:
 
 ```python
 # in your product_blocks/ dir 
-from orchestrator.optical.products.product_blocks.optical_packet_node import (
-    OpticalModulePacketNode,
-    OpticalModulePacketNodeInactive,
-    OpticalModulePacketNodeProvisioning,
+from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
+    OpticalModulePacketNodeBlock,
+    OpticalModulePacketNodeBlockInactive,
+    OpticalModulePacketNodeBlockProvisioning,
 )
 
 class RouterBlockInactive(ProductBlockModel, product_block_name="RouterBlock"):
     field1: str | None = None
     # ...
     # you must add this block
-    optical_module_block: OpticalModulePacketNodeInactive
+    optical_module_block: OpticalModulePacketNodeBlockInactive
 
 class RouterBlockProvisioning(RouterBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
     field1: str
-    optical_module_block: OpticalModulePacketNodeProvisioning
+    optical_module_block: OpticalModulePacketNodeBlockProvisioning
 
 class RouterBlock(RouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
     field1: str
-    optical_module_block: OpticalModulePacketNode
+    optical_module_block: OpticalModulePacketNodeBlock
 ```
 
 The shipped workflows of path 1 are not reusable here — they are bound to the shipped subscription models. Thus, you
@@ -315,7 +317,7 @@ Notes:
   # mywfo/forms.py
   block = subscription.optical_module_block  # your attribute name, any nesting depth (e.g. subscription.router.optical_module)
   user_input_dict = yield from modify_optical_module_location_form_pages(
-      block, product_name=..., exclude_subscription_id=...
+      block, exclude_subscription_id=...
   )
   ```
 - How much of your own information you keep is up to you: you can mirror your own fields into the shipped block (a
@@ -397,9 +399,14 @@ def my_create_form_generator(product_name):
 
 ## Status of the port
 
-The `optical_location`, `optical_node`, `optical_pipe`, `optical_coherent_pluggable` and `optical_spectrum_service`
-families are the reference implementations of the page-sequence model. The remaining workflows
-(`optical_digital_service`) are mid-port and will change.
+The `optical_location`, `optical_node`, `optical_pipe`, `optical_coherent_pluggable`, `optical_spectrum_service`
+and `optical_digital_service` families are the reference implementations of the page-sequence model (each ships
+create/modify/terminate/validate, plus reconcile for the pipe families and the spectrum and digital services).
+
+Model-only notes (no shipped workflows): the `JuniperMx204` node block/subscription triple exists but is
+unregistered (no product, no workflows, excluded from the node unions); the standalone
+`OpticalModulePacketNode` subscription product is registered but ships no workflows — compose the
+`OpticalModulePacketNodeBlock` into your own model instead (see the composition example above).
 
 
 ## Development

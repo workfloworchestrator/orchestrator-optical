@@ -5,7 +5,8 @@
 An addon module for [Workflow Orchestrator](https://workfloworchestrator.org) (built on
 [`orchestrator-core`](https://github.com/workfloworchestrator/orchestrator-core) >= 5) that models and provisions
 optical transport equipment: Nokia **FlexILS** (TL1 over SSH), **Groove G30** and **GX G42** (RESTCONF), and the
-Nokia **TNMS** (TAPI) management system.
+Nokia **TNMS** (TAPI) management system (client-only: `services/nokia/tnms` ships the API client, nothing under
+`hal/` or `workflows/` drives it).
 
 It is a **generalized, reusable** module: it was ported away from a GARR-specific implementation. It must stay free of
 any organization-specific business logic (see "Hard rules" below). Users install it into their own WFO deployment and
@@ -21,6 +22,8 @@ src/orchestrator/optical/
 ├── products/                 # Data models (pydantic + orchestrator-core domain models)
 │   ├── product_blocks/       #   Product blocks: one Inactive/Provisioning/Active class chain per block
 │   │   ├── optical_node/     #     abstracts.py + one file per vendor (nokia_flexils, nokia_groove_g30, nokia_gx_g42)
+│   │   │                         #     + juniper_mx204 (model-only, unregistered) + optical_packet_node (nested use;
+│   │   │                         #     standalone packet-node product ships no workflows)
 │   │   ├── optical_port/     #     abstracts.py + one file per port role (ols_add_drop, ols_line, transponder_client, transponder_line), unions.py
 │   │   ├── optical_pipe/     #     abstracts.py + fiber_span / fiber_patch / leased_spectrum + unions.py
 │   │   └── …                 #     optical_spectrum.py, optical_spectrum_section.py, optical_transport_channel.py,
@@ -50,7 +53,7 @@ src/orchestrator/optical/
 │   │                         #   per-vendor thin wrappers over shared step lists (shared/terminate.py, shared/validate.py)
 │   ├── optical_pipe/         #   fiber_span / fiber_patch / leased_spectrum (workflows + parts)
 │   ├── optical_spectrum_service/   #  path-finding engine (shared.py) + workflows
-│   ├── optical_digital_service/    #  4-form create + modify/terminate/validate
+│   ├── optical_digital_service/    #  4-form create + modify/terminate/validate + reconcile (identity/client/lines/channels/waypoints/constraints/path pages)
 │   ├── optical_coherent_pluggable/ #   create/modify/terminate/validate workflows + parts + shared helpers
 │   │                         #   (block-based, state key OPTICAL_MODULE_BLOCK_STATE_KEY)
 │   └── optical_location/     #   reference family: workflows + parts (selectors/helpers)
@@ -58,15 +61,16 @@ src/orchestrator/optical/
 ├── db.py                     # neutral DB query helpers + block resolution shared by hal/ and workflows/ (blocks as contracts)
 ├── translations/en-GB.json   # workflow display strings (1:1 with registered workflows)
 └── utils/                    # custom_types (dns Pqdn/Fqdn, coordinates, frequencies, ip_address), datadiff,
-                              # singledispatch
+                              # singledispatch (legacy helpers only — dispatch uses match/case, never reintroduce it)
 ```
 
 ## How users consume it (see README.md)
 
 1. `uv add orchestrator-optical` in their WFO deployment.
-2. DB migrations is still unclear whether will be shipped or not. Consumers could generate DB migrations locally
-   (e.g. via orchestrator-core shell commands) but then the module's domain models would not be versionable and
-   this is why the module should probably ship migrations.
+2. Until 1.0, provision the catalog with the orchestrator-core CLI wizards
+   (`migrate-domain-models` + `migrate-workflows`); a baseline revision is kept in
+   `migrations/versions/schema` for development and drift detection but is not yet a stable
+   upgrade path (see README.md "Database migrations").
 3. The module is a **work in progress** (ported from a GARR-specific implementation): model files are still being
    finalized and may change between releases.
 
@@ -88,7 +92,7 @@ references), both computed from the class's own annotations. Therefore: **every 
 every field it inherits**, or reloads will crash with ValidationError. The four base `ProductBlockModel` fields
 (`name`, `label`, `subscription_instance_id`, `owner_subscription_id`) are exempt — core passes them explicitly.
 
-This rule is fully applied: all 15 concrete block chains redeclare every inherited field. Any new block must follow the rule.
+This rule is fully applied: all 19 concrete block chains redeclare every inherited field. Any new block must follow the rule.
 
 - Product-block fields must **not** use `Annotated`-wrapped discriminated unions (`Annotated[Union[...],
   Field(discriminator=...)]` or `Discriminator(fn)`): core 5.1.3's `is_list_type`/`is_union_type`/`is_of_type`
@@ -146,7 +150,8 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
 
 - The module ships the **ready-to-use workflows of the shipped product types**: one module-level
   `@create_workflow`/`@modify_workflow`/`@terminate_workflow`/`@validate_workflow`-decorated function per product
-  (plus a `@reconcile_workflow` for each optical pipe family and for the Optical Spectrum service), where each is a
+  (plus a `@reconcile_workflow` for each optical pipe family and for the Optical Spectrum and Optical Digital
+services), where each is a
   plain function
   (decorators from `orchestrator.core.workflows.utils`, chains from `orchestrator.core.workflow`), named exactly as
   the shipped name (the translation keys in `translations/en-GB.json`). No factories, no hooks, no `**kwargs`; the
@@ -174,10 +179,14 @@ This rule is fully applied: all 15 concrete block chains redeclare every inherit
 - Public surface of a family is its `*_form_pages` page sequences and its `*_BLOCK_STEPS` lists
   (+ `populate_*_block` helpers). Private (shipped-product only) are the `@*_workflow` functions, `*_form_generator`
   (thin `customer_choice_form_page` + pages + summary compositions, never reused by consumers), `construct_*` steps,
-  and `load_*_block` shipped-attribute wiring. Page signatures: `create_*_form_pages(product_name[, Choice...])`;
-  `modify_*_form_pages(block, *, product_name, exclude_subscription_id=None)` prefilled from the block, at any nesting
-  depth (`block = subscription.optical_module_block` or `subscription.router.optical_module` — shipped code never
-  traverses the subscription, the consumer extracts with plain Python); `terminate_*_form_pages(subscription_id)`.
+  and `load_*_block` shipped-attribute wiring. Page signatures per family (prefilled from the block at any nesting
+  depth — `block = subscription.optical_module_block` or `subscription.router.optical_module`; shipped code never
+  traverses the subscription, the consumer extracts with plain Python):
+  `create_*_form_pages(product_name)` everywhere;
+  `modify_*_form_pages(block, *, exclude_subscription_id=None)` for location and nodes;
+  `modify_*_form_pages(block, *, product_name)` for spectrum and digital services;
+  `modify_*_form_pages(block)` for pipes and coherent pluggables;
+  `terminate_*_form_pages(subscription_id)` everywhere.
   Pages never collect `customer_id` (generators do, via `customer_choice_form_page`). `*_BLOCK_STEPS` bind
   `optical_module_block` (PROVISIONING, terminal `save_optical_module_block`) — except reconcile (`save` then `verify`)
   and validate (read-only).
@@ -235,4 +244,6 @@ uv build                        # package build
   `optical_spectrum_service`
   (the path engine builds the constrained graph from fiber spans + patches + leased spectra but only OLS
   `OLS_LINE`/`OLS_ADD_DROP` ports, supports ordered waypoints, and splits the chosen path into single-platform
-  sections at the add/drop ports). The rest are defined but still WIP.
+  sections at the add/drop ports); create,modify,validate,terminate + reconcile for `optical_digital_service`;
+  create,modify,validate,terminate for `optical_coherent_pluggable`. Model-only / no shipped workflows:
+  `JuniperMx204` (unregistered) and the standalone packet-node product (compose the packet-node block instead).
