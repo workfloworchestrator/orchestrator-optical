@@ -7,7 +7,7 @@ from typing import Annotated, Any, TypeVar
 
 from pydantic import AfterValidator, BeforeValidator, Field, PlainSerializer
 
-from ._base import YangBaseModel
+from orchestrator.optical.services.nokia.g42.data_models._base import YangBaseModel
 
 
 # RFC 7951: 64-bit numbers MUST be represented as JSON strings.

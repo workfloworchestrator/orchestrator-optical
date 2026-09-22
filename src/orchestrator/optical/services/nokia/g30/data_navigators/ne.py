@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._base import ItemNode, ListNode, Node
+from orchestrator.optical.services.nokia.g30.data_navigators._base import ItemNode, ListNode, Node
 
 if TYPE_CHECKING:
-    from ..data_models import ne
+    from orchestrator.optical.services.nokia.g30.data_models import ne
 
 
 class TemperatureDetailsItemNode(ItemNode):
@@ -19,13 +19,13 @@ class TemperatureDetailsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.TemperatureDetailsItem:
-        from ..data_models.ne import TemperatureDetailsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TemperatureDetailsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return TemperatureDetailsItem.model_validate(resp)
 
     def update(self, data: ne.TemperatureDetailsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TemperatureDetailsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TemperatureDetailsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -42,7 +42,7 @@ class TemperatureDetailsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.TemperatureDetailsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TemperatureDetailsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TemperatureDetailsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -70,7 +70,7 @@ class TemperatureDetailsListNode(ListNode[TemperatureDetailsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.TemperatureDetailsItem]:
-        from ..data_models.ne import TemperatureDetailsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TemperatureDetailsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [TemperatureDetailsItem.model_validate(item) for item in resp]
@@ -95,13 +95,13 @@ class PerCoreUtilizationItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PerCoreUtilizationItem:
-        from ..data_models.ne import PerCoreUtilizationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PerCoreUtilizationItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PerCoreUtilizationItem.model_validate(resp)
 
     def update(self, data: ne.PerCoreUtilizationItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PerCoreUtilizationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PerCoreUtilizationItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -118,7 +118,7 @@ class PerCoreUtilizationItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.PerCoreUtilizationItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PerCoreUtilizationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PerCoreUtilizationItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -146,7 +146,7 @@ class PerCoreUtilizationListNode(ListNode[PerCoreUtilizationItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.PerCoreUtilizationItem]:
-        from ..data_models.ne import PerCoreUtilizationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PerCoreUtilizationItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PerCoreUtilizationItem.model_validate(item) for item in resp]
@@ -171,13 +171,13 @@ class CpuStateNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.CpuState:
-        from ..data_models.ne import CpuState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CpuState
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CpuState.model_validate(resp)
 
     def update(self, data: ne.CpuState | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CpuState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CpuState
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -195,7 +195,7 @@ class CpuStateNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.CpuState | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CpuState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CpuState
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -230,13 +230,13 @@ class MemoryStateNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.MemoryState:
-        from ..data_models.ne import MemoryState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MemoryState
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return MemoryState.model_validate(resp)
 
     def update(self, data: ne.MemoryState | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import MemoryState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MemoryState
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -254,7 +254,7 @@ class MemoryStateNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.MemoryState | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import MemoryState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MemoryState
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -283,13 +283,13 @@ class OtdrNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otdr:
-        from ..data_models.ne import Otdr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otdr
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otdr.model_validate(resp)
 
     def update(self, data: ne.Otdr | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otdr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otdr
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -307,7 +307,7 @@ class OtdrNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otdr | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otdr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otdr
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -336,13 +336,13 @@ class OpticalPowerLaneItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OpticalPowerLaneItem:
-        from ..data_models.ne import OpticalPowerLaneItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpticalPowerLaneItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OpticalPowerLaneItem.model_validate(resp)
 
     def update(self, data: ne.OpticalPowerLaneItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OpticalPowerLaneItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpticalPowerLaneItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -359,7 +359,7 @@ class OpticalPowerLaneItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OpticalPowerLaneItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OpticalPowerLaneItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpticalPowerLaneItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -387,7 +387,7 @@ class OpticalPowerLaneListNode(ListNode[OpticalPowerLaneItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OpticalPowerLaneItem]:
-        from ..data_models.ne import OpticalPowerLaneItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpticalPowerLaneItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OpticalPowerLaneItem.model_validate(item) for item in resp]
@@ -412,13 +412,13 @@ class TestSignalFacilityStatusNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.TestSignalFacilityStatus:
-        from ..data_models.ne import TestSignalFacilityStatus
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TestSignalFacilityStatus
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return TestSignalFacilityStatus.model_validate(resp)
 
     def update(self, data: ne.TestSignalFacilityStatus | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TestSignalFacilityStatus
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TestSignalFacilityStatus
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -436,7 +436,7 @@ class TestSignalFacilityStatusNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.TestSignalFacilityStatus | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TestSignalFacilityStatus
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TestSignalFacilityStatus
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -465,13 +465,13 @@ class RemoteManAddressesItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RemoteManAddressesItem:
-        from ..data_models.ne import RemoteManAddressesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RemoteManAddressesItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RemoteManAddressesItem.model_validate(resp)
 
     def update(self, data: ne.RemoteManAddressesItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RemoteManAddressesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RemoteManAddressesItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -488,7 +488,7 @@ class RemoteManAddressesItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.RemoteManAddressesItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RemoteManAddressesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RemoteManAddressesItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -516,7 +516,7 @@ class RemoteManAddressesListNode(ListNode[RemoteManAddressesItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.RemoteManAddressesItem]:
-        from ..data_models.ne import RemoteManAddressesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RemoteManAddressesItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RemoteManAddressesItem.model_validate(item) for item in resp]
@@ -541,13 +541,13 @@ class LldpRemoteSystemItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.LldpRemoteSystemItem:
-        from ..data_models.ne import LldpRemoteSystemItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LldpRemoteSystemItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return LldpRemoteSystemItem.model_validate(resp)
 
     def update(self, data: ne.LldpRemoteSystemItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LldpRemoteSystemItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LldpRemoteSystemItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -564,7 +564,7 @@ class LldpRemoteSystemItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.LldpRemoteSystemItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LldpRemoteSystemItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LldpRemoteSystemItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -598,7 +598,7 @@ class LldpRemoteSystemListNode(ListNode[LldpRemoteSystemItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.LldpRemoteSystemItem]:
-        from ..data_models.ne import LldpRemoteSystemItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LldpRemoteSystemItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [LldpRemoteSystemItem.model_validate(item) for item in resp]
@@ -623,13 +623,13 @@ class BitErrorRatePreFecNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.BitErrorRatePreFec:
-        from ..data_models.ne import BitErrorRatePreFec
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BitErrorRatePreFec
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return BitErrorRatePreFec.model_validate(resp)
 
     def update(self, data: ne.BitErrorRatePreFec | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import BitErrorRatePreFec
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BitErrorRatePreFec
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -647,7 +647,7 @@ class BitErrorRatePreFecNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.BitErrorRatePreFec | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import BitErrorRatePreFec
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BitErrorRatePreFec
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -676,13 +676,13 @@ class BitErrorRatePostFecNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.BitErrorRatePostFec:
-        from ..data_models.ne import BitErrorRatePostFec
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BitErrorRatePostFec
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return BitErrorRatePostFec.model_validate(resp)
 
     def update(self, data: ne.BitErrorRatePostFec | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import BitErrorRatePostFec
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BitErrorRatePostFec
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -700,7 +700,7 @@ class BitErrorRatePostFecNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.BitErrorRatePostFec | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import BitErrorRatePostFec
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BitErrorRatePostFec
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -729,13 +729,13 @@ class InUtilizationNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InUtilization:
-        from ..data_models.ne import InUtilization
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InUtilization
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InUtilization.model_validate(resp)
 
     def update(self, data: ne.InUtilization | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InUtilization
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InUtilization
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -753,7 +753,7 @@ class InUtilizationNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.InUtilization | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InUtilization
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InUtilization
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -782,13 +782,13 @@ class OutUtilizationNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OutUtilization:
-        from ..data_models.ne import OutUtilization
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutUtilization
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OutUtilization.model_validate(resp)
 
     def update(self, data: ne.OutUtilization | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutUtilization
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutUtilization
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -806,7 +806,7 @@ class OutUtilizationNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OutUtilization | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutUtilization
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutUtilization
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -835,13 +835,13 @@ class InBackgroundBlockErrorRateNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InBackgroundBlockErrorRate:
-        from ..data_models.ne import InBackgroundBlockErrorRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InBackgroundBlockErrorRate
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InBackgroundBlockErrorRate.model_validate(resp)
 
     def update(self, data: ne.InBackgroundBlockErrorRate | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InBackgroundBlockErrorRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InBackgroundBlockErrorRate
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -859,7 +859,7 @@ class InBackgroundBlockErrorRateNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.InBackgroundBlockErrorRate | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InBackgroundBlockErrorRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InBackgroundBlockErrorRate
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -888,13 +888,13 @@ class OutBackgroundBlockErrorRateNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OutBackgroundBlockErrorRate:
-        from ..data_models.ne import OutBackgroundBlockErrorRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutBackgroundBlockErrorRate
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OutBackgroundBlockErrorRate.model_validate(resp)
 
     def update(self, data: ne.OutBackgroundBlockErrorRate | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutBackgroundBlockErrorRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutBackgroundBlockErrorRate
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -912,7 +912,7 @@ class OutBackgroundBlockErrorRateNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OutBackgroundBlockErrorRate | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutBackgroundBlockErrorRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutBackgroundBlockErrorRate
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -941,13 +941,13 @@ class InSeverelyErroredSecondsRateNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InSeverelyErroredSecondsRate:
-        from ..data_models.ne import InSeverelyErroredSecondsRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InSeverelyErroredSecondsRate
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InSeverelyErroredSecondsRate.model_validate(resp)
 
     def update(self, data: ne.InSeverelyErroredSecondsRate | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InSeverelyErroredSecondsRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InSeverelyErroredSecondsRate
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -965,7 +965,7 @@ class InSeverelyErroredSecondsRateNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.InSeverelyErroredSecondsRate | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InSeverelyErroredSecondsRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InSeverelyErroredSecondsRate
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -994,13 +994,13 @@ class OutSeverelyErroredSecondsRateNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OutSeverelyErroredSecondsRate:
-        from ..data_models.ne import OutSeverelyErroredSecondsRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutSeverelyErroredSecondsRate
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OutSeverelyErroredSecondsRate.model_validate(resp)
 
     def update(self, data: ne.OutSeverelyErroredSecondsRate | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutSeverelyErroredSecondsRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutSeverelyErroredSecondsRate
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1018,7 +1018,7 @@ class OutSeverelyErroredSecondsRateNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OutSeverelyErroredSecondsRate | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutSeverelyErroredSecondsRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutSeverelyErroredSecondsRate
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1047,13 +1047,13 @@ class StatisticsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Statistics:
-        from ..data_models.ne import Statistics
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Statistics
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Statistics.model_validate(resp)
 
     def update(self, data: ne.Statistics | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Statistics
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Statistics
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1071,7 +1071,7 @@ class StatisticsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Statistics | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Statistics
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Statistics
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1140,13 +1140,13 @@ class OduEncryptionNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OduEncryption:
-        from ..data_models.ne import OduEncryption
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OduEncryption
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OduEncryption.model_validate(resp)
 
     def update(self, data: ne.OduEncryption | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OduEncryption
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OduEncryption
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1164,7 +1164,7 @@ class OduEncryptionNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OduEncryption | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OduEncryption
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OduEncryption
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1193,13 +1193,13 @@ class OduDelayNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OduDelay:
-        from ..data_models.ne import OduDelay
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OduDelay
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OduDelay.model_validate(resp)
 
     def update(self, data: ne.OduDelay | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OduDelay
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OduDelay
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1217,7 +1217,7 @@ class OduDelayNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OduDelay | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OduDelay
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OduDelay
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1246,13 +1246,13 @@ class TestSignalStatusNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.TestSignalStatus:
-        from ..data_models.ne import TestSignalStatus
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TestSignalStatus
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return TestSignalStatus.model_validate(resp)
 
     def update(self, data: ne.TestSignalStatus | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TestSignalStatus
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TestSignalStatus
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1270,7 +1270,7 @@ class TestSignalStatusNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.TestSignalStatus | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TestSignalStatus
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TestSignalStatus
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1299,13 +1299,13 @@ class OduItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OduItem:
-        from ..data_models.ne import OduItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OduItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OduItem.model_validate(resp)
 
     def update(self, data: ne.OduItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OduItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OduItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1322,7 +1322,7 @@ class OduItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OduItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OduItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OduItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1362,7 +1362,7 @@ class OduListNode(ListNode[OduItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OduItem]:
-        from ..data_models.ne import OduItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OduItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OduItem.model_validate(item) for item in resp]
@@ -1387,13 +1387,13 @@ class Eth10gNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Eth10g:
-        from ..data_models.ne import Eth10g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth10g
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Eth10g.model_validate(resp)
 
     def update(self, data: ne.Eth10g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Eth10g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth10g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1411,7 +1411,7 @@ class Eth10gNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Eth10g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Eth10g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth10g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1460,13 +1460,13 @@ class Eth40gNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Eth40g:
-        from ..data_models.ne import Eth40g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth40g
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Eth40g.model_validate(resp)
 
     def update(self, data: ne.Eth40g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Eth40g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth40g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1484,7 +1484,7 @@ class Eth40gNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Eth40g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Eth40g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth40g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1533,13 +1533,13 @@ class Eth100gNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Eth100g:
-        from ..data_models.ne import Eth100g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth100g
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Eth100g.model_validate(resp)
 
     def update(self, data: ne.Eth100g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Eth100g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth100g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1557,7 +1557,7 @@ class Eth100gNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Eth100g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Eth100g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth100g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1606,13 +1606,13 @@ class Eth400gNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Eth400g:
-        from ..data_models.ne import Eth400g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth400g
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Eth400g.model_validate(resp)
 
     def update(self, data: ne.Eth400g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Eth400g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth400g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1630,7 +1630,7 @@ class Eth400gNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Eth400g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Eth400g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth400g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1679,13 +1679,13 @@ class Otu4Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otu4:
-        from ..data_models.ne import Otu4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otu4
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otu4.model_validate(resp)
 
     def update(self, data: ne.Otu4 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otu4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otu4
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1703,7 +1703,7 @@ class Otu4Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otu4 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otu4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otu4
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1740,13 +1740,13 @@ class Otu2Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otu2:
-        from ..data_models.ne import Otu2
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otu2
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otu2.model_validate(resp)
 
     def update(self, data: ne.Otu2 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otu2
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otu2
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1764,7 +1764,7 @@ class Otu2Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otu2 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otu2
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otu2
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1801,13 +1801,13 @@ class Otu2eNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otu2e:
-        from ..data_models.ne import Otu2e
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otu2e
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otu2e.model_validate(resp)
 
     def update(self, data: ne.Otu2e | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otu2e
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otu2e
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1825,7 +1825,7 @@ class Otu2eNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otu2e | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otu2e
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otu2e
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1862,13 +1862,13 @@ class Oc192Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Oc192:
-        from ..data_models.ne import Oc192
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Oc192
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Oc192.model_validate(resp)
 
     def update(self, data: ne.Oc192 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Oc192
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Oc192
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1886,7 +1886,7 @@ class Oc192Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Oc192 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Oc192
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Oc192
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1929,13 +1929,13 @@ class Oc48Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Oc48:
-        from ..data_models.ne import Oc48
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Oc48
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Oc48.model_validate(resp)
 
     def update(self, data: ne.Oc48 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Oc48
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Oc48
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1953,7 +1953,7 @@ class Oc48Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Oc48 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Oc48
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Oc48
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1996,13 +1996,13 @@ class Stm64Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Stm64:
-        from ..data_models.ne import Stm64
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Stm64
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Stm64.model_validate(resp)
 
     def update(self, data: ne.Stm64 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Stm64
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Stm64
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2020,7 +2020,7 @@ class Stm64Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Stm64 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Stm64
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Stm64
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2063,13 +2063,13 @@ class Stm16Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Stm16:
-        from ..data_models.ne import Stm16
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Stm16
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Stm16.model_validate(resp)
 
     def update(self, data: ne.Stm16 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Stm16
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Stm16
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2087,7 +2087,7 @@ class Stm16Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Stm16 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Stm16
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Stm16
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2130,13 +2130,13 @@ class Wan10gSonetNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Wan10gSonet:
-        from ..data_models.ne import Wan10gSonet
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Wan10gSonet
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Wan10gSonet.model_validate(resp)
 
     def update(self, data: ne.Wan10gSonet | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Wan10gSonet
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Wan10gSonet
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2154,7 +2154,7 @@ class Wan10gSonetNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Wan10gSonet | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Wan10gSonet
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Wan10gSonet
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2197,13 +2197,13 @@ class Wan10gSdhNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Wan10gSdh:
-        from ..data_models.ne import Wan10gSdh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Wan10gSdh
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Wan10gSdh.model_validate(resp)
 
     def update(self, data: ne.Wan10gSdh | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Wan10gSdh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Wan10gSdh
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2221,7 +2221,7 @@ class Wan10gSdhNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Wan10gSdh | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Wan10gSdh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Wan10gSdh
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2264,13 +2264,13 @@ class Fc1gNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Fc1g:
-        from ..data_models.ne import Fc1g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc1g
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Fc1g.model_validate(resp)
 
     def update(self, data: ne.Fc1g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Fc1g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc1g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2288,7 +2288,7 @@ class Fc1gNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Fc1g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Fc1g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc1g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2331,13 +2331,13 @@ class Fc4gNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Fc4g:
-        from ..data_models.ne import Fc4g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc4g
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Fc4g.model_validate(resp)
 
     def update(self, data: ne.Fc4g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Fc4g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc4g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2355,7 +2355,7 @@ class Fc4gNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Fc4g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Fc4g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc4g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2398,13 +2398,13 @@ class Fc8gNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Fc8g:
-        from ..data_models.ne import Fc8g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc8g
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Fc8g.model_validate(resp)
 
     def update(self, data: ne.Fc8g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Fc8g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc8g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2422,7 +2422,7 @@ class Fc8gNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Fc8g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Fc8g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc8g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2465,13 +2465,13 @@ class Fc16gNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Fc16g:
-        from ..data_models.ne import Fc16g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc16g
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Fc16g.model_validate(resp)
 
     def update(self, data: ne.Fc16g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Fc16g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc16g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2489,7 +2489,7 @@ class Fc16gNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Fc16g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Fc16g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fc16g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2532,13 +2532,13 @@ class InOpticalPowerNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InOpticalPower:
-        from ..data_models.ne import InOpticalPower
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPower
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InOpticalPower.model_validate(resp)
 
     def update(self, data: ne.InOpticalPower | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InOpticalPower
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPower
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2556,7 +2556,7 @@ class InOpticalPowerNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.InOpticalPower | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InOpticalPower
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPower
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2585,13 +2585,13 @@ class OutOpticalPowerNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OutOpticalPower:
-        from ..data_models.ne import OutOpticalPower
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPower
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OutOpticalPower.model_validate(resp)
 
     def update(self, data: ne.OutOpticalPower | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutOpticalPower
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPower
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2609,7 +2609,7 @@ class OutOpticalPowerNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OutOpticalPower | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutOpticalPower
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPower
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2638,13 +2638,13 @@ class Otuc2Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otuc2:
-        from ..data_models.ne import Otuc2
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc2
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otuc2.model_validate(resp)
 
     def update(self, data: ne.Otuc2 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc2
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc2
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2662,7 +2662,7 @@ class Otuc2Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otuc2 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc2
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc2
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2699,13 +2699,13 @@ class Otuc3Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otuc3:
-        from ..data_models.ne import Otuc3
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc3
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otuc3.model_validate(resp)
 
     def update(self, data: ne.Otuc3 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc3
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc3
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2723,7 +2723,7 @@ class Otuc3Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otuc3 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc3
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc3
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2760,13 +2760,13 @@ class Otuc6Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otuc6:
-        from ..data_models.ne import Otuc6
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc6
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otuc6.model_validate(resp)
 
     def update(self, data: ne.Otuc6 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc6
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc6
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2784,7 +2784,7 @@ class Otuc6Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otuc6 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc6
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc6
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2821,13 +2821,13 @@ class SubportItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SubportItem:
-        from ..data_models.ne import SubportItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SubportItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SubportItem.model_validate(resp)
 
     def update(self, data: ne.SubportItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SubportItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SubportItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2844,7 +2844,7 @@ class SubportItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SubportItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SubportItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SubportItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2956,7 +2956,7 @@ class SubportListNode(ListNode[SubportItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SubportItem]:
-        from ..data_models.ne import SubportItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SubportItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SubportItem.model_validate(item) for item in resp]
@@ -2981,13 +2981,13 @@ class ChannelStatesItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ChannelStatesItem:
-        from ..data_models.ne import ChannelStatesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChannelStatesItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ChannelStatesItem.model_validate(resp)
 
     def update(self, data: ne.ChannelStatesItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ChannelStatesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChannelStatesItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3004,7 +3004,7 @@ class ChannelStatesItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.ChannelStatesItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ChannelStatesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChannelStatesItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3032,7 +3032,7 @@ class ChannelStatesListNode(ListNode[ChannelStatesItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.ChannelStatesItem]:
-        from ..data_models.ne import ChannelStatesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChannelStatesItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [ChannelStatesItem.model_validate(item) for item in resp]
@@ -3057,13 +3057,13 @@ class DiagnosticAlarmThresholdsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DiagnosticAlarmThresholdsItem:
-        from ..data_models.ne import DiagnosticAlarmThresholdsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DiagnosticAlarmThresholdsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DiagnosticAlarmThresholdsItem.model_validate(resp)
 
     def update(self, data: ne.DiagnosticAlarmThresholdsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DiagnosticAlarmThresholdsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DiagnosticAlarmThresholdsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3080,7 +3080,7 @@ class DiagnosticAlarmThresholdsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.DiagnosticAlarmThresholdsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DiagnosticAlarmThresholdsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DiagnosticAlarmThresholdsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3108,7 +3108,7 @@ class DiagnosticAlarmThresholdsListNode(ListNode[DiagnosticAlarmThresholdsItemNo
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.DiagnosticAlarmThresholdsItem]:
-        from ..data_models.ne import DiagnosticAlarmThresholdsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DiagnosticAlarmThresholdsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DiagnosticAlarmThresholdsItem.model_validate(item) for item in resp]
@@ -3133,13 +3133,13 @@ class QsfpSignalIntegrityLaneItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.QsfpSignalIntegrityLaneItem:
-        from ..data_models.ne import QsfpSignalIntegrityLaneItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import QsfpSignalIntegrityLaneItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return QsfpSignalIntegrityLaneItem.model_validate(resp)
 
     def update(self, data: ne.QsfpSignalIntegrityLaneItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import QsfpSignalIntegrityLaneItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import QsfpSignalIntegrityLaneItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3156,7 +3156,7 @@ class QsfpSignalIntegrityLaneItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.QsfpSignalIntegrityLaneItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import QsfpSignalIntegrityLaneItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import QsfpSignalIntegrityLaneItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3184,7 +3184,7 @@ class QsfpSignalIntegrityLaneListNode(ListNode[QsfpSignalIntegrityLaneItemNode])
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.QsfpSignalIntegrityLaneItem]:
-        from ..data_models.ne import QsfpSignalIntegrityLaneItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import QsfpSignalIntegrityLaneItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [QsfpSignalIntegrityLaneItem.model_validate(item) for item in resp]
@@ -3209,13 +3209,13 @@ class QsfpSignalIntegrityNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.QsfpSignalIntegrity:
-        from ..data_models.ne import QsfpSignalIntegrity
+        from orchestrator.optical.services.nokia.g30.data_models.ne import QsfpSignalIntegrity
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return QsfpSignalIntegrity.model_validate(resp)
 
     def update(self, data: ne.QsfpSignalIntegrity | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import QsfpSignalIntegrity
+        from orchestrator.optical.services.nokia.g30.data_models.ne import QsfpSignalIntegrity
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3233,7 +3233,7 @@ class QsfpSignalIntegrityNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.QsfpSignalIntegrity | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import QsfpSignalIntegrity
+        from orchestrator.optical.services.nokia.g30.data_models.ne import QsfpSignalIntegrity
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3271,13 +3271,13 @@ class PluggableNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Pluggable:
-        from ..data_models.ne import Pluggable
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Pluggable
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Pluggable.model_validate(resp)
 
     def update(self, data: ne.Pluggable | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Pluggable
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Pluggable
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3295,7 +3295,7 @@ class PluggableNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Pluggable | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Pluggable
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Pluggable
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3343,13 +3343,13 @@ class DifferentialGroupDelayNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DifferentialGroupDelay:
-        from ..data_models.ne import DifferentialGroupDelay
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DifferentialGroupDelay
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DifferentialGroupDelay.model_validate(resp)
 
     def update(self, data: ne.DifferentialGroupDelay | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DifferentialGroupDelay
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DifferentialGroupDelay
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3367,7 +3367,7 @@ class DifferentialGroupDelayNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.DifferentialGroupDelay | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DifferentialGroupDelay
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DifferentialGroupDelay
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3396,13 +3396,13 @@ class ChromaticDispersionNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ChromaticDispersion:
-        from ..data_models.ne import ChromaticDispersion
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChromaticDispersion
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ChromaticDispersion.model_validate(resp)
 
     def update(self, data: ne.ChromaticDispersion | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ChromaticDispersion
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChromaticDispersion
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3420,7 +3420,7 @@ class ChromaticDispersionNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.ChromaticDispersion | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ChromaticDispersion
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChromaticDispersion
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3449,13 +3449,13 @@ class OsnrNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Osnr:
-        from ..data_models.ne import Osnr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Osnr
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Osnr.model_validate(resp)
 
     def update(self, data: ne.Osnr | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Osnr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Osnr
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3473,7 +3473,7 @@ class OsnrNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Osnr | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Osnr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Osnr
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3502,13 +3502,13 @@ class QFactorNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.QFactor:
-        from ..data_models.ne import QFactor
+        from orchestrator.optical.services.nokia.g30.data_models.ne import QFactor
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return QFactor.model_validate(resp)
 
     def update(self, data: ne.QFactor | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import QFactor
+        from orchestrator.optical.services.nokia.g30.data_models.ne import QFactor
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3526,7 +3526,7 @@ class QFactorNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.QFactor | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import QFactor
+        from orchestrator.optical.services.nokia.g30.data_models.ne import QFactor
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3555,13 +3555,13 @@ class PolarizationDependentLossNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PolarizationDependentLoss:
-        from ..data_models.ne import PolarizationDependentLoss
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PolarizationDependentLoss
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PolarizationDependentLoss.model_validate(resp)
 
     def update(self, data: ne.PolarizationDependentLoss | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PolarizationDependentLoss
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PolarizationDependentLoss
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3579,7 +3579,7 @@ class PolarizationDependentLossNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.PolarizationDependentLoss | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PolarizationDependentLoss
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PolarizationDependentLoss
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3608,13 +3608,13 @@ class InOpticalFrequencyNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InOpticalFrequency:
-        from ..data_models.ne import InOpticalFrequency
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalFrequency
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InOpticalFrequency.model_validate(resp)
 
     def update(self, data: ne.InOpticalFrequency | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InOpticalFrequency
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalFrequency
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3632,7 +3632,7 @@ class InOpticalFrequencyNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.InOpticalFrequency | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InOpticalFrequency
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalFrequency
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3661,13 +3661,13 @@ class OutOpticalFrequencyNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OutOpticalFrequency:
-        from ..data_models.ne import OutOpticalFrequency
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalFrequency
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OutOpticalFrequency.model_validate(resp)
 
     def update(self, data: ne.OutOpticalFrequency | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutOpticalFrequency
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalFrequency
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3685,7 +3685,7 @@ class OutOpticalFrequencyNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OutOpticalFrequency | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutOpticalFrequency
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalFrequency
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3714,13 +3714,13 @@ class SopChangeRateNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SopChangeRate:
-        from ..data_models.ne import SopChangeRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SopChangeRate
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SopChangeRate.model_validate(resp)
 
     def update(self, data: ne.SopChangeRate | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SopChangeRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SopChangeRate
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3738,7 +3738,7 @@ class SopChangeRateNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.SopChangeRate | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SopChangeRate
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SopChangeRate
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3767,13 +3767,13 @@ class Otuc4Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otuc4:
-        from ..data_models.ne import Otuc4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc4
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otuc4.model_validate(resp)
 
     def update(self, data: ne.Otuc4 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc4
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3791,7 +3791,7 @@ class Otuc4Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otuc4 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc4
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3828,13 +3828,13 @@ class Otuc5Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otuc5:
-        from ..data_models.ne import Otuc5
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc5
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otuc5.model_validate(resp)
 
     def update(self, data: ne.Otuc5 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc5
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc5
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3852,7 +3852,7 @@ class Otuc5Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otuc5 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc5
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc5
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3889,13 +3889,13 @@ class Otuc7Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otuc7:
-        from ..data_models.ne import Otuc7
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc7
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otuc7.model_validate(resp)
 
     def update(self, data: ne.Otuc7 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc7
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc7
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3913,7 +3913,7 @@ class Otuc7Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otuc7 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc7
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc7
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3950,13 +3950,13 @@ class Otuc9Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otuc9:
-        from ..data_models.ne import Otuc9
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc9
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otuc9.model_validate(resp)
 
     def update(self, data: ne.Otuc9 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc9
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc9
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -3974,7 +3974,7 @@ class Otuc9Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otuc9 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc9
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc9
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4011,13 +4011,13 @@ class Otuc11Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Otuc11:
-        from ..data_models.ne import Otuc11
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc11
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Otuc11.model_validate(resp)
 
     def update(self, data: ne.Otuc11 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc11
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc11
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4035,7 +4035,7 @@ class Otuc11Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Otuc11 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Otuc11
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Otuc11
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4072,13 +4072,13 @@ class OchOsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OchOs:
-        from ..data_models.ne import OchOs
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchOs
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OchOs.model_validate(resp)
 
     def update(self, data: ne.OchOs | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OchOs
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchOs
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4096,7 +4096,7 @@ class OchOsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OchOs | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OchOs
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchOs
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4173,13 +4173,13 @@ class OtdrPortNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OtdrPort:
-        from ..data_models.ne import OtdrPort
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OtdrPort
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OtdrPort.model_validate(resp)
 
     def update(self, data: ne.OtdrPort | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OtdrPort
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OtdrPort
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4197,7 +4197,7 @@ class OtdrPortNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OtdrPort | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OtdrPort
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OtdrPort
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4226,13 +4226,13 @@ class MonitoredChannelsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.MonitoredChannelsItem:
-        from ..data_models.ne import MonitoredChannelsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MonitoredChannelsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return MonitoredChannelsItem.model_validate(resp)
 
     def update(self, data: ne.MonitoredChannelsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import MonitoredChannelsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MonitoredChannelsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4249,7 +4249,7 @@ class MonitoredChannelsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.MonitoredChannelsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import MonitoredChannelsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MonitoredChannelsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4277,7 +4277,7 @@ class MonitoredChannelsListNode(ListNode[MonitoredChannelsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.MonitoredChannelsItem]:
-        from ..data_models.ne import MonitoredChannelsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MonitoredChannelsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [MonitoredChannelsItem.model_validate(item) for item in resp]
@@ -4302,13 +4302,13 @@ class OcmPortNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OcmPort:
-        from ..data_models.ne import OcmPort
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OcmPort
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OcmPort.model_validate(resp)
 
     def update(self, data: ne.OcmPort | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OcmPort
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OcmPort
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4326,7 +4326,7 @@ class OcmPortNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OcmPort | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OcmPort
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OcmPort
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4361,13 +4361,13 @@ class InOpticalPowerLaneHighNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InOpticalPowerLaneHigh:
-        from ..data_models.ne import InOpticalPowerLaneHigh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPowerLaneHigh
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InOpticalPowerLaneHigh.model_validate(resp)
 
     def update(self, data: ne.InOpticalPowerLaneHigh | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InOpticalPowerLaneHigh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPowerLaneHigh
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4385,7 +4385,7 @@ class InOpticalPowerLaneHighNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.InOpticalPowerLaneHigh | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InOpticalPowerLaneHigh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPowerLaneHigh
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4414,13 +4414,13 @@ class InOpticalPowerLaneLowNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InOpticalPowerLaneLow:
-        from ..data_models.ne import InOpticalPowerLaneLow
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPowerLaneLow
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InOpticalPowerLaneLow.model_validate(resp)
 
     def update(self, data: ne.InOpticalPowerLaneLow | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InOpticalPowerLaneLow
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPowerLaneLow
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4438,7 +4438,7 @@ class InOpticalPowerLaneLowNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.InOpticalPowerLaneLow | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InOpticalPowerLaneLow
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPowerLaneLow
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4467,13 +4467,13 @@ class InOpticalPowerLaneTotalNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InOpticalPowerLaneTotal:
-        from ..data_models.ne import InOpticalPowerLaneTotal
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPowerLaneTotal
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InOpticalPowerLaneTotal.model_validate(resp)
 
     def update(self, data: ne.InOpticalPowerLaneTotal | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InOpticalPowerLaneTotal
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPowerLaneTotal
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4491,7 +4491,7 @@ class InOpticalPowerLaneTotalNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.InOpticalPowerLaneTotal | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InOpticalPowerLaneTotal
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InOpticalPowerLaneTotal
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4520,13 +4520,13 @@ class OutOpticalPowerLaneHighNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OutOpticalPowerLaneHigh:
-        from ..data_models.ne import OutOpticalPowerLaneHigh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPowerLaneHigh
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OutOpticalPowerLaneHigh.model_validate(resp)
 
     def update(self, data: ne.OutOpticalPowerLaneHigh | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutOpticalPowerLaneHigh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPowerLaneHigh
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4544,7 +4544,7 @@ class OutOpticalPowerLaneHighNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OutOpticalPowerLaneHigh | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutOpticalPowerLaneHigh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPowerLaneHigh
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4573,13 +4573,13 @@ class OutOpticalPowerLaneLowNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OutOpticalPowerLaneLow:
-        from ..data_models.ne import OutOpticalPowerLaneLow
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPowerLaneLow
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OutOpticalPowerLaneLow.model_validate(resp)
 
     def update(self, data: ne.OutOpticalPowerLaneLow | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutOpticalPowerLaneLow
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPowerLaneLow
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4597,7 +4597,7 @@ class OutOpticalPowerLaneLowNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OutOpticalPowerLaneLow | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutOpticalPowerLaneLow
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPowerLaneLow
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4626,13 +4626,13 @@ class OutOpticalPowerLaneTotalNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OutOpticalPowerLaneTotal:
-        from ..data_models.ne import OutOpticalPowerLaneTotal
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPowerLaneTotal
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OutOpticalPowerLaneTotal.model_validate(resp)
 
     def update(self, data: ne.OutOpticalPowerLaneTotal | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutOpticalPowerLaneTotal
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPowerLaneTotal
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4650,7 +4650,7 @@ class OutOpticalPowerLaneTotalNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OutOpticalPowerLaneTotal | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutOpticalPowerLaneTotal
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutOpticalPowerLaneTotal
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4679,13 +4679,13 @@ class Eth1gNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Eth1g:
-        from ..data_models.ne import Eth1g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth1g
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Eth1g.model_validate(resp)
 
     def update(self, data: ne.Eth1g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Eth1g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth1g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4703,7 +4703,7 @@ class Eth1gNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Eth1g | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Eth1g
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Eth1g
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4752,13 +4752,13 @@ class PortItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PortItem:
-        from ..data_models.ne import PortItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PortItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PortItem.model_validate(resp)
 
     def update(self, data: ne.PortItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PortItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PortItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4775,7 +4775,7 @@ class PortItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.PortItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PortItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PortItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4905,7 +4905,7 @@ class PortListNode(ListNode[PortItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.PortItem]:
-        from ..data_models.ne import PortItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PortItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PortItem.model_validate(item) for item in resp]
@@ -4930,13 +4930,13 @@ class SupportedGainRangeItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SupportedGainRangeItem:
-        from ..data_models.ne import SupportedGainRangeItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SupportedGainRangeItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SupportedGainRangeItem.model_validate(resp)
 
     def update(self, data: ne.SupportedGainRangeItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SupportedGainRangeItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SupportedGainRangeItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4953,7 +4953,7 @@ class SupportedGainRangeItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SupportedGainRangeItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SupportedGainRangeItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SupportedGainRangeItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -4981,7 +4981,7 @@ class SupportedGainRangeListNode(ListNode[SupportedGainRangeItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SupportedGainRangeItem]:
-        from ..data_models.ne import SupportedGainRangeItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SupportedGainRangeItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SupportedGainRangeItem.model_validate(item) for item in resp]
@@ -5006,13 +5006,13 @@ class AmplifierItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AmplifierItem:
-        from ..data_models.ne import AmplifierItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AmplifierItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AmplifierItem.model_validate(resp)
 
     def update(self, data: ne.AmplifierItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AmplifierItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AmplifierItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5029,7 +5029,7 @@ class AmplifierItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.AmplifierItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AmplifierItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AmplifierItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5063,7 +5063,7 @@ class AmplifierListNode(ListNode[AmplifierItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.AmplifierItem]:
-        from ..data_models.ne import AmplifierItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AmplifierItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AmplifierItem.model_validate(item) for item in resp]
@@ -5088,13 +5088,13 @@ class TdcItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.TdcItem:
-        from ..data_models.ne import TdcItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TdcItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return TdcItem.model_validate(resp)
 
     def update(self, data: ne.TdcItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TdcItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TdcItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5111,7 +5111,7 @@ class TdcItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.TdcItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TdcItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TdcItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5139,7 +5139,7 @@ class TdcListNode(ListNode[TdcItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.TdcItem]:
-        from ..data_models.ne import TdcItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TdcItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [TdcItem.model_validate(item) for item in resp]
@@ -5164,13 +5164,13 @@ class OpsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OpsItem:
-        from ..data_models.ne import OpsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OpsItem.model_validate(resp)
 
     def update(self, data: ne.OpsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OpsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5187,7 +5187,7 @@ class OpsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OpsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OpsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5215,7 +5215,7 @@ class OpsListNode(ListNode[OpsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OpsItem]:
-        from ..data_models.ne import OpsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OpsItem.model_validate(item) for item in resp]
@@ -5240,13 +5240,13 @@ class ModuleTemperatureNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ModuleTemperature:
-        from ..data_models.ne import ModuleTemperature
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ModuleTemperature
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ModuleTemperature.model_validate(resp)
 
     def update(self, data: ne.ModuleTemperature | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ModuleTemperature
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ModuleTemperature
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5264,7 +5264,7 @@ class ModuleTemperatureNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.ModuleTemperature | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ModuleTemperature
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ModuleTemperature
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5293,13 +5293,13 @@ class SubcardNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Subcard:
-        from ..data_models.ne import Subcard
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Subcard
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Subcard.model_validate(resp)
 
     def update(self, data: ne.Subcard | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Subcard
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Subcard
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5317,7 +5317,7 @@ class SubcardNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Subcard | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Subcard
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Subcard
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5370,13 +5370,13 @@ class SubslotItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SubslotItem:
-        from ..data_models.ne import SubslotItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SubslotItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SubslotItem.model_validate(resp)
 
     def update(self, data: ne.SubslotItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SubslotItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SubslotItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5393,7 +5393,7 @@ class SubslotItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SubslotItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SubslotItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SubslotItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5425,7 +5425,7 @@ class SubslotListNode(ListNode[SubslotItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SubslotItem]:
-        from ..data_models.ne import SubslotItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SubslotItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SubslotItem.model_validate(item) for item in resp]
@@ -5450,13 +5450,13 @@ class CardNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Card:
-        from ..data_models.ne import Card
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Card
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Card.model_validate(resp)
 
     def update(self, data: ne.Card | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Card
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Card
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5474,7 +5474,7 @@ class CardNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Card | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Card
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Card
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5533,13 +5533,13 @@ class SlotItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SlotItem:
-        from ..data_models.ne import SlotItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SlotItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SlotItem.model_validate(resp)
 
     def update(self, data: ne.SlotItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SlotItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SlotItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5556,7 +5556,7 @@ class SlotItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SlotItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SlotItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SlotItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5588,7 +5588,7 @@ class SlotListNode(ListNode[SlotItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SlotItem]:
-        from ..data_models.ne import SlotItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SlotItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SlotItem.model_validate(item) for item in resp]
@@ -5613,13 +5613,13 @@ class InletTemperatureNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InletTemperature:
-        from ..data_models.ne import InletTemperature
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InletTemperature
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InletTemperature.model_validate(resp)
 
     def update(self, data: ne.InletTemperature | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InletTemperature
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InletTemperature
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5637,7 +5637,7 @@ class InletTemperatureNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.InletTemperature | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InletTemperature
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InletTemperature
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5666,13 +5666,13 @@ class OutletTemperatureNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OutletTemperature:
-        from ..data_models.ne import OutletTemperature
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutletTemperature
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OutletTemperature.model_validate(resp)
 
     def update(self, data: ne.OutletTemperature | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutletTemperature
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutletTemperature
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5690,7 +5690,7 @@ class OutletTemperatureNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OutletTemperature | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OutletTemperature
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OutletTemperature
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5719,13 +5719,13 @@ class ShelfItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ShelfItem:
-        from ..data_models.ne import ShelfItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShelfItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ShelfItem.model_validate(resp)
 
     def update(self, data: ne.ShelfItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ShelfItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShelfItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5742,7 +5742,7 @@ class ShelfItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.ShelfItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ShelfItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShelfItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5784,7 +5784,7 @@ class ShelfListNode(ListNode[ShelfItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.ShelfItem]:
-        from ..data_models.ne import ShelfItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShelfItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [ShelfItem.model_validate(item) for item in resp]
@@ -5809,13 +5809,13 @@ class InventoryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InventoryItem:
-        from ..data_models.ne import InventoryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InventoryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InventoryItem.model_validate(resp)
 
     def update(self, data: ne.InventoryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InventoryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InventoryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5832,7 +5832,7 @@ class InventoryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.InventoryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InventoryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InventoryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5860,7 +5860,7 @@ class InventoryListNode(ListNode[InventoryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.InventoryItem]:
-        from ..data_models.ne import InventoryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InventoryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [InventoryItem.model_validate(item) for item in resp]
@@ -5885,13 +5885,13 @@ class InventoryDataNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InventoryData:
-        from ..data_models.ne import InventoryData
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InventoryData
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InventoryData.model_validate(resp)
 
     def update(self, data: ne.InventoryData | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InventoryData
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InventoryData
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5909,7 +5909,7 @@ class InventoryDataNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.InventoryData | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InventoryData
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InventoryData
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5942,13 +5942,13 @@ class LedItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.LedItem:
-        from ..data_models.ne import LedItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LedItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return LedItem.model_validate(resp)
 
     def update(self, data: ne.LedItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LedItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LedItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5965,7 +5965,7 @@ class LedItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.LedItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LedItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LedItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -5993,7 +5993,7 @@ class LedListNode(ListNode[LedItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.LedItem]:
-        from ..data_models.ne import LedItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LedItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [LedItem.model_validate(item) for item in resp]
@@ -6018,13 +6018,13 @@ class LedsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Leds:
-        from ..data_models.ne import Leds
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Leds
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Leds.model_validate(resp)
 
     def update(self, data: ne.Leds | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Leds
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Leds
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6042,7 +6042,7 @@ class LedsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Leds | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Leds
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Leds
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6075,13 +6075,13 @@ class CrsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.CrsItem:
-        from ..data_models.ne import CrsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CrsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CrsItem.model_validate(resp)
 
     def update(self, data: ne.CrsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CrsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CrsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6098,7 +6098,7 @@ class CrsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.CrsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CrsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CrsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6126,7 +6126,7 @@ class CrsListNode(ListNode[CrsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.CrsItem]:
-        from ..data_models.ne import CrsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CrsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [CrsItem.model_validate(item) for item in resp]
@@ -6151,13 +6151,13 @@ class FiberConnectionItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.FiberConnectionItem:
-        from ..data_models.ne import FiberConnectionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FiberConnectionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return FiberConnectionItem.model_validate(resp)
 
     def update(self, data: ne.FiberConnectionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import FiberConnectionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FiberConnectionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6174,7 +6174,7 @@ class FiberConnectionItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.FiberConnectionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import FiberConnectionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FiberConnectionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6202,7 +6202,7 @@ class FiberConnectionListNode(ListNode[FiberConnectionItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.FiberConnectionItem]:
-        from ..data_models.ne import FiberConnectionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FiberConnectionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [FiberConnectionItem.model_validate(item) for item in resp]
@@ -6227,13 +6227,13 @@ class InternalLinkItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InternalLinkItem:
-        from ..data_models.ne import InternalLinkItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InternalLinkItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InternalLinkItem.model_validate(resp)
 
     def update(self, data: ne.InternalLinkItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InternalLinkItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InternalLinkItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6250,7 +6250,7 @@ class InternalLinkItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.InternalLinkItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InternalLinkItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InternalLinkItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6278,7 +6278,7 @@ class InternalLinkListNode(ListNode[InternalLinkItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.InternalLinkItem]:
-        from ..data_models.ne import InternalLinkItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InternalLinkItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [InternalLinkItem.model_validate(item) for item in resp]
@@ -6303,13 +6303,13 @@ class OtsDiagnosticsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OtsDiagnostics:
-        from ..data_models.ne import OtsDiagnostics
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OtsDiagnostics
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OtsDiagnostics.model_validate(resp)
 
     def update(self, data: ne.OtsDiagnostics | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OtsDiagnostics
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OtsDiagnostics
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6327,7 +6327,7 @@ class OtsDiagnosticsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OtsDiagnostics | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OtsDiagnostics
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OtsDiagnostics
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6356,13 +6356,13 @@ class OtsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OtsItem:
-        from ..data_models.ne import OtsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OtsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OtsItem.model_validate(resp)
 
     def update(self, data: ne.OtsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OtsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OtsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6379,7 +6379,7 @@ class OtsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OtsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OtsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OtsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6411,7 +6411,7 @@ class OtsListNode(ListNode[OtsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OtsItem]:
-        from ..data_models.ne import OtsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OtsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OtsItem.model_validate(item) for item in resp]
@@ -6436,13 +6436,13 @@ class OpticalReturnLossNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OpticalReturnLoss:
-        from ..data_models.ne import OpticalReturnLoss
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpticalReturnLoss
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OpticalReturnLoss.model_validate(resp)
 
     def update(self, data: ne.OpticalReturnLoss | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OpticalReturnLoss
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpticalReturnLoss
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6460,7 +6460,7 @@ class OpticalReturnLossNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OpticalReturnLoss | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OpticalReturnLoss
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpticalReturnLoss
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6489,13 +6489,13 @@ class OmsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OmsItem:
-        from ..data_models.ne import OmsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OmsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OmsItem.model_validate(resp)
 
     def update(self, data: ne.OmsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OmsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OmsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6512,7 +6512,7 @@ class OmsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OmsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OmsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OmsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6544,7 +6544,7 @@ class OmsListNode(ListNode[OmsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OmsItem]:
-        from ..data_models.ne import OmsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OmsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OmsItem.model_validate(item) for item in resp]
@@ -6569,13 +6569,13 @@ class DelayMeasurementDistanceNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DelayMeasurementDistance:
-        from ..data_models.ne import DelayMeasurementDistance
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DelayMeasurementDistance
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DelayMeasurementDistance.model_validate(resp)
 
     def update(self, data: ne.DelayMeasurementDistance | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DelayMeasurementDistance
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DelayMeasurementDistance
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6593,7 +6593,7 @@ class DelayMeasurementDistanceNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.DelayMeasurementDistance | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DelayMeasurementDistance
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DelayMeasurementDistance
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6622,13 +6622,13 @@ class RoundTripDelayNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RoundTripDelay:
-        from ..data_models.ne import RoundTripDelay
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RoundTripDelay
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RoundTripDelay.model_validate(resp)
 
     def update(self, data: ne.RoundTripDelay | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RoundTripDelay
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RoundTripDelay
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6646,7 +6646,7 @@ class RoundTripDelayNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.RoundTripDelay | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RoundTripDelay
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RoundTripDelay
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6675,13 +6675,13 @@ class RtdBaselineNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RtdBaseline:
-        from ..data_models.ne import RtdBaseline
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RtdBaseline
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RtdBaseline.model_validate(resp)
 
     def update(self, data: ne.RtdBaseline | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RtdBaseline
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RtdBaseline
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6699,7 +6699,7 @@ class RtdBaselineNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.RtdBaseline | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RtdBaseline
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RtdBaseline
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6728,13 +6728,13 @@ class OscItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OscItem:
-        from ..data_models.ne import OscItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OscItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OscItem.model_validate(resp)
 
     def update(self, data: ne.OscItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OscItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OscItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6751,7 +6751,7 @@ class OscItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OscItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OscItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OscItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6783,7 +6783,7 @@ class OscListNode(ListNode[OscItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OscItem]:
-        from ..data_models.ne import OscItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OscItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OscItem.model_validate(item) for item in resp]
@@ -6808,13 +6808,13 @@ class GoptItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.GoptItem:
-        from ..data_models.ne import GoptItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import GoptItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return GoptItem.model_validate(resp)
 
     def update(self, data: ne.GoptItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import GoptItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import GoptItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6831,7 +6831,7 @@ class GoptItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.GoptItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import GoptItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import GoptItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6863,7 +6863,7 @@ class GoptListNode(ListNode[GoptItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.GoptItem]:
-        from ..data_models.ne import GoptItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import GoptItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [GoptItem.model_validate(item) for item in resp]
@@ -6888,13 +6888,13 @@ class OchInputNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OchInput:
-        from ..data_models.ne import OchInput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchInput
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OchInput.model_validate(resp)
 
     def update(self, data: ne.OchInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OchInput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchInput
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6912,7 +6912,7 @@ class OchInputNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OchInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OchInput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchInput
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6941,13 +6941,13 @@ class OchOutputNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OchOutput:
-        from ..data_models.ne import OchOutput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchOutput
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OchOutput.model_validate(resp)
 
     def update(self, data: ne.OchOutput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OchOutput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchOutput
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6965,7 +6965,7 @@ class OchOutputNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OchOutput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OchOutput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchOutput
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -6994,13 +6994,13 @@ class OchOpticalAttenuationNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OchOpticalAttenuation:
-        from ..data_models.ne import OchOpticalAttenuation
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchOpticalAttenuation
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OchOpticalAttenuation.model_validate(resp)
 
     def update(self, data: ne.OchOpticalAttenuation | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OchOpticalAttenuation
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchOpticalAttenuation
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7018,7 +7018,7 @@ class OchOpticalAttenuationNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OchOpticalAttenuation | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OchOpticalAttenuation
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchOpticalAttenuation
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7055,13 +7055,13 @@ class OchItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OchItem:
-        from ..data_models.ne import OchItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OchItem.model_validate(resp)
 
     def update(self, data: ne.OchItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OchItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7078,7 +7078,7 @@ class OchItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OchItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OchItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7112,7 +7112,7 @@ class OchListNode(ListNode[OchItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OchItem]:
-        from ..data_models.ne import OchItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OchItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OchItem.model_validate(item) for item in resp]
@@ -7137,13 +7137,13 @@ class McItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.McItem:
-        from ..data_models.ne import McItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import McItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return McItem.model_validate(resp)
 
     def update(self, data: ne.McItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import McItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import McItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7160,7 +7160,7 @@ class McItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.McItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import McItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import McItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7188,7 +7188,7 @@ class McListNode(ListNode[McItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.McItem]:
-        from ..data_models.ne import McItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import McItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [McItem.model_validate(item) for item in resp]
@@ -7213,13 +7213,13 @@ class NmcInputNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.NmcInput:
-        from ..data_models.ne import NmcInput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcInput
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NmcInput.model_validate(resp)
 
     def update(self, data: ne.NmcInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NmcInput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcInput
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7237,7 +7237,7 @@ class NmcInputNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.NmcInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NmcInput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcInput
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7266,13 +7266,13 @@ class NmcOutputNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.NmcOutput:
-        from ..data_models.ne import NmcOutput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcOutput
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NmcOutput.model_validate(resp)
 
     def update(self, data: ne.NmcOutput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NmcOutput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcOutput
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7290,7 +7290,7 @@ class NmcOutputNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.NmcOutput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NmcOutput
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcOutput
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7319,13 +7319,13 @@ class NmcOpticalAttenuationNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.NmcOpticalAttenuation:
-        from ..data_models.ne import NmcOpticalAttenuation
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcOpticalAttenuation
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NmcOpticalAttenuation.model_validate(resp)
 
     def update(self, data: ne.NmcOpticalAttenuation | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NmcOpticalAttenuation
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcOpticalAttenuation
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7343,7 +7343,7 @@ class NmcOpticalAttenuationNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.NmcOpticalAttenuation | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NmcOpticalAttenuation
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcOpticalAttenuation
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7380,13 +7380,13 @@ class NmcItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.NmcItem:
-        from ..data_models.ne import NmcItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NmcItem.model_validate(resp)
 
     def update(self, data: ne.NmcItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NmcItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7403,7 +7403,7 @@ class NmcItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.NmcItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NmcItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7441,7 +7441,7 @@ class NmcListNode(ListNode[NmcItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.NmcItem]:
-        from ..data_models.ne import NmcItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NmcItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [NmcItem.model_validate(item) for item in resp]
@@ -7466,13 +7466,13 @@ class OpticalInterfacesNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OpticalInterfaces:
-        from ..data_models.ne import OpticalInterfaces
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpticalInterfaces
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OpticalInterfaces.model_validate(resp)
 
     def update(self, data: ne.OpticalInterfaces | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OpticalInterfaces
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpticalInterfaces
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7490,7 +7490,7 @@ class OpticalInterfacesNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.OpticalInterfaces | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OpticalInterfaces
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OpticalInterfaces
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7547,13 +7547,13 @@ class OcrsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OcrsItem:
-        from ..data_models.ne import OcrsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OcrsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OcrsItem.model_validate(resp)
 
     def update(self, data: ne.OcrsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OcrsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OcrsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7570,7 +7570,7 @@ class OcrsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OcrsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OcrsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OcrsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7598,7 +7598,7 @@ class OcrsListNode(ListNode[OcrsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OcrsItem]:
-        from ..data_models.ne import OcrsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OcrsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OcrsItem.model_validate(item) for item in resp]
@@ -7623,13 +7623,13 @@ class ModulesItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ModulesItem:
-        from ..data_models.ne import ModulesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ModulesItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ModulesItem.model_validate(resp)
 
     def update(self, data: ne.ModulesItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ModulesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ModulesItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7646,7 +7646,7 @@ class ModulesItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.ModulesItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ModulesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ModulesItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7674,7 +7674,7 @@ class ModulesListNode(ListNode[ModulesItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.ModulesItem]:
-        from ..data_models.ne import ModulesItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ModulesItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [ModulesItem.model_validate(item) for item in resp]
@@ -7699,13 +7699,13 @@ class ConnectionPortsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ConnectionPortsItem:
-        from ..data_models.ne import ConnectionPortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ConnectionPortsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ConnectionPortsItem.model_validate(resp)
 
     def update(self, data: ne.ConnectionPortsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ConnectionPortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ConnectionPortsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7722,7 +7722,7 @@ class ConnectionPortsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.ConnectionPortsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ConnectionPortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ConnectionPortsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7750,7 +7750,7 @@ class ConnectionPortsListNode(ListNode[ConnectionPortsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.ConnectionPortsItem]:
-        from ..data_models.ne import ConnectionPortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ConnectionPortsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [ConnectionPortsItem.model_validate(item) for item in resp]
@@ -7775,13 +7775,13 @@ class AssociatedOtdrPortNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AssociatedOtdrPort:
-        from ..data_models.ne import AssociatedOtdrPort
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AssociatedOtdrPort
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AssociatedOtdrPort.model_validate(resp)
 
     def update(self, data: ne.AssociatedOtdrPort | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AssociatedOtdrPort
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AssociatedOtdrPort
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7799,7 +7799,7 @@ class AssociatedOtdrPortNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.AssociatedOtdrPort | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AssociatedOtdrPort
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AssociatedOtdrPort
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7828,13 +7828,13 @@ class McCapabilitiesNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.McCapabilities:
-        from ..data_models.ne import McCapabilities
+        from orchestrator.optical.services.nokia.g30.data_models.ne import McCapabilities
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return McCapabilities.model_validate(resp)
 
     def update(self, data: ne.McCapabilities | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import McCapabilities
+        from orchestrator.optical.services.nokia.g30.data_models.ne import McCapabilities
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7852,7 +7852,7 @@ class McCapabilitiesNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.McCapabilities | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import McCapabilities
+        from orchestrator.optical.services.nokia.g30.data_models.ne import McCapabilities
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7881,13 +7881,13 @@ class DegreeItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DegreeItem:
-        from ..data_models.ne import DegreeItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DegreeItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DegreeItem.model_validate(resp)
 
     def update(self, data: ne.DegreeItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DegreeItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DegreeItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7904,7 +7904,7 @@ class DegreeItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.DegreeItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DegreeItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DegreeItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7950,7 +7950,7 @@ class DegreeListNode(ListNode[DegreeItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.DegreeItem]:
-        from ..data_models.ne import DegreeItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DegreeItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DegreeItem.model_validate(item) for item in resp]
@@ -7975,13 +7975,13 @@ class SharedRiskGroupItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SharedRiskGroupItem:
-        from ..data_models.ne import SharedRiskGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SharedRiskGroupItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SharedRiskGroupItem.model_validate(resp)
 
     def update(self, data: ne.SharedRiskGroupItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SharedRiskGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SharedRiskGroupItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -7998,7 +7998,7 @@ class SharedRiskGroupItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SharedRiskGroupItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SharedRiskGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SharedRiskGroupItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8034,7 +8034,7 @@ class SharedRiskGroupListNode(ListNode[SharedRiskGroupItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SharedRiskGroupItem]:
-        from ..data_models.ne import SharedRiskGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SharedRiskGroupItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SharedRiskGroupItem.model_validate(item) for item in resp]
@@ -8059,13 +8059,13 @@ class ServicesNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Services:
-        from ..data_models.ne import Services
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Services
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Services.model_validate(resp)
 
     def update(self, data: ne.Services | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Services
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Services
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8083,7 +8083,7 @@ class ServicesNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Services | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Services
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Services
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8144,13 +8144,13 @@ class AlarmProfileEntryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AlarmProfileEntryItem:
-        from ..data_models.ne import AlarmProfileEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AlarmProfileEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AlarmProfileEntryItem.model_validate(resp)
 
     def update(self, data: ne.AlarmProfileEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AlarmProfileEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AlarmProfileEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8167,7 +8167,7 @@ class AlarmProfileEntryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.AlarmProfileEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AlarmProfileEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AlarmProfileEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8195,7 +8195,7 @@ class AlarmProfileEntryListNode(ListNode[AlarmProfileEntryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.AlarmProfileEntryItem]:
-        from ..data_models.ne import AlarmProfileEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AlarmProfileEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AlarmProfileEntryItem.model_validate(item) for item in resp]
@@ -8220,13 +8220,13 @@ class AlarmProfileItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AlarmProfileItem:
-        from ..data_models.ne import AlarmProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AlarmProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AlarmProfileItem.model_validate(resp)
 
     def update(self, data: ne.AlarmProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AlarmProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AlarmProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8243,7 +8243,7 @@ class AlarmProfileItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.AlarmProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AlarmProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AlarmProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8277,7 +8277,7 @@ class AlarmProfileListNode(ListNode[AlarmProfileItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.AlarmProfileItem]:
-        from ..data_models.ne import AlarmProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AlarmProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AlarmProfileItem.model_validate(item) for item in resp]
@@ -8302,13 +8302,13 @@ class StandingConditionItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.StandingConditionItem:
-        from ..data_models.ne import StandingConditionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StandingConditionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return StandingConditionItem.model_validate(resp)
 
     def update(self, data: ne.StandingConditionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import StandingConditionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StandingConditionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8325,7 +8325,7 @@ class StandingConditionItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.StandingConditionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import StandingConditionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StandingConditionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8353,7 +8353,7 @@ class StandingConditionListNode(ListNode[StandingConditionItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.StandingConditionItem]:
-        from ..data_models.ne import StandingConditionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StandingConditionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [StandingConditionItem.model_validate(item) for item in resp]
@@ -8378,13 +8378,13 @@ class FaultNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Fault:
-        from ..data_models.ne import Fault
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fault
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Fault.model_validate(resp)
 
     def update(self, data: ne.Fault | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Fault
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fault
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8402,7 +8402,7 @@ class FaultNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Fault | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Fault
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Fault
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8441,13 +8441,13 @@ class PmThresholdsValueItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PmThresholdsValueItem:
-        from ..data_models.ne import PmThresholdsValueItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmThresholdsValueItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmThresholdsValueItem.model_validate(resp)
 
     def update(self, data: ne.PmThresholdsValueItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PmThresholdsValueItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmThresholdsValueItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8464,7 +8464,7 @@ class PmThresholdsValueItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.PmThresholdsValueItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PmThresholdsValueItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmThresholdsValueItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8492,7 +8492,7 @@ class PmThresholdsValueListNode(ListNode[PmThresholdsValueItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.PmThresholdsValueItem]:
-        from ..data_models.ne import PmThresholdsValueItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmThresholdsValueItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmThresholdsValueItem.model_validate(item) for item in resp]
@@ -8517,13 +8517,13 @@ class PmThresholdsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PmThresholds:
-        from ..data_models.ne import PmThresholds
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmThresholds
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmThresholds.model_validate(resp)
 
     def update(self, data: ne.PmThresholds | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PmThresholds
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmThresholds
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8541,7 +8541,7 @@ class PmThresholdsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.PmThresholds | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PmThresholds
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmThresholds
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8576,13 +8576,13 @@ class PmPointItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PmPointItem:
-        from ..data_models.ne import PmPointItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmPointItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmPointItem.model_validate(resp)
 
     def update(self, data: ne.PmPointItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PmPointItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmPointItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8599,7 +8599,7 @@ class PmPointItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.PmPointItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PmPointItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmPointItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8631,7 +8631,7 @@ class PmPointListNode(ListNode[PmPointItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.PmPointItem]:
-        from ..data_models.ne import PmPointItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PmPointItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmPointItem.model_validate(item) for item in resp]
@@ -8656,13 +8656,13 @@ class PerformanceNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Performance:
-        from ..data_models.ne import Performance
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Performance
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Performance.model_validate(resp)
 
     def update(self, data: ne.Performance | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Performance
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Performance
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8680,7 +8680,7 @@ class PerformanceNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Performance | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Performance
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Performance
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8713,13 +8713,13 @@ class ShelfPowerConsumptionItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ShelfPowerConsumptionItem:
-        from ..data_models.ne import ShelfPowerConsumptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShelfPowerConsumptionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ShelfPowerConsumptionItem.model_validate(resp)
 
     def update(self, data: ne.ShelfPowerConsumptionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ShelfPowerConsumptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShelfPowerConsumptionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8736,7 +8736,7 @@ class ShelfPowerConsumptionItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.ShelfPowerConsumptionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ShelfPowerConsumptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShelfPowerConsumptionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8764,7 +8764,7 @@ class ShelfPowerConsumptionListNode(ListNode[ShelfPowerConsumptionItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.ShelfPowerConsumptionItem]:
-        from ..data_models.ne import ShelfPowerConsumptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShelfPowerConsumptionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [ShelfPowerConsumptionItem.model_validate(item) for item in resp]
@@ -8789,13 +8789,13 @@ class PowerConsumptionNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PowerConsumption:
-        from ..data_models.ne import PowerConsumption
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PowerConsumption
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PowerConsumption.model_validate(resp)
 
     def update(self, data: ne.PowerConsumption | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PowerConsumption
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PowerConsumption
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8813,7 +8813,7 @@ class PowerConsumptionNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.PowerConsumption | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PowerConsumption
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PowerConsumption
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8851,13 +8851,13 @@ class L2DcnNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.L2Dcn:
-        from ..data_models.ne import L2Dcn
+        from orchestrator.optical.services.nokia.g30.data_models.ne import L2Dcn
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return L2Dcn.model_validate(resp)
 
     def update(self, data: ne.L2Dcn | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import L2Dcn
+        from orchestrator.optical.services.nokia.g30.data_models.ne import L2Dcn
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8875,7 +8875,7 @@ class L2DcnNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.L2Dcn | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import L2Dcn
+        from orchestrator.optical.services.nokia.g30.data_models.ne import L2Dcn
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8904,13 +8904,13 @@ class EthernetNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ethernet:
-        from ..data_models.ne import Ethernet
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ethernet
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ethernet.model_validate(resp)
 
     def update(self, data: ne.Ethernet | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ethernet
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ethernet
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8928,7 +8928,7 @@ class EthernetNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Ethernet | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ethernet
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ethernet
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8957,13 +8957,13 @@ class PppNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ppp:
-        from ..data_models.ne import Ppp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ppp
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ppp.model_validate(resp)
 
     def update(self, data: ne.Ppp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ppp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ppp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -8981,7 +8981,7 @@ class PppNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Ppp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ppp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ppp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9010,13 +9010,13 @@ class IpAddressNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.IpAddress:
-        from ..data_models.ne import IpAddress
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpAddress
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return IpAddress.model_validate(resp)
 
     def update(self, data: ne.IpAddress | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IpAddress
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpAddress
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9034,7 +9034,7 @@ class IpAddressNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.IpAddress | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IpAddress
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpAddress
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9063,13 +9063,13 @@ class IpUnnumberedNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.IpUnnumbered:
-        from ..data_models.ne import IpUnnumbered
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpUnnumbered
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return IpUnnumbered.model_validate(resp)
 
     def update(self, data: ne.IpUnnumbered | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IpUnnumbered
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpUnnumbered
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9087,7 +9087,7 @@ class IpUnnumberedNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.IpUnnumbered | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IpUnnumbered
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpUnnumbered
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9116,13 +9116,13 @@ class Ipv4Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ipv4:
-        from ..data_models.ne import Ipv4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipv4
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ipv4.model_validate(resp)
 
     def update(self, data: ne.Ipv4 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ipv4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipv4
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9140,7 +9140,7 @@ class Ipv4Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Ipv4 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ipv4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipv4
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9177,13 +9177,13 @@ class Ipv6AddressItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ipv6AddressItem:
-        from ..data_models.ne import Ipv6AddressItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipv6AddressItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ipv6AddressItem.model_validate(resp)
 
     def update(self, data: ne.Ipv6AddressItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ipv6AddressItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipv6AddressItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9200,7 +9200,7 @@ class Ipv6AddressItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.Ipv6AddressItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ipv6AddressItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipv6AddressItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9228,7 +9228,7 @@ class Ipv6AddressListNode(ListNode[Ipv6AddressItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.Ipv6AddressItem]:
-        from ..data_models.ne import Ipv6AddressItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipv6AddressItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [Ipv6AddressItem.model_validate(item) for item in resp]
@@ -9253,13 +9253,13 @@ class Ipv6Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ipv6:
-        from ..data_models.ne import Ipv6
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipv6
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ipv6.model_validate(resp)
 
     def update(self, data: ne.Ipv6 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ipv6
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipv6
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9277,7 +9277,7 @@ class Ipv6Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Ipv6 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ipv6
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipv6
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9310,13 +9310,13 @@ class OscxNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Oscx:
-        from ..data_models.ne import Oscx
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Oscx
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Oscx.model_validate(resp)
 
     def update(self, data: ne.Oscx | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Oscx
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Oscx
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9334,7 +9334,7 @@ class OscxNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Oscx | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Oscx
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Oscx
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9363,13 +9363,13 @@ class InterfaceItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.InterfaceItem:
-        from ..data_models.ne import InterfaceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InterfaceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return InterfaceItem.model_validate(resp)
 
     def update(self, data: ne.InterfaceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InterfaceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InterfaceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9386,7 +9386,7 @@ class InterfaceItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.InterfaceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import InterfaceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InterfaceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9434,7 +9434,7 @@ class InterfaceListNode(ListNode[InterfaceItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.InterfaceItem]:
-        from ..data_models.ne import InterfaceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import InterfaceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [InterfaceItem.model_validate(item) for item in resp]
@@ -9459,13 +9459,13 @@ class NextHopItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.NextHopItem:
-        from ..data_models.ne import NextHopItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NextHopItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NextHopItem.model_validate(resp)
 
     def update(self, data: ne.NextHopItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NextHopItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NextHopItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9482,7 +9482,7 @@ class NextHopItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.NextHopItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NextHopItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NextHopItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9510,7 +9510,7 @@ class NextHopListNode(ListNode[NextHopItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.NextHopItem]:
-        from ..data_models.ne import NextHopItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NextHopItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [NextHopItem.model_validate(item) for item in resp]
@@ -9535,13 +9535,13 @@ class StaticRouteItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.StaticRouteItem:
-        from ..data_models.ne import StaticRouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StaticRouteItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return StaticRouteItem.model_validate(resp)
 
     def update(self, data: ne.StaticRouteItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import StaticRouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StaticRouteItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9558,7 +9558,7 @@ class StaticRouteItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.StaticRouteItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import StaticRouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StaticRouteItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9590,7 +9590,7 @@ class StaticRouteListNode(ListNode[StaticRouteItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.StaticRouteItem]:
-        from ..data_models.ne import StaticRouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StaticRouteItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [StaticRouteItem.model_validate(item) for item in resp]
@@ -9615,13 +9615,13 @@ class OspfAdjacencyItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OspfAdjacencyItem:
-        from ..data_models.ne import OspfAdjacencyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfAdjacencyItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OspfAdjacencyItem.model_validate(resp)
 
     def update(self, data: ne.OspfAdjacencyItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OspfAdjacencyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfAdjacencyItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9638,7 +9638,7 @@ class OspfAdjacencyItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OspfAdjacencyItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OspfAdjacencyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfAdjacencyItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9666,7 +9666,7 @@ class OspfAdjacencyListNode(ListNode[OspfAdjacencyItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OspfAdjacencyItem]:
-        from ..data_models.ne import OspfAdjacencyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfAdjacencyItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OspfAdjacencyItem.model_validate(item) for item in resp]
@@ -9691,13 +9691,13 @@ class OspfInterfaceItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OspfInterfaceItem:
-        from ..data_models.ne import OspfInterfaceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfInterfaceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OspfInterfaceItem.model_validate(resp)
 
     def update(self, data: ne.OspfInterfaceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OspfInterfaceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfInterfaceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9714,7 +9714,7 @@ class OspfInterfaceItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OspfInterfaceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OspfInterfaceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfInterfaceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9748,7 +9748,7 @@ class OspfInterfaceListNode(ListNode[OspfInterfaceItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OspfInterfaceItem]:
-        from ..data_models.ne import OspfInterfaceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfInterfaceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OspfInterfaceItem.model_validate(item) for item in resp]
@@ -9773,13 +9773,13 @@ class OspfAreaItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OspfAreaItem:
-        from ..data_models.ne import OspfAreaItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfAreaItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OspfAreaItem.model_validate(resp)
 
     def update(self, data: ne.OspfAreaItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OspfAreaItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfAreaItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9796,7 +9796,7 @@ class OspfAreaItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OspfAreaItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OspfAreaItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfAreaItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9830,7 +9830,7 @@ class OspfAreaListNode(ListNode[OspfAreaItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OspfAreaItem]:
-        from ..data_models.ne import OspfAreaItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfAreaItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OspfAreaItem.model_validate(item) for item in resp]
@@ -9855,13 +9855,13 @@ class OspfNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ospf:
-        from ..data_models.ne import Ospf
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ospf
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ospf.model_validate(resp)
 
     def update(self, data: ne.Ospf | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ospf
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ospf
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9879,7 +9879,7 @@ class OspfNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Ospf | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ospf
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ospf
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9912,13 +9912,13 @@ class BgpNeighborTimersNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.BgpNeighborTimers:
-        from ..data_models.ne import BgpNeighborTimers
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BgpNeighborTimers
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return BgpNeighborTimers.model_validate(resp)
 
     def update(self, data: ne.BgpNeighborTimers | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import BgpNeighborTimers
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BgpNeighborTimers
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9936,7 +9936,7 @@ class BgpNeighborTimersNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.BgpNeighborTimers | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import BgpNeighborTimers
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BgpNeighborTimers
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9965,13 +9965,13 @@ class BgpNeighborTransportNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.BgpNeighborTransport:
-        from ..data_models.ne import BgpNeighborTransport
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BgpNeighborTransport
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return BgpNeighborTransport.model_validate(resp)
 
     def update(self, data: ne.BgpNeighborTransport | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import BgpNeighborTransport
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BgpNeighborTransport
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -9989,7 +9989,7 @@ class BgpNeighborTransportNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.BgpNeighborTransport | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import BgpNeighborTransport
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BgpNeighborTransport
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10018,13 +10018,13 @@ class BgpNeighborItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.BgpNeighborItem:
-        from ..data_models.ne import BgpNeighborItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BgpNeighborItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return BgpNeighborItem.model_validate(resp)
 
     def update(self, data: ne.BgpNeighborItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import BgpNeighborItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BgpNeighborItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10041,7 +10041,7 @@ class BgpNeighborItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.BgpNeighborItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import BgpNeighborItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BgpNeighborItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10077,7 +10077,7 @@ class BgpNeighborListNode(ListNode[BgpNeighborItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.BgpNeighborItem]:
-        from ..data_models.ne import BgpNeighborItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import BgpNeighborItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [BgpNeighborItem.model_validate(item) for item in resp]
@@ -10102,13 +10102,13 @@ class BgpNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Bgp:
-        from ..data_models.ne import Bgp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Bgp
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Bgp.model_validate(resp)
 
     def update(self, data: ne.Bgp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Bgp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Bgp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10126,7 +10126,7 @@ class BgpNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Bgp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Bgp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Bgp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10159,13 +10159,13 @@ class RoutingProtocolItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RoutingProtocolItem:
-        from ..data_models.ne import RoutingProtocolItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RoutingProtocolItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RoutingProtocolItem.model_validate(resp)
 
     def update(self, data: ne.RoutingProtocolItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RoutingProtocolItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RoutingProtocolItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10182,7 +10182,7 @@ class RoutingProtocolItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.RoutingProtocolItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RoutingProtocolItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RoutingProtocolItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10222,7 +10222,7 @@ class RoutingProtocolListNode(ListNode[RoutingProtocolItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.RoutingProtocolItem]:
-        from ..data_models.ne import RoutingProtocolItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RoutingProtocolItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RoutingProtocolItem.model_validate(item) for item in resp]
@@ -10247,13 +10247,13 @@ class NextHopNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.NextHop:
-        from ..data_models.ne import NextHop
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NextHop
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NextHop.model_validate(resp)
 
     def update(self, data: ne.NextHop | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NextHop
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NextHop
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10271,7 +10271,7 @@ class NextHopNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.NextHop | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NextHop
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NextHop
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10300,13 +10300,13 @@ class RouteItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RouteItem:
-        from ..data_models.ne import RouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RouteItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RouteItem.model_validate(resp)
 
     def update(self, data: ne.RouteItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RouteItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10323,7 +10323,7 @@ class RouteItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.RouteItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RouteItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10355,7 +10355,7 @@ class RouteListNode(ListNode[RouteItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.RouteItem]:
-        from ..data_models.ne import RouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RouteItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RouteItem.model_validate(item) for item in resp]
@@ -10380,13 +10380,13 @@ class HmoRouteItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.HmoRouteItem:
-        from ..data_models.ne import HmoRouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import HmoRouteItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return HmoRouteItem.model_validate(resp)
 
     def update(self, data: ne.HmoRouteItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import HmoRouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import HmoRouteItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10403,7 +10403,7 @@ class HmoRouteItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.HmoRouteItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import HmoRouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import HmoRouteItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10435,7 +10435,7 @@ class HmoRouteListNode(ListNode[HmoRouteItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.HmoRouteItem]:
-        from ..data_models.ne import HmoRouteItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import HmoRouteItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [HmoRouteItem.model_validate(item) for item in resp]
@@ -10460,13 +10460,13 @@ class RibItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RibItem:
-        from ..data_models.ne import RibItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RibItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RibItem.model_validate(resp)
 
     def update(self, data: ne.RibItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RibItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RibItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10483,7 +10483,7 @@ class RibItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.RibItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RibItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RibItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10519,7 +10519,7 @@ class RibListNode(ListNode[RibItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.RibItem]:
-        from ..data_models.ne import RibItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RibItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RibItem.model_validate(item) for item in resp]
@@ -10544,13 +10544,13 @@ class NeighborItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.NeighborItem:
-        from ..data_models.ne import NeighborItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NeighborItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NeighborItem.model_validate(resp)
 
     def update(self, data: ne.NeighborItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NeighborItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NeighborItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10567,7 +10567,7 @@ class NeighborItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.NeighborItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NeighborItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NeighborItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10595,7 +10595,7 @@ class NeighborListNode(ListNode[NeighborItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.NeighborItem]:
-        from ..data_models.ne import NeighborItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NeighborItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [NeighborItem.model_validate(item) for item in resp]
@@ -10620,13 +10620,13 @@ class NeighborsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.NeighborsItem:
-        from ..data_models.ne import NeighborsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NeighborsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NeighborsItem.model_validate(resp)
 
     def update(self, data: ne.NeighborsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NeighborsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NeighborsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10643,7 +10643,7 @@ class NeighborsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.NeighborsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NeighborsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NeighborsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10675,7 +10675,7 @@ class NeighborsListNode(ListNode[NeighborsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.NeighborsItem]:
-        from ..data_models.ne import NeighborsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NeighborsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [NeighborsItem.model_validate(item) for item in resp]
@@ -10700,13 +10700,13 @@ class RoutingNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Routing:
-        from ..data_models.ne import Routing
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Routing
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Routing.model_validate(resp)
 
     def update(self, data: ne.Routing | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Routing
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Routing
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10724,7 +10724,7 @@ class RoutingNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Routing | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Routing
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Routing
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10767,13 +10767,13 @@ class PppProfileItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PppProfileItem:
-        from ..data_models.ne import PppProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PppProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PppProfileItem.model_validate(resp)
 
     def update(self, data: ne.PppProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PppProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PppProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10790,7 +10790,7 @@ class PppProfileItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.PppProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PppProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PppProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10818,7 +10818,7 @@ class PppProfileListNode(ListNode[PppProfileItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.PppProfileItem]:
-        from ..data_models.ne import PppProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PppProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PppProfileItem.model_validate(item) for item in resp]
@@ -10843,13 +10843,13 @@ class OspfLinkProfileItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.OspfLinkProfileItem:
-        from ..data_models.ne import OspfLinkProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfLinkProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return OspfLinkProfileItem.model_validate(resp)
 
     def update(self, data: ne.OspfLinkProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OspfLinkProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfLinkProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10866,7 +10866,7 @@ class OspfLinkProfileItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.OspfLinkProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import OspfLinkProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfLinkProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10894,7 +10894,7 @@ class OspfLinkProfileListNode(ListNode[OspfLinkProfileItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.OspfLinkProfileItem]:
-        from ..data_models.ne import OspfLinkProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import OspfLinkProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [OspfLinkProfileItem.model_validate(item) for item in resp]
@@ -10919,13 +10919,13 @@ class ProfilesNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Profiles:
-        from ..data_models.ne import Profiles
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Profiles
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Profiles.model_validate(resp)
 
     def update(self, data: ne.Profiles | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Profiles
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Profiles
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10943,7 +10943,7 @@ class ProfilesNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Profiles | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Profiles
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Profiles
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -10982,13 +10982,13 @@ class PreSharedNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PreShared:
-        from ..data_models.ne import PreShared
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PreShared
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PreShared.model_validate(resp)
 
     def update(self, data: ne.PreShared | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PreShared
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PreShared
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11006,7 +11006,7 @@ class PreSharedNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.PreShared | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PreShared
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PreShared
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11035,13 +11035,13 @@ class PeerAuthenticationNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PeerAuthentication:
-        from ..data_models.ne import PeerAuthentication
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PeerAuthentication
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PeerAuthentication.model_validate(resp)
 
     def update(self, data: ne.PeerAuthentication | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PeerAuthentication
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PeerAuthentication
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11059,7 +11059,7 @@ class PeerAuthenticationNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.PeerAuthentication | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PeerAuthentication
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PeerAuthentication
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11092,13 +11092,13 @@ class PadEntryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PadEntryItem:
-        from ..data_models.ne import PadEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PadEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PadEntryItem.model_validate(resp)
 
     def update(self, data: ne.PadEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PadEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PadEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11115,7 +11115,7 @@ class PadEntryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.PadEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PadEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PadEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11147,7 +11147,7 @@ class PadEntryListNode(ListNode[PadEntryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.PadEntryItem]:
-        from ..data_models.ne import PadEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PadEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PadEntryItem.model_validate(item) for item in resp]
@@ -11172,13 +11172,13 @@ class PadNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Pad:
-        from ..data_models.ne import Pad
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Pad
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Pad.model_validate(resp)
 
     def update(self, data: ne.Pad | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Pad
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Pad
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11196,7 +11196,7 @@ class PadNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Pad | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Pad
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Pad
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11229,13 +11229,13 @@ class IkeSaLifetimeNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.IkeSaLifetime:
-        from ..data_models.ne import IkeSaLifetime
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IkeSaLifetime
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return IkeSaLifetime.model_validate(resp)
 
     def update(self, data: ne.IkeSaLifetime | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IkeSaLifetime
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IkeSaLifetime
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11253,7 +11253,7 @@ class IkeSaLifetimeNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.IkeSaLifetime | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IkeSaLifetime
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IkeSaLifetime
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11282,13 +11282,13 @@ class LocalPortsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.LocalPortsItem:
-        from ..data_models.ne import LocalPortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LocalPortsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return LocalPortsItem.model_validate(resp)
 
     def update(self, data: ne.LocalPortsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LocalPortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LocalPortsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11305,7 +11305,7 @@ class LocalPortsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.LocalPortsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LocalPortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LocalPortsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11333,7 +11333,7 @@ class LocalPortsListNode(ListNode[LocalPortsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.LocalPortsItem]:
-        from ..data_models.ne import LocalPortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LocalPortsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [LocalPortsItem.model_validate(item) for item in resp]
@@ -11358,13 +11358,13 @@ class RemotePortsItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RemotePortsItem:
-        from ..data_models.ne import RemotePortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RemotePortsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RemotePortsItem.model_validate(resp)
 
     def update(self, data: ne.RemotePortsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RemotePortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RemotePortsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11381,7 +11381,7 @@ class RemotePortsItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.RemotePortsItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RemotePortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RemotePortsItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11409,7 +11409,7 @@ class RemotePortsListNode(ListNode[RemotePortsItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.RemotePortsItem]:
-        from ..data_models.ne import RemotePortsItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RemotePortsItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RemotePortsItem.model_validate(item) for item in resp]
@@ -11434,13 +11434,13 @@ class TrafficSelectorNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.TrafficSelector:
-        from ..data_models.ne import TrafficSelector
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrafficSelector
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return TrafficSelector.model_validate(resp)
 
     def update(self, data: ne.TrafficSelector | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TrafficSelector
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrafficSelector
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11458,7 +11458,7 @@ class TrafficSelectorNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.TrafficSelector | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TrafficSelector
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrafficSelector
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11495,13 +11495,13 @@ class EspAlgorithmsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.EspAlgorithms:
-        from ..data_models.ne import EspAlgorithms
+        from orchestrator.optical.services.nokia.g30.data_models.ne import EspAlgorithms
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return EspAlgorithms.model_validate(resp)
 
     def update(self, data: ne.EspAlgorithms | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import EspAlgorithms
+        from orchestrator.optical.services.nokia.g30.data_models.ne import EspAlgorithms
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11519,7 +11519,7 @@ class EspAlgorithmsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.EspAlgorithms | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import EspAlgorithms
+        from orchestrator.optical.services.nokia.g30.data_models.ne import EspAlgorithms
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11548,13 +11548,13 @@ class IpsecSaCfgNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.IpsecSaCfg:
-        from ..data_models.ne import IpsecSaCfg
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpsecSaCfg
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return IpsecSaCfg.model_validate(resp)
 
     def update(self, data: ne.IpsecSaCfg | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IpsecSaCfg
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpsecSaCfg
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11572,7 +11572,7 @@ class IpsecSaCfgNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.IpsecSaCfg | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IpsecSaCfg
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpsecSaCfg
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11605,13 +11605,13 @@ class ProcessingInfoNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ProcessingInfo:
-        from ..data_models.ne import ProcessingInfo
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ProcessingInfo
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ProcessingInfo.model_validate(resp)
 
     def update(self, data: ne.ProcessingInfo | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ProcessingInfo
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ProcessingInfo
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11629,7 +11629,7 @@ class ProcessingInfoNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.ProcessingInfo | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ProcessingInfo
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ProcessingInfo
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11662,13 +11662,13 @@ class IpsecPolicyConfigNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.IpsecPolicyConfig:
-        from ..data_models.ne import IpsecPolicyConfig
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpsecPolicyConfig
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return IpsecPolicyConfig.model_validate(resp)
 
     def update(self, data: ne.IpsecPolicyConfig | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IpsecPolicyConfig
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpsecPolicyConfig
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11686,7 +11686,7 @@ class IpsecPolicyConfigNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.IpsecPolicyConfig | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IpsecPolicyConfig
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IpsecPolicyConfig
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11723,13 +11723,13 @@ class SpdEntryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SpdEntryItem:
-        from ..data_models.ne import SpdEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SpdEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SpdEntryItem.model_validate(resp)
 
     def update(self, data: ne.SpdEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SpdEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SpdEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11746,7 +11746,7 @@ class SpdEntryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SpdEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SpdEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SpdEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11778,7 +11778,7 @@ class SpdEntryListNode(ListNode[SpdEntryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SpdEntryItem]:
-        from ..data_models.ne import SpdEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SpdEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SpdEntryItem.model_validate(item) for item in resp]
@@ -11803,13 +11803,13 @@ class SpdNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Spd:
-        from ..data_models.ne import Spd
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Spd
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Spd.model_validate(resp)
 
     def update(self, data: ne.Spd | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Spd
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Spd
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11827,7 +11827,7 @@ class SpdNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Spd | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Spd
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Spd
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11860,13 +11860,13 @@ class ChildSaLifetimeNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ChildSaLifetime:
-        from ..data_models.ne import ChildSaLifetime
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChildSaLifetime
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ChildSaLifetime.model_validate(resp)
 
     def update(self, data: ne.ChildSaLifetime | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ChildSaLifetime
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChildSaLifetime
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11884,7 +11884,7 @@ class ChildSaLifetimeNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.ChildSaLifetime | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ChildSaLifetime
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChildSaLifetime
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11913,13 +11913,13 @@ class ChildSaInfoNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ChildSaInfo:
-        from ..data_models.ne import ChildSaInfo
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChildSaInfo
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ChildSaInfo.model_validate(resp)
 
     def update(self, data: ne.ChildSaInfo | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ChildSaInfo
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChildSaInfo
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11937,7 +11937,7 @@ class ChildSaInfoNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.ChildSaInfo | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ChildSaInfo
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChildSaInfo
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11970,13 +11970,13 @@ class IkeStateNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.IkeState:
-        from ..data_models.ne import IkeState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IkeState
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return IkeState.model_validate(resp)
 
     def update(self, data: ne.IkeState | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IkeState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IkeState
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -11994,7 +11994,7 @@ class IkeStateNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.IkeState | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import IkeState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import IkeState
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12023,13 +12023,13 @@ class ConnEntryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ConnEntryItem:
-        from ..data_models.ne import ConnEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ConnEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ConnEntryItem.model_validate(resp)
 
     def update(self, data: ne.ConnEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ConnEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ConnEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12046,7 +12046,7 @@ class ConnEntryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.ConnEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ConnEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ConnEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12090,7 +12090,7 @@ class ConnEntryListNode(ListNode[ConnEntryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.ConnEntryItem]:
-        from ..data_models.ne import ConnEntryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ConnEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [ConnEntryItem.model_validate(item) for item in resp]
@@ -12115,13 +12115,13 @@ class IpsecNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ipsec:
-        from ..data_models.ne import Ipsec
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipsec
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ipsec.model_validate(resp)
 
     def update(self, data: ne.Ipsec | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ipsec
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipsec
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12139,7 +12139,7 @@ class IpsecNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Ipsec | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ipsec
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ipsec
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12176,13 +12176,13 @@ class AclIpv4Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AclIpv4:
-        from ..data_models.ne import AclIpv4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclIpv4
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AclIpv4.model_validate(resp)
 
     def update(self, data: ne.AclIpv4 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclIpv4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclIpv4
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12200,7 +12200,7 @@ class AclIpv4Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.AclIpv4 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclIpv4
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclIpv4
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12229,13 +12229,13 @@ class AclIpv6Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AclIpv6:
-        from ..data_models.ne import AclIpv6
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclIpv6
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AclIpv6.model_validate(resp)
 
     def update(self, data: ne.AclIpv6 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclIpv6
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclIpv6
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12253,7 +12253,7 @@ class AclIpv6Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.AclIpv6 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclIpv6
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclIpv6
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12282,13 +12282,13 @@ class AclTcpNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AclTcp:
-        from ..data_models.ne import AclTcp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclTcp
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AclTcp.model_validate(resp)
 
     def update(self, data: ne.AclTcp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclTcp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclTcp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12306,7 +12306,7 @@ class AclTcpNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.AclTcp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclTcp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclTcp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12335,13 +12335,13 @@ class AclUdpNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AclUdp:
-        from ..data_models.ne import AclUdp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclUdp
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AclUdp.model_validate(resp)
 
     def update(self, data: ne.AclUdp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclUdp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclUdp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12359,7 +12359,7 @@ class AclUdpNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.AclUdp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclUdp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclUdp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12388,13 +12388,13 @@ class AclSnmpcommunityNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AclSnmpcommunity:
-        from ..data_models.ne import AclSnmpcommunity
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclSnmpcommunity
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AclSnmpcommunity.model_validate(resp)
 
     def update(self, data: ne.AclSnmpcommunity | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclSnmpcommunity
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclSnmpcommunity
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12412,7 +12412,7 @@ class AclSnmpcommunityNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.AclSnmpcommunity | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclSnmpcommunity
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclSnmpcommunity
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12441,13 +12441,13 @@ class MatchesNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Matches:
-        from ..data_models.ne import Matches
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Matches
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Matches.model_validate(resp)
 
     def update(self, data: ne.Matches | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Matches
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Matches
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12465,7 +12465,7 @@ class MatchesNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Matches | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Matches
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Matches
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12514,13 +12514,13 @@ class AceItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AceItem:
-        from ..data_models.ne import AceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AceItem.model_validate(resp)
 
     def update(self, data: ne.AceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12537,7 +12537,7 @@ class AceItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.AceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12569,7 +12569,7 @@ class AceListNode(ListNode[AceItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.AceItem]:
-        from ..data_models.ne import AceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AceItem.model_validate(item) for item in resp]
@@ -12594,13 +12594,13 @@ class AclItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AclItem:
-        from ..data_models.ne import AclItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AclItem.model_validate(resp)
 
     def update(self, data: ne.AclItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12617,7 +12617,7 @@ class AclItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.AclItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12649,7 +12649,7 @@ class AclListNode(ListNode[AclItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.AclItem]:
-        from ..data_models.ne import AclItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AclItem.model_validate(item) for item in resp]
@@ -12674,13 +12674,13 @@ class AclSetItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AclSetItem:
-        from ..data_models.ne import AclSetItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclSetItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AclSetItem.model_validate(resp)
 
     def update(self, data: ne.AclSetItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclSetItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclSetItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12697,7 +12697,7 @@ class AclSetItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.AclSetItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclSetItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclSetItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12725,7 +12725,7 @@ class AclSetListNode(ListNode[AclSetItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.AclSetItem]:
-        from ..data_models.ne import AclSetItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclSetItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AclSetItem.model_validate(item) for item in resp]
@@ -12750,13 +12750,13 @@ class AclLocalServiceItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AclLocalServiceItem:
-        from ..data_models.ne import AclLocalServiceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclLocalServiceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AclLocalServiceItem.model_validate(resp)
 
     def update(self, data: ne.AclLocalServiceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclLocalServiceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclLocalServiceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12773,7 +12773,7 @@ class AclLocalServiceItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.AclLocalServiceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclLocalServiceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclLocalServiceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12805,7 +12805,7 @@ class AclLocalServiceListNode(ListNode[AclLocalServiceItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.AclLocalServiceItem]:
-        from ..data_models.ne import AclLocalServiceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclLocalServiceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AclLocalServiceItem.model_validate(item) for item in resp]
@@ -12830,13 +12830,13 @@ class AclAttachmentPointsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AclAttachmentPoints:
-        from ..data_models.ne import AclAttachmentPoints
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclAttachmentPoints
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AclAttachmentPoints.model_validate(resp)
 
     def update(self, data: ne.AclAttachmentPoints | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclAttachmentPoints
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclAttachmentPoints
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12854,7 +12854,7 @@ class AclAttachmentPointsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.AclAttachmentPoints | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AclAttachmentPoints
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AclAttachmentPoints
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12889,13 +12889,13 @@ class DnsServerItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DnsServerItem:
-        from ..data_models.ne import DnsServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DnsServerItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DnsServerItem.model_validate(resp)
 
     def update(self, data: ne.DnsServerItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DnsServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DnsServerItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12912,7 +12912,7 @@ class DnsServerItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.DnsServerItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DnsServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DnsServerItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12940,7 +12940,7 @@ class DnsServerListNode(ListNode[DnsServerItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.DnsServerItem]:
-        from ..data_models.ne import DnsServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DnsServerItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DnsServerItem.model_validate(item) for item in resp]
@@ -12965,13 +12965,13 @@ class DnsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Dns:
-        from ..data_models.ne import Dns
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Dns
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Dns.model_validate(resp)
 
     def update(self, data: ne.Dns | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Dns
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Dns
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -12989,7 +12989,7 @@ class DnsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Dns | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Dns
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Dns
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13022,13 +13022,13 @@ class NetworkingNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Networking:
-        from ..data_models.ne import Networking
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Networking
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Networking.model_validate(resp)
 
     def update(self, data: ne.Networking | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Networking
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Networking
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13046,7 +13046,7 @@ class NetworkingNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Networking | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Networking
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Networking
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13103,13 +13103,13 @@ class AuthorizedKeyItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AuthorizedKeyItem:
-        from ..data_models.ne import AuthorizedKeyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AuthorizedKeyItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AuthorizedKeyItem.model_validate(resp)
 
     def update(self, data: ne.AuthorizedKeyItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AuthorizedKeyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AuthorizedKeyItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13126,7 +13126,7 @@ class AuthorizedKeyItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.AuthorizedKeyItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AuthorizedKeyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AuthorizedKeyItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13154,7 +13154,7 @@ class AuthorizedKeyListNode(ListNode[AuthorizedKeyItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.AuthorizedKeyItem]:
-        from ..data_models.ne import AuthorizedKeyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AuthorizedKeyItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AuthorizedKeyItem.model_validate(item) for item in resp]
@@ -13179,13 +13179,13 @@ class Snmpv3Node(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Snmpv3:
-        from ..data_models.ne import Snmpv3
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Snmpv3
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Snmpv3.model_validate(resp)
 
     def update(self, data: ne.Snmpv3 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Snmpv3
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Snmpv3
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13203,7 +13203,7 @@ class Snmpv3Node(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Snmpv3 | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Snmpv3
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Snmpv3
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13232,13 +13232,13 @@ class UserItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.UserItem:
-        from ..data_models.ne import UserItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import UserItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return UserItem.model_validate(resp)
 
     def update(self, data: ne.UserItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import UserItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import UserItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13255,7 +13255,7 @@ class UserItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.UserItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import UserItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import UserItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13293,7 +13293,7 @@ class UserListNode(ListNode[UserItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.UserItem]:
-        from ..data_models.ne import UserItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import UserItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [UserItem.model_validate(item) for item in resp]
@@ -13318,13 +13318,13 @@ class CliConfigNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.CliConfig:
-        from ..data_models.ne import CliConfig
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliConfig
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CliConfig.model_validate(resp)
 
     def update(self, data: ne.CliConfig | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CliConfig
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliConfig
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13342,7 +13342,7 @@ class CliConfigNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.CliConfig | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CliConfig
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliConfig
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13371,13 +13371,13 @@ class SessionItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SessionItem:
-        from ..data_models.ne import SessionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SessionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SessionItem.model_validate(resp)
 
     def update(self, data: ne.SessionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SessionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SessionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13394,7 +13394,7 @@ class SessionItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SessionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SessionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SessionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13426,7 +13426,7 @@ class SessionListNode(ListNode[SessionItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SessionItem]:
-        from ..data_models.ne import SessionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SessionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SessionItem.model_validate(item) for item in resp]
@@ -13451,13 +13451,13 @@ class AaaServerItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.AaaServerItem:
-        from ..data_models.ne import AaaServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AaaServerItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AaaServerItem.model_validate(resp)
 
     def update(self, data: ne.AaaServerItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AaaServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AaaServerItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13474,7 +13474,7 @@ class AaaServerItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.AaaServerItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import AaaServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AaaServerItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13502,7 +13502,7 @@ class AaaServerListNode(ListNode[AaaServerItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.AaaServerItem]:
-        from ..data_models.ne import AaaServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import AaaServerItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AaaServerItem.model_validate(item) for item in resp]
@@ -13527,13 +13527,13 @@ class KeySyncSessionItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.KeySyncSessionItem:
-        from ..data_models.ne import KeySyncSessionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import KeySyncSessionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return KeySyncSessionItem.model_validate(resp)
 
     def update(self, data: ne.KeySyncSessionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import KeySyncSessionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import KeySyncSessionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13550,7 +13550,7 @@ class KeySyncSessionItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.KeySyncSessionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import KeySyncSessionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import KeySyncSessionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13578,7 +13578,7 @@ class KeySyncSessionListNode(ListNode[KeySyncSessionItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.KeySyncSessionItem]:
-        from ..data_models.ne import KeySyncSessionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import KeySyncSessionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [KeySyncSessionItem.model_validate(item) for item in resp]
@@ -13603,13 +13603,13 @@ class PskMapItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PskMapItem:
-        from ..data_models.ne import PskMapItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PskMapItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PskMapItem.model_validate(resp)
 
     def update(self, data: ne.PskMapItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PskMapItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PskMapItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13626,7 +13626,7 @@ class PskMapItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.PskMapItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PskMapItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PskMapItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13654,7 +13654,7 @@ class PskMapListNode(ListNode[PskMapItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.PskMapItem]:
-        from ..data_models.ne import PskMapItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PskMapItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PskMapItem.model_validate(item) for item in resp]
@@ -13679,13 +13679,13 @@ class PskMapsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PskMaps:
-        from ..data_models.ne import PskMaps
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PskMaps
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PskMaps.model_validate(resp)
 
     def update(self, data: ne.PskMaps | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PskMaps
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PskMaps
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13703,7 +13703,7 @@ class PskMapsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.PskMaps | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PskMaps
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PskMaps
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13736,13 +13736,13 @@ class CertificateChainItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.CertificateChainItem:
-        from ..data_models.ne import CertificateChainItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CertificateChainItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CertificateChainItem.model_validate(resp)
 
     def update(self, data: ne.CertificateChainItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CertificateChainItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CertificateChainItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13759,7 +13759,7 @@ class CertificateChainItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.CertificateChainItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CertificateChainItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CertificateChainItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13787,7 +13787,7 @@ class CertificateChainListNode(ListNode[CertificateChainItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.CertificateChainItem]:
-        from ..data_models.ne import CertificateChainItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CertificateChainItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [CertificateChainItem.model_validate(item) for item in resp]
@@ -13812,13 +13812,13 @@ class CertificateItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.CertificateItem:
-        from ..data_models.ne import CertificateItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CertificateItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CertificateItem.model_validate(resp)
 
     def update(self, data: ne.CertificateItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CertificateItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CertificateItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13835,7 +13835,7 @@ class CertificateItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.CertificateItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CertificateItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CertificateItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13869,7 +13869,7 @@ class CertificateListNode(ListNode[CertificateItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.CertificateItem]:
-        from ..data_models.ne import CertificateItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CertificateItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [CertificateItem.model_validate(item) for item in resp]
@@ -13894,13 +13894,13 @@ class KeyItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.KeyItem:
-        from ..data_models.ne import KeyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import KeyItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return KeyItem.model_validate(resp)
 
     def update(self, data: ne.KeyItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import KeyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import KeyItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13917,7 +13917,7 @@ class KeyItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.KeyItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import KeyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import KeyItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13949,7 +13949,7 @@ class KeyListNode(ListNode[KeyItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.KeyItem]:
-        from ..data_models.ne import KeyItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import KeyItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [KeyItem.model_validate(item) for item in resp]
@@ -13974,13 +13974,13 @@ class TrustedCertificateItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.TrustedCertificateItem:
-        from ..data_models.ne import TrustedCertificateItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrustedCertificateItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return TrustedCertificateItem.model_validate(resp)
 
     def update(self, data: ne.TrustedCertificateItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TrustedCertificateItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrustedCertificateItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -13997,7 +13997,7 @@ class TrustedCertificateItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.TrustedCertificateItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TrustedCertificateItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrustedCertificateItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14025,7 +14025,7 @@ class TrustedCertificateListNode(ListNode[TrustedCertificateItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.TrustedCertificateItem]:
-        from ..data_models.ne import TrustedCertificateItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrustedCertificateItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [TrustedCertificateItem.model_validate(item) for item in resp]
@@ -14050,13 +14050,13 @@ class TrustedCertificateGroupItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.TrustedCertificateGroupItem:
-        from ..data_models.ne import TrustedCertificateGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrustedCertificateGroupItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return TrustedCertificateGroupItem.model_validate(resp)
 
     def update(self, data: ne.TrustedCertificateGroupItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TrustedCertificateGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrustedCertificateGroupItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14073,7 +14073,7 @@ class TrustedCertificateGroupItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.TrustedCertificateGroupItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TrustedCertificateGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrustedCertificateGroupItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14107,7 +14107,7 @@ class TrustedCertificateGroupListNode(ListNode[TrustedCertificateGroupItemNode])
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.TrustedCertificateGroupItem]:
-        from ..data_models.ne import TrustedCertificateGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TrustedCertificateGroupItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [TrustedCertificateGroupItem.model_validate(item) for item in resp]
@@ -14132,13 +14132,13 @@ class KeystoreNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Keystore:
-        from ..data_models.ne import Keystore
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Keystore
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Keystore.model_validate(resp)
 
     def update(self, data: ne.Keystore | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Keystore
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Keystore
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14156,7 +14156,7 @@ class KeystoreNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Keystore | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Keystore
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Keystore
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14198,13 +14198,13 @@ class SecurityNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Security:
-        from ..data_models.ne import Security
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Security
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Security.model_validate(resp)
 
     def update(self, data: ne.Security | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Security
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Security
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14222,7 +14222,7 @@ class SecurityNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Security | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Security
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Security
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14277,13 +14277,13 @@ class DatabaseItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DatabaseItem:
-        from ..data_models.ne import DatabaseItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DatabaseItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DatabaseItem.model_validate(resp)
 
     def update(self, data: ne.DatabaseItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DatabaseItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DatabaseItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14300,7 +14300,7 @@ class DatabaseItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.DatabaseItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DatabaseItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DatabaseItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14328,7 +14328,7 @@ class DatabaseListNode(ListNode[DatabaseItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.DatabaseItem]:
-        from ..data_models.ne import DatabaseItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DatabaseItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DatabaseItem.model_validate(item) for item in resp]
@@ -14353,13 +14353,13 @@ class FwVersionMapItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.FwVersionMapItem:
-        from ..data_models.ne import FwVersionMapItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FwVersionMapItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return FwVersionMapItem.model_validate(resp)
 
     def update(self, data: ne.FwVersionMapItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import FwVersionMapItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FwVersionMapItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14376,7 +14376,7 @@ class FwVersionMapItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.FwVersionMapItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import FwVersionMapItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FwVersionMapItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14404,7 +14404,7 @@ class FwVersionMapListNode(ListNode[FwVersionMapItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.FwVersionMapItem]:
-        from ..data_models.ne import FwVersionMapItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FwVersionMapItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [FwVersionMapItem.model_validate(item) for item in resp]
@@ -14429,13 +14429,13 @@ class SoftwareloadItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SoftwareloadItem:
-        from ..data_models.ne import SoftwareloadItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SoftwareloadItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SoftwareloadItem.model_validate(resp)
 
     def update(self, data: ne.SoftwareloadItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SoftwareloadItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SoftwareloadItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14452,7 +14452,7 @@ class SoftwareloadItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SoftwareloadItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SoftwareloadItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SoftwareloadItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14490,7 +14490,7 @@ class SoftwareloadListNode(ListNode[SoftwareloadItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SoftwareloadItem]:
-        from ..data_models.ne import SoftwareloadItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SoftwareloadItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SoftwareloadItem.model_validate(item) for item in resp]
@@ -14515,13 +14515,13 @@ class CurrentFwVersionItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.CurrentFwVersionItem:
-        from ..data_models.ne import CurrentFwVersionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CurrentFwVersionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CurrentFwVersionItem.model_validate(resp)
 
     def update(self, data: ne.CurrentFwVersionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CurrentFwVersionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CurrentFwVersionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14538,7 +14538,7 @@ class CurrentFwVersionItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.CurrentFwVersionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CurrentFwVersionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CurrentFwVersionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14566,7 +14566,7 @@ class CurrentFwVersionListNode(ListNode[CurrentFwVersionItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.CurrentFwVersionItem]:
-        from ..data_models.ne import CurrentFwVersionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CurrentFwVersionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [CurrentFwVersionItem.model_validate(item) for item in resp]
@@ -14591,13 +14591,13 @@ class ThirdPartyFwItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ThirdPartyFwItem:
-        from ..data_models.ne import ThirdPartyFwItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ThirdPartyFwItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ThirdPartyFwItem.model_validate(resp)
 
     def update(self, data: ne.ThirdPartyFwItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ThirdPartyFwItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ThirdPartyFwItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14614,7 +14614,7 @@ class ThirdPartyFwItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.ThirdPartyFwItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ThirdPartyFwItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ThirdPartyFwItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14642,7 +14642,7 @@ class ThirdPartyFwListNode(ListNode[ThirdPartyFwItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.ThirdPartyFwItem]:
-        from ..data_models.ne import ThirdPartyFwItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ThirdPartyFwItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [ThirdPartyFwItem.model_validate(item) for item in resp]
@@ -14667,13 +14667,13 @@ class RollbackPointItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RollbackPointItem:
-        from ..data_models.ne import RollbackPointItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RollbackPointItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RollbackPointItem.model_validate(resp)
 
     def update(self, data: ne.RollbackPointItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RollbackPointItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RollbackPointItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14690,7 +14690,7 @@ class RollbackPointItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.RollbackPointItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RollbackPointItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RollbackPointItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14718,7 +14718,7 @@ class RollbackPointListNode(ListNode[RollbackPointItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.RollbackPointItem]:
-        from ..data_models.ne import RollbackPointItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RollbackPointItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RollbackPointItem.model_validate(item) for item in resp]
@@ -14743,13 +14743,13 @@ class SwManagementNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SwManagement:
-        from ..data_models.ne import SwManagement
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SwManagement
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SwManagement.model_validate(resp)
 
     def update(self, data: ne.SwManagement | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SwManagement
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SwManagement
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14767,7 +14767,7 @@ class SwManagementNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.SwManagement | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SwManagement
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SwManagement
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14818,13 +14818,13 @@ class LogFacilityItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.LogFacilityItem:
-        from ..data_models.ne import LogFacilityItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogFacilityItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return LogFacilityItem.model_validate(resp)
 
     def update(self, data: ne.LogFacilityItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LogFacilityItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogFacilityItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14841,7 +14841,7 @@ class LogFacilityItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.LogFacilityItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LogFacilityItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogFacilityItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14869,7 +14869,7 @@ class LogFacilityListNode(ListNode[LogFacilityItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.LogFacilityItem]:
-        from ..data_models.ne import LogFacilityItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogFacilityItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [LogFacilityItem.model_validate(item) for item in resp]
@@ -14894,13 +14894,13 @@ class LogForwardingSelectorNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.LogForwardingSelector:
-        from ..data_models.ne import LogForwardingSelector
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogForwardingSelector
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return LogForwardingSelector.model_validate(resp)
 
     def update(self, data: ne.LogForwardingSelector | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LogForwardingSelector
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogForwardingSelector
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14918,7 +14918,7 @@ class LogForwardingSelectorNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.LogForwardingSelector | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LogForwardingSelector
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogForwardingSelector
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14951,13 +14951,13 @@ class LogServerItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.LogServerItem:
-        from ..data_models.ne import LogServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogServerItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return LogServerItem.model_validate(resp)
 
     def update(self, data: ne.LogServerItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LogServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogServerItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -14974,7 +14974,7 @@ class LogServerItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.LogServerItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import LogServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogServerItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15008,7 +15008,7 @@ class LogServerListNode(ListNode[LogServerItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.LogServerItem]:
-        from ..data_models.ne import LogServerItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import LogServerItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [LogServerItem.model_validate(item) for item in resp]
@@ -15033,13 +15033,13 @@ class SensorPathItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SensorPathItem:
-        from ..data_models.ne import SensorPathItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorPathItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SensorPathItem.model_validate(resp)
 
     def update(self, data: ne.SensorPathItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorPathItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorPathItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15056,7 +15056,7 @@ class SensorPathItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SensorPathItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorPathItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorPathItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15084,7 +15084,7 @@ class SensorPathListNode(ListNode[SensorPathItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SensorPathItem]:
-        from ..data_models.ne import SensorPathItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorPathItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SensorPathItem.model_validate(item) for item in resp]
@@ -15109,13 +15109,13 @@ class SensorPathsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SensorPaths:
-        from ..data_models.ne import SensorPaths
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorPaths
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SensorPaths.model_validate(resp)
 
     def update(self, data: ne.SensorPaths | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorPaths
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorPaths
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15133,7 +15133,7 @@ class SensorPathsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.SensorPaths | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorPaths
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorPaths
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15166,13 +15166,13 @@ class SensorGroupItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SensorGroupItem:
-        from ..data_models.ne import SensorGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorGroupItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SensorGroupItem.model_validate(resp)
 
     def update(self, data: ne.SensorGroupItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorGroupItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15189,7 +15189,7 @@ class SensorGroupItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SensorGroupItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorGroupItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15221,7 +15221,7 @@ class SensorGroupListNode(ListNode[SensorGroupItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SensorGroupItem]:
-        from ..data_models.ne import SensorGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorGroupItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SensorGroupItem.model_validate(item) for item in resp]
@@ -15246,13 +15246,13 @@ class SensorGroupsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SensorGroups:
-        from ..data_models.ne import SensorGroups
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorGroups
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SensorGroups.model_validate(resp)
 
     def update(self, data: ne.SensorGroups | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorGroups
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorGroups
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15270,7 +15270,7 @@ class SensorGroupsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.SensorGroups | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorGroups
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorGroups
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15303,13 +15303,13 @@ class DestinationItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DestinationItem:
-        from ..data_models.ne import DestinationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DestinationItem.model_validate(resp)
 
     def update(self, data: ne.DestinationItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DestinationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15326,7 +15326,7 @@ class DestinationItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.DestinationItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DestinationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15354,7 +15354,7 @@ class DestinationListNode(ListNode[DestinationItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.DestinationItem]:
-        from ..data_models.ne import DestinationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DestinationItem.model_validate(item) for item in resp]
@@ -15379,13 +15379,13 @@ class DestinationsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Destinations:
-        from ..data_models.ne import Destinations
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Destinations
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Destinations.model_validate(resp)
 
     def update(self, data: ne.Destinations | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Destinations
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Destinations
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15403,7 +15403,7 @@ class DestinationsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Destinations | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Destinations
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Destinations
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15436,13 +15436,13 @@ class DestinationGroupItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DestinationGroupItem:
-        from ..data_models.ne import DestinationGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationGroupItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DestinationGroupItem.model_validate(resp)
 
     def update(self, data: ne.DestinationGroupItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DestinationGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationGroupItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15459,7 +15459,7 @@ class DestinationGroupItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.DestinationGroupItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DestinationGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationGroupItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15491,7 +15491,7 @@ class DestinationGroupListNode(ListNode[DestinationGroupItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.DestinationGroupItem]:
-        from ..data_models.ne import DestinationGroupItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationGroupItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DestinationGroupItem.model_validate(item) for item in resp]
@@ -15516,13 +15516,13 @@ class DestinationGroupsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DestinationGroups:
-        from ..data_models.ne import DestinationGroups
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationGroups
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DestinationGroups.model_validate(resp)
 
     def update(self, data: ne.DestinationGroups | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DestinationGroups
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationGroups
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15540,7 +15540,7 @@ class DestinationGroupsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.DestinationGroups | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DestinationGroups
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationGroups
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15575,13 +15575,13 @@ class SensorProfileItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SensorProfileItem:
-        from ..data_models.ne import SensorProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SensorProfileItem.model_validate(resp)
 
     def update(self, data: ne.SensorProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15598,7 +15598,7 @@ class SensorProfileItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SensorProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15626,7 +15626,7 @@ class SensorProfileListNode(ListNode[SensorProfileItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SensorProfileItem]:
-        from ..data_models.ne import SensorProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SensorProfileItem.model_validate(item) for item in resp]
@@ -15651,13 +15651,13 @@ class SensorProfilesNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SensorProfiles:
-        from ..data_models.ne import SensorProfiles
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorProfiles
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SensorProfiles.model_validate(resp)
 
     def update(self, data: ne.SensorProfiles | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorProfiles
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorProfiles
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15675,7 +15675,7 @@ class SensorProfilesNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.SensorProfiles | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SensorProfiles
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SensorProfiles
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15710,13 +15710,13 @@ class DestinationProfileItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DestinationProfileItem:
-        from ..data_models.ne import DestinationProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DestinationProfileItem.model_validate(resp)
 
     def update(self, data: ne.DestinationProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DestinationProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15733,7 +15733,7 @@ class DestinationProfileItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.DestinationProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DestinationProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15761,7 +15761,7 @@ class DestinationProfileListNode(ListNode[DestinationProfileItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.DestinationProfileItem]:
-        from ..data_models.ne import DestinationProfileItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DestinationProfileItem.model_validate(item) for item in resp]
@@ -15786,13 +15786,13 @@ class DestinationProfilesNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DestinationProfiles:
-        from ..data_models.ne import DestinationProfiles
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationProfiles
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DestinationProfiles.model_validate(resp)
 
     def update(self, data: ne.DestinationProfiles | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DestinationProfiles
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationProfiles
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15810,7 +15810,7 @@ class DestinationProfilesNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.DestinationProfiles | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DestinationProfiles
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DestinationProfiles
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15845,13 +15845,13 @@ class DialOutSubscriptionItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DialOutSubscriptionItem:
-        from ..data_models.ne import DialOutSubscriptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialOutSubscriptionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DialOutSubscriptionItem.model_validate(resp)
 
     def update(self, data: ne.DialOutSubscriptionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DialOutSubscriptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialOutSubscriptionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15868,7 +15868,7 @@ class DialOutSubscriptionItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.DialOutSubscriptionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DialOutSubscriptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialOutSubscriptionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15904,7 +15904,7 @@ class DialOutSubscriptionListNode(ListNode[DialOutSubscriptionItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.DialOutSubscriptionItem]:
-        from ..data_models.ne import DialOutSubscriptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialOutSubscriptionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DialOutSubscriptionItem.model_validate(item) for item in resp]
@@ -15929,13 +15929,13 @@ class PersistentNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Persistent:
-        from ..data_models.ne import Persistent
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Persistent
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Persistent.model_validate(resp)
 
     def update(self, data: ne.Persistent | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Persistent
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Persistent
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15953,7 +15953,7 @@ class PersistentNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Persistent | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Persistent
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Persistent
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -15988,13 +15988,13 @@ class StateDialInSubscriptionNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.StateDialInSubscription:
-        from ..data_models.ne import StateDialInSubscription
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StateDialInSubscription
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return StateDialInSubscription.model_validate(resp)
 
     def update(self, data: ne.StateDialInSubscription | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import StateDialInSubscription
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StateDialInSubscription
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16012,7 +16012,7 @@ class StateDialInSubscriptionNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.StateDialInSubscription | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import StateDialInSubscription
+        from orchestrator.optical.services.nokia.g30.data_models.ne import StateDialInSubscription
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16041,13 +16041,13 @@ class PathStateNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.PathState:
-        from ..data_models.ne import PathState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PathState
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PathState.model_validate(resp)
 
     def update(self, data: ne.PathState | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PathState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PathState
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16065,7 +16065,7 @@ class PathStateNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.PathState | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import PathState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import PathState
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16094,13 +16094,13 @@ class DialInSensorPathItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DialInSensorPathItem:
-        from ..data_models.ne import DialInSensorPathItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSensorPathItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DialInSensorPathItem.model_validate(resp)
 
     def update(self, data: ne.DialInSensorPathItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DialInSensorPathItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSensorPathItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16117,7 +16117,7 @@ class DialInSensorPathItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.DialInSensorPathItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DialInSensorPathItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSensorPathItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16149,7 +16149,7 @@ class DialInSensorPathListNode(ListNode[DialInSensorPathItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.DialInSensorPathItem]:
-        from ..data_models.ne import DialInSensorPathItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSensorPathItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DialInSensorPathItem.model_validate(item) for item in resp]
@@ -16174,13 +16174,13 @@ class DialInSensorPathsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DialInSensorPaths:
-        from ..data_models.ne import DialInSensorPaths
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSensorPaths
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DialInSensorPaths.model_validate(resp)
 
     def update(self, data: ne.DialInSensorPaths | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DialInSensorPaths
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSensorPaths
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16198,7 +16198,7 @@ class DialInSensorPathsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.DialInSensorPaths | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DialInSensorPaths
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSensorPaths
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16233,13 +16233,13 @@ class DialInSubscriptionItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DialInSubscriptionItem:
-        from ..data_models.ne import DialInSubscriptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSubscriptionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DialInSubscriptionItem.model_validate(resp)
 
     def update(self, data: ne.DialInSubscriptionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DialInSubscriptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSubscriptionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16256,7 +16256,7 @@ class DialInSubscriptionItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.DialInSubscriptionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DialInSubscriptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSubscriptionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16294,7 +16294,7 @@ class DialInSubscriptionListNode(ListNode[DialInSubscriptionItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.DialInSubscriptionItem]:
-        from ..data_models.ne import DialInSubscriptionItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DialInSubscriptionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DialInSubscriptionItem.model_validate(item) for item in resp]
@@ -16319,13 +16319,13 @@ class DynamicNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Dynamic:
-        from ..data_models.ne import Dynamic
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Dynamic
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Dynamic.model_validate(resp)
 
     def update(self, data: ne.Dynamic | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Dynamic
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Dynamic
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16343,7 +16343,7 @@ class DynamicNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Dynamic | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Dynamic
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Dynamic
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16378,13 +16378,13 @@ class SubscriptionsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Subscriptions:
-        from ..data_models.ne import Subscriptions
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Subscriptions
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Subscriptions.model_validate(resp)
 
     def update(self, data: ne.Subscriptions | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Subscriptions
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Subscriptions
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16402,7 +16402,7 @@ class SubscriptionsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Subscriptions | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Subscriptions
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Subscriptions
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16439,13 +16439,13 @@ class TelemetrySystemNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.TelemetrySystem:
-        from ..data_models.ne import TelemetrySystem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TelemetrySystem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return TelemetrySystem.model_validate(resp)
 
     def update(self, data: ne.TelemetrySystem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TelemetrySystem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TelemetrySystem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16463,7 +16463,7 @@ class TelemetrySystemNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.TelemetrySystem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TelemetrySystem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TelemetrySystem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16504,13 +16504,13 @@ class FileManagementNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.FileManagement:
-        from ..data_models.ne import FileManagement
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FileManagement
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return FileManagement.model_validate(resp)
 
     def update(self, data: ne.FileManagement | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import FileManagement
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FileManagement
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16528,7 +16528,7 @@ class FileManagementNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.FileManagement | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import FileManagement
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FileManagement
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16565,13 +16565,13 @@ class LldpNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Lldp:
-        from ..data_models.ne import Lldp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Lldp
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Lldp.model_validate(resp)
 
     def update(self, data: ne.Lldp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Lldp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Lldp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16589,7 +16589,7 @@ class LldpNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Lldp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Lldp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Lldp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16618,13 +16618,13 @@ class NtpAssociationStatusNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.NtpAssociationStatus:
-        from ..data_models.ne import NtpAssociationStatus
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NtpAssociationStatus
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NtpAssociationStatus.model_validate(resp)
 
     def update(self, data: ne.NtpAssociationStatus | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NtpAssociationStatus
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NtpAssociationStatus
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16642,7 +16642,7 @@ class NtpAssociationStatusNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.NtpAssociationStatus | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NtpAssociationStatus
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NtpAssociationStatus
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16671,13 +16671,13 @@ class NtpAssociationItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.NtpAssociationItem:
-        from ..data_models.ne import NtpAssociationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NtpAssociationItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NtpAssociationItem.model_validate(resp)
 
     def update(self, data: ne.NtpAssociationItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NtpAssociationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NtpAssociationItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16694,7 +16694,7 @@ class NtpAssociationItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.NtpAssociationItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import NtpAssociationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NtpAssociationItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16726,7 +16726,7 @@ class NtpAssociationListNode(ListNode[NtpAssociationItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.NtpAssociationItem]:
-        from ..data_models.ne import NtpAssociationItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import NtpAssociationItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [NtpAssociationItem.model_validate(item) for item in resp]
@@ -16751,13 +16751,13 @@ class NtpNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ntp:
-        from ..data_models.ne import Ntp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ntp
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ntp.model_validate(resp)
 
     def update(self, data: ne.Ntp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ntp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ntp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16775,7 +16775,7 @@ class NtpNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Ntp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ntp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ntp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16810,13 +16810,13 @@ class TimeManagerNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.TimeManager:
-        from ..data_models.ne import TimeManager
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TimeManager
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return TimeManager.model_validate(resp)
 
     def update(self, data: ne.TimeManager | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TimeManager
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TimeManager
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16834,7 +16834,7 @@ class TimeManagerNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.TimeManager | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import TimeManager
+        from orchestrator.optical.services.nokia.g30.data_models.ne import TimeManager
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16867,13 +16867,13 @@ class ZtcNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ztc:
-        from ..data_models.ne import Ztc
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ztc
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ztc.model_validate(resp)
 
     def update(self, data: ne.Ztc | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ztc
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ztc
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16891,7 +16891,7 @@ class ZtcNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Ztc | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ztc
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ztc
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16920,13 +16920,13 @@ class ConsoleNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Console:
-        from ..data_models.ne import Console
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Console
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Console.model_validate(resp)
 
     def update(self, data: ne.Console | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Console
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Console
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16944,7 +16944,7 @@ class ConsoleNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Console | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Console
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Console
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16973,13 +16973,13 @@ class SshNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ssh:
-        from ..data_models.ne import Ssh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ssh
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ssh.model_validate(resp)
 
     def update(self, data: ne.Ssh | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ssh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ssh
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -16997,7 +16997,7 @@ class SshNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Ssh | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ssh
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ssh
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17026,13 +17026,13 @@ class SnmpCommunityItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SnmpCommunityItem:
-        from ..data_models.ne import SnmpCommunityItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SnmpCommunityItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SnmpCommunityItem.model_validate(resp)
 
     def update(self, data: ne.SnmpCommunityItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SnmpCommunityItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SnmpCommunityItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17049,7 +17049,7 @@ class SnmpCommunityItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SnmpCommunityItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SnmpCommunityItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SnmpCommunityItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17077,7 +17077,7 @@ class SnmpCommunityListNode(ListNode[SnmpCommunityItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SnmpCommunityItem]:
-        from ..data_models.ne import SnmpCommunityItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SnmpCommunityItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SnmpCommunityItem.model_validate(item) for item in resp]
@@ -17102,13 +17102,13 @@ class SnmpTargetItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SnmpTargetItem:
-        from ..data_models.ne import SnmpTargetItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SnmpTargetItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SnmpTargetItem.model_validate(resp)
 
     def update(self, data: ne.SnmpTargetItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SnmpTargetItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SnmpTargetItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17125,7 +17125,7 @@ class SnmpTargetItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.SnmpTargetItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SnmpTargetItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SnmpTargetItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17153,7 +17153,7 @@ class SnmpTargetListNode(ListNode[SnmpTargetItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.SnmpTargetItem]:
-        from ..data_models.ne import SnmpTargetItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SnmpTargetItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [SnmpTargetItem.model_validate(item) for item in resp]
@@ -17178,13 +17178,13 @@ class SnmpNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Snmp:
-        from ..data_models.ne import Snmp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Snmp
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Snmp.model_validate(resp)
 
     def update(self, data: ne.Snmp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Snmp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Snmp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17202,7 +17202,7 @@ class SnmpNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Snmp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Snmp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Snmp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17241,13 +17241,13 @@ class RestconfNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Restconf:
-        from ..data_models.ne import Restconf
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Restconf
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Restconf.model_validate(resp)
 
     def update(self, data: ne.Restconf | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Restconf
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Restconf
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17265,7 +17265,7 @@ class RestconfNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Restconf | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Restconf
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Restconf
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17294,13 +17294,13 @@ class CliAliasItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.CliAliasItem:
-        from ..data_models.ne import CliAliasItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliAliasItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CliAliasItem.model_validate(resp)
 
     def update(self, data: ne.CliAliasItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CliAliasItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliAliasItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17317,7 +17317,7 @@ class CliAliasItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.CliAliasItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CliAliasItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliAliasItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17345,7 +17345,7 @@ class CliAliasListNode(ListNode[CliAliasItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.CliAliasItem]:
-        from ..data_models.ne import CliAliasItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliAliasItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [CliAliasItem.model_validate(item) for item in resp]
@@ -17370,13 +17370,13 @@ class CliScriptItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.CliScriptItem:
-        from ..data_models.ne import CliScriptItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliScriptItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CliScriptItem.model_validate(resp)
 
     def update(self, data: ne.CliScriptItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CliScriptItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliScriptItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17393,7 +17393,7 @@ class CliScriptItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.CliScriptItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import CliScriptItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliScriptItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17421,7 +17421,7 @@ class CliScriptListNode(ListNode[CliScriptItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.CliScriptItem]:
-        from ..data_models.ne import CliScriptItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import CliScriptItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [CliScriptItem.model_validate(item) for item in resp]
@@ -17446,13 +17446,13 @@ class CliNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Cli:
-        from ..data_models.ne import Cli
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Cli
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Cli.model_validate(resp)
 
     def update(self, data: ne.Cli | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Cli
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Cli
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17470,7 +17470,7 @@ class CliNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Cli | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Cli
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Cli
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17507,13 +17507,13 @@ class NetconfNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Netconf:
-        from ..data_models.ne import Netconf
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Netconf
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Netconf.model_validate(resp)
 
     def update(self, data: ne.Netconf | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Netconf
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Netconf
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17531,7 +17531,7 @@ class NetconfNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Netconf | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Netconf
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Netconf
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17560,13 +17560,13 @@ class GrpcNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Grpc:
-        from ..data_models.ne import Grpc
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Grpc
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Grpc.model_validate(resp)
 
     def update(self, data: ne.Grpc | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Grpc
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Grpc
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17584,7 +17584,7 @@ class GrpcNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Grpc | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Grpc
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Grpc
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17613,13 +17613,13 @@ class WebguiNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Webgui:
-        from ..data_models.ne import Webgui
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Webgui
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Webgui.model_validate(resp)
 
     def update(self, data: ne.Webgui | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Webgui
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Webgui
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17637,7 +17637,7 @@ class WebguiNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Webgui | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Webgui
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Webgui
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17666,13 +17666,13 @@ class ModelSelectionNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ModelSelection:
-        from ..data_models.ne import ModelSelection
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ModelSelection
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ModelSelection.model_validate(resp)
 
     def update(self, data: ne.ModelSelection | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ModelSelection
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ModelSelection
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17690,7 +17690,7 @@ class ModelSelectionNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.ModelSelection | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ModelSelection
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ModelSelection
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17719,13 +17719,13 @@ class DeleteFileNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.DeleteFile:
-        from ..data_models.ne import DeleteFile
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DeleteFile
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DeleteFile.model_validate(resp)
 
     def update(self, data: ne.DeleteFile | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DeleteFile
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DeleteFile
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17743,7 +17743,7 @@ class DeleteFileNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.DeleteFile | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import DeleteFile
+        from orchestrator.optical.services.nokia.g30.data_models.ne import DeleteFile
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17772,13 +17772,13 @@ class ShowFileNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ShowFile:
-        from ..data_models.ne import ShowFile
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShowFile
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ShowFile.model_validate(resp)
 
     def update(self, data: ne.ShowFile | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ShowFile
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShowFile
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17796,7 +17796,7 @@ class ShowFileNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.ShowFile | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ShowFile
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ShowFile
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17825,13 +17825,13 @@ class FileTransferNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.FileTransfer:
-        from ..data_models.ne import FileTransfer
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FileTransfer
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return FileTransfer.model_validate(resp)
 
     def update(self, data: ne.FileTransfer | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import FileTransfer
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FileTransfer
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17849,7 +17849,7 @@ class FileTransferNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.FileTransfer | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import FileTransfer
+        from orchestrator.optical.services.nokia.g30.data_models.ne import FileTransfer
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17878,13 +17878,13 @@ class MultishelfFileManagementItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.MultishelfFileManagementItem:
-        from ..data_models.ne import MultishelfFileManagementItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfFileManagementItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return MultishelfFileManagementItem.model_validate(resp)
 
     def update(self, data: ne.MultishelfFileManagementItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import MultishelfFileManagementItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfFileManagementItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17901,7 +17901,7 @@ class MultishelfFileManagementItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.MultishelfFileManagementItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import MultishelfFileManagementItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfFileManagementItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17941,7 +17941,7 @@ class MultishelfFileManagementListNode(ListNode[MultishelfFileManagementItemNode
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.MultishelfFileManagementItem]:
-        from ..data_models.ne import MultishelfFileManagementItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfFileManagementItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [MultishelfFileManagementItem.model_validate(item) for item in resp]
@@ -17966,13 +17966,13 @@ class SwStageNotificationNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SwStageNotification:
-        from ..data_models.ne import SwStageNotification
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SwStageNotification
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SwStageNotification.model_validate(resp)
 
     def update(self, data: ne.SwStageNotification | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SwStageNotification
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SwStageNotification
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -17990,7 +17990,7 @@ class SwStageNotificationNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.SwStageNotification | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SwStageNotification
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SwStageNotification
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18019,13 +18019,13 @@ class SwActivateNotificationNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SwActivateNotification:
-        from ..data_models.ne import SwActivateNotification
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SwActivateNotification
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SwActivateNotification.model_validate(resp)
 
     def update(self, data: ne.SwActivateNotification | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SwActivateNotification
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SwActivateNotification
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18043,7 +18043,7 @@ class SwActivateNotificationNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.SwActivateNotification | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SwActivateNotification
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SwActivateNotification
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18072,13 +18072,13 @@ class MultishelfSwManagementItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.MultishelfSwManagementItem:
-        from ..data_models.ne import MultishelfSwManagementItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfSwManagementItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return MultishelfSwManagementItem.model_validate(resp)
 
     def update(self, data: ne.MultishelfSwManagementItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import MultishelfSwManagementItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfSwManagementItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18095,7 +18095,7 @@ class MultishelfSwManagementItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.MultishelfSwManagementItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import MultishelfSwManagementItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfSwManagementItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18133,7 +18133,7 @@ class MultishelfSwManagementListNode(ListNode[MultishelfSwManagementItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.MultishelfSwManagementItem]:
-        from ..data_models.ne import MultishelfSwManagementItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfSwManagementItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [MultishelfSwManagementItem.model_validate(item) for item in resp]
@@ -18158,13 +18158,13 @@ class MultishelfDiscoveryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.MultishelfDiscoveryItem:
-        from ..data_models.ne import MultishelfDiscoveryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfDiscoveryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return MultishelfDiscoveryItem.model_validate(resp)
 
     def update(self, data: ne.MultishelfDiscoveryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import MultishelfDiscoveryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfDiscoveryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18181,7 +18181,7 @@ class MultishelfDiscoveryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.MultishelfDiscoveryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import MultishelfDiscoveryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfDiscoveryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18209,7 +18209,7 @@ class MultishelfDiscoveryListNode(ListNode[MultishelfDiscoveryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.MultishelfDiscoveryItem]:
-        from ..data_models.ne import MultishelfDiscoveryItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import MultishelfDiscoveryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [MultishelfDiscoveryItem.model_validate(item) for item in resp]
@@ -18234,13 +18234,13 @@ class CapabilitiesNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Capabilities:
-        from ..data_models.ne import Capabilities
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Capabilities
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Capabilities.model_validate(resp)
 
     def update(self, data: ne.Capabilities | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Capabilities
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Capabilities
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18258,7 +18258,7 @@ class CapabilitiesNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Capabilities | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Capabilities
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Capabilities
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18287,13 +18287,13 @@ class SystemSystemNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.SystemSystem:
-        from ..data_models.ne import SystemSystem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SystemSystem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return SystemSystem.model_validate(resp)
 
     def update(self, data: ne.SystemSystem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SystemSystem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SystemSystem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18311,7 +18311,7 @@ class SystemSystemNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.SystemSystem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import SystemSystem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import SystemSystem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18440,13 +18440,13 @@ class RstpBridgePortTableItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RstpBridgePortTableItem:
-        from ..data_models.ne import RstpBridgePortTableItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortTableItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RstpBridgePortTableItem.model_validate(resp)
 
     def update(self, data: ne.RstpBridgePortTableItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpBridgePortTableItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortTableItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18463,7 +18463,7 @@ class RstpBridgePortTableItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.RstpBridgePortTableItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpBridgePortTableItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortTableItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18491,7 +18491,7 @@ class RstpBridgePortTableListNode(ListNode[RstpBridgePortTableItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.RstpBridgePortTableItem]:
-        from ..data_models.ne import RstpBridgePortTableItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortTableItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RstpBridgePortTableItem.model_validate(item) for item in resp]
@@ -18516,13 +18516,13 @@ class RstpConfigNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RstpConfig:
-        from ..data_models.ne import RstpConfig
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpConfig
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RstpConfig.model_validate(resp)
 
     def update(self, data: ne.RstpConfig | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpConfig
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpConfig
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18540,7 +18540,7 @@ class RstpConfigNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.RstpConfig | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpConfig
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpConfig
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18575,13 +18575,13 @@ class RstpBridgeAttrNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RstpBridgeAttr:
-        from ..data_models.ne import RstpBridgeAttr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgeAttr
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RstpBridgeAttr.model_validate(resp)
 
     def update(self, data: ne.RstpBridgeAttr | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpBridgeAttr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgeAttr
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18599,7 +18599,7 @@ class RstpBridgeAttrNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.RstpBridgeAttr | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpBridgeAttr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgeAttr
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18628,13 +18628,13 @@ class RstpBridgePortStateTableItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RstpBridgePortStateTableItem:
-        from ..data_models.ne import RstpBridgePortStateTableItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortStateTableItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RstpBridgePortStateTableItem.model_validate(resp)
 
     def update(self, data: ne.RstpBridgePortStateTableItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpBridgePortStateTableItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortStateTableItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18651,7 +18651,7 @@ class RstpBridgePortStateTableItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.RstpBridgePortStateTableItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpBridgePortStateTableItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortStateTableItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18679,7 +18679,7 @@ class RstpBridgePortStateTableListNode(ListNode[RstpBridgePortStateTableItemNode
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.RstpBridgePortStateTableItem]:
-        from ..data_models.ne import RstpBridgePortStateTableItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortStateTableItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RstpBridgePortStateTableItem.model_validate(item) for item in resp]
@@ -18704,13 +18704,13 @@ class RstpBridgePortStateAttrNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RstpBridgePortStateAttr:
-        from ..data_models.ne import RstpBridgePortStateAttr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortStateAttr
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RstpBridgePortStateAttr.model_validate(resp)
 
     def update(self, data: ne.RstpBridgePortStateAttr | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpBridgePortStateAttr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortStateAttr
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18728,7 +18728,7 @@ class RstpBridgePortStateAttrNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.RstpBridgePortStateAttr | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpBridgePortStateAttr
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgePortStateAttr
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18766,13 +18766,13 @@ class RstpStateNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RstpState:
-        from ..data_models.ne import RstpState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpState
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RstpState.model_validate(resp)
 
     def update(self, data: ne.RstpState | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpState
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18790,7 +18790,7 @@ class RstpStateNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.RstpState | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpState
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpState
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18829,13 +18829,13 @@ class RstpBridgeInstanceItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.RstpBridgeInstanceItem:
-        from ..data_models.ne import RstpBridgeInstanceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgeInstanceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RstpBridgeInstanceItem.model_validate(resp)
 
     def update(self, data: ne.RstpBridgeInstanceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpBridgeInstanceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgeInstanceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18852,7 +18852,7 @@ class RstpBridgeInstanceItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ne.RstpBridgeInstanceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import RstpBridgeInstanceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgeInstanceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18888,7 +18888,7 @@ class RstpBridgeInstanceListNode(ListNode[RstpBridgeInstanceItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ne.RstpBridgeInstanceItem]:
-        from ..data_models.ne import RstpBridgeInstanceItem
+        from orchestrator.optical.services.nokia.g30.data_models.ne import RstpBridgeInstanceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RstpBridgeInstanceItem.model_validate(item) for item in resp]
@@ -18913,13 +18913,13 @@ class RstpNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Rstp:
-        from ..data_models.ne import Rstp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Rstp
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Rstp.model_validate(resp)
 
     def update(self, data: ne.Rstp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Rstp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Rstp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18937,7 +18937,7 @@ class RstpNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Rstp | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Rstp
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Rstp
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18972,13 +18972,13 @@ class ProtocolsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Protocols:
-        from ..data_models.ne import Protocols
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Protocols
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Protocols.model_validate(resp)
 
     def update(self, data: ne.Protocols | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Protocols
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Protocols
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -18996,7 +18996,7 @@ class ProtocolsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Protocols | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Protocols
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Protocols
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -19029,13 +19029,13 @@ class NeNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.Ne:
-        from ..data_models.ne import Ne
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ne
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Ne.model_validate(resp)
 
     def update(self, data: ne.Ne | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ne
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ne
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -19053,7 +19053,7 @@ class NeNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.Ne | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import Ne
+        from orchestrator.optical.services.nokia.g30.data_models.ne import Ne
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -19114,13 +19114,13 @@ class ChangedByNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ne.ChangedBy:
-        from ..data_models.ne import ChangedBy
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChangedBy
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ChangedBy.model_validate(resp)
 
     def update(self, data: ne.ChangedBy | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ChangedBy
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChangedBy
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -19138,7 +19138,7 @@ class ChangedByNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ne.ChangedBy | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ne import ChangedBy
+        from orchestrator.optical.services.nokia.g30.data_models.ne import ChangedBy
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}

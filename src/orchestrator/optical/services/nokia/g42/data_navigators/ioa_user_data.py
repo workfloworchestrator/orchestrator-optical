@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._base import ItemNode, ListNode, Node
+from orchestrator.optical.services.nokia.g42.data_navigators._base import ItemNode, ListNode, Node
 
 if TYPE_CHECKING:
-    from ..data_models import ioa_user_data
+    from orchestrator.optical.services.nokia.g42.data_models import ioa_user_data
 
 
 class NamedValueSetItemNode(ItemNode):
@@ -19,13 +19,13 @@ class NamedValueSetItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_user_data.NamedValueSetItem:
-        from ..data_models.ioa_user_data import NamedValueSetItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import NamedValueSetItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return NamedValueSetItem.model_validate(resp)
 
     def update(self, data: ioa_user_data.NamedValueSetItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_user_data import NamedValueSetItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import NamedValueSetItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -42,7 +42,7 @@ class NamedValueSetItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_user_data.NamedValueSetItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_user_data import NamedValueSetItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import NamedValueSetItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -70,7 +70,7 @@ class NamedValueSetListNode(ListNode[NamedValueSetItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_user_data.NamedValueSetItem]:
-        from ..data_models.ioa_user_data import NamedValueSetItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import NamedValueSetItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [NamedValueSetItem.model_validate(item) for item in resp]
@@ -95,13 +95,13 @@ class DbEntryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_user_data.DbEntryItem:
-        from ..data_models.ioa_user_data import DbEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import DbEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DbEntryItem.model_validate(resp)
 
     def update(self, data: ioa_user_data.DbEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_user_data import DbEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import DbEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -118,7 +118,7 @@ class DbEntryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_user_data.DbEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_user_data import DbEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import DbEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -152,7 +152,7 @@ class DbEntryListNode(ListNode[DbEntryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_user_data.DbEntryItem]:
-        from ..data_models.ioa_user_data import DbEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import DbEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DbEntryItem.model_validate(item) for item in resp]
@@ -177,13 +177,13 @@ class UserDataNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_user_data.UserData:
-        from ..data_models.ioa_user_data import UserData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import UserData
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return UserData.model_validate(resp)
 
     def update(self, data: ioa_user_data.UserData | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_user_data import UserData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import UserData
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -201,7 +201,7 @@ class UserDataNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_user_data.UserData | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_user_data import UserData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_user_data import UserData
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}

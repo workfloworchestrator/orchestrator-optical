@@ -91,7 +91,7 @@ class RestconfClient:
             log.warning("Authentication credentials missing. Set OPTICAL_G30_USER and OPTICAL_G30_PASSWORD.")
         self._session.auth = (user, pw)
 
-        from .data_navigators import Data, Operations  # noqa: PLC0415, TID252
+        from orchestrator.optical.services.nokia.g30.data_navigators import Data, Operations  # noqa: PLC0415
 
         self.data = Data(self, "/data", "")
         self.operations = Operations(self, "/operations", "")

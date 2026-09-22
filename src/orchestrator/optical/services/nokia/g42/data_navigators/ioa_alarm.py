@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._base import ItemNode, ListNode, Node
+from orchestrator.optical.services.nokia.g42.data_navigators._base import ItemNode, ListNode, Node
 
 if TYPE_CHECKING:
-    from ..data_models import ioa_alarm
+    from orchestrator.optical.services.nokia.g42.data_models import ioa_alarm
 
 
 class AlarmItemNode(ItemNode):
@@ -19,13 +19,13 @@ class AlarmItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_alarm.AlarmItem:
-        from ..data_models.ioa_alarm import AlarmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AlarmItem.model_validate(resp)
 
     def update(self, data: ioa_alarm.AlarmItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import AlarmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -42,7 +42,7 @@ class AlarmItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_alarm.AlarmItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import AlarmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -70,7 +70,7 @@ class AlarmListNode(ListNode[AlarmItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_alarm.AlarmItem]:
-        from ..data_models.ioa_alarm import AlarmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AlarmItem.model_validate(item) for item in resp]
@@ -95,13 +95,13 @@ class CurrentAlarmsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_alarm.CurrentAlarms:
-        from ..data_models.ioa_alarm import CurrentAlarms
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import CurrentAlarms
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CurrentAlarms.model_validate(resp)
 
     def update(self, data: ioa_alarm.CurrentAlarms | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import CurrentAlarms
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import CurrentAlarms
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -119,7 +119,7 @@ class CurrentAlarmsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_alarm.CurrentAlarms | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import CurrentAlarms
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import CurrentAlarms
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -152,13 +152,13 @@ class AlarmSeverityEntryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_alarm.AlarmSeverityEntryItem:
-        from ..data_models.ioa_alarm import AlarmSeverityEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmSeverityEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AlarmSeverityEntryItem.model_validate(resp)
 
     def update(self, data: ioa_alarm.AlarmSeverityEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import AlarmSeverityEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmSeverityEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -175,7 +175,7 @@ class AlarmSeverityEntryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_alarm.AlarmSeverityEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import AlarmSeverityEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmSeverityEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -203,7 +203,7 @@ class AlarmSeverityEntryListNode(ListNode[AlarmSeverityEntryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_alarm.AlarmSeverityEntryItem]:
-        from ..data_models.ioa_alarm import AlarmSeverityEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmSeverityEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AlarmSeverityEntryItem.model_validate(item) for item in resp]
@@ -228,13 +228,13 @@ class AlarmSeverityProfileNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_alarm.AlarmSeverityProfile:
-        from ..data_models.ioa_alarm import AlarmSeverityProfile
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmSeverityProfile
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AlarmSeverityProfile.model_validate(resp)
 
     def update(self, data: ioa_alarm.AlarmSeverityProfile | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import AlarmSeverityProfile
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmSeverityProfile
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -252,7 +252,7 @@ class AlarmSeverityProfileNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_alarm.AlarmSeverityProfile | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import AlarmSeverityProfile
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmSeverityProfile
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -287,13 +287,13 @@ class AlarmControlNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_alarm.AlarmControl:
-        from ..data_models.ioa_alarm import AlarmControl
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmControl
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AlarmControl.model_validate(resp)
 
     def update(self, data: ioa_alarm.AlarmControl | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import AlarmControl
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmControl
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -311,7 +311,7 @@ class AlarmControlNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_alarm.AlarmControl | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import AlarmControl
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmControl
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -344,13 +344,13 @@ class AlarmInventoryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_alarm.AlarmInventoryItem:
-        from ..data_models.ioa_alarm import AlarmInventoryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmInventoryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AlarmInventoryItem.model_validate(resp)
 
     def update(self, data: ioa_alarm.AlarmInventoryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import AlarmInventoryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmInventoryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -367,7 +367,7 @@ class AlarmInventoryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_alarm.AlarmInventoryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import AlarmInventoryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmInventoryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -395,7 +395,7 @@ class AlarmInventoryListNode(ListNode[AlarmInventoryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_alarm.AlarmInventoryItem]:
-        from ..data_models.ioa_alarm import AlarmInventoryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import AlarmInventoryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AlarmInventoryItem.model_validate(item) for item in resp]
@@ -420,13 +420,13 @@ class AlarmsNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_alarm.Alarms:
-        from ..data_models.ioa_alarm import Alarms
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import Alarms
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Alarms.model_validate(resp)
 
     def update(self, data: ioa_alarm.Alarms | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import Alarms
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import Alarms
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -444,7 +444,7 @@ class AlarmsNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_alarm.Alarms | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import Alarms
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import Alarms
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -480,7 +480,7 @@ class SetAlarmStateNode(Node):
     """Navigator for RPC set-alarm-state"""
 
     def __call__(self, input_data: ioa_alarm.SetAlarmStateInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import SetAlarmState, SetAlarmStateInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import SetAlarmState, SetAlarmStateInput
 
         if input_data is None:
             input_data = SetAlarmStateInput(**kwargs)
@@ -498,7 +498,7 @@ class ClearAlarmNode(Node):
     """Navigator for RPC clear-alarm"""
 
     def __call__(self, input_data: ioa_alarm.ClearAlarmInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import ClearAlarm, ClearAlarmInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import ClearAlarm, ClearAlarmInput
 
         if input_data is None:
             input_data = ClearAlarmInput(**kwargs)
@@ -523,13 +523,13 @@ class ConditionItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_alarm.ConditionItem:
-        from ..data_models.ioa_alarm import ConditionItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import ConditionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ConditionItem.model_validate(resp)
 
     def update(self, data: ioa_alarm.ConditionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import ConditionItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import ConditionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -546,7 +546,7 @@ class ConditionItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_alarm.ConditionItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_alarm import ConditionItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import ConditionItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -574,7 +574,7 @@ class ConditionListNode(ListNode[ConditionItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_alarm.ConditionItem]:
-        from ..data_models.ioa_alarm import ConditionItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import ConditionItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [ConditionItem.model_validate(item) for item in resp]
@@ -594,7 +594,11 @@ class GetConditionsNode(Node):
     def __call__(
         self, input_data: ioa_alarm.GetConditionsInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_alarm.GetConditionsOutput:
-        from ..data_models.ioa_alarm import GetConditions, GetConditionsInput, GetConditionsOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_alarm import (
+            GetConditions,
+            GetConditionsInput,
+            GetConditionsOutput,
+        )
 
         if input_data is None:
             input_data = GetConditionsInput(**kwargs)

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
-    from . import coriant_rpc, ne
+    from orchestrator.optical.services.nokia.g30.data_models import coriant_rpc, ne
 
 
 class Data(BaseModel):

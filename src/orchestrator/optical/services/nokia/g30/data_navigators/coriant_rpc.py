@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._base import ItemNode, ListNode, Node
+from orchestrator.optical.services.nokia.g30.data_navigators._base import ItemNode, ListNode, Node
 
 if TYPE_CHECKING:
-    from ..data_models import coriant_rpc
+    from orchestrator.optical.services.nokia.g30.data_models import coriant_rpc
 
 
 class NoOpNode(Node):
@@ -21,7 +21,7 @@ class DefaultNode(Node):
     def __call__(
         self, input_data: coriant_rpc.DefaultInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.DefaultOutput:
-        from ..data_models.coriant_rpc import Default, DefaultInput, DefaultOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import Default, DefaultInput, DefaultOutput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -51,7 +51,11 @@ class DownloadNode(Node):
     def __call__(
         self, input_data: coriant_rpc.DownloadInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.DownloadOutput:
-        from ..data_models.coriant_rpc import Download, DownloadInput, DownloadOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            Download,
+            DownloadInput,
+            DownloadOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -81,7 +85,7 @@ class FileNode(Node):
     def __call__(
         self, input_data: coriant_rpc.FileInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.FileOutput:
-        from ..data_models.coriant_rpc import File, FileInput, FileOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import File, FileInput, FileOutput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -111,7 +115,7 @@ class CertGenNode(Node):
     def __call__(
         self, input_data: coriant_rpc.CertGenInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.CertGenOutput:
-        from ..data_models.coriant_rpc import CertGen, CertGenInput, CertGenOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import CertGen, CertGenInput, CertGenOutput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -141,7 +145,7 @@ class RestartNode(Node):
     def __call__(
         self, input_data: coriant_rpc.RestartInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.RestartOutput:
-        from ..data_models.coriant_rpc import Restart, RestartInput, RestartOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import Restart, RestartInput, RestartOutput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -171,7 +175,7 @@ class UploadNode(Node):
     def __call__(
         self, input_data: coriant_rpc.UploadInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.UploadOutput:
-        from ..data_models.coriant_rpc import Upload, UploadInput, UploadOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import Upload, UploadInput, UploadOutput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -201,7 +205,7 @@ class SetTimeNode(Node):
     def __call__(
         self, input_data: coriant_rpc.SetTimeInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.SetTimeOutput:
-        from ..data_models.coriant_rpc import SetTime, SetTimeInput, SetTimeOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import SetTime, SetTimeInput, SetTimeOutput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -231,7 +235,11 @@ class EnableLedNode(Node):
     def __call__(
         self, input_data: coriant_rpc.EnableLedInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.EnableLedOutput:
-        from ..data_models.coriant_rpc import EnableLed, EnableLedInput, EnableLedOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            EnableLed,
+            EnableLedInput,
+            EnableLedOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -261,7 +269,11 @@ class DisableLedNode(Node):
     def __call__(
         self, input_data: coriant_rpc.DisableLedInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.DisableLedOutput:
-        from ..data_models.coriant_rpc import DisableLed, DisableLedInput, DisableLedOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            DisableLed,
+            DisableLedInput,
+            DisableLedOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -291,7 +303,7 @@ class StartOtdrMeasurementNode(Node):
     def __call__(
         self, input_data: coriant_rpc.StartOtdrMeasurementInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.StartOtdrMeasurementOutput:
-        from ..data_models.coriant_rpc import (
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
             StartOtdrMeasurement,
             StartOtdrMeasurementInput,
             StartOtdrMeasurementOutput,
@@ -325,7 +337,11 @@ class StopOtdrMeasurementNode(Node):
     def __call__(
         self, input_data: coriant_rpc.StopOtdrMeasurementInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.StopOtdrMeasurementOutput:
-        from ..data_models.coriant_rpc import StopOtdrMeasurement, StopOtdrMeasurementInput, StopOtdrMeasurementOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            StopOtdrMeasurement,
+            StopOtdrMeasurementInput,
+            StopOtdrMeasurementOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -355,7 +371,11 @@ class Activate3rdpartyFwNode(Node):
     def __call__(
         self, input_data: coriant_rpc.Activate3rdpartyFwInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.Activate3rdpartyFwOutput:
-        from ..data_models.coriant_rpc import Activate3rdpartyFw, Activate3rdpartyFwInput, Activate3rdpartyFwOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            Activate3rdpartyFw,
+            Activate3rdpartyFwInput,
+            Activate3rdpartyFwOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -385,7 +405,11 @@ class ActivateFileNode(Node):
     def __call__(
         self, input_data: coriant_rpc.ActivateFileInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.ActivateFileOutput:
-        from ..data_models.coriant_rpc import ActivateFile, ActivateFileInput, ActivateFileOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            ActivateFile,
+            ActivateFileInput,
+            ActivateFileOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -415,7 +439,11 @@ class ClearLogNode(Node):
     def __call__(
         self, input_data: coriant_rpc.ClearLogInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.ClearLogOutput:
-        from ..data_models.coriant_rpc import ClearLog, ClearLogInput, ClearLogOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            ClearLog,
+            ClearLogInput,
+            ClearLogOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -445,7 +473,11 @@ class ClearDatabaseNode(Node):
     def __call__(
         self, input_data: coriant_rpc.ClearDatabaseInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.ClearDatabaseOutput:
-        from ..data_models.coriant_rpc import ClearDatabase, ClearDatabaseInput, ClearDatabaseOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            ClearDatabase,
+            ClearDatabaseInput,
+            ClearDatabaseOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -475,7 +507,7 @@ class PingNode(Node):
     def __call__(
         self, input_data: coriant_rpc.PingInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.PingOutput:
-        from ..data_models.coriant_rpc import Ping, PingInput, PingOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import Ping, PingInput, PingOutput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -505,7 +537,11 @@ class TracerouteNode(Node):
     def __call__(
         self, input_data: coriant_rpc.TracerouteInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.TracerouteOutput:
-        from ..data_models.coriant_rpc import Traceroute, TracerouteInput, TracerouteOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            Traceroute,
+            TracerouteInput,
+            TracerouteOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -535,7 +571,11 @@ class UpdatePskMapNode(Node):
     def __call__(
         self, input_data: coriant_rpc.UpdatePskMapInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.UpdatePskMapOutput:
-        from ..data_models.coriant_rpc import UpdatePskMap, UpdatePskMapInput, UpdatePskMapOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            UpdatePskMap,
+            UpdatePskMapInput,
+            UpdatePskMapOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -570,13 +610,13 @@ class FilterItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> coriant_rpc.FilterItem:
-        from ..data_models.coriant_rpc import FilterItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import FilterItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return FilterItem.model_validate(resp)
 
     def update(self, data: coriant_rpc.FilterItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.coriant_rpc import FilterItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import FilterItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -593,7 +633,7 @@ class FilterItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: coriant_rpc.FilterItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.coriant_rpc import FilterItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import FilterItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -621,7 +661,7 @@ class FilterListNode(ListNode[FilterItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[coriant_rpc.FilterItem]:
-        from ..data_models.coriant_rpc import FilterItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import FilterItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [FilterItem.model_validate(item) for item in resp]
@@ -646,13 +686,13 @@ class PmDataItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> coriant_rpc.PmDataItem:
-        from ..data_models.coriant_rpc import PmDataItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import PmDataItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmDataItem.model_validate(resp)
 
     def update(self, data: coriant_rpc.PmDataItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.coriant_rpc import PmDataItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import PmDataItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -669,7 +709,7 @@ class PmDataItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: coriant_rpc.PmDataItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.coriant_rpc import PmDataItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import PmDataItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -697,7 +737,7 @@ class PmDataListNode(ListNode[PmDataItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[coriant_rpc.PmDataItem]:
-        from ..data_models.coriant_rpc import PmDataItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import PmDataItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmDataItem.model_validate(item) for item in resp]
@@ -717,7 +757,7 @@ class GetPmNode(Node):
     def __call__(
         self, input_data: coriant_rpc.GetPmInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.GetPmOutput:
-        from ..data_models.coriant_rpc import GetPm, GetPmInput, GetPmOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import GetPm, GetPmInput, GetPmOutput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -752,13 +792,13 @@ class PmEntityListItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> coriant_rpc.PmEntityListItem:
-        from ..data_models.coriant_rpc import PmEntityListItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import PmEntityListItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmEntityListItem.model_validate(resp)
 
     def update(self, data: coriant_rpc.PmEntityListItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.coriant_rpc import PmEntityListItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import PmEntityListItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -775,7 +815,7 @@ class PmEntityListItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: coriant_rpc.PmEntityListItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.coriant_rpc import PmEntityListItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import PmEntityListItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -803,7 +843,7 @@ class PmEntityListListNode(ListNode[PmEntityListItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[coriant_rpc.PmEntityListItem]:
-        from ..data_models.coriant_rpc import PmEntityListItem
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import PmEntityListItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmEntityListItem.model_validate(item) for item in resp]
@@ -823,7 +863,11 @@ class ClearPmDataNode(Node):
     def __call__(
         self, input_data: coriant_rpc.ClearPmDataInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.ClearPmDataOutput:
-        from ..data_models.coriant_rpc import ClearPmData, ClearPmDataInput, ClearPmDataOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            ClearPmData,
+            ClearPmDataInput,
+            ClearPmDataOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -853,7 +897,11 @@ class ClearStatisticsDataNode(Node):
     def __call__(
         self, input_data: coriant_rpc.ClearStatisticsDataInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.ClearStatisticsDataOutput:
-        from ..data_models.coriant_rpc import ClearStatisticsData, ClearStatisticsDataInput, ClearStatisticsDataOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            ClearStatisticsData,
+            ClearStatisticsDataInput,
+            ClearStatisticsDataOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -883,7 +931,11 @@ class ClearCertificateNode(Node):
     def __call__(
         self, input_data: coriant_rpc.ClearCertificateInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.ClearCertificateOutput:
-        from ..data_models.coriant_rpc import ClearCertificate, ClearCertificateInput, ClearCertificateOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            ClearCertificate,
+            ClearCertificateInput,
+            ClearCertificateOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -913,7 +965,7 @@ class ClearTrustedCertificateNode(Node):
     def __call__(
         self, input_data: coriant_rpc.ClearTrustedCertificateInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.ClearTrustedCertificateOutput:
-        from ..data_models.coriant_rpc import (
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
             ClearTrustedCertificate,
             ClearTrustedCertificateInput,
             ClearTrustedCertificateOutput,
@@ -947,7 +999,11 @@ class SshKeygenNode(Node):
     def __call__(
         self, input_data: coriant_rpc.SshKeygenInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.SshKeygenOutput:
-        from ..data_models.coriant_rpc import SshKeygen, SshKeygenInput, SshKeygenOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            SshKeygen,
+            SshKeygenInput,
+            SshKeygenOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -977,7 +1033,11 @@ class PasswordNode(Node):
     def __call__(
         self, input_data: coriant_rpc.PasswordInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.PasswordOutput:
-        from ..data_models.coriant_rpc import Password, PasswordInput, PasswordOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            Password,
+            PasswordInput,
+            PasswordOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1007,7 +1067,7 @@ class ResetTestSignalStatusNode(Node):
     def __call__(
         self, input_data: coriant_rpc.ResetTestSignalStatusInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.ResetTestSignalStatusOutput:
-        from ..data_models.coriant_rpc import (
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
             ResetTestSignalStatus,
             ResetTestSignalStatusInput,
             ResetTestSignalStatusOutput,
@@ -1041,7 +1101,11 @@ class CreateCardServicesNode(Node):
     def __call__(
         self, input_data: coriant_rpc.CreateCardServicesInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.CreateCardServicesOutput:
-        from ..data_models.coriant_rpc import CreateCardServices, CreateCardServicesInput, CreateCardServicesOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            CreateCardServices,
+            CreateCardServicesInput,
+            CreateCardServicesOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1071,7 +1135,11 @@ class DeleteCardServicesNode(Node):
     def __call__(
         self, input_data: coriant_rpc.DeleteCardServicesInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.DeleteCardServicesOutput:
-        from ..data_models.coriant_rpc import DeleteCardServices, DeleteCardServicesInput, DeleteCardServicesOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            DeleteCardServices,
+            DeleteCardServicesInput,
+            DeleteCardServicesOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1101,7 +1169,11 @@ class IfconfigNode(Node):
     def __call__(
         self, input_data: coriant_rpc.IfconfigInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.IfconfigOutput:
-        from ..data_models.coriant_rpc import Ifconfig, IfconfigInput, IfconfigOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            Ifconfig,
+            IfconfigInput,
+            IfconfigOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1129,7 +1201,7 @@ class Delete2Node(Node):
     """Navigator for RPC delete2"""
 
     def __call__(self, input_data: coriant_rpc.Delete2Input | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.coriant_rpc import Delete2, Delete2Input
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import Delete2, Delete2Input
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1150,7 +1222,11 @@ class CreateRollbackPointNode(Node):
     def __call__(
         self, input_data: coriant_rpc.CreateRollbackPointInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.CreateRollbackPointOutput:
-        from ..data_models.coriant_rpc import CreateRollbackPoint, CreateRollbackPointInput, CreateRollbackPointOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            CreateRollbackPoint,
+            CreateRollbackPointInput,
+            CreateRollbackPointOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1180,7 +1256,7 @@ class DiffNode(Node):
     def __call__(
         self, input_data: coriant_rpc.DiffInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.DiffOutput:
-        from ..data_models.coriant_rpc import Diff, DiffInput, DiffOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import Diff, DiffInput, DiffOutput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1210,7 +1286,11 @@ class RollbackNode(Node):
     def __call__(
         self, input_data: coriant_rpc.RollbackInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.RollbackOutput:
-        from ..data_models.coriant_rpc import Rollback, RollbackInput, RollbackOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            Rollback,
+            RollbackInput,
+            RollbackOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1240,7 +1320,11 @@ class ProtectionSwitchNode(Node):
     def __call__(
         self, input_data: coriant_rpc.ProtectionSwitchInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.ProtectionSwitchOutput:
-        from ..data_models.coriant_rpc import ProtectionSwitch, ProtectionSwitchInput, ProtectionSwitchOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            ProtectionSwitch,
+            ProtectionSwitchInput,
+            ProtectionSwitchOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1270,7 +1354,11 @@ class CliCommandNode(Node):
     def __call__(
         self, input_data: coriant_rpc.CliCommandInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.CliCommandOutput:
-        from ..data_models.coriant_rpc import CliCommand, CliCommandInput, CliCommandOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            CliCommand,
+            CliCommandInput,
+            CliCommandOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1300,7 +1388,7 @@ class MeasureNode(Node):
     def __call__(
         self, input_data: coriant_rpc.MeasureInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.MeasureOutput:
-        from ..data_models.coriant_rpc import Measure, MeasureInput, MeasureOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import Measure, MeasureInput, MeasureOutput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1330,7 +1418,11 @@ class DbBackupNode(Node):
     def __call__(
         self, input_data: coriant_rpc.DbBackupInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.DbBackupOutput:
-        from ..data_models.coriant_rpc import DbBackup, DbBackupInput, DbBackupOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            DbBackup,
+            DbBackupInput,
+            DbBackupOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1358,7 +1450,7 @@ class SimulateNode(Node):
     """Navigator for RPC simulate"""
 
     def __call__(self, input_data: coriant_rpc.SimulateInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.coriant_rpc import Simulate, SimulateInput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import Simulate, SimulateInput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1379,7 +1471,11 @@ class RepairInfoNode(Node):
     def __call__(
         self, input_data: coriant_rpc.RepairInfoInput | dict | str | None = None, **kwargs: Any
     ) -> coriant_rpc.RepairInfoOutput:
-        from ..data_models.coriant_rpc import RepairInfo, RepairInfoInput, RepairInfoOutput
+        from orchestrator.optical.services.nokia.g30.data_models.coriant_rpc import (
+            RepairInfo,
+            RepairInfoInput,
+            RepairInfoOutput,
+        )
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}

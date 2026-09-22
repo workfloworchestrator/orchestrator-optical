@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._base import ItemNode, ListNode, Node
+from orchestrator.optical.services.nokia.g42.data_navigators._base import ItemNode, ListNode, Node
 
 if TYPE_CHECKING:
-    from ..data_models import ioa_pm
+    from orchestrator.optical.services.nokia.g42.data_models import ioa_pm
 
 
 class RealTimePmItemNode(ItemNode):
@@ -19,13 +19,13 @@ class RealTimePmItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.RealTimePmItem:
-        from ..data_models.ioa_pm import RealTimePmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import RealTimePmItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RealTimePmItem.model_validate(resp)
 
     def update(self, data: ioa_pm.RealTimePmItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import RealTimePmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import RealTimePmItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -42,7 +42,7 @@ class RealTimePmItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.RealTimePmItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import RealTimePmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import RealTimePmItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -70,7 +70,7 @@ class RealTimePmListNode(ListNode[RealTimePmItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.RealTimePmItem]:
-        from ..data_models.ioa_pm import RealTimePmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import RealTimePmItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RealTimePmItem.model_validate(item) for item in resp]
@@ -95,13 +95,13 @@ class RealTimePmDataNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.RealTimePmData:
-        from ..data_models.ioa_pm import RealTimePmData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import RealTimePmData
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RealTimePmData.model_validate(resp)
 
     def update(self, data: ioa_pm.RealTimePmData | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import RealTimePmData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import RealTimePmData
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -119,7 +119,7 @@ class RealTimePmDataNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.RealTimePmData | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import RealTimePmData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import RealTimePmData
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -152,13 +152,13 @@ class CurrentPmItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.CurrentPmItem:
-        from ..data_models.ioa_pm import CurrentPmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import CurrentPmItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CurrentPmItem.model_validate(resp)
 
     def update(self, data: ioa_pm.CurrentPmItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import CurrentPmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import CurrentPmItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -175,7 +175,7 @@ class CurrentPmItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.CurrentPmItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import CurrentPmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import CurrentPmItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -203,7 +203,7 @@ class CurrentPmListNode(ListNode[CurrentPmItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.CurrentPmItem]:
-        from ..data_models.ioa_pm import CurrentPmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import CurrentPmItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [CurrentPmItem.model_validate(item) for item in resp]
@@ -228,13 +228,13 @@ class CurrentPmDataNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.CurrentPmData:
-        from ..data_models.ioa_pm import CurrentPmData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import CurrentPmData
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CurrentPmData.model_validate(resp)
 
     def update(self, data: ioa_pm.CurrentPmData | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import CurrentPmData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import CurrentPmData
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -252,7 +252,7 @@ class CurrentPmDataNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.CurrentPmData | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import CurrentPmData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import CurrentPmData
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -285,13 +285,13 @@ class HistoryPmItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.HistoryPmItem:
-        from ..data_models.ioa_pm import HistoryPmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import HistoryPmItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return HistoryPmItem.model_validate(resp)
 
     def update(self, data: ioa_pm.HistoryPmItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import HistoryPmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import HistoryPmItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -308,7 +308,7 @@ class HistoryPmItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.HistoryPmItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import HistoryPmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import HistoryPmItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -336,7 +336,7 @@ class HistoryPmListNode(ListNode[HistoryPmItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.HistoryPmItem]:
-        from ..data_models.ioa_pm import HistoryPmItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import HistoryPmItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [HistoryPmItem.model_validate(item) for item in resp]
@@ -361,13 +361,13 @@ class HistoryPmDataNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.HistoryPmData:
-        from ..data_models.ioa_pm import HistoryPmData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import HistoryPmData
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return HistoryPmData.model_validate(resp)
 
     def update(self, data: ioa_pm.HistoryPmData | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import HistoryPmData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import HistoryPmData
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -385,7 +385,7 @@ class HistoryPmDataNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.HistoryPmData | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import HistoryPmData
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import HistoryPmData
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -418,13 +418,13 @@ class PmThresholdItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.PmThresholdItem:
-        from ..data_models.ioa_pm import PmThresholdItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmThresholdItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmThresholdItem.model_validate(resp)
 
     def update(self, data: ioa_pm.PmThresholdItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmThresholdItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmThresholdItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -441,7 +441,7 @@ class PmThresholdItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.PmThresholdItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmThresholdItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmThresholdItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -469,7 +469,7 @@ class PmThresholdListNode(ListNode[PmThresholdItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.PmThresholdItem]:
-        from ..data_models.ioa_pm import PmThresholdItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmThresholdItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmThresholdItem.model_validate(item) for item in resp]
@@ -494,13 +494,13 @@ class PmControlEntryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.PmControlEntryItem:
-        from ..data_models.ioa_pm import PmControlEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmControlEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmControlEntryItem.model_validate(resp)
 
     def update(self, data: ioa_pm.PmControlEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmControlEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmControlEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -517,7 +517,7 @@ class PmControlEntryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.PmControlEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmControlEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmControlEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -549,7 +549,7 @@ class PmControlEntryListNode(ListNode[PmControlEntryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.PmControlEntryItem]:
-        from ..data_models.ioa_pm import PmControlEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmControlEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmControlEntryItem.model_validate(item) for item in resp]
@@ -574,13 +574,13 @@ class PmResourceItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.PmResourceItem:
-        from ..data_models.ioa_pm import PmResourceItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmResourceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmResourceItem.model_validate(resp)
 
     def update(self, data: ioa_pm.PmResourceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmResourceItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmResourceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -597,7 +597,7 @@ class PmResourceItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.PmResourceItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmResourceItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmResourceItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -631,7 +631,7 @@ class PmResourceListNode(ListNode[PmResourceItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.PmResourceItem]:
-        from ..data_models.ioa_pm import PmResourceItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmResourceItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmResourceItem.model_validate(item) for item in resp]
@@ -656,13 +656,13 @@ class PmControlNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.PmControl:
-        from ..data_models.ioa_pm import PmControl
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmControl
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmControl.model_validate(resp)
 
     def update(self, data: ioa_pm.PmControl | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmControl
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmControl
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -680,7 +680,7 @@ class PmControlNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.PmControl | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmControl
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmControl
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -713,13 +713,13 @@ class PmThresholdProfileItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.PmThresholdProfileItem:
-        from ..data_models.ioa_pm import PmThresholdProfileItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmThresholdProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmThresholdProfileItem.model_validate(resp)
 
     def update(self, data: ioa_pm.PmThresholdProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmThresholdProfileItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmThresholdProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -736,7 +736,7 @@ class PmThresholdProfileItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.PmThresholdProfileItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmThresholdProfileItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmThresholdProfileItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -764,7 +764,7 @@ class PmThresholdProfileListNode(ListNode[PmThresholdProfileItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.PmThresholdProfileItem]:
-        from ..data_models.ioa_pm import PmThresholdProfileItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmThresholdProfileItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmThresholdProfileItem.model_validate(item) for item in resp]
@@ -789,13 +789,13 @@ class PmProfileEntryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.PmProfileEntryItem:
-        from ..data_models.ioa_pm import PmProfileEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmProfileEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmProfileEntryItem.model_validate(resp)
 
     def update(self, data: ioa_pm.PmProfileEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmProfileEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmProfileEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -812,7 +812,7 @@ class PmProfileEntryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.PmProfileEntryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmProfileEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmProfileEntryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -846,7 +846,7 @@ class PmProfileEntryListNode(ListNode[PmProfileEntryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.PmProfileEntryItem]:
-        from ..data_models.ioa_pm import PmProfileEntryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmProfileEntryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmProfileEntryItem.model_validate(item) for item in resp]
@@ -871,13 +871,13 @@ class PmProfileNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.PmProfile:
-        from ..data_models.ioa_pm import PmProfile
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmProfile
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmProfile.model_validate(resp)
 
     def update(self, data: ioa_pm.PmProfile | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmProfile
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmProfile
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -895,7 +895,7 @@ class PmProfileNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.PmProfile | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmProfile
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmProfile
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -930,13 +930,13 @@ class PmParameterItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.PmParameterItem:
-        from ..data_models.ioa_pm import PmParameterItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmParameterItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmParameterItem.model_validate(resp)
 
     def update(self, data: ioa_pm.PmParameterItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmParameterItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmParameterItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -953,7 +953,7 @@ class PmParameterItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.PmParameterItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmParameterItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmParameterItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -981,7 +981,7 @@ class PmParameterListNode(ListNode[PmParameterItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.PmParameterItem]:
-        from ..data_models.ioa_pm import PmParameterItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmParameterItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmParameterItem.model_validate(item) for item in resp]
@@ -1006,13 +1006,13 @@ class PmCatalogNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.PmCatalog:
-        from ..data_models.ioa_pm import PmCatalog
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmCatalog
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmCatalog.model_validate(resp)
 
     def update(self, data: ioa_pm.PmCatalog | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmCatalog
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmCatalog
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1030,7 +1030,7 @@ class PmCatalogNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.PmCatalog | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmCatalog
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmCatalog
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1063,13 +1063,13 @@ class PmNode(Node):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.Pm:
-        from ..data_models.ioa_pm import Pm
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import Pm
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return Pm.model_validate(resp)
 
     def update(self, data: ioa_pm.Pm | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import Pm
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import Pm
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1087,7 +1087,7 @@ class PmNode(Node):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.Pm | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import Pm
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import Pm
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1140,13 +1140,13 @@ class FilterItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.FilterItem:
-        from ..data_models.ioa_pm import FilterItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import FilterItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return FilterItem.model_validate(resp)
 
     def update(self, data: ioa_pm.FilterItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import FilterItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import FilterItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1163,7 +1163,7 @@ class FilterItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.FilterItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import FilterItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import FilterItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1191,7 +1191,7 @@ class FilterListNode(ListNode[FilterItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.FilterItem]:
-        from ..data_models.ioa_pm import FilterItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import FilterItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [FilterItem.model_validate(item) for item in resp]
@@ -1216,13 +1216,13 @@ class PmRecordItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_pm.PmRecordItem:
-        from ..data_models.ioa_pm import PmRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmRecordItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PmRecordItem.model_validate(resp)
 
     def update(self, data: ioa_pm.PmRecordItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmRecordItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1239,7 +1239,7 @@ class PmRecordItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_pm.PmRecordItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import PmRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmRecordItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1267,7 +1267,7 @@ class PmRecordListNode(ListNode[PmRecordItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_pm.PmRecordItem]:
-        from ..data_models.ioa_pm import PmRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import PmRecordItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PmRecordItem.model_validate(item) for item in resp]
@@ -1285,7 +1285,7 @@ class GetPmNode(Node):
     """Navigator for RPC get-pm"""
 
     def __call__(self, input_data: ioa_pm.GetPmInput | dict | str | None = None, **kwargs: Any) -> ioa_pm.GetPmOutput:
-        from ..data_models.ioa_pm import GetPm, GetPmInput, GetPmOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import GetPm, GetPmInput, GetPmOutput
 
         if input_data is None:
             input_data = GetPmInput(**kwargs)
@@ -1312,7 +1312,7 @@ class ClearPmNode(Node):
     """Navigator for RPC clear-pm"""
 
     def __call__(self, input_data: ioa_pm.ClearPmInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_pm import ClearPm, ClearPmInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_pm import ClearPm, ClearPmInput
 
         if input_data is None:
             input_data = ClearPmInput(**kwargs)

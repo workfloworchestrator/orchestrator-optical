@@ -6,7 +6,15 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
-    from . import ioa_alarm, ioa_network_element, ioa_pm, ioa_protection, ioa_rpc, ioa_services, ioa_user_data
+    from orchestrator.optical.services.nokia.g42.data_models import (
+        ioa_alarm,
+        ioa_network_element,
+        ioa_pm,
+        ioa_protection,
+        ioa_rpc,
+        ioa_services,
+        ioa_user_data,
+    )
 
 
 class Data(BaseModel):

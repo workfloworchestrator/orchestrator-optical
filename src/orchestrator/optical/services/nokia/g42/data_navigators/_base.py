@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from urllib.parse import quote
 
 if TYPE_CHECKING:
-    from ..session_manager import RestconfClient  # noqa: TID252
+    from orchestrator.optical.services.nokia.g42.session_manager import RestconfClient
 
 
 def _get_max_depth(data: Any, current_depth: int = 1) -> int:

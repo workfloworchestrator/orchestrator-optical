@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._base import Node
+from orchestrator.optical.services.nokia.g42.data_navigators._base import Node
 
 if TYPE_CHECKING:
-    from ..data_models import ioa_protection
+    from orchestrator.optical.services.nokia.g42.data_models import ioa_protection
 
 
 class ProtectionSwitchNode(Node):
@@ -14,7 +14,10 @@ class ProtectionSwitchNode(Node):
     def __call__(
         self, input_data: ioa_protection.ProtectionSwitchInput | dict | str | None = None, **kwargs: Any
     ) -> None:
-        from ..data_models.ioa_protection import ProtectionSwitch, ProtectionSwitchInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_protection import (
+            ProtectionSwitch,
+            ProtectionSwitchInput,
+        )
 
         if input_data is None:
             input_data = ProtectionSwitchInput(**kwargs)

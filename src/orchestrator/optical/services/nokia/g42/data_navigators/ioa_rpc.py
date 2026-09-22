@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._base import ItemNode, ListNode, Node
+from orchestrator.optical.services.nokia.g42.data_navigators._base import ItemNode, ListNode, Node
 
 if TYPE_CHECKING:
-    from ..data_models import ioa_rpc
+    from orchestrator.optical.services.nokia.g42.data_models import ioa_rpc
 
 
 class NoOpNode(Node):
@@ -19,7 +19,7 @@ class DefaultNode(Node):
     """Navigator for RPC default"""
 
     def __call__(self, input_data: ioa_rpc.DefaultInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import Default, DefaultInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Default, DefaultInput
 
         if input_data is None:
             input_data = DefaultInput(**kwargs)
@@ -39,7 +39,7 @@ class VerifyNode(Node):
     def __call__(
         self, input_data: ioa_rpc.VerifyInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.VerifyOutput:
-        from ..data_models.ioa_rpc import Verify, VerifyInput, VerifyOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Verify, VerifyInput, VerifyOutput
 
         if input_data is None:
             input_data = VerifyInput(**kwargs)
@@ -66,7 +66,7 @@ class UpdateNode(Node):
     """Navigator for RPC update"""
 
     def __call__(self, input_data: ioa_rpc.UpdateInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import Update, UpdateInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Update, UpdateInput
 
         if input_data is None:
             input_data = UpdateInput(**kwargs)
@@ -86,7 +86,11 @@ class ClearFileNode(Node):
     def __call__(
         self, input_data: ioa_rpc.ClearFileInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.ClearFileOutput:
-        from ..data_models.ioa_rpc import ClearFile, ClearFileInput, ClearFileOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            ClearFile,
+            ClearFileInput,
+            ClearFileOutput,
+        )
 
         if input_data is None:
             input_data = ClearFileInput(**kwargs)
@@ -113,7 +117,7 @@ class ClearAppNode(Node):
     """Navigator for RPC clear-app"""
 
     def __call__(self, input_data: ioa_rpc.ClearAppInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ClearApp, ClearAppInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ClearApp, ClearAppInput
 
         if input_data is None:
             input_data = ClearAppInput(**kwargs)
@@ -131,7 +135,7 @@ class ClearDatabaseNode(Node):
     """Navigator for RPC clear-database"""
 
     def __call__(self, input_data: ioa_rpc.ClearDatabaseInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ClearDatabase, ClearDatabaseInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ClearDatabase, ClearDatabaseInput
 
         if input_data is None:
             input_data = ClearDatabaseInput(**kwargs)
@@ -149,7 +153,7 @@ class KillSessionNode(Node):
     """Navigator for RPC kill-session"""
 
     def __call__(self, input_data: ioa_rpc.KillSessionInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import KillSession, KillSessionInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import KillSession, KillSessionInput
 
         if input_data is None:
             input_data = KillSessionInput(**kwargs)
@@ -169,7 +173,11 @@ class ClearCertificateNode(Node):
     def __call__(
         self, input_data: ioa_rpc.ClearCertificateInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.ClearCertificateOutput:
-        from ..data_models.ioa_rpc import ClearCertificate, ClearCertificateInput, ClearCertificateOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            ClearCertificate,
+            ClearCertificateInput,
+            ClearCertificateOutput,
+        )
 
         if input_data is None:
             input_data = ClearCertificateInput(**kwargs)
@@ -198,7 +206,11 @@ class DisplayCertNode(Node):
     def __call__(
         self, input_data: ioa_rpc.DisplayCertInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.DisplayCertOutput:
-        from ..data_models.ioa_rpc import DisplayCert, DisplayCertInput, DisplayCertOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            DisplayCert,
+            DisplayCertInput,
+            DisplayCertOutput,
+        )
 
         if input_data is None:
             input_data = DisplayCertInput(**kwargs)
@@ -227,7 +239,7 @@ class ClearCrlNode(Node):
     def __call__(
         self, input_data: ioa_rpc.ClearCrlInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.ClearCrlOutput:
-        from ..data_models.ioa_rpc import ClearCrl, ClearCrlInput, ClearCrlOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ClearCrl, ClearCrlInput, ClearCrlOutput
 
         if input_data is None:
             input_data = ClearCrlInput(**kwargs)
@@ -254,7 +266,7 @@ class SshKeygenNode(Node):
     """Navigator for RPC ssh-keygen"""
 
     def __call__(self, input_data: ioa_rpc.SshKeygenInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import SshKeygen, SshKeygenInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import SshKeygen, SshKeygenInput
 
         if input_data is None:
             input_data = SshKeygenInput(**kwargs)
@@ -274,7 +286,7 @@ class CertGenNode(Node):
     def __call__(
         self, input_data: ioa_rpc.CertGenInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.CertGenOutput:
-        from ..data_models.ioa_rpc import CertGen, CertGenInput, CertGenOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CertGen, CertGenInput, CertGenOutput
 
         if input_data is None:
             input_data = CertGenInput(**kwargs)
@@ -303,7 +315,7 @@ class CsrGenNode(Node):
     def __call__(
         self, input_data: ioa_rpc.CsrGenInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.CsrGenOutput:
-        from ..data_models.ioa_rpc import CsrGen, CsrGenInput, CsrGenOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CsrGen, CsrGenInput, CsrGenOutput
 
         if input_data is None:
             input_data = CsrGenInput(**kwargs)
@@ -330,7 +342,7 @@ class DiffNode(Node):
     """Navigator for RPC diff"""
 
     def __call__(self, input_data: ioa_rpc.DiffInput | dict | str | None = None, **kwargs: Any) -> ioa_rpc.DiffOutput:
-        from ..data_models.ioa_rpc import Diff, DiffInput, DiffOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Diff, DiffInput, DiffOutput
 
         if input_data is None:
             input_data = DiffInput(**kwargs)
@@ -359,7 +371,11 @@ class CliCommandNode(Node):
     def __call__(
         self, input_data: ioa_rpc.CliCommandInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.CliCommandOutput:
-        from ..data_models.ioa_rpc import CliCommand, CliCommandInput, CliCommandOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            CliCommand,
+            CliCommandInput,
+            CliCommandOutput,
+        )
 
         if input_data is None:
             input_data = CliCommandInput(**kwargs)
@@ -388,7 +404,11 @@ class InstallKrpNode(Node):
     def __call__(
         self, input_data: ioa_rpc.InstallKrpInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.InstallKrpOutput:
-        from ..data_models.ioa_rpc import InstallKrp, InstallKrpInput, InstallKrpOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            InstallKrp,
+            InstallKrpInput,
+            InstallKrpOutput,
+        )
 
         if input_data is None:
             input_data = InstallKrpInput(**kwargs)
@@ -417,7 +437,11 @@ class DeleteIskNode(Node):
     def __call__(
         self, input_data: ioa_rpc.DeleteIskInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.DeleteIskOutput:
-        from ..data_models.ioa_rpc import DeleteIsk, DeleteIskInput, DeleteIskOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            DeleteIsk,
+            DeleteIskInput,
+            DeleteIskOutput,
+        )
 
         if input_data is None:
             input_data = DeleteIskInput(**kwargs)
@@ -446,7 +470,7 @@ class GetLogNode(Node):
     def __call__(
         self, input_data: ioa_rpc.GetLogInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.GetLogOutput:
-        from ..data_models.ioa_rpc import GetLog, GetLogInput, GetLogOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import GetLog, GetLogInput, GetLogOutput
 
         if input_data is None:
             input_data = GetLogInput(**kwargs)
@@ -473,7 +497,7 @@ class ClearLogNode(Node):
     """Navigator for RPC clear-log"""
 
     def __call__(self, input_data: ioa_rpc.ClearLogInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ClearLog, ClearLogInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ClearLog, ClearLogInput
 
         if input_data is None:
             input_data = ClearLogInput(**kwargs)
@@ -491,7 +515,7 @@ class ChangeZtpModeNode(Node):
     """Navigator for RPC change-ztp-mode"""
 
     def __call__(self, input_data: ioa_rpc.ChangeZtpModeInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ChangeZtpMode, ChangeZtpModeInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ChangeZtpMode, ChangeZtpModeInput
 
         if input_data is None:
             input_data = ChangeZtpModeInput(**kwargs)
@@ -509,7 +533,7 @@ class EnableLedNode(Node):
     """Navigator for RPC enable-led"""
 
     def __call__(self, input_data: ioa_rpc.EnableLedInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import EnableLed, EnableLedInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import EnableLed, EnableLedInput
 
         if input_data is None:
             input_data = EnableLedInput(**kwargs)
@@ -527,7 +551,7 @@ class DisableLedNode(Node):
     """Navigator for RPC disable-led"""
 
     def __call__(self, input_data: ioa_rpc.DisableLedInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import DisableLed, DisableLedInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import DisableLed, DisableLedInput
 
         if input_data is None:
             input_data = DisableLedInput(**kwargs)
@@ -547,7 +571,11 @@ class ProfileControlNode(Node):
     def __call__(
         self, input_data: ioa_rpc.ProfileControlInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.ProfileControlOutput:
-        from ..data_models.ioa_rpc import ProfileControl, ProfileControlInput, ProfileControlOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            ProfileControl,
+            ProfileControlInput,
+            ProfileControlOutput,
+        )
 
         if input_data is None:
             input_data = ProfileControlInput(**kwargs)
@@ -574,7 +602,10 @@ class StartOtdrMeasurementNode(Node):
     """Navigator for RPC start-otdr-measurement"""
 
     def __call__(self, input_data: ioa_rpc.StartOtdrMeasurementInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import StartOtdrMeasurement, StartOtdrMeasurementInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            StartOtdrMeasurement,
+            StartOtdrMeasurementInput,
+        )
 
         if input_data is None:
             input_data = StartOtdrMeasurementInput(**kwargs)
@@ -592,7 +623,10 @@ class StopOtdrMeasurementNode(Node):
     """Navigator for RPC stop-otdr-measurement"""
 
     def __call__(self, input_data: ioa_rpc.StopOtdrMeasurementInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import StopOtdrMeasurement, StopOtdrMeasurementInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            StopOtdrMeasurement,
+            StopOtdrMeasurementInput,
+        )
 
         if input_data is None:
             input_data = StopOtdrMeasurementInput(**kwargs)
@@ -610,7 +644,7 @@ class StopCableIdNode(Node):
     """Navigator for RPC stop-cable-id"""
 
     def __call__(self, input_data: ioa_rpc.StopCableIdInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import StopCableId, StopCableIdInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import StopCableId, StopCableIdInput
 
         if input_data is None:
             input_data = StopCableIdInput(**kwargs)
@@ -630,7 +664,11 @@ class CalibrateNode(Node):
     def __call__(
         self, input_data: ioa_rpc.CalibrateInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.CalibrateOutput:
-        from ..data_models.ioa_rpc import Calibrate, CalibrateInput, CalibrateOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            Calibrate,
+            CalibrateInput,
+            CalibrateOutput,
+        )
 
         if input_data is None:
             input_data = CalibrateInput(**kwargs)
@@ -657,7 +695,7 @@ class SimulateNode(Node):
     """Navigator for RPC simulate"""
 
     def __call__(self, input_data: ioa_rpc.SimulateInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import Simulate, SimulateInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Simulate, SimulateInput
 
         if input_data is None:
             input_data = SimulateInput(**kwargs)
@@ -675,7 +713,7 @@ class RestartNode(Node):
     """Navigator for RPC restart"""
 
     def __call__(self, input_data: ioa_rpc.RestartInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import Restart, RestartInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Restart, RestartInput
 
         if input_data is None:
             input_data = RestartInput(**kwargs)
@@ -695,7 +733,7 @@ class AppctlNode(Node):
     def __call__(
         self, input_data: ioa_rpc.AppctlInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.AppctlOutput:
-        from ..data_models.ioa_rpc import Appctl, AppctlInput, AppctlOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Appctl, AppctlInput, AppctlOutput
 
         if input_data is None:
             input_data = AppctlInput(**kwargs)
@@ -722,7 +760,7 @@ class PingNode(Node):
     """Navigator for RPC ping"""
 
     def __call__(self, input_data: ioa_rpc.PingInput | dict | str | None = None, **kwargs: Any) -> ioa_rpc.PingOutput:
-        from ..data_models.ioa_rpc import Ping, PingInput, PingOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Ping, PingInput, PingOutput
 
         if input_data is None:
             input_data = PingInput(**kwargs)
@@ -751,7 +789,11 @@ class TracerouteNode(Node):
     def __call__(
         self, input_data: ioa_rpc.TracerouteInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.TracerouteOutput:
-        from ..data_models.ioa_rpc import Traceroute, TracerouteInput, TracerouteOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            Traceroute,
+            TracerouteInput,
+            TracerouteOutput,
+        )
 
         if input_data is None:
             input_data = TracerouteInput(**kwargs)
@@ -778,7 +820,10 @@ class ClearOspfInstanceNode(Node):
     """Navigator for RPC clear-ospf-instance"""
 
     def __call__(self, input_data: ioa_rpc.ClearOspfInstanceInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ClearOspfInstance, ClearOspfInstanceInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            ClearOspfInstance,
+            ClearOspfInstanceInput,
+        )
 
         if input_data is None:
             input_data = ClearOspfInstanceInput(**kwargs)
@@ -796,7 +841,7 @@ class ClearTopologyNode(Node):
     """Navigator for RPC clear-topology"""
 
     def __call__(self, input_data: ioa_rpc.ClearTopologyInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ClearTopology, ClearTopologyInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ClearTopology, ClearTopologyInput
 
         if input_data is None:
             input_data = ClearTopologyInput(**kwargs)
@@ -816,7 +861,11 @@ class ClearSystemNode(Node):
     def __call__(
         self, input_data: ioa_rpc.ClearSystemInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.ClearSystemOutput:
-        from ..data_models.ioa_rpc import ClearSystem, ClearSystemInput, ClearSystemOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            ClearSystem,
+            ClearSystemInput,
+            ClearSystemOutput,
+        )
 
         if input_data is None:
             input_data = ClearSystemInput(**kwargs)
@@ -845,7 +894,7 @@ class DownloadNode(Node):
     def __call__(
         self, input_data: ioa_rpc.DownloadInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.DownloadOutput:
-        from ..data_models.ioa_rpc import Download, DownloadInput, DownloadOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Download, DownloadInput, DownloadOutput
 
         if input_data is None:
             input_data = DownloadInput(**kwargs)
@@ -874,7 +923,7 @@ class UploadNode(Node):
     def __call__(
         self, input_data: ioa_rpc.UploadInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.UploadOutput:
-        from ..data_models.ioa_rpc import Upload, UploadInput, UploadOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Upload, UploadInput, UploadOutput
 
         if input_data is None:
             input_data = UploadInput(**kwargs)
@@ -903,7 +952,11 @@ class ImportCertificateNode(Node):
     def __call__(
         self, input_data: ioa_rpc.ImportCertificateInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.ImportCertificateOutput:
-        from ..data_models.ioa_rpc import ImportCertificate, ImportCertificateInput, ImportCertificateOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            ImportCertificate,
+            ImportCertificateInput,
+            ImportCertificateOutput,
+        )
 
         if input_data is None:
             input_data = ImportCertificateInput(**kwargs)
@@ -932,7 +985,11 @@ class PrepareUpgradeNode(Node):
     def __call__(
         self, input_data: ioa_rpc.PrepareUpgradeInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.PrepareUpgradeOutput:
-        from ..data_models.ioa_rpc import PrepareUpgrade, PrepareUpgradeInput, PrepareUpgradeOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            PrepareUpgrade,
+            PrepareUpgradeInput,
+            PrepareUpgradeOutput,
+        )
 
         if input_data is None:
             input_data = PrepareUpgradeInput(**kwargs)
@@ -961,7 +1018,11 @@ class ActivateFileNode(Node):
     def __call__(
         self, input_data: ioa_rpc.ActivateFileInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.ActivateFileOutput:
-        from ..data_models.ioa_rpc import ActivateFile, ActivateFileInput, ActivateFileOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            ActivateFile,
+            ActivateFileInput,
+            ActivateFileOutput,
+        )
 
         if input_data is None:
             input_data = ActivateFileInput(**kwargs)
@@ -1004,7 +1065,7 @@ class SetTimeNode(Node):
     """Navigator for RPC set-time"""
 
     def __call__(self, input_data: ioa_rpc.SetTimeInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import SetTime, SetTimeInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import SetTime, SetTimeInput
 
         if input_data is None:
             input_data = SetTimeInput(**kwargs)
@@ -1022,7 +1083,7 @@ class PasswordNode(Node):
     """Navigator for RPC password"""
 
     def __call__(self, input_data: ioa_rpc.PasswordInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import Password, PasswordInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Password, PasswordInput
 
         if input_data is None:
             input_data = PasswordInput(**kwargs)
@@ -1047,7 +1108,7 @@ class RunTaskNode(Node):
     """Navigator for RPC run-task"""
 
     def __call__(self, input_data: ioa_rpc.RunTaskInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import RunTask, RunTaskInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import RunTask, RunTaskInput
 
         if input_data is None:
             input_data = RunTaskInput(**kwargs)
@@ -1065,7 +1126,7 @@ class TakeSnapshotNode(Node):
     """Navigator for RPC take-snapshot"""
 
     def __call__(self, input_data: ioa_rpc.TakeSnapshotInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import TakeSnapshot, TakeSnapshotInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import TakeSnapshot, TakeSnapshotInput
 
         if input_data is None:
             input_data = TakeSnapshotInput(**kwargs)
@@ -1090,13 +1151,13 @@ class ScriptListItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_rpc.ScriptListItem:
-        from ..data_models.ioa_rpc import ScriptListItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ScriptListItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ScriptListItem.model_validate(resp)
 
     def update(self, data: ioa_rpc.ScriptListItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ScriptListItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ScriptListItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1113,7 +1174,7 @@ class ScriptListItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_rpc.ScriptListItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ScriptListItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ScriptListItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1141,7 +1202,7 @@ class ScriptListListNode(ListNode[ScriptListItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_rpc.ScriptListItem]:
-        from ..data_models.ioa_rpc import ScriptListItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ScriptListItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [ScriptListItem.model_validate(item) for item in resp]
@@ -1161,7 +1222,11 @@ class GetScriptNode(Node):
     def __call__(
         self, input_data: ioa_rpc.GetScriptInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.GetScriptOutput:
-        from ..data_models.ioa_rpc import GetScript, GetScriptInput, GetScriptOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            GetScript,
+            GetScriptInput,
+            GetScriptOutput,
+        )
 
         if input_data is None:
             input_data = GetScriptInput(**kwargs)
@@ -1190,7 +1255,11 @@ class RunScriptNode(Node):
     def __call__(
         self, input_data: ioa_rpc.RunScriptInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.RunScriptOutput:
-        from ..data_models.ioa_rpc import RunScript, RunScriptInput, RunScriptOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            RunScript,
+            RunScriptInput,
+            RunScriptOutput,
+        )
 
         if input_data is None:
             input_data = RunScriptInput(**kwargs)
@@ -1217,7 +1286,7 @@ class ManualSwitchoverNode(Node):
     """Navigator for RPC manual-switchover"""
 
     def __call__(self, input_data: ioa_rpc.ManualSwitchoverInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ManualSwitchover, ManualSwitchoverInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ManualSwitchover, ManualSwitchoverInput
 
         if input_data is None:
             input_data = ManualSwitchoverInput(**kwargs)
@@ -1237,7 +1306,11 @@ class FileOperationNode(Node):
     def __call__(
         self, input_data: ioa_rpc.FileOperationInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.FileOperationOutput:
-        from ..data_models.ioa_rpc import FileOperation, FileOperationInput, FileOperationOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            FileOperation,
+            FileOperationInput,
+            FileOperationOutput,
+        )
 
         if input_data is None:
             input_data = FileOperationInput(**kwargs)
@@ -1264,7 +1337,7 @@ class CallHomeNode(Node):
     """Navigator for RPC call-home"""
 
     def __call__(self, input_data: ioa_rpc.CallHomeInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import CallHome, CallHomeInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CallHome, CallHomeInput
 
         if input_data is None:
             input_data = CallHomeInput(**kwargs)
@@ -1282,7 +1355,7 @@ class ActivateFwNode(Node):
     """Navigator for RPC activate-fw"""
 
     def __call__(self, input_data: ioa_rpc.ActivateFwInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ActivateFw, ActivateFwInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ActivateFw, ActivateFwInput
 
         if input_data is None:
             input_data = ActivateFwInput(**kwargs)
@@ -1300,7 +1373,7 @@ class ReKeyNode(Node):
     """Navigator for RPC re-key"""
 
     def __call__(self, input_data: ioa_rpc.ReKeyInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ReKey, ReKeyInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ReKey, ReKeyInput
 
         if input_data is None:
             input_data = ReKeyInput(**kwargs)
@@ -1318,7 +1391,7 @@ class ReAuthNode(Node):
     """Navigator for RPC re-auth"""
 
     def __call__(self, input_data: ioa_rpc.ReAuthInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ReAuth, ReAuthInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ReAuth, ReAuthInput
 
         if input_data is None:
             input_data = ReAuthInput(**kwargs)
@@ -1336,7 +1409,7 @@ class ClearDiagnosticsNode(Node):
     """Navigator for RPC clear-diagnostics"""
 
     def __call__(self, input_data: ioa_rpc.ClearDiagnosticsInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ClearDiagnostics, ClearDiagnosticsInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ClearDiagnostics, ClearDiagnosticsInput
 
         if input_data is None:
             input_data = ClearDiagnosticsInput(**kwargs)
@@ -1361,13 +1434,13 @@ class DirectoryListItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_rpc.DirectoryListItem:
-        from ..data_models.ioa_rpc import DirectoryListItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import DirectoryListItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return DirectoryListItem.model_validate(resp)
 
     def update(self, data: ioa_rpc.DirectoryListItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import DirectoryListItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import DirectoryListItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1384,7 +1457,7 @@ class DirectoryListItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_rpc.DirectoryListItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import DirectoryListItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import DirectoryListItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1412,7 +1485,7 @@ class DirectoryListListNode(ListNode[DirectoryListItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_rpc.DirectoryListItem]:
-        from ..data_models.ioa_rpc import DirectoryListItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import DirectoryListItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [DirectoryListItem.model_validate(item) for item in resp]
@@ -1432,7 +1505,7 @@ class GetFileNode(Node):
     def __call__(
         self, input_data: ioa_rpc.GetFileInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.GetFileOutput:
-        from ..data_models.ioa_rpc import GetFile, GetFileInput, GetFileOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import GetFile, GetFileInput, GetFileOutput
 
         if input_data is None:
             input_data = GetFileInput(**kwargs)
@@ -1461,7 +1534,11 @@ class ApplyTemplateNode(Node):
     def __call__(
         self, input_data: ioa_rpc.ApplyTemplateInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.ApplyTemplateOutput:
-        from ..data_models.ioa_rpc import ApplyTemplate, ApplyTemplateInput, ApplyTemplateOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            ApplyTemplate,
+            ApplyTemplateInput,
+            ApplyTemplateOutput,
+        )
 
         if input_data is None:
             input_data = ApplyTemplateInput(**kwargs)
@@ -1495,13 +1572,13 @@ class RecordItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_rpc.RecordItem:
-        from ..data_models.ioa_rpc import RecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import RecordItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return RecordItem.model_validate(resp)
 
     def update(self, data: ioa_rpc.RecordItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import RecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import RecordItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1518,7 +1595,7 @@ class RecordItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_rpc.RecordItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import RecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import RecordItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1546,7 +1623,7 @@ class RecordListNode(ListNode[RecordItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_rpc.RecordItem]:
-        from ..data_models.ioa_rpc import RecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import RecordItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [RecordItem.model_validate(item) for item in resp]
@@ -1564,7 +1641,7 @@ class BertNode(Node):
     """Navigator for RPC bert"""
 
     def __call__(self, input_data: ioa_rpc.BertInput | dict | str | None = None, **kwargs: Any) -> ioa_rpc.BertOutput:
-        from ..data_models.ioa_rpc import Bert, BertInput, BertOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Bert, BertInput, BertOutput
 
         if input_data is None:
             input_data = BertInput(**kwargs)
@@ -1591,7 +1668,7 @@ class DbMigrateNode(Node):
     """Navigator for RPC db-migrate"""
 
     def __call__(self, input_data: ioa_rpc.DbMigrateInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import DbMigrate, DbMigrateInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import DbMigrate, DbMigrateInput
 
         if input_data is None:
             input_data = DbMigrateInput(**kwargs)
@@ -1616,13 +1693,13 @@ class PortSummaryItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_rpc.PortSummaryItem:
-        from ..data_models.ioa_rpc import PortSummaryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import PortSummaryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return PortSummaryItem.model_validate(resp)
 
     def update(self, data: ioa_rpc.PortSummaryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import PortSummaryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import PortSummaryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1639,7 +1716,7 @@ class PortSummaryItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_rpc.PortSummaryItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import PortSummaryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import PortSummaryItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1667,7 +1744,7 @@ class PortSummaryListNode(ListNode[PortSummaryItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_rpc.PortSummaryItem]:
-        from ..data_models.ioa_rpc import PortSummaryItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import PortSummaryItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [PortSummaryItem.model_validate(item) for item in resp]
@@ -1687,7 +1764,7 @@ class StatusNode(Node):
     def __call__(
         self, input_data: ioa_rpc.StatusInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.StatusOutput:
-        from ..data_models.ioa_rpc import Status, StatusInput, StatusOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Status, StatusInput, StatusOutput
 
         if input_data is None:
             input_data = StatusInput(**kwargs)
@@ -1716,7 +1793,7 @@ class ConfigNode(Node):
     def __call__(
         self, input_data: ioa_rpc.ConfigInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.ConfigOutput:
-        from ..data_models.ioa_rpc import Config, ConfigInput, ConfigOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Config, ConfigInput, ConfigOutput
 
         if input_data is None:
             input_data = ConfigInput(**kwargs)
@@ -1745,7 +1822,11 @@ class GetPossibleValuesNode(Node):
     def __call__(
         self, input_data: ioa_rpc.GetPossibleValuesInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.GetPossibleValuesOutput:
-        from ..data_models.ioa_rpc import GetPossibleValues, GetPossibleValuesInput, GetPossibleValuesOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            GetPossibleValues,
+            GetPossibleValuesInput,
+            GetPossibleValuesOutput,
+        )
 
         if input_data is None:
             input_data = GetPossibleValuesInput(**kwargs)
@@ -1774,7 +1855,11 @@ class GetDefaultNode(Node):
     def __call__(
         self, input_data: ioa_rpc.GetDefaultInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.GetDefaultOutput:
-        from ..data_models.ioa_rpc import GetDefault, GetDefaultInput, GetDefaultOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            GetDefault,
+            GetDefaultInput,
+            GetDefaultOutput,
+        )
 
         if input_data is None:
             input_data = GetDefaultInput(**kwargs)
@@ -1803,7 +1888,11 @@ class DisplayAccessNode(Node):
     def __call__(
         self, input_data: ioa_rpc.DisplayAccessInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.DisplayAccessOutput:
-        from ..data_models.ioa_rpc import DisplayAccess, DisplayAccessInput, DisplayAccessOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            DisplayAccess,
+            DisplayAccessInput,
+            DisplayAccessOutput,
+        )
 
         if input_data is None:
             input_data = DisplayAccessInput(**kwargs)
@@ -1837,13 +1926,13 @@ class CommandItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_rpc.CommandItem:
-        from ..data_models.ioa_rpc import CommandItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CommandItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CommandItem.model_validate(resp)
 
     def update(self, data: ioa_rpc.CommandItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import CommandItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CommandItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1860,7 +1949,7 @@ class CommandItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_rpc.CommandItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import CommandItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CommandItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1888,7 +1977,7 @@ class CommandListNode(ListNode[CommandItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_rpc.CommandItem]:
-        from ..data_models.ioa_rpc import CommandItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CommandItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [CommandItem.model_validate(item) for item in resp]
@@ -1913,13 +2002,13 @@ class ReverseCommandItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_rpc.ReverseCommandItem:
-        from ..data_models.ioa_rpc import ReverseCommandItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ReverseCommandItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return ReverseCommandItem.model_validate(resp)
 
     def update(self, data: ioa_rpc.ReverseCommandItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ReverseCommandItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ReverseCommandItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1936,7 +2025,7 @@ class ReverseCommandItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_rpc.ReverseCommandItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import ReverseCommandItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ReverseCommandItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -1964,7 +2053,7 @@ class ReverseCommandListNode(ListNode[ReverseCommandItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_rpc.ReverseCommandItem]:
-        from ..data_models.ioa_rpc import ReverseCommandItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import ReverseCommandItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [ReverseCommandItem.model_validate(item) for item in resp]
@@ -1989,13 +2078,13 @@ class CommitRecordItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_rpc.CommitRecordItem:
-        from ..data_models.ioa_rpc import CommitRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CommitRecordItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return CommitRecordItem.model_validate(resp)
 
     def update(self, data: ioa_rpc.CommitRecordItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import CommitRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CommitRecordItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2012,7 +2101,7 @@ class CommitRecordItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_rpc.CommitRecordItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import CommitRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CommitRecordItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2050,7 +2139,7 @@ class CommitRecordListNode(ListNode[CommitRecordItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_rpc.CommitRecordItem]:
-        from ..data_models.ioa_rpc import CommitRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import CommitRecordItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [CommitRecordItem.model_validate(item) for item in resp]
@@ -2070,7 +2159,11 @@ class GetCommitNode(Node):
     def __call__(
         self, input_data: ioa_rpc.GetCommitInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.GetCommitOutput:
-        from ..data_models.ioa_rpc import GetCommit, GetCommitInput, GetCommitOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            GetCommit,
+            GetCommitInput,
+            GetCommitOutput,
+        )
 
         if input_data is None:
             input_data = GetCommitInput(**kwargs)
@@ -2099,7 +2192,7 @@ class RollbackNode(Node):
     def __call__(
         self, input_data: ioa_rpc.RollbackInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.RollbackOutput:
-        from ..data_models.ioa_rpc import Rollback, RollbackInput, RollbackOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import Rollback, RollbackInput, RollbackOutput
 
         if input_data is None:
             input_data = RollbackInput(**kwargs)
@@ -2133,13 +2226,13 @@ class AutodRecordItemNode(ItemNode):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> ioa_rpc.AutodRecordItem:
-        from ..data_models.ioa_rpc import AutodRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import AutodRecordItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return AutodRecordItem.model_validate(resp)
 
     def update(self, data: ioa_rpc.AutodRecordItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import AutodRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import AutodRecordItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2156,7 +2249,7 @@ class AutodRecordItemNode(ItemNode):
         return self._update(**payload)
 
     def replace(self, data: ioa_rpc.AutodRecordItem | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_rpc import AutodRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import AutodRecordItem
 
         if data is None and kwargs:
             data = {k.replace("_", "-"): v for k, v in kwargs.items()}
@@ -2184,7 +2277,7 @@ class AutodRecordListNode(ListNode[AutodRecordItemNode]):
         depth: int | str = 2,
         fields: list[str] | None = None,
     ) -> list[ioa_rpc.AutodRecordItem]:
-        from ..data_models.ioa_rpc import AutodRecordItem
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import AutodRecordItem
 
         resp = self._retrieve(content=content, with_defaults=with_defaults, depth=depth, fields=fields)
         return [AutodRecordItem.model_validate(item) for item in resp]
@@ -2204,7 +2297,11 @@ class AutoDiscoveryNode(Node):
     def __call__(
         self, input_data: ioa_rpc.AutoDiscoveryInput | dict | str | None = None, **kwargs: Any
     ) -> ioa_rpc.AutoDiscoveryOutput:
-        from ..data_models.ioa_rpc import AutoDiscovery, AutoDiscoveryInput, AutoDiscoveryOutput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_rpc import (
+            AutoDiscovery,
+            AutoDiscoveryInput,
+            AutoDiscoveryOutput,
+        )
 
         if input_data is None:
             input_data = AutoDiscoveryInput(**kwargs)

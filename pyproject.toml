@@ -98,6 +98,7 @@ unused-ignore-comment = "error"
 unused-type-ignore-comment = "error"
 
 [tool.ruff]
+src = ["src"]
 exclude = [
     "venv",
     ".venv",
@@ -209,7 +210,7 @@ ban-relative-imports = "all"
 
 [tool.ruff.lint.isort]
 known-third-party = ["pydantic", "migrations"]
-known-first-party = ["test", "docs"]
+known-first-party = ["orchestrator", "test", "docs"]
 
 [tool.pytest.ini_options]
 addopts = "-m 'not db'"

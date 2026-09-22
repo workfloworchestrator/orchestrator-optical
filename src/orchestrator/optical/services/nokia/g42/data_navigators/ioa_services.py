@@ -2,17 +2,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._base import Node
+from orchestrator.optical.services.nokia.g42.data_navigators._base import Node
 
 if TYPE_CHECKING:
-    from ..data_models import ioa_services
+    from orchestrator.optical.services.nokia.g42.data_models import ioa_services
 
 
 class CreateXconNode(Node):
     """Navigator for RPC create-xcon"""
 
     def __call__(self, input_data: ioa_services.CreateXconInput | dict | str | None = None, **kwargs: Any) -> None:
-        from ..data_models.ioa_services import CreateXcon, CreateXconInput
+        from orchestrator.optical.services.nokia.g42.data_models.ioa_services import CreateXcon, CreateXconInput
 
         if input_data is None and kwargs:
             input_data = {k.replace("_", "-"): v for k, v in kwargs.items()}
