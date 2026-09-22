@@ -20,7 +20,6 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as g30_node
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import port as g30_port
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import transponder as g30_transponder
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import g30_ids_from_port_name
-from orchestrator.optical.hal.adapters.nokia_groove_g30.node import _get_eth1_details
 from orchestrator.optical.hal.adapters.nokia_groove_g30.port import _g30_aid_id, _g30_port_role
 from orchestrator.optical.hal.adapters.nokia_groove_g30.transponder import (
     _client_speed_config,
@@ -154,27 +153,6 @@ def test_g30_port_role_non_occ2_card_ports_1_and_2_are_transponder_line(port_id:
 def test_g30_port_role_non_occ2_other_ports_are_transponder_client() -> None:
     role = _g30_port_role(is_occ2=False, is_card_port=True, port_id=3, port_name="port-1/2/3", ots_ids=set())
     assert role is OpticalPortRole.TRANSPONDER_CLIENT
-
-
-def test_get_eth1_details_without_ip() -> None:
-    assert _get_eth1_details(None) == (None, None, False, 0)
-
-
-@pytest.mark.parametrize(
-    ("eth1_ip", "expected"),
-    [
-        ("10.127.5.10", ("eth1", "10.127.5.1", True, 24)),
-        ("172.16.5.10", ("eth1", "172.16.5.1", True, 24)),
-        ("10.10.5.10", ("eth1", "10.10.5.9", False, 30)),
-    ],
-)
-def test_get_eth1_details_derives_gateway_and_prefix(eth1_ip: str, expected: tuple[str, str, bool, int]) -> None:
-    assert _get_eth1_details(eth1_ip) == expected
-
-
-def test_get_eth1_details_rejects_out_of_range_ip() -> None:
-    with pytest.raises(ValueError, match="Invalid management IP"):
-        _get_eth1_details("192.168.1.1")
 
 
 @pytest.mark.parametrize(

@@ -28,7 +28,6 @@ from orchestrator.optical.hal.node import (
     retrieve_optical_node_role_and_software_version,
     retrieve_ports_spectral_occupations,
     retrieve_software_version,
-    validate_management_network_config,
 )
 from orchestrator.optical.hal.port import (
     check_fiber_terminating_port,
@@ -104,7 +103,6 @@ __all__ = [
     "set_optical_circuit_label",
     "set_port_admin_state",
     "set_port_description",
-    "validate_management_network_config",
     "validate_optical_circuit",
     "validate_trx_client",
     "validate_trx_crossconnect",

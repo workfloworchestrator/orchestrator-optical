@@ -123,10 +123,6 @@ _NODE_UNSUPPORTED_CALLS = [
         lambda block: hal_node.retrieve_ports_spectral_occupations(block),
         id="retrieve_ports_spectral_occupations",
     ),
-    pytest.param(
-        lambda block: hal_node.validate_management_network_config(block),
-        id="validate_management_network_config",
-    ),
 ]
 
 
@@ -269,11 +265,6 @@ def test_retrieve_ports_spectral_occupations_is_empty_for_g30_and_g42(node_facto
     assert hal_node.retrieve_ports_spectral_occupations(node_factory()) == {}
 
 
-def test_validate_management_network_config_is_noop_for_flexils_and_g42() -> None:
-    assert hal_node.validate_management_network_config(_flexils_node()) is None
-    assert hal_node.validate_management_network_config(_g42_node()) is None
-
-
 def test_retrieve_transceiver_modes_is_empty_for_flexils() -> None:
     assert hal_port.retrieve_transceiver_modes(_flexils_node(), "port-1") == []
 
@@ -409,14 +400,6 @@ def test_retrieve_ports_spectral_occupations_dispatches_to_flexils(monkeypatch: 
     block = _flexils_node()
 
     assert hal_node.retrieve_ports_spectral_occupations(block) == {"port-1": [(1, 2)]}
-    assert recorder.calls == [((block,), {})]
-
-
-def test_validate_management_network_config_dispatches_to_g30(monkeypatch: pytest.MonkeyPatch) -> None:
-    recorder = _patch(monkeypatch, g30_node, "validate_management_network_config")
-    block = _g30_node()
-
-    assert hal_node.validate_management_network_config(block) is None
     assert recorder.calls == [((block,), {})]
 
 

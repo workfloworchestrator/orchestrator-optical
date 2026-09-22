@@ -1,16 +1,14 @@
-"""Node-area HAL: client/discovery access and the node-level retrieve/validate dispatchers.
+"""Node-area HAL: client/discovery access and the node-level retrieve dispatchers.
 
 The client factories and the FlexILS SNE discovery logic live in the per-device
 adapters (see :mod:`orchestrator.optical.hal.adapters`); this module re-exports
-the client factories and provides the vendor-dispatching retrieve/validate
+the client factories and provides the vendor-dispatching retrieve
 operations, routing with ``match/case`` on the node's vendor and platform.
 """
 
 from __future__ import annotations
 
 from typing import Any
-
-from structlog import get_logger
 
 from orchestrator.optical.hal._common import (
     UnsupportedPlatformError,
@@ -35,8 +33,6 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 from orchestrator.optical.services.nokia import G30Client, G42Client
 from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
 
-logger = get_logger(__name__)
-
 __all__ = [
     "FlexilsGneProvider",
     "discover_flexils_node",
@@ -48,7 +44,6 @@ __all__ = [
     "retrieve_optical_node_role_and_software_version",
     "retrieve_ports_spectral_occupations",
     "retrieve_software_version",
-    "validate_management_network_config",
 ]
 
 
@@ -179,27 +174,4 @@ def retrieve_ports_spectral_occupations(
             return {}
         case _:
             msg = f"retrieve_ports_spectral_occupations: {type(optical_node_block).__name__}"
-            raise UnsupportedPlatformError(msg)
-
-
-def validate_management_network_config(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> None:
-    """Check the network configuration of a given Optical Node.
-
-    Args:
-        optical_node_block: The Optical Node block for which the network configuration is to be checked.
-
-    Raises:
-        ValueError: If the network configuration does not meet the expected criteria.
-        UnsupportedPlatformError: If the vendor/platform combination is not supported.
-    """
-    match _vendor_platform(optical_node_block):
-        case (Vendor.NOKIA, Platform.FLEXILS):
-            msg = "Not yet implemented for FlexILS"
-            logger.warning(msg)
-        case (Vendor.NOKIA, Platform.GROOVE_G30):
-            groove_g30.validate_management_network_config(_as_g30_block(optical_node_block))
-        case (Vendor.NOKIA, Platform.GX_G42):
-            pass
-        case _:
-            msg = f"validate_management_network_config: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
