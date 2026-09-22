@@ -329,9 +329,10 @@ def _node_instance_id_by_fqdn(fqdn: str, line_number: int) -> str:
 def _check_span_nodes(node_a_instance_id: str, node_b_instance_id: str, line_number: int) -> None:
     """Enforce the fiber span endpoint rules on two resolved nodes.
 
-    A span is OLS-line only and same-vendor by policy: only ROADM /
-    OADM-capable nodes can terminate one (plain-transponder nodes, including
-    the GX G42, cannot), and the two ends must share vendor and platform.
+    A span is OLS-line only and same-vendor by policy: only line-system nodes
+    (ROADM / OADM-capable plus amplifiers) can terminate one
+    (plain-transponder nodes, including the GX G42, cannot), and the two ends
+    must share vendor and platform.
 
     Args:
         node_a_instance_id: Subscription instance id of the node block hosting end A.

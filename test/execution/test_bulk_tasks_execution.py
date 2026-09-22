@@ -18,12 +18,18 @@ from orchestrator.core.db import SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.db import node_block_from_instance
 from orchestrator.optical.products import ProductName
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30Block
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
-from test.support.devices import FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
+from test.support.devices import (
+    FAKE_CLIENT_PORTS,
+    FAKE_LINE_PORTS,
+    FAKE_SOFTWARE_VERSION,
+    _fake_retrieve_optical_node_role_and_software_version,
+)
 from test.support.topology import _flexils_gmpls_id
 
 pytestmark = pytest.mark.db
@@ -126,3 +132,64 @@ def test_bulk_create_optical_pipes(
         CLIENT_PORT,
         CLIENT_PORT,
     ]
+
+
+def test_bulk_create_optical_pipes_amplifier_spans(
+    run_process,
+    assert_process_completed,
+    seed_optical_node,
+    stub_pipe_device,
+    monkeypatch,
+) -> None:
+    """The bulk pipes task accepts amplifier span endpoints: ROADM↔ILA and ILA↔ILA.
+
+    ILA nodes are seeded through the real FlexILS create workflow with the
+    discovery stub reporting the Amplifier role for their FQDNs, so the roles
+    are persisted exactly as a real OLA/OA discovery would store them.
+    """
+    original_retrieve = _fake_retrieve_optical_node_role_and_software_version
+
+    def _retrieve_with_amplifiers(block: Any, *args: Any, **kwargs: Any) -> tuple[str, str]:
+        fqdn = str(block.management.optical_module_node_fqdn)
+        if "ila-" in fqdn:
+            return ("Amplifier", FAKE_SOFTWARE_VERSION)
+        return original_retrieve(block, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "test.support.devices._fake_retrieve_optical_node_role_and_software_version", _retrieve_with_amplifiers
+    )
+
+    roadm = seed_optical_node(FLEXILS_PRODUCT, "bulk-roadm.optical.test", "10.9.1.21")
+    ila_1 = seed_optical_node(FLEXILS_PRODUCT, "bulk-ila-1.optical.test", "10.9.1.22")
+    ila_2 = seed_optical_node(FLEXILS_PRODUCT, "bulk-ila-2.optical.test", "10.9.1.23")
+    ila_3 = seed_optical_node(FLEXILS_PRODUCT, "bulk-ila-3.optical.test", "10.9.1.24")
+    blocks = {
+        fqdn: node_block_from_instance(node_instance_id_of_subscription(subscription_id))
+        for fqdn, subscription_id in (
+            ("bulk-roadm.optical.test", roadm),
+            ("bulk-ila-1.optical.test", ila_1),
+            ("bulk-ila-2.optical.test", ila_2),
+            ("bulk-ila-3.optical.test", ila_3),
+        )
+    }
+    assert blocks["bulk-roadm.optical.test"].optical_node_role == OpticalNodeRole.ROADM
+    for fqdn in ("bulk-ila-1.optical.test", "bulk-ila-2.optical.test", "bulk-ila-3.optical.test"):
+        assert blocks[fqdn].optical_node_role == OpticalNodeRole.AMPLIFIER
+
+    csv_data = (
+        "pipe_type,node_a_fqdn,port_a_name,node_b_fqdn,port_b_name,optical_pipe_name,provider_name\n"
+        f"Span,bulk-roadm.optical.test,{LINE_PORT},bulk-ila-1.optical.test,{LINE_PORT},bulk-amp-span-01,\n"
+        f"Span,bulk-ila-2.optical.test,{LINE_PORT},bulk-ila-3.optical.test,{LINE_PORT},bulk-amp-span-02,\n"
+    )
+    process_id = run_process("bulk_create_optical_pipes", _bulk_user_inputs(csv_data))
+    assert_process_completed(process_id)
+
+    for pipe_name in ("bulk-amp-span-01", "bulk-amp-span-02"):
+        span_ids = _active_subscription_ids_by_description_prefix(pipe_name)
+        assert len(span_ids) == 1
+        with core_db.db.database_scope():
+            span = OpticalFiberSpanSubscription.from_subscription(span_ids[0])
+        assert [port.optical_port_name for port in span.optical_pipe.optical_pipe_terminations] == [
+            LINE_PORT,
+            LINE_PORT,
+        ]

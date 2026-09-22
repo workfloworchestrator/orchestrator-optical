@@ -21,6 +21,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import Workflow, begin
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow, modify_workflow, terminate_workflow, validate_workflow
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
@@ -434,3 +435,36 @@ def test_pipe_nodes_form_enforces_span_same_vendor_and_patch_same_node(monkeypat
     distinct_form = pipe_shared.pipe_nodes_form("Leased", _fake_node_choice(), _fake_node_choice())
     with pytest.raises(ValueError, match="different nodes"):
         distinct_form(node_a_instance_id="node-a", node_b_instance_id="node-a")
+
+
+def test_span_node_roles_include_amplifiers() -> None:
+    """Spans offer ROADM, xOADM and amplifier line-system nodes — never plain transponders."""
+    assert OpticalNodeRole.ROADM in pipe_shared.SPAN_NODE_ROLES
+    assert OpticalNodeRole.TRANSPONDER_XOADM in pipe_shared.SPAN_NODE_ROLES
+    assert OpticalNodeRole.AMPLIFIER in pipe_shared.SPAN_NODE_ROLES
+    assert OpticalNodeRole.TRANSPONDER not in pipe_shared.SPAN_NODE_ROLES
+
+
+def test_create_span_form_pages_offer_amplifier_nodes(monkeypatch) -> None:
+    """The span node selector is built from SPAN_NODE_ROLES, so ILA nodes are offered as endpoints."""
+    captured_roles: list[list[OpticalNodeRole]] = []
+
+    def _capturing_node_choice(roles: list[OpticalNodeRole], *args: Any, **kwargs: Any) -> type[Choice]:
+        captured_roles.append(list(roles))
+        return _fake_node_choice()
+
+    monkeypatch.setattr(pipe_shared, "optical_node_selector_of_roles", _capturing_node_choice)
+    monkeypatch.setattr(pipe_shared, "node_block_from_instance", _fake_node_block_from_instance)
+    monkeypatch.setattr(pipe_shared, "optical_port_selector", _fake_port_choice)
+
+    generator = fiber_span_create.create_fiber_span_form_pages("Optical Fiber Span")
+    page_1 = next(generator)
+    page_2 = generator.send(page_1(node_a_instance_id="node-a", node_b_instance_id="node-b"))
+    finish_form(
+        generator,
+        page_2(optical_pipe_name="span-01", port_a_name="port-a-1", port_b_name="port-b-1"),
+    )
+
+    assert len(captured_roles) == 2
+    for roles in captured_roles:
+        assert OpticalNodeRole.AMPLIFIER in roles

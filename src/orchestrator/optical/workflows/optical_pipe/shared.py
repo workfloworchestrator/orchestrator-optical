@@ -80,11 +80,13 @@ PORT_BLOCK_CLASS_BY_ROLE: dict[OpticalPortRole, type[AbstractOpticalPortBlockIna
     OpticalPortRole.TRANSPONDER_LINE: OpticalTransponderLinePortBlockInactive,
 }
 
-#: Optical Node roles a fiber span can terminate on: line-system nodes with OADM
-#: capability (FlexILS ROADMs and OADM-capable Groove G30 nodes). A span is OLS
-#: line only and, by policy, same-vendor; plain-transponder nodes (including
-#: the GX G42) are not offered as span endpoints.
-SPAN_NODE_ROLES = [OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER_XOADM]
+#: Optical Node roles a fiber span can terminate on: line-system nodes
+#: (FlexILS ROADMs and OLA/OA amplifiers, OADM-capable Groove G30 nodes).
+#: A span is OLS line only and, by policy, same-vendor; plain-transponder
+#: nodes (including the GX G42) are not offered as span endpoints. Both
+#: ROADM↔amplifier and amplifier↔amplifier spans are allowed: amplifiers are
+#: transit segments of longer ROADM-to-ROADM paths.
+SPAN_NODE_ROLES = [OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER_XOADM, OpticalNodeRole.AMPLIFIER]
 
 #: Optical Node roles a fiber patch or leased spectrum can terminate on: the
 #: footprint of the shipped node products (amplifiers and packet nodes stay
@@ -773,7 +775,8 @@ def create_pipe_form_pages(
     the two-nodes page and the terminations page, and returns the collected user
     input as a flat dict of the ``optical_*`` state keys, consumed by the shipped
     construct step. The pipe type drives the per-family differences: the node
-    endpoints offered (a fiber span only offers ROADM / OADM-capable nodes and
+    endpoints offered (a fiber span only offers line-system nodes (ROADM /
+    OADM-capable plus amplifiers) and
     requires the two nodes to be of the same vendor/platform, a fiber patch allows
     the two ends to be on the same node) and the device ports offered as terminations (the pipe's
     Optical Port roles on the node, see :func:`pipe_port_roles`). The terminations
