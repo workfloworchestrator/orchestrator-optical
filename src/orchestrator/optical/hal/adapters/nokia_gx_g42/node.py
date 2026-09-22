@@ -12,6 +12,9 @@ logger = get_logger(__name__)
 def software_version(node: NokiaGxG42BlockProvisioning) -> str:
     """Retrieve the software version of a GX G42 node from the device via RESTCONF.
 
+    Reads the active software load directly at
+    ``/restconf/data/ioa-network-element:ne/system/sw-management/software-load=active``.
+
     Args:
         node: The GX G42 node block.
 
@@ -19,19 +22,11 @@ def software_version(node: NokiaGxG42BlockProvisioning) -> str:
         The software version of the node.
 
     Raises:
-        ValueError: If no firmware version can be found on the node.
+        ValueError: If the active software load has no version.
     """
     g42 = get_g42_client(node)
-    chassis_items = g42.data.ne.equipment.chassis.retrieve(depth=2)
-    controller = next((c for c in chassis_items if c.is_node_controller), None)
-    if controller is None and chassis_items:
-        controller = chassis_items[0]
-    if controller is None:
-        msg = "No chassis found to retrieve the software version of the GX G42 node"
-        raise ValueError(msg)
-
-    current_fw = g42.data.ne.equipment.chassis(controller.name).inventory.current_fw.retrieve(content="all", depth=2)
-    version = next((item.fw_version for item in current_fw if item.fw_version is not None), None)
+    active = g42.data.ne.system.sw_management.software_load("active").retrieve(depth=2)
+    version = active.swload_version
     if version is None:
         msg = f"No current firmware version found on GX G42 node {g42.url}"
         raise ValueError(msg)

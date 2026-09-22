@@ -154,37 +154,25 @@ def test_derive_optical_channel_key_rejects_invalid_coupled_lines() -> None:
 # --------------------------------------------------------------------------- node
 
 
-def _chassis_client(chassis_items: list[Any], fw_items: list[Any]) -> Any:
-    current_fw = SimpleNamespace(retrieve=lambda **_: fw_items)
-    chassis_child = SimpleNamespace(inventory=SimpleNamespace(current_fw=current_fw))
-    chassis = _Nav(child=chassis_child, retrieve=lambda **_: chassis_items)
-    return _equipment_client(chassis=chassis)
+def _software_client(active: Any) -> Any:
+    endpoint = SimpleNamespace(retrieve=lambda **_: active)
+    return SimpleNamespace(
+        url="https://g42.example.net",
+        data=SimpleNamespace(
+            ne=SimpleNamespace(
+                system=SimpleNamespace(sw_management=SimpleNamespace(software_load=_Nav(child=endpoint)))
+            )
+        ),
+    )
 
 
-def test_g42_software_version_returns_the_controller_firmware(monkeypatch: pytest.MonkeyPatch) -> None:
-    controllers = [
-        SimpleNamespace(name="other", is_node_controller=False),
-        SimpleNamespace(name="ctrl", is_node_controller=True),
-    ]
-    _patch_g42_client(monkeypatch, _chassis_client(controllers, [SimpleNamespace(fw_version="22.1")]))
+def test_g42_software_version_returns_the_active_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_g42_client(monkeypatch, _software_client(SimpleNamespace(swload_version="22.1")))
     assert g42_node.software_version(SimpleNamespace()) == "22.1"
 
 
-def test_g42_software_version_falls_back_to_the_first_chassis(monkeypatch: pytest.MonkeyPatch) -> None:
-    chassis = [SimpleNamespace(name="ctrl", is_node_controller=False)]
-    _patch_g42_client(monkeypatch, _chassis_client(chassis, [SimpleNamespace(fw_version="22.2")]))
-    assert g42_node.software_version(SimpleNamespace()) == "22.2"
-
-
-def test_g42_software_version_raises_without_a_chassis(monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_g42_client(monkeypatch, _chassis_client([], []))
-    with pytest.raises(ValueError, match="No chassis found"):
-        g42_node.software_version(SimpleNamespace())
-
-
-def test_g42_software_version_raises_without_firmware(monkeypatch: pytest.MonkeyPatch) -> None:
-    chassis = [SimpleNamespace(name="ctrl", is_node_controller=True)]
-    _patch_g42_client(monkeypatch, _chassis_client(chassis, [SimpleNamespace(fw_version=None)]))
+def test_g42_software_version_raises_without_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_g42_client(monkeypatch, _software_client(SimpleNamespace(swload_version=None)))
     with pytest.raises(ValueError, match="No current firmware version found"):
         g42_node.software_version(SimpleNamespace())
 
