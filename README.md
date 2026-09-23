@@ -6,16 +6,6 @@ The WFO Optical Module is a Python module that can be installed as a dependency 
 [WFO](https://workfloworchestrator.org) users that want to integrate with their optical equipment. This project is
 built on top of [`orchestrator-core`](https://github.com/workfloworchestrator/orchestrator-core).
 
-## Optical pipes
-
-A pipe links two Optical Node ports into a usable path. The module ships three kinds of pipe:
-
-- **Fiber span** (`fiber_span`) — a physical fiber segment between two line ports. Both ends must be on the same
-  vendor and platform (Nokia FlexILS or Nokia Groove G30); a span is not terminated on a Nokia GX G42.
-- **Fiber patch** (`fiber_patch`) — a short fiber or patch cord between two ports; the two ends may be on the same node.
-- **Leased spectrum** (`leased_spectrum`) — spectrum leased from a third-party provider, typically a cross-vendor
-  connection (a FlexILS add/drop port or a transponder line port facing the provider).
-
 ## Installation
 
 To use the models and services from this module, you will need to make some changes to your local implementation of the
@@ -244,42 +234,145 @@ You are invited to duplicate the information saved in the shipped blocks also in
 and to use thin "anti-corruption" wiring code that links your custom fields to the shipped fields (e.g. using `computed_fields`).
 This way the changes to this module's domain models will always be clearly decoupled from your models and your logic.
 
-For example, if you already have subscriptions to manage your routers and you want to use this module (that needs
-to access the routers to configure the optical coherent pluggables), then you must add the `OpticalModulePacketNodeBlock` block
-to your existing `RouterBlock`:
+#### Worked example: preexisting `ConsumerSiteBlock` / `ConsumerRouterBlock` (two-phase backfill)
+
+Starting point — consumer already has these in production, many ACTIVE instances:
 
 ```python
-# in your product_blocks/ dir 
+# consumer product_blocks/site.py
+class ConsumerSiteBlockInactive(ProductBlockModel, product_block_name="ConsumerSiteBlock"):
+    site_name: str | None = None
+    netbox_id: int | None = None          # coordinates live in NetBox, not in the DB
+
+# consumer product_blocks/router.py
+class ConsumerRouterBlockInactive(ProductBlockModel, product_block_name="ConsumerRouterBlock"):
+    hostname: str | None = None           # e.g. "Router1.Example.COM"
+    ip_address: str | None = None         # e.g. "10.0.0.1"
+    site: ConsumerSiteBlockInactive               # nested reference to the site
+```
+
+Target — composition, never inheritance. Each chain redeclares every field it inherits:
+
+```python
+# consumer product_blocks/site.py — Site 1:1 OpticalModuleLocation (owned)
+from orchestrator.optical.products.product_blocks.optical_location import (
+    OpticalModuleLocationBlock,
+    OpticalModuleLocationBlockInactive,
+    OpticalModuleLocationBlockProvisioning,
+)
+
+class ConsumerSiteBlockInactive(ProductBlockModel, product_block_name="ConsumerSiteBlock"):
+    site_name: str | None = None
+    netbox_id: int | None = None
+    field_for_the_optical_module: OpticalModuleLocationBlockInactive  # owned, 1:1 with the site
+
+class ConsumerSiteBlockProvisioning(ConsumerSiteBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    site_name: str
+    netbox_id: int | None
+    field_for_the_optical_module: OpticalModuleLocationBlockProvisioning
+
+class ConsumerSiteBlock(ConsumerSiteBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    site_name: str
+    netbox_id: int | None
+    field_for_the_optical_module: OpticalModuleLocationBlock
+```
+
+```python
+# consumer product_blocks/router.py — Router 1:1 OpticalModulePacketNode (owned),
+# its location is a FOREIGN reference to the OpticalModuleLocationBlock from Phase 1
 from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
     OpticalModulePacketNodeBlock,
     OpticalModulePacketNodeBlockInactive,
     OpticalModulePacketNodeBlockProvisioning,
 )
 
-class RouterBlockInactive(ProductBlockModel, product_block_name="RouterBlock"):
-    field1: str | None = None
-    # ...
-    # you must add this block
-    optical_module_block: OpticalModulePacketNodeBlockInactive
+class ConsumerRouterBlockInactive(ProductBlockModel, product_block_name="ConsumerRouterBlock"):
+    hostname: str | None = None
+    ip_address: str | None = None
+    site: ConsumerSiteBlockInactive
+    field_for_the_optical_module: OpticalModulePacketNodeBlockInactive  # owned; role fixed to IPODWDM
 
-class RouterBlockProvisioning(RouterBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
-    field1: str
-    optical_module_block: OpticalModulePacketNodeBlockProvisioning
+class ConsumerRouterBlockProvisioning(ConsumerRouterBlockInactive, lifecycle=[SubscriptionLifecycle.PROVISIONING]):
+    hostname: str
+    ip_address: str | None
+    site: ConsumerSiteBlockProvisioning
+    field_for_the_optical_module: OpticalModulePacketNodeBlockProvisioning
 
-class RouterBlock(RouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
-    field1: str
-    optical_module_block: OpticalModulePacketNodeBlock
+class ConsumerRouterBlock(ConsumerRouterBlockProvisioning, lifecycle=[SubscriptionLifecycle.ACTIVE]):
+    hostname: str
+    ip_address: str | None
+    site: ConsumerSiteBlock
+    field_for_the_optical_module: OpticalModulePacketNodeBlock
+```
+
+Phase 1 — sites to shared locations:
+
+```python
+# inside a dedicated backfilling task...
+for site_sub in consumer_site_subscriptions(ACTIVE):
+    consumer = ConsumerSiteSub.from_subscription(site_sub.subscription_id)
+    code = slugify(consumer.site.site_name)
+    coords = netbox.get_coordinates(consumer.site.netbox_id)
+    populate_optical_module_location_block(
+        optical_module_block=consumer.site.for_the_optical_module,
+        longitude=coords.lon, latitude=coords.lat,
+        location_code=code, location_name=consumer.site.site_name)
+    ConsumerSiteSubProvisioning.from_other_lifecycle(consumer, PROVISIONING).save()  # one tree save
+# Exit gate before Phase 2: every ACTIVE site has exactly one ACTIVE location.
+```
+
+Phase 2 — routers to packet nodes (requires the Phase 1 map; idempotent on router subscription):
+
+```python
+for router_sub in consumer_router_subscriptions(ACTIVE):
+    consumer_sub = ConsumerRouterSub.from_subscription(router_sub.subscription_id)
+    loc_id = consumer_sub.router.site.field_for_the_optical_module.subscription_instance_id
+    fqdn = consumer_sub.router.hostname + "example.com"
+    if consumer_sub.router.ip_address.startswith("10.42."):
+        loopback_ip = consumer_sub.router.ip_address
+        intf_ip = None
+    else:
+        loopback_ip = None
+        intf_ip = consumer_sub.router.ip_address
+    vendor = VENDOR_POLICY.get(consumer_sub.router.hostname)
+    platform = PLATFORM_POLICY.get(consumer_sub.router.hostname)
+
+    populate_abstract_optical_node_fields(                    # shipped function
+        consumer_sub.router.for_the_optical_module, location_instance_id=loc_id,
+        optical_module_node_fqdn=fqdn,
+        optical_module_node_dcn_loopback_ip=loopback_ip,
+        optical_module_node_dcn_interface_ip=intf_ip,
+        optical_module_node_vendor=vendor,
+        optical_module_node_platform=platform
+    )
+    validate_optical_node_management_fields_uniqueness(
+        optical_module_node_fqdn=fqdn,
+        optical_module_node_dcn_loopback_ip=loopback_ip,
+        optical_module_node_dcn_interface_ip=intf_ip,
+        exclude_subscription_id=own_id
+    )
+
+    consumer_sub.save()
+```
+
+Ongoing propagation (consumer workflows, same two spots every time):
+
+```python
+# consumer workflows/router/*_router.py
+...
+>> forward_sync_from_consumer_router_to_optical_packet_node # consumer anti-corruption layer
+>> *_PACKET_NODE_BLOCK_STEPS # shipped in the optical module
+>> backward_sync_from_optical_packet_node_to_consumer_router # consumer anti-corruption layer
+...
 ```
 
 The shipped workflows of path 1 are not reusable here — they are bound to the shipped subscription models. Thus, you
 compose your own workflows from the shipped **parts**: the importable page sequences (`*_form_pages`) and the step
 lists (`*_BLOCK_STEPS`). Form generators (`*_form_generator`) are shipped-workflow-only and are never reused. The shipped
 block steps never know your model: they bind to the state key `optical_module_block` (see "State contract" below), so
-you wire your block into the state and back out of it — that is the thin anti-corruption wiring:
-
-```python
-# TODO: provide example of create workflow using the shipped form pages and steps.
-```
+you wire your block into the state and back out of it — that is the thin anti-corruption wiring.
+The worked `ConsumerSiteBlock` / `ConsumerRouterBlock` example above is a reference: forward sync (consumer's block -> 
+module's block) runs before `*_BLOCK_STEPS`, backward sync (module's block -> consumer's block) copies back after `*_BLOCK_STEPS`.
 
 Notes:
 
@@ -322,9 +415,9 @@ Notes:
   ```
 - How much of your own information you keep is up to you: you can mirror your own fields into the shipped block (a
   thin anti-corruption layer, representing some information twice — in your shape and in the shipped block) or store
-  everything in the shipped block only. Both are the same consumption path with different amounts of duplication and coupling;
-  the transformation logic of the anti-corruption layer is yours to write and maintain. **The module never depends on
-  your model: it only sees the shipped block.**
+  everything in the shipped block only. Both are the same consumption path with different amounts of duplication and coupling. If you mirror, follow the worked example above: backfill the `for_the_optical_module` field using a dedicated task, forward sync (consumer's block -> module's block) runs before
+  `*_BLOCK_STEPS`, backward sync (module's block -> consumer's block) copies back after `*_BLOCK_STEPS`. 
+  **The transformation and syncing logic of the anti-corruption layer is yours to write and maintain**. The module never depends on your model: it only sees the shipped block.
 
 ## State contract
 
