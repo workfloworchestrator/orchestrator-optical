@@ -87,8 +87,6 @@ exclude = [
     "test",
     "scripts",
     "src/orchestrator/optical/services",
-    # Pre-existing ty diagnostics in the form/selector helpers (see AGENTS.md).
-    "src/orchestrator/optical/workflows/shared.py"
 ]
 
 [tool.ty.rules]
@@ -260,8 +258,6 @@ project-excludes = [
     "test/**",
     "scripts/**",
     "src/orchestrator/optical/services/**",
-    # Pre-existing diagnostics in the form/selector helpers (see AGENTS.md).
-    "src/orchestrator/optical/workflows/shared.py",
 ]
 
 [[tool.pyrefly.sub-config]]

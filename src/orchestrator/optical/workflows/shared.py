@@ -10,9 +10,9 @@ from typing import Any, cast
 
 from pydantic import ConfigDict
 from pydantic_forms.core import FormPage
+from pydantic_forms.types import SummaryData
 from pydantic_forms.validators import (
     Choice,
-    MigrationSummary,
     choice_list,
     migration_summary,
 )
@@ -60,13 +60,13 @@ def merge_summary_fields(
     return summary_fields + list(extra_summary_fields)
 
 
-def summary_form(product_name: str, summary_data: dict) -> Generator:
+def summary_form(product_name: str, summary_data: SummaryData) -> Generator:
     """Generate a summary form for the product."""
 
     class SummaryForm(FormPage):
         model_config = ConfigDict(title=f"{product_name} summary")
 
-        product_summary: cast(type[MigrationSummary], migration_summary(summary_data))  # type: ignore[valid-type]
+        product_summary: migration_summary(summary_data)  # type: ignore[valid-type]
 
     yield SummaryForm
 
@@ -79,7 +79,7 @@ def create_summary_form(
 ) -> Generator:
     """Create a summary form for the product."""
     fields = merge_summary_fields(fields, extra_summary_fields, user_input)
-    columns = [[str(user_input[nm]) for nm in fields]]
+    columns: list[list[str | int | bool | float]] = [[str(user_input[nm]) for nm in fields]]
     yield from summary_form(product_name, {"labels": fields, "columns": columns})
 
 
@@ -102,7 +102,7 @@ def modify_summary_form(
             "before" column is left empty, as they have no previous value.
     """
     fields = merge_summary_fields(fields, extra_summary_fields, user_input)
-    before = []
+    before: list[str | int | bool | float] = []
     for nm in fields:
         if extra_before and nm in extra_before:
             before.append(extra_before[nm])
@@ -110,9 +110,13 @@ def modify_summary_form(
             before.append(str(getattr(block, nm)))
         else:
             before.append("")
-    after = [str(user_input[nm]) for nm in fields]
+    after: list[str | int | bool | float] = [str(user_input[nm]) for nm in fields]
+    subscription = block.subscription
+    if subscription is None:
+        msg = f"Block {block.subscription_instance_id} has no subscription"
+        raise ValueError(msg)
     yield from summary_form(
-        block.subscription.product.name,
+        subscription.product.name,
         {
             "labels": fields,
             "headers": ["Before", "After"],
@@ -199,7 +203,7 @@ def active_blocks_of_type_depending_on_other_block_selector(
     prompt: str | None = None,
 ) -> type[Choice]:
     """."""
-    subscription_instance_id = depending_on_product_block.subscription_instance_id
+    subscription_instance_id = str(depending_on_product_block.subscription_instance_id)
     subscription_instance_values = subscription_instance_values_by_block_type_depending_on_instance_id(
         product_block_type=product_block_type,
         resource_type=sort_product_blocks_by_attribute_name,

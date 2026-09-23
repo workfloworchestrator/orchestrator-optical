@@ -230,7 +230,6 @@ uv build                        # package build
 
 - `services/nokia/{g30,g42}/data_models|data_navigators/*` — auto-generated YANG models, tens of thousands of
   ruff/ty findings; never edit manually.
-- `workflows/shared.py` — pre-existing ty diagnostics in the form/selector helpers (committed file).
 - `ARG001` on terminate-form `customer_id`/`subscription` params in stub steps.
 
 ### Current status (branch `porting/workflows`)
