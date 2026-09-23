@@ -1,0 +1,140 @@
+from __future__ import annotations
+
+import logging
+import socket
+from typing import Any
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3 import PoolManager
+
+from orchestrator.optical.settings import get_settings, parse_verify
+
+log = logging.getLogger(__name__)
+log.addHandler(logging.NullHandler())
+
+
+class TCPKeepAliveAdapter(HTTPAdapter):
+    def __init__(self, idle=60, interval=60, count=6, **kwargs):
+        self._idle = idle
+        self._interval = interval
+        self._count = count
+        super().__init__(**kwargs)
+
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):  # noqa: FBT002
+        pool_kwargs["socket_options"] = self._socket_options()
+        self.poolmanager = PoolManager(
+            num_pools=connections,
+            maxsize=maxsize,
+            block=block,
+            **pool_kwargs,
+        )
+
+    def proxy_manager_for(self, proxy, **proxy_kwargs):
+        proxy_kwargs["socket_options"] = self._socket_options()
+        return super().proxy_manager_for(proxy, **proxy_kwargs)
+
+    def _socket_options(self):
+        options = [
+            (socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1),
+        ]
+
+        if hasattr(socket, "TCP_KEEPIDLE"):
+            options.append((socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, self._idle))
+        if hasattr(socket, "TCP_KEEPINTVL"):
+            options.append((socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, self._interval))
+        if hasattr(socket, "TCP_KEEPCNT"):
+            options.append((socket.IPPROTO_TCP, socket.TCP_KEEPCNT, self._count))
+
+        return options
+
+
+class RestconfClient:
+    """Restconf API client."""
+
+    def __init__(
+        self,
+        loopback_ip: str | None = None,
+        management_ip: str | None = None,
+        port: int = 8181,
+        username: str | None = None,
+        password: str | None = None,
+        verify: bool | str | None = None,  # noqa: FBT001
+    ):
+        self.url = None
+        self.fallback_url = None
+
+        self.urls = []
+        if loopback_ip:
+            self.urls.append(f"https://{loopback_ip}:{port}/restconf")
+        if management_ip:
+            self.urls.append(f"https://{management_ip}:{port}/restconf")
+
+        if not self.urls:
+            msg = "Either loopback_ip or management_ip must be provided"
+            raise ValueError(msg)
+
+        self._session = requests.Session()
+
+        adapter = TCPKeepAliveAdapter(idle=60, interval=60, count=6)
+        self._session.mount("https://", adapter)
+        self._session.mount("http://", adapter)
+
+        self._session.headers.update({"Content-Type": "application/yang-data+json"})
+
+        settings = get_settings()
+        user = username or settings.g30_user
+        pw = password or settings.g30_password
+        if not user or not pw:
+            log.warning("Authentication credentials missing. Set OPTICAL_G30_USER and OPTICAL_G30_PASSWORD.")
+        self._session.auth = (user, pw)
+
+        resolved_verify = parse_verify(verify)
+        if resolved_verify is None:
+            resolved_verify = settings.g30_verify
+        self._session.verify = resolved_verify
+        self._session.trust_env = bool(resolved_verify)
+        if resolved_verify is False:
+            log.warning(
+                "TLS verification is disabled for the G30 RESTCONF client "
+                "(OPTICAL_G30_VERIFY=false). Do not use in production."
+            )
+
+        from orchestrator.optical.services.nokia.g30.data_navigators import Data, Operations  # noqa: PLC0415
+
+        self.data = Data(self, "/data", "")
+        self.operations = Operations(self, "/operations", "")
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> dict:
+        """Make authenticated API request."""
+        errors = []
+
+        for base_url in self.urls:
+            url = base_url + path
+            try:
+                msg = f"Request: {method} {url} {kwargs}"
+                log.info(msg)
+                response = self._session.request(method, url, timeout=(10, 2400), **kwargs)
+
+                msg = f"Response ({response.status_code}): {response.text}"
+                log.info(msg)
+                response.raise_for_status()
+                return response.json() if response.text.strip() else {}
+
+            except (requests.ConnectionError, requests.Timeout) as e:
+                msg = f"Failed to connect to {base_url}: {e}"
+                log.exception(msg)
+                errors.append(e)
+                continue  # Try the next URL in self.urls
+
+            except requests.HTTPError as e:
+                # Capture the response body for debugging before crashing
+                status = e.response.status_code
+                text = e.response.text
+                msg = f"HTTP {status} Error: {text}"
+                log.exception(msg)
+                raise requests.HTTPError(msg, response=e.response) from e
+
+        # If we get here, all URLs failed
+        msg = f"All connection attempts to {self.urls} have failed."
+        raise ExceptionGroup(msg, errors)

@@ -1,0 +1,91 @@
+"""Product Models for Optical services."""
+
+# Copyright 2025-2026 GARR, GÉANT.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from pydantic_forms.types import strEnum
+
+from orchestrator.core.domain import SUBSCRIPTION_MODEL_REGISTRY
+from orchestrator.optical.products.product_types.optical_coherent_pluggable import OpticalCoherentPluggableSubscription
+from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSubscription
+from orchestrator.optical.products.product_types.optical_location import OpticalModuleLocationSubscription
+from orchestrator.optical.products.product_types.optical_node.nokia_flexils import OpticalNodeNokiaFlexIlsSubscription
+from orchestrator.optical.products.product_types.optical_node.nokia_groove_g30 import (
+    OpticalNodeNokiaGrooveG30Subscription,
+)
+from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42Subscription
+from orchestrator.optical.products.product_types.optical_packet_node import OpticalModulePacketNodeSubscription
+from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
+from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
+from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
+from orchestrator.optical.products.product_types.optical_spectrum_service import OpticalSpectrumServiceSubscription
+
+
+class ProductName(strEnum):
+    """An enumerator of all product names defined in `orchestrator-optical`."""
+
+    OPTICAL_COHERENT_PLUGGABLE_CISCO_DP04QSDD_HK9 = "Cisco DP04QSDD HK9 Coherent Pluggable"
+    OPTICAL_COHERENT_PLUGGABLE_CISCO_QDD_400G_ZRP_S = "Cisco QDD 400G ZR+ Coherent Pluggable"
+    OPTICAL_DIGITAL_SERVICE_100G_ETHERNET = "100G Ethernet Optical Digital Service"
+    OPTICAL_DIGITAL_SERVICE_400G_ETHERNET = "400G Ethernet Optical Digital Service"
+    OPTICAL_DIGITAL_SERVICE_800G_ETHERNET = "800G Ethernet Optical Digital Service"
+    OPTICAL_FIBER_PATCH = "Optical Fiber Patch"
+    OPTICAL_FIBER_SPAN = "Optical Fiber Span"
+    OPTICAL_NODE_NOKIA_FLEXILS = "Nokia FlexILS Optical Node"
+    OPTICAL_NODE_NOKIA_GROOVE_G30 = "Nokia Groove G30 Optical Node"
+    OPTICAL_NODE_NOKIA_GX_G42 = "Nokia GX G42 Optical Node"
+    OPTICAL_LEASED_SPECTRUM = "Optical Leased Spectrum"
+    OPTICAL_SPECTRUM = "Optical Spectrum"
+    OPTICAL_MODULE_LOCATION = "Optical Module Location"
+    OPTICAL_MODULE_PACKET_NODE = "Optical Module Packet Node"
+
+
+class ProductType(strEnum):
+    """An enumerator of all available products in `orchestrator-optical`."""
+
+    OPTICAL_COHERENT_PLUGGABLE_CISCO_DP04QSDD_HK9 = OpticalCoherentPluggableSubscription.__name__
+    OPTICAL_COHERENT_PLUGGABLE_CISCO_QDD_400G_ZRP_S = OpticalCoherentPluggableSubscription.__name__
+    OPTICAL_DIGITAL_SERVICE_100G_ETHERNET = OpticalDigitalServiceSubscription.__name__
+    OPTICAL_DIGITAL_SERVICE_400G_ETHERNET = OpticalDigitalServiceSubscription.__name__
+    OPTICAL_DIGITAL_SERVICE_800G_ETHERNET = OpticalDigitalServiceSubscription.__name__
+    OPTICAL_FIBER_PATCH = OpticalFiberPatchSubscription.__name__
+    OPTICAL_FIBER_SPAN = OpticalFiberSpanSubscription.__name__
+    OPTICAL_NODE_NOKIA_FLEXILS = OpticalNodeNokiaFlexIlsSubscription.__name__
+    OPTICAL_NODE_NOKIA_GROOVE_G30 = OpticalNodeNokiaGrooveG30Subscription.__name__
+    OPTICAL_NODE_NOKIA_GX_G42 = OpticalNodeNokiaGxG42Subscription.__name__
+    OPTICAL_LEASED_SPECTRUM = OpticalLeasedSpectrumSubscription.__name__
+    OPTICAL_SPECTRUM = OpticalSpectrumServiceSubscription.__name__
+    OPTICAL_MODULE_LOCATION = OpticalModuleLocationSubscription.__name__
+    OPTICAL_MODULE_PACKET_NODE = OpticalModulePacketNodeSubscription.__name__
+
+
+SUBSCRIPTION_MODEL_REGISTRY.update(
+    {
+        ProductName.OPTICAL_COHERENT_PLUGGABLE_CISCO_DP04QSDD_HK9.value: OpticalCoherentPluggableSubscription,
+        ProductName.OPTICAL_COHERENT_PLUGGABLE_CISCO_QDD_400G_ZRP_S.value: OpticalCoherentPluggableSubscription,
+        ProductName.OPTICAL_DIGITAL_SERVICE_100G_ETHERNET.value: OpticalDigitalServiceSubscription,
+        ProductName.OPTICAL_DIGITAL_SERVICE_400G_ETHERNET.value: OpticalDigitalServiceSubscription,
+        ProductName.OPTICAL_DIGITAL_SERVICE_800G_ETHERNET.value: OpticalDigitalServiceSubscription,
+        ProductName.OPTICAL_FIBER_PATCH.value: OpticalFiberPatchSubscription,
+        ProductName.OPTICAL_FIBER_SPAN.value: OpticalFiberSpanSubscription,
+        ProductName.OPTICAL_NODE_NOKIA_FLEXILS.value: OpticalNodeNokiaFlexIlsSubscription,
+        ProductName.OPTICAL_NODE_NOKIA_GROOVE_G30.value: OpticalNodeNokiaGrooveG30Subscription,
+        ProductName.OPTICAL_NODE_NOKIA_GX_G42.value: OpticalNodeNokiaGxG42Subscription,
+        ProductName.OPTICAL_LEASED_SPECTRUM.value: OpticalLeasedSpectrumSubscription,
+        ProductName.OPTICAL_SPECTRUM.value: OpticalSpectrumServiceSubscription,
+        ProductName.OPTICAL_MODULE_LOCATION.value: OpticalModuleLocationSubscription,
+        ProductName.OPTICAL_MODULE_PACKET_NODE.value: OpticalModulePacketNodeSubscription,
+    }
+)
+
+
+__all__ = ["ProductName", "ProductType"]

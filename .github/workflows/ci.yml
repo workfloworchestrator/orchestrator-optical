@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - "**.md"
+      - "todo/**"
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "todo/**"
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: just sync
+      - run: just lint
+      - run: just typecheck
+
+  test-fast:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - run: just sync
+      # Per-family ratchet over the DB-free lane; DB-bound families (db.py, see
+      # coverage-floors.toml `exclude`) are not gated here by design.
+      - run: just coverage
+
+  test-integration:
+    # Deliberately no `needs: test-fast`: the DB-backed execution lane is the
+    # safety net for every shipped workflow and must never be skipped silently
+    # when the fast lane fails. Both jobs are required for merge.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: orchestrator
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: extractions/setup-just@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: just sync
+      - run: just test-integration
+        env:
+          OPTICAL_TEST_PG_URL: postgresql+psycopg://postgres:postgres@localhost:5432/orchestrator
+      # Ratchet: raise this threshold as patch coverage improves, never lower it.
+      # Kept as a real gate (not continue-on-error): measured patch coverage on this
+      # in-progress branch is ~56-67%, so 50 passes now with headroom.
+      # This is also the gate for DB-bound code excluded from the fast-lane ratchet
+      # (db.py, see coverage-floors.toml `exclude`): new/changed lines there are covered here.
+      - run: uv run diff-cover coverage.xml --compare-branch=origin/main --fail-under=50
+
+  core-latest:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: just sync
+      - run: uv pip install -U orchestrator-core
+      - run: just test-fast

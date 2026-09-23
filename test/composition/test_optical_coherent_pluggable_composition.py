@@ -1,0 +1,543 @@
+"""Composition contract tests for the Optical Coherent Pluggable workflow parts.
+
+These tests are database-free: they verify the composition contract itself
+(class definition, lifecycle pairing, field classification, the state key
+contract of the shipped block steps, the block re-hydration from a
+round-tripped state and the block population logic), not the workflow
+execution.
+"""
+
+import inspect
+import uuid
+from types import SimpleNamespace
+from typing import Any, cast, get_args
+from unittest.mock import Mock
+
+import pytest
+from pydantic_forms.validators import Choice
+
+from orchestrator.core.forms import FormPage
+from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.core.utils.json import json_dumps, json_loads
+from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
+    OpticalCoherentPluggableBlock,
+    OpticalCoherentPluggableBlockInactive,
+    OpticalCoherentPluggableBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_location import (
+    OpticalModuleLocationBlockInactive,
+    OpticalModuleLocationBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
+    OpticalModulePacketNodeBlockInactive,
+    OpticalModulePacketNodeBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_node_management import (
+    OpticalModuleNodeManagementBlockInactive,
+    OpticalModuleNodeManagementBlockProvisioning,
+    Platform,
+    Vendor,
+)
+from orchestrator.optical.products.product_types.optical_coherent_pluggable import OpticalCoherentPluggablePartNumber
+from orchestrator.optical.workflows import block as block_parts
+from orchestrator.optical.workflows import customer as customer_parts
+from orchestrator.optical.workflows.block import save_optical_module_block
+from orchestrator.optical.workflows.optical_coherent_pluggable import create_optical_coherent_pluggable as create_parts
+from orchestrator.optical.workflows.optical_coherent_pluggable import modify_optical_coherent_pluggable as modify_parts
+from orchestrator.optical.workflows.optical_coherent_pluggable import shared as shared_parts
+from orchestrator.optical.workflows.optical_coherent_pluggable import (
+    terminate_optical_coherent_pluggable as terminate_parts,
+)
+from orchestrator.optical.workflows.optical_coherent_pluggable.create_optical_coherent_pluggable import (
+    CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS,
+    populate_optical_coherent_pluggable_block,
+)
+from orchestrator.optical.workflows.optical_coherent_pluggable.modify_optical_coherent_pluggable import (
+    MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS,
+    update_optical_coherent_pluggable_block,
+)
+from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
+    OPTICAL_MODULE_BLOCK_STATE_KEY,
+    load_optical_coherent_pluggable_block,
+    optical_coherent_pluggable_block_from_state,
+)
+from orchestrator.optical.workflows.optical_coherent_pluggable.terminate_optical_coherent_pluggable import (
+    OPTICAL_COHERENT_PLUGGABLE_TERMINATE_STEPS,
+)
+from orchestrator.optical.workflows.optical_coherent_pluggable.validate_optical_coherent_pluggable import (
+    OPTICAL_COHERENT_PLUGGABLE_VALIDATE_STEPS,
+    validate_optical_coherent_pluggable_state,
+)
+from test.support.core_api import non_product_block_fields, product_block_fields, step_functions, unwrap_step
+from test.support.forms import finish_form
+from test.support.models import (
+    AbstractCoherentPluggableRouter,
+    AbstractCoherentPluggableRouterInactive,
+    AbstractCoherentPluggableRouterProvisioning,
+    CoherentPluggableRouterBlock,
+    CoherentPluggableRouterBlockInactive,
+    CoherentPluggableRouterBlockProvisioning,
+)
+
+BASE_BLOCK_FIELDS = {"name", "label", "subscription_instance_id", "owner_subscription_id"}
+
+
+def _make_packet_node_block() -> OpticalModulePacketNodeBlockInactive:
+    subscription_id = uuid.uuid4()
+    return OpticalModulePacketNodeBlockInactive(
+        name="OpticalModulePacketNode",
+        subscription_instance_id=subscription_id,
+        owner_subscription_id=subscription_id,
+        management=OpticalModuleNodeManagementBlockInactive(
+            name="OpticalModuleNodeManagementBlock",
+            subscription_instance_id=uuid.uuid4(),
+            owner_subscription_id=subscription_id,
+            optical_module_node_fqdn="node.example.com",
+        ),
+        location=OpticalModuleLocationBlockInactive(
+            name="OpticalModuleLocationBlock",
+            subscription_instance_id=uuid.uuid4(),
+            owner_subscription_id=subscription_id,
+        ),
+    )
+
+
+def _make_pluggable_block() -> OpticalCoherentPluggableBlockInactive:
+    return OpticalCoherentPluggableBlockInactive(
+        name="CoherentPluggableBlock",
+        subscription_instance_id=uuid.uuid4(),
+        owner_subscription_id=uuid.uuid4(),
+        optical_port_host_node=_make_packet_node_block(),
+    )
+
+
+def _make_pluggable_block_provisioning() -> OpticalCoherentPluggableBlockProvisioning:
+    """A fully-populated PROVISIONING block, as put in the state by the construct step."""
+    subscription_id = uuid.uuid4()
+    return OpticalCoherentPluggableBlockProvisioning(
+        name="CoherentPluggableBlock",
+        subscription_instance_id=subscription_id,
+        owner_subscription_id=subscription_id,
+        optical_port_name="port-1",
+        optical_port_description=None,
+        optical_coherent_pluggable_firmware_version="1.0",
+        optical_coherent_pluggable_part_number=OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S,
+        optical_port_host_node=OpticalModulePacketNodeBlockProvisioning(
+            name="OpticalModulePacketNode",
+            subscription_instance_id=uuid.uuid4(),
+            owner_subscription_id=subscription_id,
+            management=OpticalModuleNodeManagementBlockProvisioning(
+                name="OpticalModuleNodeManagementBlock",
+                subscription_instance_id=uuid.uuid4(),
+                owner_subscription_id=subscription_id,
+                optical_module_node_vendor=Vendor.NOKIA,
+                optical_module_node_platform=Platform.GX_G42,
+                optical_module_node_software_version=None,
+                optical_module_node_fqdn="node.example.com",
+                optical_module_node_dcn_loopback_ip=None,
+                optical_module_node_dcn_interface_ip=None,
+            ),
+            location=OpticalModuleLocationBlockProvisioning(
+                name="OpticalModuleLocationBlock",
+                subscription_instance_id=uuid.uuid4(),
+                owner_subscription_id=subscription_id,
+                longitude="12.4964",
+                latitude="41.9028",
+                location_code="loc-01",
+            ),
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _mock_port_uniqueness_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DB-free: the port uniqueness check never queries the database in the composition tests.
+
+    Tests exercising the check itself re-patch the helper with a fake.
+    """
+    monkeypatch.setattr(create_parts, "check_optical_coherent_pluggable_port_uniqueness", Mock(return_value=None))
+
+
+@pytest.mark.parametrize(
+    ("chain_class", "expected_field_type"),
+    [
+        (CoherentPluggableRouterBlockInactive, OpticalCoherentPluggableBlockInactive),
+        (CoherentPluggableRouterBlockProvisioning, OpticalCoherentPluggableBlockProvisioning),
+        (CoherentPluggableRouterBlock, OpticalCoherentPluggableBlock),
+    ],
+)
+def test_composed_block_is_classified_as_product_block_field(chain_class, expected_field_type) -> None:
+    assert product_block_fields(chain_class) == {"for_the_optical_module": expected_field_type}
+    assert "for_the_optical_module" not in non_product_block_fields(chain_class)
+
+
+@pytest.mark.parametrize(
+    "chain_class",
+    [CoherentPluggableRouterBlockInactive, CoherentPluggableRouterBlockProvisioning, CoherentPluggableRouterBlock],
+)
+def test_composed_block_redeclares_every_inherited_field(chain_class) -> None:
+    annotations = inspect.get_annotations(chain_class)
+    assert set(chain_class.model_fields) - BASE_BLOCK_FIELDS <= set(annotations)
+
+
+@pytest.mark.parametrize(
+    ("chain_class", "expected_field_type"),
+    [
+        (AbstractCoherentPluggableRouterInactive, CoherentPluggableRouterBlockInactive),
+        (AbstractCoherentPluggableRouterProvisioning, CoherentPluggableRouterBlockProvisioning),
+        (AbstractCoherentPluggableRouter, CoherentPluggableRouterBlock),
+    ],
+)
+def test_composed_subscription_model_is_classified(chain_class, expected_field_type) -> None:
+    assert product_block_fields(chain_class) == {"router": expected_field_type}
+
+
+@pytest.mark.parametrize(
+    "steps",
+    [
+        CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS,
+        MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS,
+        OPTICAL_COHERENT_PLUGGABLE_TERMINATE_STEPS,
+        OPTICAL_COHERENT_PLUGGABLE_VALIDATE_STEPS,
+    ],
+)
+def test_shipped_block_step_lists_are_non_empty(steps) -> None:
+    assert len(steps) > 0
+
+
+@pytest.mark.parametrize(
+    "steps",
+    [CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS, MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS],
+)
+def test_block_steps_consume_the_block_state_key(steps) -> None:
+    for step_func in step_functions(steps):
+        signature = inspect.signature(step_func)
+        assert OPTICAL_MODULE_BLOCK_STATE_KEY in signature.parameters
+
+
+def test_shared_step_lists_are_block_agnostic() -> None:
+    for step_func in step_functions(OPTICAL_COHERENT_PLUGGABLE_TERMINATE_STEPS):
+        signature = inspect.signature(step_func)
+        assert OPTICAL_MODULE_BLOCK_STATE_KEY not in signature.parameters
+    for step_func in step_functions(OPTICAL_COHERENT_PLUGGABLE_VALIDATE_STEPS):
+        signature = inspect.signature(step_func)
+        assert OPTICAL_MODULE_BLOCK_STATE_KEY not in signature.parameters or (
+            signature.parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].default is None
+        )
+
+
+def test_optical_coherent_pluggable_block_state_key_matches_the_documented_contract() -> None:
+    """The state key literal matches the value documented in the README state-contract table."""
+    assert OPTICAL_MODULE_BLOCK_STATE_KEY == "optical_module_block"
+
+
+def test_block_steps_take_the_lifecycle_matching_block_variant() -> None:
+    """Every shipped block step consumes the PROVISIONING variant of the block, never the Inactive one."""
+    steps = (*CREATE_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS, *MODIFY_OPTICAL_COHERENT_PLUGGABLE_BLOCK_STEPS)
+    for step_obj in steps:
+        step_func = step_functions([step_obj])[0]
+        annotation = inspect.signature(step_func).parameters[OPTICAL_MODULE_BLOCK_STATE_KEY].annotation
+        members = get_args(annotation) or (annotation,)
+        for member in members:
+            if isinstance(member, type) and issubclass(member, OpticalCoherentPluggableBlockInactive):
+                assert issubclass(member, OpticalCoherentPluggableBlockProvisioning), (
+                    f"{step_obj.name} consumes {member.__name__}, expected the PROVISIONING variant"
+                )
+
+
+def test_populate_optical_coherent_pluggable_block() -> None:
+    block = _make_pluggable_block()
+    host_node = _make_packet_node_block()
+
+    populate_optical_coherent_pluggable_block(
+        optical_module_block=block,
+        optical_port_host_node=host_node,
+        optical_port_name="port-1",
+        optical_port_description="desc",
+        optical_coherent_pluggable_firmware_version="1.0",
+        optical_coherent_pluggable_part_number=OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S,
+    )
+
+    assert block.optical_port_host_node is host_node
+    assert block.optical_port_name == "port-1"
+    assert block.optical_port_description == "desc"
+    assert block.optical_coherent_pluggable_firmware_version == "1.0"
+    assert block.optical_coherent_pluggable_part_number == OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S
+
+
+def test_populate_block_rejects_duplicate_port(monkeypatch) -> None:
+    block = _make_pluggable_block()
+
+    def fake_check(port_name, host_node_block, exclude_subscription_id=None):
+        assert exclude_subscription_id == str(block.owner_subscription_id)
+        msg = f"Port {port_name} on node is already occupied by subscription {uuid.uuid4()}"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(create_parts, "check_optical_coherent_pluggable_port_uniqueness", fake_check)
+
+    with pytest.raises(ValueError, match="already occupied"):
+        populate_optical_coherent_pluggable_block(
+            optical_module_block=block,
+            optical_port_host_node=_make_packet_node_block(),
+            optical_port_name="port-1",
+            optical_port_description="desc",
+            optical_coherent_pluggable_firmware_version="1.0",
+            optical_coherent_pluggable_part_number=OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S,
+        )
+
+    assert block.optical_port_name is None
+
+
+def test_update_optical_coherent_pluggable_block() -> None:
+    block = _make_pluggable_block_provisioning()
+
+    unwrap_step(update_optical_coherent_pluggable_block)(
+        optical_module_block=block,
+        optical_port_description="new desc",
+        optical_coherent_pluggable_firmware_version="2.0",
+    )
+
+    assert block.optical_port_description == "new desc"
+    assert block.optical_coherent_pluggable_firmware_version == "2.0"
+
+
+def test_optical_coherent_pluggable_block_from_state_rehydrates_a_round_tripped_block(monkeypatch) -> None:
+    """Workflow steps execute with the state serialized between steps: the block arrives as a dict."""
+    block = _make_pluggable_block_provisioning()
+
+    def fake_from_state(block_dict):
+        assert block_dict["subscription_instance_id"] == str(block.subscription_instance_id)
+        return block
+
+    monkeypatch.setattr(shared_parts, "_optical_coherent_pluggable_block_from_state", fake_from_state)
+
+    with pytest.raises(ValueError, match="No Optical Coherent Pluggable block in the state"):
+        optical_coherent_pluggable_block_from_state(None)
+    assert optical_coherent_pluggable_block_from_state(block) is block
+
+    round_tripped = _round_tripped_block_state(block)
+    assert isinstance(round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY], dict)
+    assert optical_coherent_pluggable_block_from_state(round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY]) is block
+
+
+def test_block_steps_rehydrate_the_block_from_a_round_tripped_state(monkeypatch) -> None:
+    """The save step re-hydrates the block from the serialized state by its subscription_instance_id."""
+    block = _make_pluggable_block_provisioning()
+    save = Mock()
+    monkeypatch.setattr(OpticalCoherentPluggableBlockProvisioning, "save", save)
+
+    def fake_from_state(block_dict, **_kwargs):
+        assert block_dict["subscription_instance_id"] == str(block.subscription_instance_id)
+        return block
+
+    monkeypatch.setattr(block_parts, "rehydrate_optical_module_block", fake_from_state)
+
+    subscription_id = uuid.uuid4()
+    round_tripped = _round_tripped_block_state(block)
+
+    result = unwrap_step(save_optical_module_block)(
+        subscription=SimpleNamespace(subscription_id=subscription_id, status=SubscriptionLifecycle.PROVISIONING),
+        optical_module_block=round_tripped[OPTICAL_MODULE_BLOCK_STATE_KEY],
+    )
+
+    assert result[OPTICAL_MODULE_BLOCK_STATE_KEY] is block
+    save.assert_called_once_with(subscription_id=subscription_id, status=SubscriptionLifecycle.PROVISIONING)
+
+
+def test_optical_coherent_pluggable_block_from_state_rejects_dict_without_subscription_instance_id() -> None:
+    """A serialized block without a ``subscription_instance_id`` cannot be re-hydrated."""
+    with pytest.raises(ValueError, match="subscription_instance_id"):
+        optical_coherent_pluggable_block_from_state({})
+
+
+def test_optical_coherent_pluggable_block_from_state_rejects_unknown_subscription_instance_id(monkeypatch) -> None:
+    """An unknown ``subscription_instance_id`` cannot be re-hydrated (no such instance)."""
+    fake_session = Mock()
+    fake_session.get.return_value = None
+    monkeypatch.setattr(block_parts, "db", SimpleNamespace(session=fake_session))
+
+    with pytest.raises(ValueError, match="No subscription instance"):
+        optical_coherent_pluggable_block_from_state({"subscription_instance_id": str(uuid.uuid4())})
+
+
+def test_update_block_step_fails_fast_when_state_has_no_block() -> None:
+    """The update step fails fast when the state holds no Optical Coherent Pluggable block."""
+    with pytest.raises(ValueError, match="No Optical Coherent Pluggable block in the state"):
+        unwrap_step(update_optical_coherent_pluggable_block)(
+            optical_module_block=None,
+            optical_port_description="desc",
+            optical_coherent_pluggable_firmware_version="1.0",
+        )
+
+
+@pytest.mark.parametrize(
+    "subscription",
+    [
+        cast(Any, SimpleNamespace()),
+        cast(Any, SimpleNamespace(optical_coherent_pluggable=None)),
+    ],
+)
+def test_load_optical_coherent_pluggable_block_fails_fast_when_subscription_has_no_block(subscription) -> None:
+    with pytest.raises(ValueError, match="under attribute 'optical_coherent_pluggable'") as exc_info:
+        unwrap_step(load_optical_coherent_pluggable_block)(subscription)
+
+    assert "must have-a" in str(exc_info.value)
+
+
+def test_load_optical_coherent_pluggable_block_returns_block_in_state() -> None:
+    block = _make_pluggable_block()
+    subscription = cast(Any, SimpleNamespace(optical_coherent_pluggable=block))
+
+    state = unwrap_step(load_optical_coherent_pluggable_block)(subscription)
+
+    assert state == {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
+
+
+def test_validate_optical_coherent_pluggable_state_fails_fast_when_subscription_has_no_block() -> None:
+    subscription = cast(Any, SimpleNamespace())
+
+    with pytest.raises(ValueError, match="under attribute 'optical_coherent_pluggable'") as exc_info:
+        unwrap_step(validate_optical_coherent_pluggable_state)(subscription=subscription, optical_module_block=None)
+
+    assert "must have-a" in str(exc_info.value)
+    assert "not fully provisioned" not in str(exc_info.value)
+
+
+def test_validate_optical_coherent_pluggable_state_validates_the_block_from_the_state() -> None:
+    block = _make_pluggable_block_provisioning()
+    subscription = cast(Any, SimpleNamespace())
+
+    state = unwrap_step(validate_optical_coherent_pluggable_state)(
+        subscription=subscription, optical_module_block=block
+    )
+
+    assert state == {}
+
+
+def _round_tripped_block_state(block: OpticalCoherentPluggableBlockInactive) -> dict[str, Any]:
+    """Serialize a block the way the process engine does between steps."""
+    return cast(Any, json_loads(json_dumps({OPTICAL_MODULE_BLOCK_STATE_KEY: block})))
+
+
+@pytest.mark.parametrize(
+    "form_generator",
+    [
+        create_parts.create_optical_coherent_pluggable_form_generator,
+        modify_parts.modify_optical_coherent_pluggable_form_generator,
+        terminate_parts.terminate_initial_input_form_generator,
+    ],
+)
+def test_form_generators_are_hook_free(form_generator) -> None:
+    """The shipped form generators take no ``extra_form_pages``/``extra_summary_fields`` hooks."""
+    parameters = inspect.signature(form_generator).parameters
+    assert "extra_form_pages" not in parameters
+    assert "extra_summary_fields" not in parameters
+
+
+def _fake_customer_choice(include: str | None = None) -> type[Choice]:
+    return cast(type[Choice], Choice.__call__("FakeCustomerChoice", {"cust-1": "cust-1", "cust-2": "cust-2"}))
+
+
+def _fake_packet_node_choice(*args, **kwargs) -> type[Choice]:
+    return cast(type[Choice], Choice.__call__("FakePacketNodeChoice", {"node-1": "node-1"}))
+
+
+def _fake_packet_node_block_from_instance(_instance_id) -> OpticalModulePacketNodeBlockInactive:
+    return _make_packet_node_block()
+
+
+def test_create_form_pages_yield_the_shipped_page(monkeypatch) -> None:
+    monkeypatch.setattr(create_parts, "active_instance_selector_by_block_type", _fake_packet_node_choice)
+    monkeypatch.setattr(create_parts, "packet_node_block_from_instance", _fake_packet_node_block_from_instance)
+
+    generator = create_parts.create_optical_coherent_pluggable_form_pages("Coherent Pluggable")
+
+    page = next(generator)
+    assert issubclass(page, FormPage)
+    assert set(page.model_fields) == {
+        "optical_packet_node_instance_id",
+        "optical_coherent_pluggable_part_number",
+        "optical_port_name",
+        "optical_port_description",
+        "optical_coherent_pluggable_firmware_version",
+    }
+
+    user_input = finish_form(
+        generator,
+        page(
+            optical_packet_node_instance_id="node-1",
+            optical_coherent_pluggable_part_number=OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S.value,
+            optical_port_name="port-1",
+            optical_port_description="desc",
+            optical_coherent_pluggable_firmware_version="1.0",
+        ),
+    )
+    assert user_input == {
+        "optical_packet_node_instance_id": "node-1",
+        "optical_coherent_pluggable_part_number": OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S.value,
+        "optical_port_name": "port-1",
+        "optical_port_description": "desc",
+        "optical_coherent_pluggable_firmware_version": "1.0",
+    }
+
+
+def test_create_form_pages_compose_in_one_line_in_consumer_space(monkeypatch) -> None:
+    monkeypatch.setattr(customer_parts, "customer_choice_selector", _fake_customer_choice)
+    monkeypatch.setattr(create_parts, "active_instance_selector_by_block_type", _fake_packet_node_choice)
+    monkeypatch.setattr(create_parts, "packet_node_block_from_instance", _fake_packet_node_block_from_instance)
+
+    def my_create_form_generator(product_name):
+        user_input_dict = yield from customer_parts.customer_choice_form_page()
+        user_input_dict.update((yield from create_parts.create_optical_coherent_pluggable_form_pages(product_name)))
+        return user_input_dict
+
+    generator = my_create_form_generator("Coherent Pluggable")
+    customer_page = next(generator)
+    page = generator.send(customer_page(customer_id="cust-1"))
+    user_input = finish_form(
+        generator,
+        page(
+            optical_packet_node_instance_id="node-1",
+            optical_coherent_pluggable_part_number=OpticalCoherentPluggablePartNumber.CISCO_QDD_400G_ZRP_S.value,
+            optical_port_name="port-1",
+            optical_port_description="desc",
+            optical_coherent_pluggable_firmware_version="1.0",
+        ),
+    )
+
+    assert user_input["customer_id"] == "cust-1"
+    assert user_input["optical_packet_node_instance_id"] == "node-1"
+    assert user_input["optical_port_name"] == "port-1"
+    assert user_input["optical_coherent_pluggable_firmware_version"] == "1.0"
+
+
+def test_modify_form_pages_yield_the_prefilled_page() -> None:
+    block = _make_pluggable_block()
+    block.optical_port_description = "desc"
+    block.optical_coherent_pluggable_firmware_version = "1.0"
+
+    generator = modify_parts.modify_optical_coherent_pluggable_form_pages(block)
+    page = next(generator)
+    assert issubclass(page, FormPage)
+    assert page.model_fields["optical_port_description"].default == "desc"
+    assert page.model_fields["optical_coherent_pluggable_firmware_version"].default == "1.0"
+
+    user_input = finish_form(
+        generator,
+        page(
+            optical_port_description="desc2",
+            optical_coherent_pluggable_firmware_version="2.0",
+        ),
+    )
+    assert user_input["optical_port_description"] == "desc2"
+    assert user_input["optical_coherent_pluggable_firmware_version"] == "2.0"
+
+
+def test_terminate_form_pages_yield_the_confirmation_page() -> None:
+    subscription_id = str(uuid.uuid4())
+
+    generator = terminate_parts.terminate_optical_coherent_pluggable_form_pages(subscription_id)
+    page = next(generator)
+    assert issubclass(page, FormPage)
+    assert set(page.model_fields) == {"subscription_id"}
+    assert page.model_fields["subscription_id"].default == subscription_id

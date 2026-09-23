@@ -1,0 +1,523 @@
+"""Systematic model-workflow drift canary.
+
+The shipped workflows write data into the shipped product blocks through the
+anti-corruption populate/update functions. When a block model is restructured
+(such as the Optical Node blocks moving their management data into the composed
+``management`` sub-block) and the writer is not updated in lockstep, the drift
+is silent: the write either raises at workflow time or, worse, is only noticed
+for the vendors that happen to have coverage.
+
+This module is the permanent guard: for every shipped populate/update function
+it asserts that every block field it writes is declared on the target block
+model class. The table below is explicit and discovered by reading each
+function body; dotted field paths express nested writes (``a.b`` means the
+``b`` field of the product block referenced by field ``a``).
+
+These tests are database-free and fast.
+"""
+
+import importlib
+import inspect
+import pkgutil
+
+import pytest
+
+import orchestrator.optical.workflows as optical_workflows
+from orchestrator.optical.products.product_blocks.optical_coherent_pluggable import (
+    OpticalCoherentPluggableBlockInactive,
+    OpticalCoherentPluggableBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_digital_service import (
+    OpticalDigitalServiceBlockInactive,
+    OpticalDigitalServiceBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_location import (
+    OpticalModuleLocationBlockInactive,
+    OpticalModuleLocationBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    AbstractOpticalNodeBlockInactive,
+    AbstractOpticalNodeBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import (
+    NokiaFlexIlsBlockInactive,
+    NokiaFlexIlsBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import (
+    NokiaGrooveG30BlockInactive,
+    NokiaGrooveG30BlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import (
+    NokiaGxG42BlockInactive,
+    NokiaGxG42BlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import AbstractOpticalPipeBlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_pipe.fiber_patch import OpticalFiberPatchBlockInactive
+from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
+from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import OpticalLeasedSpectrumBlockInactive
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
+    AbstractOpticalOlsPortBlockProvisioning,
+    AbstractOpticalPortBlockInactive,
+)
+from orchestrator.optical.products.product_blocks.optical_port.transponder_client import (
+    OpticalTransponderClientPortBlockInactive,
+)
+from orchestrator.optical.products.product_blocks.optical_spectrum import (
+    OpticalSpectrumServiceBlockInactive,
+    OpticalSpectrumServiceBlockProvisioning,
+)
+from orchestrator.optical.products.product_blocks.optical_spectrum_section import OpticalSpectrumSectionBlockInactive
+from orchestrator.optical.products.product_blocks.optical_transport_channel import (
+    OpticalTransportChannelBlockInactive,
+    OpticalTransportChannelBlockProvisioning,
+)
+from orchestrator.optical.workflows.optical_coherent_pluggable.create_optical_coherent_pluggable import (
+    construct_optical_coherent_pluggable_subscription,
+    populate_optical_coherent_pluggable_block,
+)
+from orchestrator.optical.workflows.optical_coherent_pluggable.modify_optical_coherent_pluggable import (
+    update_optical_coherent_pluggable_block,
+)
+from orchestrator.optical.workflows.optical_digital_service.modify_optical_digital_service import (
+    update_optical_digital_service_block,
+)
+from orchestrator.optical.workflows.optical_digital_service.shared import (
+    build_optical_digital_service_block,
+    populate_optical_digital_service_block,
+    update_optical_digital_sections_path,
+)
+from orchestrator.optical.workflows.optical_location.create_optical_location import (
+    populate_optical_module_location_block,
+)
+from orchestrator.optical.workflows.optical_location.modify_optical_location import update_optical_module_location_block
+from orchestrator.optical.workflows.optical_node.nokia_flexils.create_nokia_flexils import (
+    construct_optical_node_nokia_flexils_subscription,
+    populate_optical_node_nokia_flexils_block,
+)
+from orchestrator.optical.workflows.optical_node.nokia_flexils.modify_nokia_flexils import (
+    update_optical_node_nokia_flexils_block,
+)
+from orchestrator.optical.workflows.optical_node.nokia_groove_g30.create_nokia_groove_g30 import (
+    construct_optical_node_nokia_groove_g30_subscription,
+    populate_optical_node_nokia_groove_g30_block,
+)
+from orchestrator.optical.workflows.optical_node.nokia_groove_g30.modify_nokia_groove_g30 import (
+    update_optical_node_nokia_groove_g30_block,
+)
+from orchestrator.optical.workflows.optical_node.nokia_gx_g42.create_nokia_gx_g42 import (
+    construct_optical_node_nokia_gx_g42_subscription,
+    populate_optical_node_nokia_gx_g42_block,
+)
+from orchestrator.optical.workflows.optical_node.nokia_gx_g42.modify_nokia_gx_g42 import (
+    update_optical_node_nokia_gx_g42_block,
+)
+from orchestrator.optical.workflows.optical_node.shared.create import populate_abstract_optical_node_fields
+from orchestrator.optical.workflows.optical_node.shared.modify import update_optical_node_block_fields
+from orchestrator.optical.workflows.optical_node.shared.retrieve import (
+    retrieve_optical_node_role_and_software_version,
+)
+from orchestrator.optical.workflows.optical_pipe.fiber_patch.create_fiber_patch import build_fiber_patch_block
+from orchestrator.optical.workflows.optical_pipe.fiber_span.create_fiber_span import build_fiber_span_block
+from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create_leased_spectrum import (
+    build_leased_spectrum_block,
+)
+from orchestrator.optical.workflows.optical_pipe.shared import new_pipe_port_block, update_optical_pipe_block
+from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
+    populate_optical_spectrum_block,
+)
+from orchestrator.optical.workflows.optical_spectrum_service.modify_optical_spectrum_service import (
+    update_optical_spectrum_block,
+)
+from orchestrator.optical.workflows.optical_spectrum_service.shared import (
+    store_list_of_ports_into_spectrum_sections,
+    store_loaded_sections_into_spectrum_block,
+    update_used_passbands,
+)
+
+
+def _entry(writer, block_class, field_paths):
+    """Build a ``pytest.param`` for one writer."""
+    return pytest.param(writer, block_class, tuple(field_paths), id=writer.__name__)
+
+
+#: Explicit table of the shipped anti-corruption populate/update functions, the block
+#: class each one targets and the block fields it writes. Field paths are dotted for
+#: nested writes (``a.b`` = field ``b`` of the block referenced by field ``a``).
+WRITERS = [
+    # --- Optical Node family ---
+    _entry(
+        populate_abstract_optical_node_fields,
+        AbstractOpticalNodeBlockInactive,
+        (
+            "location",
+            "management.optical_module_node_fqdn",
+            "management.optical_module_node_dcn_loopback_ip",
+            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_vendor",
+            "management.optical_module_node_platform",
+        ),
+    ),
+    # The shared retrieval step writes the node role and the software version
+    # onto the block (the shared helper and the populate functions no longer do).
+    _entry(
+        retrieve_optical_node_role_and_software_version,
+        AbstractOpticalNodeBlockProvisioning,
+        (
+            "optical_node_role",
+            "management.optical_module_node_software_version",
+        ),
+    ),
+    _entry(
+        update_optical_node_block_fields,
+        AbstractOpticalNodeBlockInactive,
+        (
+            "management.optical_module_node_fqdn",
+            "management.optical_module_node_dcn_loopback_ip",
+            "management.optical_module_node_dcn_interface_ip",
+        ),
+    ),
+    _entry(
+        populate_optical_node_nokia_flexils_block,
+        NokiaFlexIlsBlockInactive,
+        (
+            "location",
+            "management.optical_module_node_fqdn",
+            "management.optical_module_node_dcn_loopback_ip",
+            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_vendor",
+            "management.optical_module_node_platform",
+            "optical_flexils_gmpls_id",
+            "optical_flexils_target_id",
+        ),
+    ),
+    _entry(
+        populate_optical_node_nokia_groove_g30_block,
+        NokiaGrooveG30BlockInactive,
+        (
+            "location",
+            "management.optical_module_node_fqdn",
+            "management.optical_module_node_dcn_loopback_ip",
+            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_vendor",
+            "management.optical_module_node_platform",
+        ),
+    ),
+    _entry(
+        populate_optical_node_nokia_gx_g42_block,
+        NokiaGxG42BlockInactive,
+        (
+            "location",
+            "management.optical_module_node_fqdn",
+            "management.optical_module_node_dcn_loopback_ip",
+            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_vendor",
+            "management.optical_module_node_platform",
+        ),
+    ),
+    _entry(
+        update_optical_node_nokia_flexils_block,
+        NokiaFlexIlsBlockProvisioning,
+        (
+            "management.optical_module_node_fqdn",
+            "management.optical_module_node_dcn_loopback_ip",
+            "management.optical_module_node_dcn_interface_ip",
+            "optical_flexils_gmpls_id",
+            "optical_flexils_target_id",
+        ),
+    ),
+    _entry(
+        update_optical_node_nokia_groove_g30_block,
+        NokiaGrooveG30BlockProvisioning,
+        (
+            "management.optical_module_node_fqdn",
+            "management.optical_module_node_dcn_loopback_ip",
+            "management.optical_module_node_dcn_interface_ip",
+        ),
+    ),
+    _entry(
+        update_optical_node_nokia_gx_g42_block,
+        NokiaGxG42BlockProvisioning,
+        (
+            "management.optical_module_node_fqdn",
+            "management.optical_module_node_dcn_loopback_ip",
+            "management.optical_module_node_dcn_interface_ip",
+        ),
+    ),
+    # --- Optical Module Location family ---
+    _entry(
+        populate_optical_module_location_block,
+        OpticalModuleLocationBlockInactive,
+        ("longitude", "latitude", "location_code", "location_name"),
+    ),
+    _entry(
+        update_optical_module_location_block,
+        OpticalModuleLocationBlockProvisioning,
+        ("longitude", "latitude", "location_code", "location_name"),
+    ),
+    # --- Optical Coherent Pluggable family ---
+    _entry(
+        populate_optical_coherent_pluggable_block,
+        OpticalCoherentPluggableBlockInactive,
+        (
+            "optical_port_host_node",
+            "optical_port_name",
+            "optical_port_description",
+            "optical_coherent_pluggable_firmware_version",
+        ),
+    ),
+    _entry(
+        update_optical_coherent_pluggable_block,
+        OpticalCoherentPluggableBlockProvisioning,
+        ("optical_port_description", "optical_coherent_pluggable_firmware_version"),
+    ),
+    # --- Optical Pipe family ---
+    _entry(build_fiber_span_block, OpticalFiberSpanBlockInactive, ("optical_pipe_name",)),
+    _entry(build_fiber_patch_block, OpticalFiberPatchBlockInactive, ("optical_pipe_name",)),
+    _entry(build_leased_spectrum_block, OpticalLeasedSpectrumBlockInactive, ("optical_pipe_name",)),
+    _entry(update_optical_pipe_block, AbstractOpticalPipeBlockProvisioning, ("optical_pipe_name",)),
+    _entry(
+        new_pipe_port_block,
+        AbstractOpticalPortBlockInactive,
+        ("optical_port_name", "optical_port_host_node", "optical_port_description"),
+    ),
+    # --- Optical Spectrum Service family ---
+    _entry(
+        populate_optical_spectrum_block,
+        OpticalSpectrumServiceBlockInactive,
+        ("optical_spectrum_name", "optical_spectrum_passband"),
+    ),
+    _entry(
+        store_list_of_ports_into_spectrum_sections, OpticalSpectrumServiceBlockInactive, ("optical_spectrum_sections",)
+    ),
+    _entry(
+        store_list_of_ports_into_spectrum_sections,
+        OpticalSpectrumSectionBlockInactive,
+        ("optical_spectrum_section_add_drop_ports", "optical_spectrum_section_express_ports"),
+    ),
+    _entry(
+        store_loaded_sections_into_spectrum_block,
+        OpticalSpectrumServiceBlockInactive,
+        ("optical_spectrum_sections",),
+    ),
+    _entry(
+        store_loaded_sections_into_spectrum_block,
+        OpticalSpectrumSectionBlockInactive,
+        ("optical_spectrum_section_add_drop_ports", "optical_spectrum_section_express_ports"),
+    ),
+    _entry(update_used_passbands, AbstractOpticalOlsPortBlockProvisioning, ("optical_passbands",)),
+    _entry(
+        update_optical_spectrum_block,
+        OpticalSpectrumServiceBlockProvisioning,
+        ("optical_spectrum_name", "optical_spectrum_passband"),
+    ),
+    # --- Optical Digital Service family ---
+    _entry(
+        populate_optical_digital_service_block,
+        OpticalDigitalServiceBlockInactive,
+        (
+            "optical_digital_service_name",
+            "optical_digital_service_speed",
+            "optical_digital_service_type",
+        ),
+    ),
+    _entry(
+        build_optical_digital_service_block,
+        OpticalTransponderClientPortBlockInactive,
+        ("optical_port_name", "optical_port_host_node", "optical_port_description"),
+    ),
+    _entry(
+        build_optical_digital_service_block,
+        OpticalSpectrumServiceBlockInactive,
+        ("optical_spectrum_name", "optical_spectrum_passband"),
+    ),
+    _entry(
+        build_optical_digital_service_block,
+        OpticalTransportChannelBlockInactive,
+        (
+            "optical_transport_channel_name",
+            "optical_transport_central_frequency",
+            "optical_transport_mode",
+            "optical_transport_total_capacity",
+            "optical_transport_line_ports",
+            "optical_transport_spectrum",
+        ),
+    ),
+    _entry(
+        build_optical_digital_service_block,
+        OpticalDigitalServiceBlockInactive,
+        (
+            "optical_digital_service_name",
+            "optical_digital_service_speed",
+            "optical_digital_service_type",
+            "optical_digital_service_client_ports",
+            "optical_digital_service_transport_channels",
+        ),
+    ),
+    _entry(
+        update_optical_digital_service_block,
+        OpticalDigitalServiceBlockProvisioning,
+        ("optical_digital_service_name",),
+    ),
+    _entry(
+        update_optical_digital_service_block,
+        OpticalTransportChannelBlockProvisioning,
+        (
+            "optical_transport_channel_name",
+            "optical_transport_central_frequency",
+            "optical_transport_mode",
+            "optical_transport_spectrum.optical_spectrum_name",
+            "optical_transport_spectrum.optical_spectrum_passband",
+        ),
+    ),
+    _entry(
+        update_optical_digital_sections_path,
+        OpticalTransportChannelBlockProvisioning,
+        ("optical_transport_spectrum.optical_spectrum_sections",),
+    ),
+]
+
+#: Writer-name prefixes that mark a module-level function as a block writer: the
+#: shipped anti-corruption populate/update functions and the pipe ``build_*`` block
+#: builders. ``construct_*``/``create_*`` functions are deliberately out of the set
+#: (they build subscriptions, not blocks).
+WRITER_PREFIXES = ("populate_", "update_", "build_")
+
+#: Qualified names of prefix-matching functions that are intentionally NOT block
+#: writers, each with the reason. Anything else discovered by ``walk_packages`` must
+#: have a ``WRITERS`` entry. Keys are ``f"{module}.{name}"`` so that local import
+#: aliases cannot hide a function.
+EXCLUDED_WRITERS: dict[str, str] = {
+    # Subscription-level description refreshers: they set ``subscription.description``
+    # and never a block field.
+    "orchestrator.optical.workflows.optical_coherent_pluggable.shared."
+    "update_optical_coherent_pluggable_subscription_description": "sets subscription.description, not a block field",
+    "orchestrator.optical.workflows.optical_node.shared.modify."
+    "update_optical_node_subscription_description": "sets subscription.description, not a block field",
+    # Step wrappers around the covered ``update_used_passbands`` block writer.
+    # Builds the path-finding graph, never a block.
+    "orchestrator.optical.workflows.optical_spectrum_service.shared."
+    "build_constrained_graph_from_active_fibers": "builds the path-finding graph, writes no block field",
+    "orchestrator.optical.workflows.optical_spectrum_service.shared."
+    "build_graph_from_pipes": "builds the path-finding graph, writes no block field",
+    "orchestrator.optical.workflows.optical_spectrum_service.shared."
+    "build_constrained_graph": "builds the path-finding graph, writes no block field",
+    # Composite OLS circuit label builder: pure string formatting, writes no block field.
+    "orchestrator.optical.workflows.optical_digital_service.shared."
+    "build_optical_circuit_label": "builds the '<channel>: <svcA> + <svcB>' label string, writes no block field",
+}
+
+
+def _qualified_name(function: object) -> str:
+    """Return ``module.name`` for a function (stable across local import aliases)."""
+    return f"{function.__module__}.{function.__name__}"
+
+
+def _discover_writer_functions() -> set[str]:
+    """Import every workflows module and collect the qualified names of prefix-matching functions."""
+    discovered: set[str] = set()
+    for module_info in pkgutil.walk_packages(optical_workflows.__path__, optical_workflows.__name__ + "."):
+        module = importlib.import_module(module_info.name)
+        for value in vars(module).values():
+            if inspect.isfunction(value) and value.__name__.startswith(WRITER_PREFIXES):
+                discovered.add(_qualified_name(value))
+    return discovered
+
+
+def test_writer_table_covers_every_discovered_block_writer() -> None:
+    """Assert every discoverable block writer is in ``WRITERS`` or explicitly excluded."""
+    discovered = _discover_writer_functions()
+    covered = {_qualified_name(param.values[0]) for param in WRITERS}
+    uncovered = discovered - covered - set(EXCLUDED_WRITERS)
+    assert not uncovered, (
+        "discovered block writers missing from WRITERS (add an entry, or EXCLUDED_WRITERS with a reason): "
+        f"{sorted(uncovered)}"
+    )
+
+
+def _assert_field_declared(writer, block_class, field_path: str) -> None:
+    """Assert that ``field_path`` is declared on ``block_class`` (or a nested product block of it)."""
+    segments = field_path.split(".")
+    current_class = block_class
+    for segment in segments[:-1]:
+        nested_class = current_class._product_block_fields_.get(segment)
+        assert nested_class is not None, (
+            f"{writer.__name__} writes {field_path!r}, but {segment!r} is not a product-block field on "
+            f"{current_class.__name__}"
+        )
+        current_class = nested_class
+    leaf = segments[-1]
+    assert leaf in current_class.model_fields, (
+        f"{writer.__name__} writes {field_path!r}, but {leaf!r} is not declared on {current_class.__name__}"
+    )
+
+
+@pytest.mark.parametrize(("writer", "block_class", "field_paths"), WRITERS)
+def test_written_block_fields_are_declared(writer, block_class, field_paths) -> None:
+    """Assert every block field written by the shipped populate/update function is declared on its target model."""
+    for field_path in field_paths:
+        _assert_field_declared(writer, block_class, field_path)
+
+
+#: Flat ``optical_*``/FQDN fields the shipped node create forms declare, per vendor.
+NODE_FORM_OPTICAL_FIELDS: dict[str, set[str]] = {
+    "flexils": {
+        "optical_module_node_fqdn",
+        "optical_flexils_target_id",
+        "optical_module_node_dcn_loopback_ip",
+        "optical_module_node_dcn_interface_ip",
+        "optical_flexils_gmpls_id",
+    },
+    "groove_g30": {
+        "optical_module_node_fqdn",
+        "optical_module_node_dcn_loopback_ip",
+        "optical_module_node_dcn_interface_ip",
+    },
+    "gx_g42": {
+        "optical_module_node_fqdn",
+        "optical_module_node_dcn_loopback_ip",
+        "optical_module_node_dcn_interface_ip",
+    },
+}
+
+#: Construct step consuming the flat create-form keys, per vendor: the form
+#: keys are its parameters (the plain populate function it calls carries the
+#: same keys, for consumers with their own model). The shared retrieval step
+#: consumes no flat keys: it only reads the block from the state.
+NODE_CONSTRUCT_STEPS = {
+    "flexils": construct_optical_node_nokia_flexils_subscription,
+    "groove_g30": construct_optical_node_nokia_groove_g30_subscription,
+    "gx_g42": construct_optical_node_nokia_gx_g42_subscription,
+}
+
+#: Form fields shown for display only (not stored on the node block by a block step).
+NODE_FORM_DISPLAY_ONLY_FIELDS: dict[str, set[str]] = {
+    "flexils": set(),
+    "groove_g30": set(),
+    "gx_g42": set(),
+}
+
+
+@pytest.mark.parametrize("vendor", ["flexils", "groove_g30", "gx_g42"])
+def test_node_form_optical_fields_are_consumed_by_a_block_step(vendor: str) -> None:
+    """Assert every flat ``optical_*``/``pqdn`` node create-form field is consumed or display-only."""
+    construct_fn = NODE_CONSTRUCT_STEPS[vendor]
+    consumed = set(inspect.signature(construct_fn).parameters) | NODE_FORM_DISPLAY_ONLY_FIELDS[vendor]
+    unconsumed = NODE_FORM_OPTICAL_FIELDS[vendor] - consumed
+    assert not unconsumed, f"node form fields not consumed by {construct_fn.__name__}: {sorted(unconsumed)}"
+
+
+#: Flat ``optical_*`` fields the shipped coherent pluggable create form declares.
+COHERENT_PLUGGABLE_FORM_OPTICAL_FIELDS: set[str] = {
+    "optical_packet_node_instance_id",
+    "optical_coherent_pluggable_part_number",
+    "optical_port_name",
+    "optical_port_description",
+    "optical_coherent_pluggable_firmware_version",
+}
+
+
+def test_coherent_pluggable_form_optical_fields_are_consumed_by_the_construct_step() -> None:
+    """Assert every flat create-form field is consumed by the shipped construct step."""
+    consumed = set(inspect.signature(construct_optical_coherent_pluggable_subscription).parameters)
+    unconsumed = COHERENT_PLUGGABLE_FORM_OPTICAL_FIELDS - consumed
+    assert not unconsumed, f"form fields not consumed by the construct step: {sorted(unconsumed)}"

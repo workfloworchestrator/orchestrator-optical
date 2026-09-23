@@ -1,0 +1,525 @@
+"""Nokia Groove G30 port operations: discovery, description, admin state, termination and checks."""
+
+import json
+import re
+from decimal import Decimal
+from typing import Any, Literal
+
+from orchestrator.optical.hal._common import (
+    _node_id,
+    _port_name,
+    _ports_by_role,
+    _same_node,
+)
+from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
+    g30_ids_from_port_name,
+    g30_port_navigator_node_from_port_name,
+    get_g30_client,
+)
+from orchestrator.optical.hal.adapters.nokia_groove_g30.transponder import _get_modulation_and_rate_from_mode
+from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
+from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
+from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
+from orchestrator.optical.services.nokia.g30.data_models.ne import (
+    AdminStatusEnum,
+    CardTypeEnum,
+    ControlModeEnum,
+    EnableSwitchEnum,
+    GainRangeControlEnum,
+    GainRangeTypeEnum,
+    PortModeEnum,
+    TiltControlModeEnum,
+    YesNoEnum,
+)
+from orchestrator.optical.utils.datadiff import compare_pydantic_objects
+
+#: Port roles a Groove G30 node can enumerate. The role of each physical port is
+#: determined from the device: an OCC2 card exposes OLS line ports (when an OTS
+#: with the same id exists) or OLS add/drop ports (otherwise), while every other
+#: card exposes transponder line ports (card ports 1 and 2) or transponder client
+#: ports (every other port, subports included).
+_G30_SUPPORTED_ROLES = frozenset(
+    {
+        OpticalPortRole.OLS_LINE,
+        OpticalPortRole.OLS_ADD_DROP,
+        OpticalPortRole.TRANSPONDER_LINE,
+        OpticalPortRole.TRANSPONDER_CLIENT,
+    }
+)
+
+
+def _g30_aid_id(port_name: str) -> str:
+    """Return the id shared by a port and its OTS (e.g. ``1/3.3/1`` for ``port-1/3.3/1``)."""
+    return port_name.split("-", 1)[-1]
+
+
+def _g30_port_role(
+    *,
+    is_occ2: bool,
+    is_card_port: bool,
+    port_id: int,
+    port_name: str,
+    ots_ids: set[str],
+) -> OpticalPortRole:
+    """Return the Optical Port role of a Groove G30 port from its device configuration."""
+    if is_occ2:
+        return OpticalPortRole.OLS_LINE if _g30_aid_id(port_name) in ots_ids else OpticalPortRole.OLS_ADD_DROP
+    if is_card_port and port_id in (1, 2):
+        return OpticalPortRole.TRANSPONDER_LINE
+    return OpticalPortRole.TRANSPONDER_CLIENT
+
+
+def _g30_port_roles(optical_node_block: NokiaGrooveG30BlockProvisioning) -> dict[str, OpticalPortRole]:
+    """Return the role of every port of a Groove G30 node, keyed by the device port name."""
+    g30 = get_g30_client(optical_node_block)
+    shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
+    optical_interfaces = g30.data.ne_ne.services.optical_interfaces.retrieve(content="config", depth=4)
+    ots_ids = {_g30_aid_id(ots.ots_name) for ots in (optical_interfaces.ots or [])}
+
+    port_roles: dict[str, OpticalPortRole] = {}
+    max_slot_id_with_useful_ports = 4
+    for shelf in shelves or []:
+        for slot in shelf.slot or []:
+            if slot.slot_id > max_slot_id_with_useful_ports or not slot.card:
+                continue
+            is_occ2 = slot.card.required_type == CardTypeEnum.OCC2
+
+            for port in slot.card.port or []:
+                if port.alias_name is not None:
+                    port_roles[port.alias_name] = _g30_port_role(
+                        is_occ2=is_occ2,
+                        is_card_port=True,
+                        port_id=port.port_id,
+                        port_name=port.alias_name,
+                        ots_ids=ots_ids,
+                    )
+
+            for subslot in slot.card.subslot or []:
+                if not subslot.subcard:
+                    continue
+                for port in subslot.subcard.port or []:
+                    if port.alias_name is not None:
+                        port_roles[port.alias_name] = _g30_port_role(
+                            is_occ2=is_occ2,
+                            is_card_port=False,
+                            port_id=port.port_id,
+                            port_name=port.alias_name,
+                            ots_ids=ots_ids,
+                        )
+                    for subport in port.subport or []:
+                        if subport.alias_name is not None:
+                            port_roles[subport.alias_name] = _g30_port_role(
+                                is_occ2=is_occ2,
+                                is_card_port=False,
+                                port_id=subport.subport_id,
+                                port_name=subport.alias_name,
+                                ots_ids=ots_ids,
+                            )
+
+    return port_roles
+
+
+def get_device_ports_by_role(
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
+    roles: list[OpticalPortRole] | None = None,
+) -> list[str]:
+    """Return the device port names of a Groove G30 node for the requested Optical Port roles.
+
+    Each physical port has exactly one role, determined from the device (see
+    :func:`_g30_port_roles`): OCC2 card ports are OLS line ports when an OTS with the
+    same id exists and OLS add/drop ports otherwise, while every other card exposes
+    transponder line ports (card ports 1 and 2) or transponder client ports.
+    """
+    port_roles = _g30_port_roles(optical_node_block)
+
+    def port_names_for_role(role: OpticalPortRole) -> list[str]:
+        return [name for name, port_role in port_roles.items() if port_role is role]
+
+    return _ports_by_role(_G30_SUPPORTED_ROLES, port_names_for_role, roles)
+
+
+def retrieve_transceiver_modes(optical_node_block: NokiaGrooveG30BlockProvisioning, port_name: str) -> list[str]:
+    """Return the supported transceiver modes of a Groove G30 line port."""
+    # fmt: off
+    mapping = {
+        CardTypeEnum.CHM1: [
+            "not-applicable",      "QPSK_100G",          "16QAM_200G",          "8QAM_300G",
+        ],
+        CardTypeEnum.CHM2T: [
+            "16QAM_200G",           "16QAM_300G",           "16QAM_32QAM_400G",     "16QAM_32QAM_500G",
+            "16QAM_400G",           "32QAM_200G",           "32QAM_300G",           "32QAM_400G",
+            "32QAM_500G",           "32QAM_64QAM_500G",     "32QAM_64QAM_600G",     "64QAM_300G",
+            "64QAM_400G",           "64QAM_500G",           "64QAM_600G",           "QPSK_100G",
+            "QPSK_200G",            "QPSK_SP16QAM_200G",    "QPSK_SP16QAM_300G",    "SP16QAM_16QAM_200G",
+            "SP16QAM_16QAM_300G",   "SP16QAM_16QAM_400G",   "SP16QAM_200G",         "SP16QAM_300G",
+            "SPQPSK_100G",          "SPQPSK_QPSK_100G",     "SPQPSK_QPSK_200G",     "not-applicable",
+            "SP16QAM_300G_C",       "QPSK_SP16QAM_300G_C",  "16QAM_32QAM_500G_C",   "16QAM_500G_C",
+            "SP16QAM_500G_C",       "QPSK_SP16QAM_500G_C",  "32QAM_64QAM_700G_C",   "16QAM_700G_C",
+            "SP16QAM_16QAM_700G_C", "32QAM_900G_C",         "16QAM_32QAM_900G_C",   "32QAM_64QAM_1100G_C",
+        ],
+    }
+    # fmt: on
+
+    shelf_id, slot_id, _, _, _ = g30_ids_from_port_name(port_name)
+
+    g30 = get_g30_client(optical_node_block)
+
+    card = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.retrieve(depth=2)
+
+    card_type = card.required_type
+
+    supported_modes = mapping.get(card_type)
+
+    if not supported_modes:
+        msg = f"Card {card_type} not supported"
+        raise ValueError(msg)
+
+    return supported_modes
+
+
+def set_port_description(
+    port_block: AnyOpticalPortBlockProvisioning,
+    port_description: str,
+) -> dict[str, Any]:
+    """Set the description of a Groove G30 optical port.
+
+    Args:
+        port_block: Optical Port of which the description is to be set.
+        port_description: The description to set on the port.
+
+    Returns:
+        The difference between the port configuration before and after the update.
+
+    Raises:
+        ValueError: In case the configuration failed.
+    """
+    host_node = port_block.optical_port_host_node
+    port_name = _port_name(port_block)
+    endpoint, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
+    before = endpoint.retrieve(content="config", depth=2)
+    # Minimal PATCH: only the changed leaf plus the list key.
+    if subport_id is not None:
+        endpoint.update(subport_id=subport_id, service_label=port_description)
+    else:
+        endpoint.update(port_id=port_id, service_label=port_description)
+    return compare_pydantic_objects(before, endpoint.retrieve(content="config", depth=2))
+
+
+def set_channel_description(
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
+    facility_id: str,
+    description: str,
+) -> dict[str, Any]:
+    """Set the description of a Groove G30 optical channel.
+
+    Args:
+        optical_node_block: Optical Node of which the optical channel is to be modified.
+        facility_id: The id of the optical channel to set the description on (e.g. ``"1/1/1"``).
+        description: The description to set on the channel.
+
+    Returns:
+        The channel configuration after the update.
+
+    Raises:
+        ValueError: In case the configuration failed.
+    """
+    g30 = get_g30_client(optical_node_block)
+    shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(facility_id)
+    uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os
+
+    # Minimal PATCH on the singleton och-os facility.
+    uri.update(service_label=description)
+
+    return uri.retrieve(content="config", depth=2).model_dump()
+
+
+def set_port_admin_state(
+    port_block: AnyOpticalPortBlockProvisioning,
+    admin_state: Literal["up", "down", "maintenance"],
+) -> dict[str, Any]:
+    """Set the administrative state of a Groove G30 optical port.
+
+    Args:
+        port_block: Optical Port of which the admin state is to be set.
+        admin_state: The administrative state to set on the port: ["up", "down", "maintenance"].
+
+    Returns:
+        The difference between the port configuration before and after the update.
+
+    Raises:
+        ValueError: In case the configuration failed.
+    """
+    host_node = port_block.optical_port_host_node
+    port_name = _port_name(port_block)
+    mapping = {
+        "up": AdminStatusEnum.UP,
+        "down": AdminStatusEnum.DOWN,
+        "maintenance": AdminStatusEnum.UP_NO_ALM,
+    }
+    status = mapping[admin_state]
+
+    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
+
+    before = port_uri.retrieve(depth=2, content="config")
+    # Minimal PATCH: only the changed leaf plus the list key.
+    if subport_id is not None:
+        port_uri.update(subport_id=subport_id, admin_status=status)
+    else:
+        port_uri.update(port_id=port_id, admin_status=status)
+    return compare_pydantic_objects(before, port_uri.retrieve(depth=2, content="config"))
+
+
+def _configure_g30_amplifier_port(
+    host_node: AnyOpticalNodeBlockProvisioningUnion,
+    shelf_id: int,
+    slot_id: int,
+    subslot_id: int | None,
+    endpoint: Any,
+    remote_host_node: AnyOpticalNodeBlockProvisioningUnion,
+    remote_port_name: str,
+) -> dict[str, Any]:
+    """Configure the booster/preamp of a Groove G30 amplifier port and the port itself.
+
+    Args:
+        host_node: The local Groove G30 node block.
+        shelf_id: The shelf id of the amplifier port.
+        slot_id: The slot id of the amplifier port.
+        subslot_id: The subslot id of the amplifier port.
+        endpoint: The RESTCONF endpoint of the amplifier port.
+        remote_host_node: The remote Groove G30 node block the fiber leads to.
+        remote_port_name: The name of the remote port the fiber leads to.
+
+    Returns:
+        The before/after configuration diffs, keyed by ``"port"``, ``"booster"`` and ``"preamp"``.
+
+    Raises:
+        ValueError: If no subslot id is available for the amplifier port.
+    """
+    if subslot_id is None:
+        msg = "Amplifier port configuration requires a subslot id"
+        raise ValueError(msg)
+
+    g30 = get_g30_client(host_node)
+
+    port_before = endpoint.retrieve(depth=2, content="config")
+
+    booster_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(2).subcard.amplifier("ba")
+    booster_before = booster_uri.retrieve(content="config", depth=2)
+    # Minimal PATCH: list key plus changed leaves only.
+    booster_uri.update(
+        amplifier_name="ba",
+        admin_status=AdminStatusEnum.UP,
+        amplifier_enable=EnableSwitchEnum.ENABLED,
+        input_los_shutdown=EnableSwitchEnum.DISABLED,
+        control_mode=ControlModeEnum.MANUAL,
+        gain_range_control=GainRangeControlEnum.MANUAL,
+        target_gain_range=GainRangeTypeEnum.STANDARD,
+        target_gain=Decimal("22.0"),
+        output_voa=Decimal("10.0"),
+        tilt_control_mode=TiltControlModeEnum.MANUAL,
+        gain_tilt=Decimal("0.0"),
+    )
+
+    preamp_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(subslot_id).subcard.amplifier("pa")
+    preamp_before = preamp_uri.retrieve(content="config", depth=2)
+    preamp_uri.update(
+        amplifier_name="pa",
+        admin_status=AdminStatusEnum.UP,
+        amplifier_enable=EnableSwitchEnum.ENABLED,
+        input_los_shutdown=EnableSwitchEnum.DISABLED,
+        control_mode=ControlModeEnum.AUTO,
+        gain_range_control=GainRangeControlEnum.AUTO,
+        target_gain_range=GainRangeTypeEnum.STANDARD,
+        tilt_control_mode=TiltControlModeEnum.AUTO,
+    )
+
+    endpoint.update(
+        port_id=port_before.port_id,
+        external_connectivity=YesNoEnum.YES,
+        connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
+        admin_status=AdminStatusEnum.UP,
+    )
+
+    return {
+        "port": compare_pydantic_objects(port_before, endpoint.retrieve(depth=2, content="config")),
+        "booster": compare_pydantic_objects(booster_before, booster_uri.retrieve(depth=2, content="config")),
+        "preamp": compare_pydantic_objects(preamp_before, preamp_uri.retrieve(depth=2, content="config")),
+    }
+
+
+def configure_termination(
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
+) -> dict[str, Any]:
+    """Configure a Groove G30 port when attaching a fiber to it."""
+    host_node = optical_port_block.optical_port_host_node
+    remote_host_node = remote_port_block.optical_port_host_node
+    port_name = _port_name(optical_port_block)
+    remote_port_name = _port_name(remote_port_block)
+
+    endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id = g30_port_navigator_node_from_port_name(
+        host_node, port_name
+    )
+
+    def _minimal_port_update(**leaves: Any) -> None:
+        # Minimal PATCH: only changed leaves plus the list key; never resend
+        # the eth*/och-os/pluggable children via the port resource.
+        if subport_id is not None:
+            endpoint.update(subport_id=subport_id, **leaves)
+        else:
+            endpoint.update(port_id=port_id, **leaves)
+
+    match (
+        remote_host_node.management.optical_module_node_vendor,
+        remote_host_node.management.optical_module_node_platform,
+    ):
+        case (Vendor.NOKIA, Platform.FLEXILS):
+            before = endpoint.retrieve(depth=2, content="config")
+            _minimal_port_update(
+                external_connectivity=YesNoEnum.YES,
+                connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
+                admin_status=AdminStatusEnum.UP,
+            )
+            return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
+            is_same_device = _same_node(host_node, remote_host_node)
+            is_amplifier_port = slot_id == 3 and subslot_id == 3 and port_id == 1  # noqa: PLR2004
+
+            if is_same_device:
+                before = endpoint.retrieve(depth=2, content="config")
+                _minimal_port_update(
+                    external_connectivity=YesNoEnum.NO,
+                    connected_to=f"patched to {remote_port_name}",
+                    admin_status=AdminStatusEnum.UP,
+                )
+                return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
+
+            if not is_amplifier_port:
+                before = endpoint.retrieve(depth=2, content="config")
+                _minimal_port_update(
+                    external_connectivity=YesNoEnum.YES,
+                    connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
+                    admin_status=AdminStatusEnum.UP,
+                )
+                return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
+
+            # link H4: the port is an amplifier port of a different Groove G30 device
+            return _configure_g30_amplifier_port(
+                host_node,
+                shelf_id,
+                slot_id,
+                subslot_id,
+                endpoint,
+                remote_host_node,
+                remote_port_name,
+            )
+        case _:
+            msg = (
+                "Unsupported remote optical device platform when configuring Groove G30 remote port: "
+                f"{type(remote_host_node).__name__}"
+            )
+            raise ValueError(msg)
+
+
+def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[str, Any]:
+    """Prune the configuration of a Groove G30 port."""
+    host_node = optical_port_block.optical_port_host_node
+    port_name = _port_name(optical_port_block)
+    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
+
+    before = port_uri.retrieve(content="config", depth=2)
+    # Minimal PATCH: only changed leaves plus the list key.
+    if "." in port_name:  # inside OCC2 card
+        if subport_id is not None:
+            port_uri.update(subport_id=subport_id, connected_to="")
+        else:
+            port_uri.update(port_id=port_id, connected_to="")
+    elif subport_id is not None:
+        port_uri.update(
+            subport_id=subport_id,
+            external_connectivity=YesNoEnum.NO,
+            connected_to="",
+            admin_status=AdminStatusEnum.DOWN,
+            port_mode=PortModeEnum.NOT_APPLICABLE,
+            service_label="",
+        )
+    else:
+        port_uri.update(
+            port_id=port_id,
+            external_connectivity=YesNoEnum.NO,
+            connected_to="",
+            admin_status=AdminStatusEnum.DOWN,
+            port_mode=PortModeEnum.NOT_APPLICABLE,
+            service_label="",
+        )
+
+    return compare_pydantic_objects(before, port_uri.retrieve(content="config", depth=2))
+
+
+def check_fiber(
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
+) -> None:
+    """Check if a Groove G30 port attached to a fiber is correctly configured."""
+    host_node = optical_port_block.optical_port_host_node
+    remote_host_node = remote_port_block.optical_port_host_node
+    port_name = _port_name(optical_port_block)
+    endpoint = g30_port_navigator_node_from_port_name(host_node, port_name)[0]
+    port_data = endpoint.retrieve(depth=2)
+
+    if (
+        remote_host_node.management.optical_module_node_vendor,
+        remote_host_node.management.optical_module_node_platform,
+    ) == (Vendor.NOKIA, Platform.GROOVE_G30) and _same_node(host_node, remote_host_node):
+        con_to_string = f"patched to {_port_name(remote_port_block)}"
+        ext_connectivity = YesNoEnum.NO
+    else:
+        con_to_string = f"{_node_id(remote_host_node)} {_port_name(remote_port_block)}"
+        ext_connectivity = YesNoEnum.YES
+
+    checks = (
+        port_data.admin_status == AdminStatusEnum.UP
+        and port_data.external_connectivity == ext_connectivity
+        and port_data.connected_to == con_to_string
+    )
+
+    if not checks:
+        raise ValueError(
+            json.dumps(
+                {
+                    "optical_device": _node_id(host_node),
+                    "port_name": port_name,
+                    "expected": {
+                        "admin-status": "up",
+                        "external-connectivity": ext_connectivity.value,
+                        "connected-to": con_to_string,
+                    },
+                    "actual": {
+                        "admin-status": port_data.admin_status,
+                        "external-connectivity": port_data.external_connectivity,
+                        "connected-to": port_data.connected_to,
+                    },
+                },
+                indent=4,
+            )
+        )
+
+
+def get_transceiver_capacity_from_mode(mode: str) -> int | None:
+    """Return the carrier capacity in Gbit/s of a Groove G30 transceiver mode.
+
+    The capacity is the effective rate class of the mode (e.g. ``8QAM_300G``
+    carries 150G), not the bitrate in the mode name; modes without coherent
+    properties yield None (unknown capacity).
+
+    Args:
+        mode: The operating mode string stored on the transport channel.
+
+    Returns:
+        The capacity in Gbit/s, or None when the mode carries no bitrate.
+    """
+    _, rate = _get_modulation_and_rate_from_mode(mode)
+    match = re.fullmatch(r"(\d+)G", rate.strip())
+    return int(match.group(1)) if match else None

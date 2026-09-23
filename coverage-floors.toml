@@ -1,0 +1,32 @@
+# Per-family coverage floors for the optical module.
+#
+# Floors are a RATCHET: raise them as coverage improves, never lower them silently.
+# Baseline is the default DB-free lane (`uv run pytest`, i.e. `-m "not db"`), which is
+# what `just coverage` and CI's fast job run.
+#
+# Each floor = max(0, floor(measured_actual) - 2), a 2-point regression allowance.
+# Generated code and migrations are omitted from measurement (see [tool.coverage.run]).
+#
+# `exclude` lists families the DB-free lane cannot observe, so gating them here would
+# only ever fail spuriously: `db.py` holds live-Postgres query helpers exercised solely
+# by the `db`-marked execution tests (deselected in this lane). Its new/changed lines
+# are gated per-patch by the diff-cover gate in CI's DB-backed integration job instead.
+# Gate each lane on what that lane can observe; do not re-add `db.py` here.
+#
+# SUNSET: this ratchet is temporary scaffolding for the porting phase, not permanent
+# architecture. Delete this file and scripts/coverage_ratchet.py in favour of a flat
+# `fail_under` plus the diff-cover patch gate once all three hold: (1) every family is
+# uniformly high (>= ~80-85%) on the unified lane, so a flat 85-90% gate passes without
+# mass ignores; (2) the DB-free/DB lane split is gone, so no module is unobservable in
+# the gated lane; (3) the diff-cover patch gate holds at >= 80% over a sustained window,
+# meaning new code arrives tested and the anti-erosion job of this ratchet is redundant.
+exclude = ["db.py"]
+
+[floors]
+"__init__.py" = 98
+"hal" = 45
+"products" = 87
+"services" = 67
+"settings.py" = 98
+"utils" = 76
+"workflows" = 43

@@ -1,0 +1,66 @@
+# Copyright 2025 GARR.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Nokia Optical Clients Package."""
+
+import logging
+from functools import lru_cache
+from typing import Final
+
+from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
+from orchestrator.optical.services.nokia.flexils.exceptions import FlexILSClientError, TL1CommandDeniedError
+from orchestrator.optical.services.nokia.g30 import RestconfClient as G30Client
+from orchestrator.optical.services.nokia.g42 import RestconfClient as G42Client
+from orchestrator.optical.services.nokia.tnms.client import TnmsClient
+from orchestrator.optical.services.nokia.tnms.exceptions import (
+    ApiError,
+    AuthenticationError,
+    TnmsClientError,
+    ValidationError,
+)
+
+log = logging.getLogger(__name__)
+log.addHandler(logging.NullHandler())
+
+__version__: Final[str] = "1.0.0"
+
+
+@lru_cache
+def get_tnms_client() -> TnmsClient:
+    """Return a cached TNMS client instance configured from the settings.
+
+    Requires the ``OPTICAL_TNMS_USER``, ``OPTICAL_TNMS_PASSWORD`` and ``OPTICAL_TNMS_ENDPOINT``
+    settings; ``OPTICAL_TNMS_SECONDARY_ENDPOINT`` and ``OPTICAL_TNMS_VERIFY`` are optional.
+
+    Returns:
+        A cached TNMS client instance.
+
+    Raises:
+        ValidationError: if the required TNMS settings are not configured.
+    """
+    return TnmsClient.from_settings()
+
+
+__all__ = [
+    "ApiError",
+    "AuthenticationError",
+    "FlexILSClientError",
+    "FlexilsClient",
+    "G30Client",
+    "G42Client",
+    "TL1CommandDeniedError",
+    "TnmsClientError",
+    "ValidationError",
+    "__version__",
+    "get_tnms_client",
+]
