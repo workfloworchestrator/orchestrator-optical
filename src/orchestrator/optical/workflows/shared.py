@@ -168,7 +168,8 @@ def active_instance_selector_by_block_type(
     if not prompt:
         prompt = f"Select a {abstract_block_type.__name__}"
 
-    return Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))
+    dynamic_class = Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))
+    return cast(type[Choice], dynamic_class)
 
 
 def single_choice_to_multiple_choices(

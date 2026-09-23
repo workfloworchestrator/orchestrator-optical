@@ -146,7 +146,6 @@ def test_full_lifecycle_create_modify_validate_terminate(
             {"subscription_id": subscription_id},
             {"customer_id": CUSTOMER_ID},
             {
-                "instruction": "Update the firmware version",
                 "optical_port_description": PORT_DESCRIPTION,
                 "optical_coherent_pluggable_firmware_version": MODIFIED_FIRMWARE_VERSION,
             },

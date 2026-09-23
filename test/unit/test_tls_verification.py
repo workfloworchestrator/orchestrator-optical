@@ -74,24 +74,39 @@ def test_g30_explicit_verify_overrides_settings(monkeypatch) -> None:
     assert bundle._session.trust_env is True  # noqa: SLF001
 
 
-def test_g42_verifies_tls_by_default() -> None:
-    client = G42RestconfClient(management_ip="10.0.0.1", username="user", password=_AUTH_VALUE)
+def test_g42_verifies_tls_by_default(monkeypatch) -> None:
+    for key, value in _G42_ENV.items():
+        monkeypatch.setenv(key, value)
+    for var in ("OPTICAL_G42_VERIFY",):
+        monkeypatch.delenv(var, raising=False)
+
+    client = G42RestconfClient(management_ip="10.0.0.1")
 
     assert client._session.verify is True  # noqa: SLF001
     assert client._session.trust_env is True  # noqa: SLF001
 
 
-def test_g42_verify_flows_from_settings_and_explicit_arg(monkeypatch) -> None:
+def test_g42_explicit_verify_overrides_settings(monkeypatch) -> None:
+    for key, value in _G42_ENV.items():
+        monkeypatch.setenv(key, value)
     monkeypatch.setenv("OPTICAL_G42_VERIFY", "false")
 
-    from_settings = G42RestconfClient(management_ip="10.0.0.1", username="user", password=_AUTH_VALUE)
-    assert from_settings._session.verify is False  # noqa: SLF001
+    disabled = G42RestconfClient(management_ip="10.0.0.1")
+    assert disabled._session.verify is False  # noqa: SLF001
+    assert disabled._session.trust_env is False  # noqa: SLF001
 
-    explicit = G42RestconfClient(management_ip="10.0.0.1", username="user", password=_AUTH_VALUE, verify=True)
+    explicit = G42RestconfClient(management_ip="10.0.0.1", verify=True)
     assert explicit._session.verify is True  # noqa: SLF001
 
+    bundle = G42RestconfClient(management_ip="10.0.0.1", verify="/etc/ssl/g42-ca.pem")
+    assert bundle._session.verify == "/etc/ssl/g42-ca.pem"  # noqa: SLF001
+    assert bundle._session.trust_env is True  # noqa: SLF001
 
-def test_tnms_verifies_tls_by_default() -> None:
+
+def test_tnms_verifies_tls_by_default(monkeypatch) -> None:
+    for var in ("OPTICAL_TNMS_VERIFY",):
+        monkeypatch.delenv(var, raising=False)
+
     client = TnmsClient("user", "password", "https://tnms.example.com")
 
     assert client._session.verify is True  # noqa: SLF001
@@ -111,7 +126,10 @@ def test_tnms_from_settings_threads_verify(monkeypatch) -> None:
     assert TnmsClient.from_settings()._session.verify == "/etc/ssl/tnms-ca.pem"  # noqa: SLF001
 
 
-def test_flexils_verifies_host_key_by_default() -> None:
+def test_flexils_verifies_host_key_by_default(monkeypatch) -> None:
+    for var in ("OPTICAL_FLEXILS_VERIFY_HOST_KEY",):
+        monkeypatch.delenv(var, raising=False)
+
     client = FlexilsClient(tid="FLEXILS", gne_ip="10.0.0.1")
 
     assert client._verify_host_key is True  # noqa: SLF001
@@ -125,7 +143,10 @@ def test_flexils_explicit_verify_overrides_settings(monkeypatch) -> None:
     assert client._verify_host_key == "/root/.ssh/known_hosts"  # noqa: SLF001
 
 
-def test_flexils_cache_key_distinguishes_verify_policies() -> None:
+def test_flexils_cache_key_distinguishes_verify_policies(monkeypatch) -> None:
+    for var in ("OPTICAL_FLEXILS_VERIFY_HOST_KEY",):
+        monkeypatch.delenv(var, raising=False)
+
     default = FlexilsClient.get_instance(tid="FLEXILS", gne_ip="10.0.0.1")
     assert FlexilsClient.get_instance(tid="FLEXILS", gne_ip="10.0.0.1") is default
 
