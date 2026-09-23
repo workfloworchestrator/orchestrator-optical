@@ -71,7 +71,7 @@ jobs:
         with:
           enable-cache: true
       - run: just sync
-      - run: just pytest -m "db or not db" --cov=orchestrator.optical --cov-report=xml:coverage.xml
+      - run: just test-integration
         env:
           OPTICAL_TEST_PG_URL: postgresql+psycopg://postgres:postgres@localhost:5432/orchestrator
       # Ratchet: raise this threshold as patch coverage improves, never lower it.

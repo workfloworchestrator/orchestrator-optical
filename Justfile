@@ -44,5 +44,11 @@ pytest *args:
 coverage:
     uv run pytest --cov=orchestrator.optical --cov-report=json:coverage.json --cov-report=xml:coverage.xml && uv run python scripts/coverage_ratchet.py
 
+# Full suite (both lanes) with coverage for the diff-cover gate (mirrors CI test-integration).
+# NOTE: the -m expression is hardcoded (not passed via `just pytest ...`) because the generic
+# `pytest *args` passthrough cannot preserve the quoting around "db or not db".
+test-integration:
+    uv run pytest -m "db or not db" --cov=orchestrator.optical --cov-report=xml:coverage.xml
+
 # Full local gate
 ci: lint typecheck test-fast test-db
