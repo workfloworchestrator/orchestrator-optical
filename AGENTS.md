@@ -211,10 +211,13 @@ services), where each is a
 ## Development commands
 
 ```bash
-uv run ruff check <path>        # lint (line-length 120, google docstrings); ported code must be 0-findings
-uv run ruff format --check <path>
-uv run ty check                 # type check (with Astral's ty)
-uv run pyrefly check            # type check (with Meta's pyrefly, harder gate than ty)
+just sync                         # install/sync virtual environment (uv sync --all-groups)
+just lint                         # ruff check + format check (line-length 120, google docstrings); ported code must be 0-findings
+just typecheck                    # ty + pyrefly (pyrefly is the harder gate)
+just test-fast                    # DB-free test lane
+just test-db                      # DB-backed test lane (needs Postgres)
+just coverage                     # DB-free lane + per-family coverage ratchet
+just pytest <args>                # passthrough, e.g. just pytest -vx -k foo
 uv run python -c "import orchestrator.optical.<module>"   # import smoke (no env vars required)
 uv build                        # package build
 ```

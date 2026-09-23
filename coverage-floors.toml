@@ -2,7 +2,7 @@
 #
 # Floors are a RATCHET: raise them as coverage improves, never lower them silently.
 # Baseline is the default DB-free lane (`uv run pytest`, i.e. `-m "not db"`), which is
-# what `make coverage` and CI's fast job run.
+# what `just coverage` and CI's fast job run.
 #
 # Each floor = max(0, floor(measured_actual) - 2), a 2-point regression allowance.
 # Generated code and migrations are omitted from measurement (see [tool.coverage.run]).

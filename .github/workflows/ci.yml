@@ -18,12 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v4
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - run: uv sync --all-groups
-      - run: make lint
-      - run: make typecheck
+      - run: just sync
+      - run: just lint
+      - run: just typecheck
 
   test-fast:
     strategy:
@@ -33,15 +34,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v4
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
-      - run: uv sync --all-groups
-      - run: uv run pytest -m "not db" --cov=orchestrator.optical --cov-report=json:coverage.json
+      - run: just sync
       # Per-family ratchet over the DB-free lane; DB-bound families (db.py, see
       # coverage-floors.toml `exclude`) are not gated here by design.
-      - run: uv run python scripts/coverage_ratchet.py
+      - run: just coverage
 
   test-integration:
     # Deliberately no `needs: test-fast`: the DB-backed execution lane is the
@@ -65,11 +66,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: extractions/setup-just@v4
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - run: uv sync --all-groups
-      - run: uv run pytest -m "db or not db" --cov=orchestrator.optical --cov-report=xml:coverage.xml
+      - run: just sync
+      - run: just pytest -m "db or not db" --cov=orchestrator.optical --cov-report=xml:coverage.xml
         env:
           OPTICAL_TEST_PG_URL: postgresql+psycopg://postgres:postgres@localhost:5432/orchestrator
       # Ratchet: raise this threshold as patch coverage improves, never lower it.
@@ -84,9 +86,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v4
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - run: uv sync --all-groups
+      - run: just sync
       - run: uv pip install -U orchestrator-core
-      - run: uv run pytest -m "not db"
+      - run: just test-fast
