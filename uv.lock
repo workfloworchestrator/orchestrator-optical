@@ -4,8 +4,8 @@ requires-python = ">=3.12, <3.15"
 
 [options]
 prerelease-mode = "if-necessary"
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
-exclude-newer-span = "P30D"
+exclude-newer = "2026-09-19T23:48:45.802339734Z"
+exclude-newer-span = "P3D"
 
 [[package]]
 name = "aiohappyeyeballs"

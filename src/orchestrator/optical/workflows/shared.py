@@ -168,7 +168,7 @@ def active_instance_selector_by_block_type(
     if not prompt:
         prompt = f"Select a {abstract_block_type.__name__}"
 
-    return Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))  # type:ignore  # noqa: PGH003
+    return Choice(f"{prompt}", zip(products.keys(), products.items(), strict=False))
 
 
 def single_choice_to_multiple_choices(

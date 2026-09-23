@@ -15,7 +15,7 @@
 
 from collections.abc import Callable
 from itertools import filterfalse
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 
 def single_dispatch_base(func: Callable, value: Any) -> NoReturn:
@@ -28,7 +28,7 @@ def single_dispatch_base(func: Callable, value: Any) -> NoReturn:
     Raises:
         TypeError: always, listing the registered model types.
     """
-    registry = func.registry  # type: ignore  # noqa: PGH003
+    registry = cast(Any, func).registry
 
     supported_models = ", ".join(map(str, filterfalse(lambda t: t is object, registry.keys())))
     model_type = type(value)
