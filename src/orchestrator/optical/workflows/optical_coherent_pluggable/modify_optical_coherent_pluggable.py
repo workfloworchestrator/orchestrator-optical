@@ -22,13 +22,11 @@ the subscription)::
     user_input_dict.update((yield my_own_page).model_dump())
 """
 
-from typing import Annotated
-
-from pydantic import Field
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Label
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
@@ -50,15 +48,6 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
 
-Instruction = Annotated[
-    str,
-    Field(
-        "Modify port description or firmware version. Unchanged fields will remain intact.",
-        title="Instruction",
-        json_schema_extra={"disabled": True},
-    ),
-]
-
 
 def modify_optical_coherent_pluggable_form(pluggable: OpticalCoherentPluggableBlock) -> type[FormPage]:
     """Return the modify FormPage of the Optical Coherent Pluggable subscription.
@@ -74,7 +63,7 @@ def modify_optical_coherent_pluggable_form(pluggable: OpticalCoherentPluggableBl
     """
 
     class ModifyOpticalCoherentPluggableForm(FormPage):
-        instruction: Instruction
+        instruction: Label = "Modify port description or firmware version. Unchanged fields will remain intact."
         optical_port_description: str | None = pluggable.optical_port_description
         optical_coherent_pluggable_firmware_version: str = pluggable.optical_coherent_pluggable_firmware_version
 

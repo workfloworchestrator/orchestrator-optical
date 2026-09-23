@@ -31,6 +31,7 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Label
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
@@ -59,15 +60,6 @@ from orchestrator.optical.workflows.optical_node.shared import (
 from orchestrator.optical.workflows.optical_node.shared.retrieve import retrieve_optical_node_role_and_software_version
 from orchestrator.optical.workflows.shared import modify_summary_form
 
-Instruction = Annotated[
-    str,
-    Field(
-        "Modify the fields you want to change. Unchanged fields will remain intact.",
-        title="Instruction",
-        json_schema_extra={"disabled": True},
-    ),
-]
-
 
 def modify_optical_node_nokia_flexils_vendor_form(
     node: NokiaFlexIlsBlock,
@@ -94,7 +86,7 @@ def modify_optical_node_nokia_flexils_vendor_form(
     exclude = exclude_subscription_id if exclude_subscription_id is not None else str(node.owner_subscription_id)
 
     class ModifyNokiaFlexIlsVendorForm(FormPage):
-        instruction: Instruction
+        instruction: Label = "Modify the fields you want to change. Unchanged fields will remain intact."
         optical_flexils_gmpls_id: Annotated[
             IPAddress,
             Field(title="GMPLS ID of the FlexILS node."),

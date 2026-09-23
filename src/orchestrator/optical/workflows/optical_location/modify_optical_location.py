@@ -33,6 +33,7 @@ from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Label
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
@@ -54,16 +55,6 @@ from orchestrator.optical.workflows.optical_location.shared import (
     set_optical_module_location_subscription_description,
 )
 from orchestrator.optical.workflows.shared import modify_summary_form
-
-Instruction = Annotated[
-    str,
-    Field(
-        "Modify the location fields. Unchanged fields will remain intact. "
-        "Tick the 'clear location name' checkbox to remove the optional location name.",
-        title="Instruction",
-        json_schema_extra={"disabled": True},
-    ),
-]
 
 
 def modify_optical_module_location_form(
@@ -91,7 +82,10 @@ def modify_optical_module_location_form(
     exclude = exclude_subscription_id if exclude_subscription_id is not None else str(location.owner_subscription_id)
 
     class ModifyOpticalModuleLocationForm(FormPage):
-        instruction: Instruction
+        instruction: Label = (
+            "Modify the location fields. Unchanged fields will remain intact. "
+            "Tick the 'clear location name' checkbox to remove the optional location name."
+        )
         longitude: Annotated[
             LongitudeCoordinate,
             Field(title="Longitude", description="Longitude of the location, between -180 and +180 degrees."),

@@ -26,6 +26,7 @@ from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import UUIDstr
 
 from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Label
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlock
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
@@ -34,16 +35,6 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
     validate_management_ips_uniqueness,
     validate_optical_node_fqdn_uniqueness,
 )
-
-Instruction = Annotated[
-    str,
-    Field(
-        "Modify the Optical Node fields. Unchanged fields will remain intact. "
-        "Tick a 'Delete ...' checkbox to remove the corresponding DCN IP.",
-        title="Instruction",
-        json_schema_extra={"disabled": True},
-    ),
-]
 
 
 def create_optical_node_location_form(product_name: str) -> type[FormPage]:
@@ -154,7 +145,10 @@ def modify_optical_node_management_form(
     exclude = exclude_subscription_id if exclude_subscription_id is not None else str(node.owner_subscription_id)
 
     class ModifyOpticalNodeManagementForm(FormPage):
-        instruction: Instruction
+        instruction: Label = (
+            "Modify the Optical Node fields. Unchanged fields will remain intact. "
+            "Tick a 'Delete ...' checkbox to remove the corresponding DCN IP."
+        )
         optical_module_node_fqdn: Annotated[
             Fqdn,
             Field(title="FQDN of the Optical Node"),
