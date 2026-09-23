@@ -15,6 +15,8 @@ Note:
     - ``OPTICAL_TNMS_USER`` (required)
     - ``OPTICAL_TNMS_PASSWORD`` (required)
     - ``OPTICAL_TNMS_SECONDARY_ENDPOINT`` (optional fallback endpoint)
+    - ``OPTICAL_TNMS_VERIFY`` (optional TLS verification: ``true``/system CAs by
+      default, ``false`` for labs only, or a path to a custom CA bundle)
 
     The client instance is created lazily on first use from the settings and raises
     :class:`ValidationError` when the required values are missing.

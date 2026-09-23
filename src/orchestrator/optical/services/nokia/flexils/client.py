@@ -12,14 +12,14 @@ from orchestrator.optical.services.nokia.flexils.commands.base import (
     TL1CommandRegistry,
 )
 from orchestrator.optical.services.nokia.flexils.utils import generate_ctag
-from orchestrator.optical.settings import get_settings
+from orchestrator.optical.settings import get_settings, parse_verify
 
 T = TypeVar("T", bound=TL1BaseCommand)
 logger = logging.getLogger(__name__)
 
 
 class FlexilsClient:
-    _cache: ClassVar[dict[tuple[str, str], "FlexilsClient"]] = {}
+    _cache: ClassVar[dict[tuple[str, str, str | None, str | None, bool | str], "FlexilsClient"]] = {}
 
     @classmethod
     def get_instance(
@@ -29,10 +29,14 @@ class FlexilsClient:
         timeout: int = 30,
         username: str | None = None,
         password: str | None = None,
+        verify_host_key: bool | str | None = None,  # noqa: FBT001
     ) -> "FlexilsClient":
-        key = (tid.lower(), gne_ip, username, password)
+        resolved_verify = parse_verify(verify_host_key)
+        if resolved_verify is None:
+            resolved_verify = get_settings().flexils_verify_host_key
+        key = (tid.lower(), gne_ip, username, password, resolved_verify)
         if key not in cls._cache:
-            client = cls(tid, gne_ip, timeout, username, password)
+            client = cls(tid, gne_ip, timeout, username, password, verify_host_key=resolved_verify)
             cls._cache[key] = client
         return cls._cache[key]
 
@@ -49,6 +53,7 @@ class FlexilsClient:
         timeout: int = 30,
         username: str | None = None,
         password: str | None = None,
+        verify_host_key: bool | str | None = None,  # noqa: FBT001
     ):
         """Synchronous TL1 Client for Nokia FlexILS.
         Maintains a persistent SSH subsystem connection.
@@ -60,6 +65,10 @@ class FlexilsClient:
         settings = get_settings()
         self._username = username if username is not None else settings.flexils_user
         self._password = password if password is not None else settings.flexils_password
+        resolved_verify = parse_verify(verify_host_key)
+        self._verify_host_key: bool | str = (
+            resolved_verify if resolved_verify is not None else settings.flexils_verify_host_key
+        )
 
         self._client: paramiko.SSHClient | None = None
         self._channel: paramiko.Channel | None = None
@@ -93,7 +102,18 @@ class FlexilsClient:
 
         try:
             self._client = paramiko.SSHClient()
-            self._client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            if self._verify_host_key is False:
+                msg = (
+                    "SSH host key verification is disabled for the FlexILS client "
+                    "(OPTICAL_FLEXILS_VERIFY_HOST_KEY=false). Do not use in production."
+                )
+                logger.warning(msg)
+                self._client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            else:
+                self._client.load_system_host_keys()
+                if isinstance(self._verify_host_key, str):
+                    self._client.load_host_keys(self._verify_host_key)
+                self._client.set_missing_host_key_policy(paramiko.RejectPolicy())
 
             self._client.connect(
                 hostname=self.gne_ip,

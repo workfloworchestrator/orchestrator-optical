@@ -8,7 +8,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import PoolManager
 
-from orchestrator.optical.settings import get_settings
+from orchestrator.optical.settings import get_settings, parse_verify
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -59,6 +59,7 @@ class RestconfClient:
         port: int = 8181,
         username: str | None = None,
         password: str | None = None,
+        verify: bool | str | None = None,  # noqa: FBT001
     ):
         self.url = None
         self.fallback_url = None
@@ -79,8 +80,6 @@ class RestconfClient:
         self._session.mount("https://", adapter)
         self._session.mount("http://", adapter)
 
-        self._session.verify = False  # Warning: production risk if False
-        self._session.trust_env = self._session.verify  # Disable env vars if TLS verification is off
         self._session.headers.update({"Content-Type": "application/yang-data+json"})
 
         settings = get_settings()
@@ -90,6 +89,17 @@ class RestconfClient:
             msg = "Authentication credentials missing. Set OPTICAL_G42_USER and OPTICAL_G42_PASSWORD."
             raise UserWarning(msg)
         self._session.auth = (user, pw)
+
+        resolved_verify = parse_verify(verify)
+        if resolved_verify is None:
+            resolved_verify = settings.g42_verify
+        self._session.verify = resolved_verify
+        self._session.trust_env = bool(resolved_verify)
+        if resolved_verify is False:
+            log.warning(
+                "TLS verification is disabled for the G42 RESTCONF client "
+                "(OPTICAL_G42_VERIFY=false). Do not use in production."
+            )
 
         from orchestrator.optical.services.nokia.g42.data_navigators import Data, Operations  # noqa: PLC0415
 

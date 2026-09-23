@@ -22,7 +22,7 @@ import requests
 
 from orchestrator.optical.services.nokia.tnms.endpoints import Data, Operations
 from orchestrator.optical.services.nokia.tnms.exceptions import ApiError, AuthenticationError, ValidationError
-from orchestrator.optical.settings import get_settings
+from orchestrator.optical.settings import get_settings, parse_verify
 
 T = TypeVar("T")
 
@@ -55,7 +55,7 @@ class TnmsClient:
         password: str,
         url: str,
         fallback_url: str | None = None,
-        verify_tls: bool = False,  # noqa: FBT001, FBT002
+        verify_tls: bool | str | None = None,  # noqa: FBT001
     ):
         """TNMS API client with automatic authentication handling."""
         self.user = user
@@ -64,8 +64,16 @@ class TnmsClient:
         self._fallback_url = fallback_url.rstrip("/") if fallback_url else None
         self.url = self._primary_url  # active endpoint
         self._session = requests.Session()
-        self._session.verify = verify_tls
-        self._session.trust_env = verify_tls  # Disable env vars if TLS verification is off
+        resolved_verify = parse_verify(verify_tls)
+        if resolved_verify is None:
+            resolved_verify = get_settings().tnms_verify
+        self._session.verify = resolved_verify
+        self._session.trust_env = bool(resolved_verify)
+        if resolved_verify is False:
+            log.warning(
+                "TLS verification is disabled for the TNMS client "
+                "(OPTICAL_TNMS_VERIFY=false). Do not use in production."
+            )
         self.data = Data(self)
         self.operations = Operations(self)
 
@@ -74,8 +82,8 @@ class TnmsClient:
         """Create client instance from the application settings.
 
         Reads the ``OPTICAL_TNMS_USER``, ``OPTICAL_TNMS_PASSWORD`` and ``OPTICAL_TNMS_ENDPOINT``
-        variables (plus the optional ``OPTICAL_TNMS_SECONDARY_ENDPOINT``) through
-        :func:`get_settings`.
+        variables (plus the optional ``OPTICAL_TNMS_SECONDARY_ENDPOINT`` and ``OPTICAL_TNMS_VERIFY``)
+        through :func:`get_settings`.
 
         Returns:
             A TNMS client configured from the settings.
@@ -105,6 +113,7 @@ class TnmsClient:
             password=password,
             url=endpoint,
             fallback_url=settings.tnms_secondary_endpoint,
+            verify_tls=settings.tnms_verify,
         )
 
     @classmethod

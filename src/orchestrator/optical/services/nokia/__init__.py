@@ -40,7 +40,7 @@ def get_tnms_client() -> TnmsClient:
     """Return a cached TNMS client instance configured from the settings.
 
     Requires the ``OPTICAL_TNMS_USER``, ``OPTICAL_TNMS_PASSWORD`` and ``OPTICAL_TNMS_ENDPOINT``
-    settings; ``OPTICAL_TNMS_SECONDARY_ENDPOINT`` is optional.
+    settings; ``OPTICAL_TNMS_SECONDARY_ENDPOINT`` and ``OPTICAL_TNMS_VERIFY`` are optional.
 
     Returns:
         A cached TNMS client instance.
