@@ -45,6 +45,9 @@ from orchestrator.optical.products.product_blocks.optical_digital_service import
     OpticalDigitalServiceBlock,
     OpticalDigitalServiceBlockInactive,
 )
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    LINE_SYSTEM_ROLES,
+)
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSubscription
 from orchestrator.optical.utils.custom_types.frequencies import (
     Frequency,
@@ -90,7 +93,6 @@ from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spec
     create_optical_spectrum_waypoints_form,
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
-    LINE_SYSTEM_ROLES,
     NoOpticalPathFoundError,
     OwnOccupancy,
     multiple_optical_node_selector,

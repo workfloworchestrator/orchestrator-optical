@@ -46,8 +46,9 @@ from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.port import set_port_description
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    LINE_SYSTEM_ROLES,
+    OADM_ROLES,
     AbstractOpticalNodeBlockInactive,
-    OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlockInactive
@@ -62,7 +63,6 @@ from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
-    LINE_SYSTEM_ROLES,
     NO_OPTICAL_PATH_FOUND_MSG,
     NoOpticalPathFoundError,
     check_optical_spectrum_add_drop_port_availability,
@@ -82,13 +82,8 @@ from orchestrator.optical.workflows.shared import create_summary_form, optical_p
 
 logger = get_logger(__name__)
 
-ROADM_ROLES = [
-    OpticalNodeRole.ROADM,
-    OpticalNodeRole.TRANSPONDER_XOADM,
-]
-
-# NOTE: LINE_SYSTEM_ROLES and NO_OPTICAL_PATH_FOUND_MSG live in shared.py and are
-# re-exported below for backward compatibility (import from shared going forward).
+# NOTE: NO_OPTICAL_PATH_FOUND_MSG lives in shared.py and is re-exported below for
+# backward compatibility (import from shared going forward).
 
 
 def create_optical_spectrum_identity_form(product_name: str) -> type[FormPage]:
@@ -330,11 +325,11 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
         The collected user input of the shipped pages.
     """
     node_a_choice = optical_node_selector_of_roles(
-        roles=ROADM_ROLES,
+        roles=OADM_ROLES,
         prompt="This service connects this node: ",
     )
     node_b_choice = optical_node_selector_of_roles(
-        roles=ROADM_ROLES,
+        roles=OADM_ROLES,
         prompt="...to this other node: ",
     )
 
@@ -657,7 +652,6 @@ def create_optical_spectrum() -> StepList:
 
 __all__ = [
     "CREATE_OPTICAL_SPECTRUM_BLOCK_STEPS",
-    "LINE_SYSTEM_ROLES",
     "NO_OPTICAL_PATH_FOUND_MSG",
     "construct_optical_spectrum_subscription",
     "create_optical_spectrum",

@@ -9,8 +9,9 @@ device selectors to the generalized Optical Node/Port model:
   Nodes; pipes terminated on transponder or coherent pluggable ports are skipped;
 - optical devices are the ``AbstractOpticalNodeBlock`` instances (any vendor
   block), and device types are replaced by the ``OpticalNodeRole`` of the
-  hosting node (``OpticalNodeRole.ROADM``, ``OpticalNodeRole.AMPLIFIER``,
-  ``OpticalNodeRole.TRANSPONDER``, ``OpticalNodeRole.TRANSPONDER_XOADM``);
+  hosting node (``OpticalNodeRole.ROADM``, ``OpticalNodeRole.FOADM``,
+  ``OpticalNodeRole.AMPLIFIER``, ``OpticalNodeRole.TRANSPONDER``,
+  ``OpticalNodeRole.TRANSPONDER_ROADM``, ``OpticalNodeRole.TRANSPONDER_FOADM``);
 - platform checks are dispatched on the ``Vendor`` and ``Platform`` enums of the
   ``OpticalModuleNodeManagementBlock``;
 - the old ``used_passbands`` of the optical ports is the
@@ -46,6 +47,7 @@ from orchestrator.optical.hal.spectrum import (
     validate_optical_circuit,
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    OADM_ROLES,
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
 )
@@ -77,15 +79,6 @@ from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.shared import active_instance_selector_by_block_type, used_port_names_on_node
 
 logger = get_logger(__name__)
-
-#: Roles of the Optical Nodes forming the line system (ROADMs, XOADMs, amplifiers).
-#: Single home for the constant previously duplicated across the spectrum
-#: create/modify modules; import from here going forward.
-LINE_SYSTEM_ROLES = [
-    OpticalNodeRole.ROADM,
-    OpticalNodeRole.TRANSPONDER_XOADM,
-    OpticalNodeRole.AMPLIFIER,
-]
 
 #: Rejecting placeholder path Choice value offered when no optical path resolves.
 #: Single home for the message previously defined in the spectrum create module.
@@ -1517,9 +1510,9 @@ def refresh_sections_used_passbands(
     """Refresh the ``optical_passbands`` of the OLS ports of the given sections from the devices.
 
     Both the express ports and the section add/drop ports are refreshed, for every
-    OLS host node role that carries passbands (``ROADM``, ``TRANSPONDER_XOADM`` and
-    ``AMPLIFIER``). The refresh reads the live spectral occupation of each device,
-    so it also frees ports whose circuits were deleted: call it with the replaced
+    OLS host node role of an add/drop multiplexer (see ``OADM_ROLES``). The refresh
+    reads the live spectral occupation of each device, so it also frees ports whose
+    circuits were deleted: call it with the replaced
     (old) sections after a path change, otherwise their database rows keep stale
     "occupied" passbands and future path computations wrongly exclude them.
     The refreshed foreign ports (owned by another subscription than the given
@@ -1546,11 +1539,7 @@ def refresh_sections_used_passbands(
         ]
         for port in ports:
             node = port.optical_port_host_node
-            if node.optical_node_role not in (
-                OpticalNodeRole.ROADM,
-                OpticalNodeRole.TRANSPONDER_XOADM,
-                OpticalNodeRole.AMPLIFIER,
-            ):
+            if node.optical_node_role not in OADM_ROLES:
                 continue
             if node.management.optical_module_node_fqdn is None or port.optical_port_name is None:
                 continue
@@ -1576,8 +1565,8 @@ def update_used_passbands(
     """Refresh the ``optical_passbands`` of every Open Line System port in the path from the devices.
 
     Both the express ports and the section add/drop ports are refreshed, for every
-    OLS host node role that carries passbands (``ROADM``, ``TRANSPONDER_XOADM`` and
-    ``AMPLIFIER``). The express ports are the OLS line port blocks owned by the pipe
+    OLS host node role of an add/drop multiplexer (see ``OADM_ROLES``). The express
+    ports are the OLS line port blocks owned by the pipe
     subscriptions (fiber span, patch, leased spectrum), so they are *foreign* to the
     spectrum subscription and ``ProductBlockModel.save`` skips them when the spectrum
     block is persisted. The refreshed foreign ports are returned so the caller can
@@ -1634,7 +1623,7 @@ def save_foreign_passband_ports(ports: list[AbstractOpticalOlsPortBlockInactive]
         )
 
 
-def optical_node_selector_of_roles(roles: list[OpticalNodeRole], prompt: str | None = None) -> type[Choice]:
+def optical_node_selector_of_roles(roles: Sequence[OpticalNodeRole], prompt: str | None = None) -> type[Choice]:
     """Select an Optical Node from a list of nodes.
 
     Block-based selector: option values are the node block subscription instance ids
@@ -1662,7 +1651,7 @@ def optical_node_selector_of_roles(roles: list[OpticalNodeRole], prompt: str | N
 
 
 def multiple_optical_node_selector(
-    roles: list[OpticalNodeRole],
+    roles: Sequence[OpticalNodeRole],
     prompt: str | None = None,
     min_items: int = 0,
     max_items: int | None = None,

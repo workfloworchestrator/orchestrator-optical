@@ -410,6 +410,8 @@ def test_pipe_port_roles_by_pipe_type_and_vendor() -> None:
     assert pipe_shared.pipe_port_roles(OpticalPipeType.PATCH, g30) == [ols_add_drop, tp_client, tp_line]
     assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, g30) == [ols_add_drop, ols_line, tp_line]
     assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, g42) == [tp_line]
+    # A DCI span lands on a transponder's line port: a G42 offers no OLS port of its own.
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, g42) == [ols_line, tp_line]
 
 
 def test_pipe_nodes_form_enforces_span_same_vendor_and_patch_same_node(monkeypatch) -> None:
@@ -437,16 +439,19 @@ def test_pipe_nodes_form_enforces_span_same_vendor_and_patch_same_node(monkeypat
         distinct_form(node_a_instance_id="node-a", node_b_instance_id="node-a")
 
 
-def test_span_node_roles_include_amplifiers() -> None:
-    """Spans offer ROADM, xOADM and amplifier line-system nodes — never plain transponders."""
-    assert OpticalNodeRole.ROADM in pipe_shared.SPAN_NODE_ROLES
-    assert OpticalNodeRole.TRANSPONDER_XOADM in pipe_shared.SPAN_NODE_ROLES
-    assert OpticalNodeRole.AMPLIFIER in pipe_shared.SPAN_NODE_ROLES
-    assert OpticalNodeRole.TRANSPONDER not in pipe_shared.SPAN_NODE_ROLES
+def test_pipe_node_roles_include_amplifiers_and_transponders() -> None:
+    """Pipes offer OADM nodes, amplifiers and transponders; never packet nodes."""
+    assert OpticalNodeRole.ROADM in pipe_shared.PIPE_NODE_ROLES
+    assert OpticalNodeRole.FOADM in pipe_shared.PIPE_NODE_ROLES
+    assert OpticalNodeRole.TRANSPONDER_ROADM in pipe_shared.PIPE_NODE_ROLES
+    assert OpticalNodeRole.TRANSPONDER_FOADM in pipe_shared.PIPE_NODE_ROLES
+    assert OpticalNodeRole.AMPLIFIER in pipe_shared.PIPE_NODE_ROLES
+    assert OpticalNodeRole.TRANSPONDER in pipe_shared.PIPE_NODE_ROLES
+    assert OpticalNodeRole.IPODWDM not in pipe_shared.PIPE_NODE_ROLES
 
 
 def test_create_span_form_pages_offer_amplifier_nodes(monkeypatch) -> None:
-    """The span node selector is built from SPAN_NODE_ROLES, so ILA nodes are offered as endpoints."""
+    """The node selector is built from PIPE_NODE_ROLES, so ILA nodes are offered as endpoints."""
     captured_roles: list[list[OpticalNodeRole]] = []
 
     def _capturing_node_choice(roles: list[OpticalNodeRole], *args: Any, **kwargs: Any) -> type[Choice]:
@@ -468,3 +473,4 @@ def test_create_span_form_pages_offer_amplifier_nodes(monkeypatch) -> None:
     assert len(captured_roles) == 2
     for roles in captured_roles:
         assert OpticalNodeRole.AMPLIFIER in roles
+        assert OpticalNodeRole.TRANSPONDER in roles

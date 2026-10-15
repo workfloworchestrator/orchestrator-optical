@@ -9,6 +9,7 @@ they return and the RESTCONF operation they issue on the fake endpoint.
 from __future__ import annotations
 
 import copy
+import itertools
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
@@ -20,7 +21,7 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as g30_node
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import port as g30_port
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import transponder as g30_transponder
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import g30_ids_from_port_name
-from orchestrator.optical.hal.adapters.nokia_groove_g30.port import _g30_aid_id, _g30_port_role
+from orchestrator.optical.hal.adapters.nokia_groove_g30.port import _g30_port_role
 from orchestrator.optical.hal.adapters.nokia_groove_g30.transponder import (
     _client_speed_config,
     _extract_shelf_slot_port_ids_from_odu_string,
@@ -128,31 +129,119 @@ def test_g30_ids_from_port_name_rejects_subport_without_subslot() -> None:
         g30_ids_from_port_name("port-1/2/3.4")
 
 
-def test_g30_aid_id_strips_the_port_prefix() -> None:
-    assert _g30_aid_id("port-1/3.3/1") == "1/3.3/1"
+def test_g30_ots_id_strips_the_ots_prefix() -> None:
+    assert g30_shared.g30_ots_id("ots-1/3.3/1") == "1/3.3/1"
+
+
+def _module(
+    card_type: CardTypeEnum,
+    *,
+    is_occ2: bool = False,
+    ots_ids: frozenset[str] = frozenset(),
+    subslot_id: int | None = None,
+) -> Any:
+    """Return a fake installed card/subcard module."""
+    return g30_shared.G30Module(
+        card_type=card_type,
+        functions=g30_shared.g30_card_functions(card_type),
+        is_occ2=is_occ2,
+        slot_id=3,
+        subslot_id=subslot_id,
+        ots_ids=ots_ids,
+    )
 
 
 def test_g30_port_role_occ2_with_matching_ots_is_ols_line() -> None:
-    role = _g30_port_role(is_occ2=True, is_card_port=True, port_id=1, port_name="port-1/3.3/1", ots_ids={"1/3.3/1"})
+    module = _module(CardTypeEnum.OCC2, is_occ2=True, ots_ids=frozenset({"1/3.3/1"}))
+    role = _g30_port_role(module=module, is_card_port=True, port_id=1, port_name="port-1/3.3/1")
     assert role is OpticalPortRole.OLS_LINE
 
 
 def test_g30_port_role_occ2_without_matching_ots_is_ols_add_drop() -> None:
-    role = _g30_port_role(is_occ2=True, is_card_port=False, port_id=3, port_name="subport-1/3.1/3", ots_ids={"1/3.3/1"})
+    module = _module(CardTypeEnum.OCC2, is_occ2=True, ots_ids=frozenset({"1/3.3/1"}))
+    role = _g30_port_role(module=module, is_card_port=False, port_id=3, port_name="subport-1/3.1/3")
     assert role is OpticalPortRole.OLS_ADD_DROP
 
 
 @pytest.mark.parametrize("port_id", [1, 2])
 def test_g30_port_role_non_occ2_card_ports_1_and_2_are_transponder_line(port_id: int) -> None:
-    role = _g30_port_role(
-        is_occ2=False, is_card_port=True, port_id=port_id, port_name=f"port-1/2/{port_id}", ots_ids=set()
-    )
+    module = _module(CardTypeEnum.CHM2)
+    role = _g30_port_role(module=module, is_card_port=True, port_id=port_id, port_name=f"port-1/2/{port_id}")
     assert role is OpticalPortRole.TRANSPONDER_LINE
 
 
 def test_g30_port_role_non_occ2_other_ports_are_transponder_client() -> None:
-    role = _g30_port_role(is_occ2=False, is_card_port=True, port_id=3, port_name="port-1/2/3", ots_ids=set())
+    module = _module(CardTypeEnum.CHM2)
+    role = _g30_port_role(module=module, is_card_port=True, port_id=3, port_name="port-1/2/3")
     assert role is OpticalPortRole.TRANSPONDER_CLIENT
+
+
+@pytest.mark.parametrize("card_type", [CardTypeEnum.PABAOFP2, CardTypeEnum.BAHOFP2, CardTypeEnum.PALROFP2])
+def test_g30_port_role_amplifier_card_port_with_matching_ots_is_ols_line(card_type: CardTypeEnum) -> None:
+    """An amplifier's fiber connection is an OLS line port when it carries an OTS."""
+    module = _module(card_type, subslot_id=3, ots_ids=frozenset({"1/3.3/1"}))
+    role = _g30_port_role(module=module, is_card_port=False, port_id=1, port_name="port-1/3.3/1")
+    assert role is OpticalPortRole.OLS_LINE
+
+
+@pytest.mark.parametrize("card_type", [CardTypeEnum.PABAOFP2, CardTypeEnum.BAHOFP2, CardTypeEnum.PALROFP2])
+def test_g30_port_role_amplifier_card_port_without_ots_is_ols_add_drop(card_type: CardTypeEnum) -> None:
+    """Without an OTS the amplifier port is an add/drop port: the OTS decides, not the card."""
+    module = _module(card_type, subslot_id=3)
+    role = _g30_port_role(module=module, is_card_port=False, port_id=1, port_name="port-1/3.3/1")
+    assert role is OpticalPortRole.OLS_ADD_DROP
+
+
+@pytest.mark.parametrize("card_type", [CardTypeEnum.PABAOFP2, CardTypeEnum.BAHOFP2])
+def test_g30_port_role_amplifier_card_in_occ2_without_ots_is_ols_add_drop(card_type: CardTypeEnum) -> None:
+    """main's behaviour is kept: an amplifier subcard with no OTS is an add/drop port."""
+    module = _module(card_type, is_occ2=True, subslot_id=3)
+    role = _g30_port_role(module=module, is_card_port=False, port_id=1, port_name="port-1/3.3/1")
+    assert role is OpticalPortRole.OLS_ADD_DROP
+
+
+@pytest.mark.parametrize("card_type", [CardTypeEnum.CAD8OFP2, CardTypeEnum.CAD8EOFP2, CardTypeEnum.OMD96])
+def test_g30_port_role_add_drop_card_port_is_ols_add_drop(card_type: CardTypeEnum) -> None:
+    """A colorless add/drop and a fixed mux/demux both drop signals, so both are add/drop ports."""
+    module = _module(card_type, subslot_id=3)
+    role = _g30_port_role(module=module, is_card_port=False, port_id=3, port_name="port-1/3.3/3")
+    assert role is OpticalPortRole.OLS_ADD_DROP
+
+
+@pytest.mark.parametrize("card_type", [CardTypeEnum.CAD8OFP2, CardTypeEnum.OMD96])
+def test_g30_port_role_add_drop_card_with_matching_ots_is_ols_line(card_type: CardTypeEnum) -> None:
+    """An add/drop card port carrying an OTS is the line side, exactly as on an OCC2.
+
+    The card type must not short-circuit the OTS check: an add/drop inside an OCC2 that
+    terminates the OLS line keeps its OLS line port.
+    """
+    module = _module(card_type, is_occ2=True, subslot_id=3, ots_ids=frozenset({"1/3.3/1"}))
+    role = _g30_port_role(module=module, is_card_port=False, port_id=1, port_name="port-1/3.3/1")
+    assert role is OpticalPortRole.OLS_LINE
+
+
+@pytest.mark.parametrize("card_type", [CardTypeEnum.OMD96, CardTypeEnum.CAD8OFP2])
+def test_g30_port_role_standalone_add_drop_card_with_matching_ots_is_ols_line(card_type: CardTypeEnum) -> None:
+    """Outside an OCC2 the OTS still decides: an add/drop port on a line is a line port."""
+    module = _module(card_type, subslot_id=3, ots_ids=frozenset({"1/3.3/1"}))
+    role = _g30_port_role(module=module, is_card_port=False, port_id=1, port_name="port-1/3.3/1")
+    assert role is OpticalPortRole.OLS_LINE
+
+
+@pytest.mark.parametrize("card_type", [CardTypeEnum.WS04SOFP2, CardTypeEnum.RD09SM])
+def test_g30_port_role_wavelength_selector_port_with_matching_ots_is_ols_line(card_type: CardTypeEnum) -> None:
+    """A WSS terminates the OLS line on one of its ports, standalone or in an OCC2."""
+    module = _module(card_type, ots_ids=frozenset({"1/3.3/1"}))
+    role = _g30_port_role(module=module, is_card_port=False, port_id=1, port_name="port-1/3.3/1")
+    assert role is OpticalPortRole.OLS_LINE
+
+
+@pytest.mark.parametrize("card_type", [CardTypeEnum.WS04SOFP2, CardTypeEnum.RD09SM])
+def test_g30_port_role_wavelength_selector_drop_port_without_ots_is_ols_add_drop(card_type: CardTypeEnum) -> None:
+    """The same WSS card drops on its other ports: one card, both OLS roles."""
+    module = _module(card_type, ots_ids=frozenset({"1/3.3/1"}))
+    role = _g30_port_role(module=module, is_card_port=False, port_id=4, port_name="port-1/3.3/4")
+    assert role is OpticalPortRole.OLS_ADD_DROP
 
 
 @pytest.mark.parametrize(
@@ -227,26 +316,103 @@ def test_g30_software_version_raises_without_an_active_load(monkeypatch: pytest.
         g30_node.software_version(SimpleNamespace())
 
 
-def _inventory_client(module_types: list[str]) -> Any:
-    inventory = [SimpleNamespace(module_type=module_type) for module_type in module_types]
+def _slot(slot_id: int, card_type: CardTypeEnum, subcards: list[CardTypeEnum] | None = None) -> Any:
+    """Return a fake slot holding a card, optionally with subcards."""
+    card = SimpleNamespace(
+        required_type=card_type,
+        port=[],
+        subslot=[
+            SimpleNamespace(subslot_id=subslot_id, subcard=SimpleNamespace(required_type=subslot_type))
+            for subslot_id, subslot_type in enumerate(subcards or [], start=1)
+        ],
+    )
+    return SimpleNamespace(slot_id=slot_id, card=card)
+
+
+def _shelf_client(
+    slots: list[Any],
+    fqdn: str = "g30.example.net",
+    management: Any = None,
+) -> Any:
+    """Return a fake G30 client exposing the given slots and no OTS."""
+    management = management or SimpleNamespace(optical_module_node_fqdn=fqdn)
+    optical_interfaces = SimpleNamespace(ots=[])
     return SimpleNamespace(
-        url="https://g30.example.net",
+        url=f"https://{fqdn}",
         data=SimpleNamespace(
             ne_ne=SimpleNamespace(
-                inventory_data=SimpleNamespace(inventory=SimpleNamespace(retrieve=lambda **_: inventory))
+                shelf=SimpleNamespace(retrieve=lambda **_: [SimpleNamespace(slot=slots)]),
+                services=SimpleNamespace(optical_interfaces=SimpleNamespace(retrieve=lambda **_: optical_interfaces)),
             )
         ),
     )
 
 
-def test_g30_role_with_occ2_inventory_is_transponder_xoadm(monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_g30_client(monkeypatch, _inventory_client(["CHM2", "OCC2"]))
-    assert g30_node.role(SimpleNamespace()) is OpticalNodeRole.TRANSPONDER_XOADM
+#: Each case is (shelf, expected role): the role follows the *set* of installed cards,
+#: with an OCC2 contributing the functions of its subcards.
+_ROLE_CASES: list[tuple[list[Any], OpticalNodeRole]] = [
+    ([_slot(1, CardTypeEnum.CHM2), _slot(2, CardTypeEnum.CHM1)], OpticalNodeRole.TRANSPONDER),
+    ([_slot(3, CardTypeEnum.OCC2, [CardTypeEnum.PABAOFP2])], OpticalNodeRole.AMPLIFIER),
+    ([_slot(3, CardTypeEnum.OCC2, [CardTypeEnum.PABAOFP2]), _slot(2, CardTypeEnum.CHM2)], OpticalNodeRole.TRANSPONDER),
+    ([_slot(1, CardTypeEnum.OMD96)], OpticalNodeRole.FOADM),
+    ([_slot(3, CardTypeEnum.OCC2, [CardTypeEnum.CAD8OFP2])], OpticalNodeRole.FOADM),
+    (
+        [_slot(3, CardTypeEnum.OCC2, [CardTypeEnum.CAD8OFP2, CardTypeEnum.BAHOFP2]), _slot(2, CardTypeEnum.CHM2)],
+        OpticalNodeRole.TRANSPONDER_FOADM,
+    ),
+    ([_slot(3, CardTypeEnum.OCC2, [CardTypeEnum.WS04SOFP2, CardTypeEnum.PAEROFP2])], OpticalNodeRole.ROADM),
+    (
+        [_slot(3, CardTypeEnum.OCC2, [CardTypeEnum.WS04SOFP2, CardTypeEnum.CAD8OFP2]), _slot(2, CardTypeEnum.CHM2T)],
+        OpticalNodeRole.TRANSPONDER_ROADM,
+    ),
+    ([_slot(1, CardTypeEnum.RD09SM)], OpticalNodeRole.ROADM),
+    ([_slot(1, CardTypeEnum.WS04SOFP2)], OpticalNodeRole.ROADM),
+    ([_slot(1, CardTypeEnum.WS04SOFP2), _slot(2, CardTypeEnum.CHM2)], OpticalNodeRole.TRANSPONDER_ROADM),
+    ([_slot(3, CardTypeEnum.OCC2, [CardTypeEnum.CAD16AOFP2])], OpticalNodeRole.FOADM),
+]
 
 
-def test_g30_role_without_occ2_is_transponder(monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_g30_client(monkeypatch, _inventory_client(["CHM2", "CHM1"]))
-    assert g30_node.role(SimpleNamespace()) is OpticalNodeRole.TRANSPONDER
+def _node(fqdn: str = "g30.example.net") -> Any:
+    """Return a fake G30 node block."""
+    return SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn=fqdn))
+
+
+@pytest.mark.parametrize(
+    ("slots", "expected"), _ROLE_CASES, ids=lambda value: str(len(value)) if isinstance(value, list) else ""
+)
+def test_g30_role_follows_the_installed_cards(
+    slots: list[Any], expected: OpticalNodeRole, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_g30_client(monkeypatch, _shelf_client(slots))
+    assert g30_node.role(_node()) is expected
+
+
+def test_g30_role_with_only_housekeeping_cards_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A node with no optical card at all is a provisioning mistake, not a role."""
+    _patch_g30_client(monkeypatch, _shelf_client([_slot(1, CardTypeEnum.FAN), _slot(2, CardTypeEnum.PSU)]))
+    with pytest.raises(ValueError, match="No optical function found on the Groove G30 node on empty.example.net"):
+        g30_node.role(_node("empty.example.net"))
+
+
+def test_g30_role_ignores_the_occ2_carrier_own_functions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An OCC2 with no subcard installed contributes no function: it is only a carrier."""
+    _patch_g30_client(monkeypatch, _shelf_client([_slot(3, CardTypeEnum.OCC2)]))
+    with pytest.raises(ValueError, match="No optical function found"):
+        g30_node.role(_node())
+
+
+def test_g30_role_maps_every_combination_of_functions() -> None:
+    """Every possible set of optical functions yields a role, none falls through.
+
+    The exhaustive guard behind ``g30_role``'s defensive raise: it must stay unreachable.
+    Adding a ``G30Function`` member without giving it a role fails here rather than
+    silently mislabelling such a node.
+    """
+    functions = list(g30_shared.G30Function)
+    all_roles = set(OpticalNodeRole)
+    for size in range(1, len(functions) + 1):
+        for combination in itertools.combinations(functions, size):
+            assert g30_shared.g30_role(frozenset(combination)) in all_roles
 
 
 # --------------------------------------------------------------------------- port

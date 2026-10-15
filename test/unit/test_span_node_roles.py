@@ -1,10 +1,11 @@
 """Unit tests for the fiber span node-role gate.
 
-``SPAN_NODE_ROLES`` is the single source of truth for which node roles can
+``PIPE_NODE_ROLES`` is the single source of truth for which node roles can
 terminate a fiber span: it drives both the interactive
 ``create_pipe_form_pages`` selector and the bulk task ``_check_span_nodes``
 guard. Amplifiers (FlexILS OLA/OA) must be accepted — both ROADM↔amplifier
-and amplifier↔amplifier — while plain-transponder nodes stay rejected.
+and amplifier↔amplifier — and so must plain transponders, whose line port is
+where a DCI span lands. Only packet nodes stay rejected.
 """
 
 from types import SimpleNamespace
@@ -13,7 +14,7 @@ import pytest
 
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.workflows.optical_pipe.shared import SPAN_NODE_ROLES
+from orchestrator.optical.workflows.optical_pipe.shared import PIPE_NODE_ROLES
 from orchestrator.optical.workflows.tasks import bulk_create_optical_pipes as bulk_pipes
 from orchestrator.optical.workflows.tasks.bulk_create_optical_pipes import _check_span_nodes
 
@@ -29,12 +30,15 @@ def _node_block(role: OpticalNodeRole, fqdn: str = "node.optical.test") -> Simpl
     )
 
 
-def test_span_node_roles_accepts_amplifiers() -> None:
-    """Spans terminate on ROADM, xOADM and amplifier line-system nodes — never on plain transponders."""
-    assert OpticalNodeRole.ROADM in SPAN_NODE_ROLES
-    assert OpticalNodeRole.TRANSPONDER_XOADM in SPAN_NODE_ROLES
-    assert OpticalNodeRole.AMPLIFIER in SPAN_NODE_ROLES
-    assert OpticalNodeRole.TRANSPONDER not in SPAN_NODE_ROLES
+def test_span_node_roles_accepts_line_system_and_transponders() -> None:
+    """Spans terminate on OADM nodes, amplifiers and transponders; never on packet nodes."""
+    assert OpticalNodeRole.ROADM in PIPE_NODE_ROLES
+    assert OpticalNodeRole.FOADM in PIPE_NODE_ROLES
+    assert OpticalNodeRole.TRANSPONDER_ROADM in PIPE_NODE_ROLES
+    assert OpticalNodeRole.TRANSPONDER_FOADM in PIPE_NODE_ROLES
+    assert OpticalNodeRole.AMPLIFIER in PIPE_NODE_ROLES
+    assert OpticalNodeRole.TRANSPONDER in PIPE_NODE_ROLES
+    assert OpticalNodeRole.IPODWDM not in PIPE_NODE_ROLES
 
 
 def _check(monkeypatch: pytest.MonkeyPatch, role_a: OpticalNodeRole, role_b: OpticalNodeRole) -> None:
@@ -53,10 +57,9 @@ def test_check_span_nodes_accepts_amplifier_amplifier(monkeypatch: pytest.Monkey
     _check(monkeypatch, OpticalNodeRole.AMPLIFIER, OpticalNodeRole.AMPLIFIER)
 
 
-def test_check_span_nodes_rejects_transponder(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Plain-transponder ends (e.g. GX G42) still cannot terminate a span."""
-    with pytest.raises(ValueError, match="cannot terminate a fiber span"):
-        _check(monkeypatch, OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER)
+def test_check_span_nodes_accepts_transponder_transponder(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A DCI span runs straight between two transponders."""
+    _check(monkeypatch, OpticalNodeRole.TRANSPONDER, OpticalNodeRole.TRANSPONDER)
 
 
 def test_check_span_nodes_rejects_vendor_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:

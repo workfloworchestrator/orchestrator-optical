@@ -84,8 +84,8 @@ from orchestrator.optical.products.product_blocks.optical_digital_service import
     OpticalDigitalServiceType,
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    TRANSCEIVER_ROLES,
     AbstractOpticalNodeBlockInactive,
-    OpticalNodeRole,
 )
 from orchestrator.optical.products.product_blocks.optical_node.optical_packet_node import (
     OpticalModulePacketNodeBlock,
@@ -130,13 +130,6 @@ from orchestrator.optical.workflows.shared import active_instance_selector_by_bl
 
 logger = get_logger(__name__)
 
-#: Roles of the Optical Nodes that can host an endpoint of a digital service:
-#: transponder nodes and packet nodes (coherent pluggables).
-DIGITAL_ENDPOINT_ROLES = [
-    OpticalNodeRole.TRANSPONDER,
-    OpticalNodeRole.TRANSPONDER_XOADM,
-    OpticalNodeRole.IPODWDM,
-]
 
 #: Placeholder path value meaning the endpoints are directly connected, with no
 #: line system in between (mirrors the transport-channel path selector).
@@ -409,7 +402,7 @@ def optical_digital_endpoint_selector(prompt: str | None = None) -> type[Choice]
     """
     base_choice = active_instance_selector_by_block_type(
         AbstractOpticalNodeBlockInactive,
-        resource_values={"optical_node_role": [role.value for role in DIGITAL_ENDPOINT_ROLES]},
+        resource_values={"optical_node_role": [role.value for role in TRANSCEIVER_ROLES]},
     )
     options = {member.value: member.label for member in base_choice}
     if not prompt:
@@ -2610,7 +2603,6 @@ VERIFY_OPTICAL_DIGITAL_SERVICE_BLOCK_STEPS: StepList = (
 
 
 __all__ = [
-    "DIGITAL_ENDPOINT_ROLES",
     "DIRECT_CONNECTION",
     "OPTICAL_CIRCUIT_LABEL_CONDUIT_SEPARATOR",
     "OPTICAL_CIRCUIT_LABEL_SERVICE_SEPARATOR",

@@ -61,7 +61,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.workflows.customer import customer_choice_form_page
-from orchestrator.optical.workflows.optical_pipe.shared import SPAN_NODE_ROLES, default_pipe_identifier
+from orchestrator.optical.workflows.optical_pipe.shared import PIPE_NODE_ROLES, default_pipe_identifier
 from orchestrator.optical.workflows.shared import used_port_names_on_node
 from orchestrator.optical.workflows.tasks.shared import read_csv_rows
 
@@ -346,7 +346,7 @@ def _check_span_nodes(node_a_instance_id: str, node_b_instance_id: str, line_num
     node_a_block = node_block_from_instance(node_a_instance_id)
     node_b_block = node_block_from_instance(node_b_instance_id)
     for node_block in (node_a_block, node_b_block):
-        if node_block.optical_node_role not in SPAN_NODE_ROLES:
+        if node_block.optical_node_role not in PIPE_NODE_ROLES:
             fqdn = node_block.management.optical_module_node_fqdn
             role = node_block.optical_node_role
             msg = f"Node {fqdn!r} at row {line_number} has role {role!r} and cannot terminate a fiber span"

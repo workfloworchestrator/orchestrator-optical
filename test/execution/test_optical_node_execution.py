@@ -443,7 +443,9 @@ def test_optical_node_selector_of_roles_offers_descriptions_filtered_by_role(
 
     assert {
         member.value: member.label
-        for member in optical_node_selector_of_roles([OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER_XOADM])
+        for member in optical_node_selector_of_roles(
+            [OpticalNodeRole.ROADM, OpticalNodeRole.FOADM, OpticalNodeRole.TRANSPONDER_ROADM]
+        )
     } == {flexils_instance_id: f"roles-flexils.optical.test ({FLEXILS_PRODUCT})"}
     assert {member.value: member.label for member in optical_node_selector_of_roles([OpticalNodeRole.TRANSPONDER])} == {
         g30_instance_id: f"roles-g30.optical.test ({GROOVE_G30_PRODUCT})"

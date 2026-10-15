@@ -2,7 +2,12 @@
 
 from structlog import get_logger
 
-from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
+from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
+    g30_modules,
+    g30_node_functions,
+    g30_role,
+    get_g30_client,
+)
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.services.nokia.g30.data_models.ne import SwloadStateEnum
@@ -37,18 +42,24 @@ def software_version(node: NokiaGrooveG30BlockProvisioning) -> str:
 
 
 def role(node: NokiaGrooveG30BlockProvisioning) -> OpticalNodeRole:
-    """Determine the node role of a Groove G30 node from its inventory.
+    """Determine the node role of a Groove G30 node from its installed cards.
 
-    The node is a transponder unless it carries an OCC2 (Optical carrier card
-    of type II) in its inventory, in which case it also acts as an xOADM.
+    A Groove G30 is a transponder, an amplifier, a FOADM or a ROADM depending on the
+    cards it carries: a wavelength selector (WSS) makes it a ROADM, a colorless or
+    fixed add/drop makes it a FOADM, amplifiers alone make it an amplifier, and the
+    presence of a transponder card is what distinguishes the transponder flavours of
+    the ROADM and FOADM from their bare counterparts. See
+    :func:`orchestrator.optical.hal.adapters.nokia_groove_g30._shared.g30_role` for the
+    full mapping.
 
     Args:
         node: The Groove G30 node block.
 
     Returns:
         The OpticalNodeRole of the node.
+
+    Raises:
+        ValueError: If the node has no role-relevant optical card installed.
     """
-    g30 = get_g30_client(node)
-    inventory = g30.data.ne_ne.inventory_data.inventory.retrieve(depth=2)
-    has_occ2 = any(item.module_type == "OCC2" for item in inventory)
-    return OpticalNodeRole.TRANSPONDER_XOADM if has_occ2 else OpticalNodeRole.TRANSPONDER
+    functions = g30_node_functions(g30_modules(node))
+    return g30_role(functions, node.management.optical_module_node_fqdn)

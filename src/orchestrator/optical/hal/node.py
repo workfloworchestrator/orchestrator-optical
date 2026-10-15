@@ -162,7 +162,10 @@ def retrieve_ports_spectral_occupations(
 
     Returns:
         A dictionary where keys are port names and values are lists of spectral occupations.
-        Empty for the vendors that do not support this retrieval.
+        Empty for the vendors that do not support this retrieval: the Groove G30 and the
+        GX G42 never report spectral occupation, so their whole spectrum is always free.
+        The empty mapping is the truthful answer for those platforms, not "unknown" —
+        callers read it as "nothing is occupied" and clear the passbands accordingly.
 
     Raises:
         UnsupportedPlatformError: If the vendor/platform combination is not supported.

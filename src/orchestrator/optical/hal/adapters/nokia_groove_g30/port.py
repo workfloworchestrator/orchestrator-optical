@@ -12,7 +12,12 @@ from orchestrator.optical.hal._common import (
     _same_node,
 )
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
+    G30_MAX_SLOT_ID,
+    G30Function,
+    G30Module,
     g30_ids_from_port_name,
+    g30_modules,
+    g30_ots_id,
     g30_port_navigator_node_from_port_name,
     get_g30_client,
 )
@@ -35,10 +40,18 @@ from orchestrator.optical.services.nokia.g30.data_models.ne import (
 )
 from orchestrator.optical.utils.datadiff import compare_pydantic_objects
 
+#: Subslot of the OCC2 card holding the booster of an amplifier card; the
+#: preamplifier lives in the amplifier port's own subslot. A Groove G30 amplifier card
+#: exposes its two amplifiers in fixed subslots of the carrier.
+_BOOSTER_SUBSLOT_ID = 2
+
 #: Port roles a Groove G30 node can enumerate. The role of each physical port is
-#: determined from the device: an OCC2 card exposes OLS line ports (when an OTS
-#: with the same id exists) or OLS add/drop ports (otherwise), while every other
-#: card exposes transponder line ports (card ports 1 and 2) or transponder client
+#: determined from the device, from the functions of the card or subcard hosting it (see
+#: :mod:`orchestrator.optical.hal.adapters.nokia_groove_g30._shared`): every card that is
+#: not a pure transponder is an Open Line System element -- an OCC2 carrier, an amplifier,
+#: an add/drop, a mux/demux, a wavelength selector or a mix -- and exposes OLS line ports
+#: when an OTS with the same id exists and OLS add/drop ports otherwise, while a
+#: transponder exposes transponder line ports (card ports 1 and 2) or transponder client
 #: ports (every other port, subports included).
 _G30_SUPPORTED_ROLES = frozenset(
     {
@@ -50,22 +63,27 @@ _G30_SUPPORTED_ROLES = frozenset(
 )
 
 
-def _g30_aid_id(port_name: str) -> str:
-    """Return the id shared by a port and its OTS (e.g. ``1/3.3/1`` for ``port-1/3.3/1``)."""
-    return port_name.split("-", 1)[-1]
-
-
 def _g30_port_role(
     *,
-    is_occ2: bool,
+    module: G30Module,
     is_card_port: bool,
     port_id: int,
     port_name: str,
-    ots_ids: set[str],
 ) -> OpticalPortRole:
-    """Return the Optical Port role of a Groove G30 port from its device configuration."""
-    if is_occ2:
-        return OpticalPortRole.OLS_LINE if _g30_aid_id(port_name) in ots_ids else OpticalPortRole.OLS_ADD_DROP
+    """Return the Optical Port role of a Groove G30 port from the functions of its module.
+
+    A module belongs to the Open Line System unless the transponder is the only function
+    it provides: an OCC2 carrier, an amplifier, an add/drop and a wavelength selector are
+    all OLS elements, and a single card often mixes several of them. One card can expose
+    both line and add/drop ports -- a WSS terminates the line on one port and drops on the
+    others -- so the OTS, not the card, decides: a port carrying an OTS id is the line
+    side, a port without one is an add/drop port. A transponder is the remaining case:
+    its card ports 1 and 2 are the line side, every other port and subport is a client
+    port.
+    """
+    is_transponder_only = module.functions <= frozenset({G30Function.TRANSPONDER})
+    if module.is_occ2 or not is_transponder_only:
+        return OpticalPortRole.OLS_LINE if g30_ots_id(port_name) in module.ots_ids else OpticalPortRole.OLS_ADD_DROP
     if is_card_port and port_id in (1, 2):
         return OpticalPortRole.TRANSPONDER_LINE
     return OpticalPortRole.TRANSPONDER_CLIENT
@@ -75,47 +93,44 @@ def _g30_port_roles(optical_node_block: NokiaGrooveG30BlockProvisioning) -> dict
     """Return the role of every port of a Groove G30 node, keyed by the device port name."""
     g30 = get_g30_client(optical_node_block)
     shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
-    optical_interfaces = g30.data.ne_ne.services.optical_interfaces.retrieve(content="config", depth=4)
-    ots_ids = {_g30_aid_id(ots.ots_name) for ots in (optical_interfaces.ots or [])}
+
+    modules_by_id = {(module.slot_id, module.subslot_id): module for module in g30_modules(optical_node_block)}
 
     port_roles: dict[str, OpticalPortRole] = {}
-    max_slot_id_with_useful_ports = 4
     for shelf in shelves or []:
         for slot in shelf.slot or []:
-            if slot.slot_id > max_slot_id_with_useful_ports or not slot.card:
+            if slot.slot_id > G30_MAX_SLOT_ID or not slot.card:
                 continue
-            is_occ2 = slot.card.required_type == CardTypeEnum.OCC2
+            card_module = modules_by_id[(slot.slot_id, None)]
 
             for port in slot.card.port or []:
                 if port.alias_name is not None:
                     port_roles[port.alias_name] = _g30_port_role(
-                        is_occ2=is_occ2,
+                        module=card_module,
                         is_card_port=True,
                         port_id=port.port_id,
                         port_name=port.alias_name,
-                        ots_ids=ots_ids,
                     )
 
             for subslot in slot.card.subslot or []:
                 if not subslot.subcard:
                     continue
+                subcard_module = modules_by_id.get((slot.slot_id, subslot.subslot_id), card_module)
                 for port in subslot.subcard.port or []:
                     if port.alias_name is not None:
                         port_roles[port.alias_name] = _g30_port_role(
-                            is_occ2=is_occ2,
+                            module=subcard_module,
                             is_card_port=False,
                             port_id=port.port_id,
                             port_name=port.alias_name,
-                            ots_ids=ots_ids,
                         )
                     for subport in port.subport or []:
                         if subport.alias_name is not None:
                             port_roles[subport.alias_name] = _g30_port_role(
-                                is_occ2=is_occ2,
+                                module=subcard_module,
                                 is_card_port=False,
                                 port_id=subport.subport_id,
                                 port_name=subport.alias_name,
-                                ots_ids=ots_ids,
                             )
 
     return port_roles
@@ -271,6 +286,24 @@ def set_port_admin_state(
     return compare_pydantic_objects(before, port_uri.retrieve(depth=2, content="config"))
 
 
+def _is_amplifier_port(
+    host_node: AnyOpticalNodeBlockProvisioningUnion,
+    slot_id: int,
+    subslot_id: int | None,
+) -> bool:
+    """Return whether the port at the given slot/subslot is an amplifier line port.
+
+    Derived from the installed cards rather than from a fixed slot layout: the subcard
+    in the given subslot is an amplifier when its card type provides the amplifier
+    function. Falls back to the card itself when the subslot holds no subcard, so a card
+    that is an amplifier in its own right is recognised too.
+    """
+    modules = {(module.slot_id, module.subslot_id): module for module in g30_modules(host_node)}
+    if subslot_id is not None and (module := modules.get((slot_id, subslot_id))) is not None:
+        return module.is_amplifier
+    return modules[(slot_id, None)].is_amplifier
+
+
 def _configure_g30_amplifier_port(
     host_node: AnyOpticalNodeBlockProvisioningUnion,
     shelf_id: int,
@@ -305,7 +338,7 @@ def _configure_g30_amplifier_port(
 
     port_before = endpoint.retrieve(depth=2, content="config")
 
-    booster_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(2).subcard.amplifier("ba")
+    booster_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(_BOOSTER_SUBSLOT_ID).subcard.amplifier("ba")
     booster_before = booster_uri.retrieve(content="config", depth=2)
     # Minimal PATCH: list key plus changed leaves only.
     booster_uri.update(
@@ -385,7 +418,7 @@ def configure_termination(
             return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             is_same_device = _same_node(host_node, remote_host_node)
-            is_amplifier_port = slot_id == 3 and subslot_id == 3 and port_id == 1  # noqa: PLR2004
+            is_amplifier_port = _is_amplifier_port(host_node, slot_id, subslot_id)
 
             if is_same_device:
                 before = endpoint.retrieve(depth=2, content="config")

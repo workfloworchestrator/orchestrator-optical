@@ -35,6 +35,8 @@ from orchestrator.optical.hal.port import (
     get_device_ports_by_role,
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
+    LINE_SYSTEM_ROLES,
+    OADM_ROLES,
     AbstractOpticalNodeBlockInactive,
     OpticalNodeRole,
 )
@@ -80,18 +82,14 @@ PORT_BLOCK_CLASS_BY_ROLE: dict[OpticalPortRole, type[AbstractOpticalPortBlockIna
     OpticalPortRole.TRANSPONDER_LINE: OpticalTransponderLinePortBlockInactive,
 }
 
-#: Optical Node roles a fiber span can terminate on: line-system nodes
-#: (FlexILS ROADMs and OLA/OA amplifiers, OADM-capable Groove G30 nodes).
-#: A span is OLS line only and, by policy, same-vendor; plain-transponder
-#: nodes (including the GX G42) are not offered as span endpoints. Both
-#: ROADM↔amplifier and amplifier↔amplifier spans are allowed: amplifiers are
-#: transit segments of longer ROADM-to-ROADM paths.
-SPAN_NODE_ROLES = [OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER_XOADM, OpticalNodeRole.AMPLIFIER]
-
-#: Optical Node roles a fiber patch or leased spectrum can terminate on: the
-#: footprint of the shipped node products (amplifiers and packet nodes stay
-#: excluded, as before).
-PIPE_NODE_ROLES = [OpticalNodeRole.ROADM, OpticalNodeRole.TRANSPONDER, OpticalNodeRole.TRANSPONDER_XOADM]
+#: Optical Node roles any pipe can terminate on: the line-system nodes (FlexILS ROADMs and
+#: OLA/OA amplifiers, OADM-capable Groove G30 nodes) plus plain transponders, since a
+#: transponder's line port is where a DCI span lands. There is deliberately no separate
+#: set for spans: a span runs over the same dark fibre as a patch or a leased spectrum,
+#: just with different port roles (see :func:`pipe_port_roles`). Amplifiers stay in,
+#: both ROADM↔amplifier and amplifier↔amplifier, being transit segments of longer
+#: ROADM-to-ROADM paths. Packet nodes are the only shipped role excluded.
+PIPE_NODE_ROLES = [*LINE_SYSTEM_ROLES, OpticalNodeRole.TRANSPONDER]
 
 
 def pipe_port_roles(
@@ -100,12 +98,14 @@ def pipe_port_roles(
 ) -> list[OpticalPortRole]:
     """Return the Optical Port roles a pipe type can terminate on the given node.
 
-    The roles depend on both the pipe type and the node's vendor/platform: a
-    Nokia FlexILS node terminates spans on its OLS line ports and patches / leased
-    spectrum on its OLS add/drop (SCG) ports; a Groove G30 node can terminate a
-    pipe on both its OLS ports (OCC2 cards) and its transponder ports; a GX G42
-    node only exposes transponder ports. The returned roles are the subset of the
-    pipe block union (see ``optical_port/unions.py``) that the node can expose.
+    The roles depend on both the pipe type and the node's vendor/platform: a span
+    lands on an OLS line port, or on a transponder's line port when the node has no OLS
+    of its own (a GX G42, or a transponder-only Groove G30), which is how a DCI span
+    reaches the far side. A Nokia FlexILS node terminates spans on its OLS line ports and
+    patches / leased spectrum on its OLS add/drop (SCG) ports; a Groove G30 node can
+    terminate a pipe on both its OLS ports (OCC2 cards) and its transponder ports. The
+    returned roles are the subset of the pipe block union (see ``optical_port/unions.py``)
+    that the node can expose.
 
     Args:
         pipe_type: The type of the Optical Pipe.
@@ -125,10 +125,10 @@ def pipe_port_roles(
     is_g30 = vendor_platform == (Vendor.NOKIA, Platform.GROOVE_G30)
     match pipe_type:
         case OpticalPipeType.SPAN:
-            if is_g30:
-                roles = [OpticalPortRole.OLS_LINE, OpticalPortRole.TRANSPONDER_LINE]
-            else:
+            if is_flexils:
                 roles = [OpticalPortRole.OLS_LINE]
+            else:
+                roles = [OpticalPortRole.OLS_LINE, OpticalPortRole.TRANSPONDER_LINE]
         case OpticalPipeType.PATCH:
             if is_flexils:
                 roles = [OpticalPortRole.OLS_ADD_DROP]
@@ -454,9 +454,9 @@ def retrieve_optical_pipe_used_passbands(
     Operates only on the Optical Pipe block found in the state under
     ``OPTICAL_MODULE_BLOCK_STATE_KEY``, the same block the rest of the shipped
     block steps act on. Only the OLS terminating ports (the ones that carry
-    ``optical_passbands``) hosted on ROADM, Transponder-xOADM or Amplifier
-    nodes are refreshed from the devices; every other termination (e.g.
-    transponder ports) is left untouched, so the step is a no-op for pipes
+    ``optical_passbands``) hosted on an add/drop multiplexer (see ``OADM_ROLES``) are
+    refreshed from the devices; every other termination (e.g. transponder ports) is
+    left untouched, so the step is a no-op for pipes
     whose terminations are all transponder ports. Callers persist the refreshed
     passbands with :func:`orchestrator.optical.workflows.block.save_optical_module_block`.
     """
@@ -466,11 +466,7 @@ def retrieve_optical_pipe_used_passbands(
         if not isinstance(port, AbstractOpticalOlsPortBlockInactive):
             continue
         host_node = port.optical_port_host_node
-        if host_node.optical_node_role not in (
-            OpticalNodeRole.ROADM,
-            OpticalNodeRole.TRANSPONDER_XOADM,
-            OpticalNodeRole.AMPLIFIER,
-        ):
+        if host_node.optical_node_role not in OADM_ROLES:
             continue
         if port.optical_port_name is None:
             msg = f"Optical port block of {host_node.management.optical_module_node_fqdn} has no port name"
@@ -793,13 +789,12 @@ def create_pipe_form_pages(
     """
     is_span = pipe_type is OpticalPipeType.SPAN
     is_patch = pipe_type is OpticalPipeType.PATCH
-    node_roles = SPAN_NODE_ROLES if is_span else PIPE_NODE_ROLES
 
     node_a_choice = optical_node_selector_of_roles(
-        node_roles,
+        PIPE_NODE_ROLES,
         prompt=f"This {product_name.lower()} connects this node:",
     )
-    node_b_choice = optical_node_selector_of_roles(node_roles, prompt="...to this other node:")
+    node_b_choice = optical_node_selector_of_roles(PIPE_NODE_ROLES, prompt="...to this other node:")
 
     user_input_dict: dict[str, Any] = {}
     user_input_dict.update(
@@ -936,7 +931,6 @@ __all__ = [
     "OPTICAL_MODULE_BLOCK_STATE_KEY",
     "PIPE_NODE_ROLES",
     "PORT_BLOCK_CLASS_BY_ROLE",
-    "SPAN_NODE_ROLES",
     "check_pipe_terminations",
     "configure_pipe_terminations",
     "create_optical_pipe_form_generator",
