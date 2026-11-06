@@ -40,7 +40,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlock,
     OpticalDigitalServiceBlockInactive,
@@ -52,8 +51,6 @@ from orchestrator.optical.products.product_types.optical_digital_service import 
 from orchestrator.optical.utils.custom_types.frequencies import (
     Frequency,
     SpectralWidth,
-    disjoint_intervals_overlap_search,
-    ensure_passband_aligned_to_grid,
     passband_from,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
@@ -63,6 +60,8 @@ from orchestrator.optical.workflows.optical_digital_service.create_optical_digit
     create_optical_digital_service_path_form,
     decode_optical_path,
     no_optical_path_placeholder_choice,
+    optical_digital_service_available_passbands,
+    optical_digital_service_frequencies_form,
     optical_digital_service_path_choice,
 )
 from orchestrator.optical.workflows.optical_digital_service.shared import (
@@ -94,6 +93,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spec
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     NoOpticalPathFoundError,
+    OpticalPathCandidates,
     OwnOccupancy,
     multiple_optical_node_selector,
 )
@@ -160,15 +160,14 @@ def modify_optical_digital_service_identity_form(block: OpticalDigitalServiceBlo
 def modify_optical_digital_service_form(block: OpticalDigitalServiceBlock) -> type[FormPage]:
     """Return the modify FormPage of the Optical Digital Service subscription.
 
-    The page is prefilled with the current frequencies, bandwidths and mode of
-    the transport channels, so unchanged fields remain intact. The mode is a
-    drop-down over the intersection of the live mode tables of the channels'
+    The page is prefilled with the current mode of the transport channels, so an
+    unchanged mode remains intact (the frequencies are collected on the last
+    page, see ``optical_digital_service_frequencies_form`` of the create
+    module). The mode is a drop-down over the intersection of the live mode tables of the channels'
     line port cards (see :func:`optical_transport_mode_selector
     <orchestrator.optical.workflows.optical_digital_service.shared.optical_transport_mode_selector>`);
     the currently provisioned mode is always offered, so the prefilled page
-    renders even when the stored mode went stale. The number of
-    fields follows the number of channels: services with two channels
-    (reverse multiplexing) expose the second frequency/bandwidth pair.
+    renders even when the stored mode went stale.
 
     Args:
         block: The Optical Digital Service block being modified.
@@ -187,43 +186,23 @@ def modify_optical_digital_service_form(block: OpticalDigitalServiceBlock) -> ty
 
     class ModifyOpticalDigitalServiceForm(FormPage):
         optical_transport_mode: mode_choice = mode_choice(old_mode)
-        frequency_1: Frequency = channels[0].optical_transport_central_frequency
-        bandwidth_1: SpectralWidth = (
-            channels[0].optical_transport_spectrum.optical_spectrum_passband[1]
-            - channels[0].optical_transport_spectrum.optical_spectrum_passband[0]
-        )
 
         @model_validator(mode="after")
         def validate_data(self) -> "ModifyOpticalDigitalServiceForm":
             reject_placeholder_transport_mode(str(self.optical_transport_mode))
-            ensure_passband_aligned_to_grid(
-                passband_from(self.frequency_1, self.bandwidth_1), FLEXILS_SPECTRAL_GRID_MHZ
-            )
             return self
 
-    if len(channels) == 1:
-        return ModifyOpticalDigitalServiceForm
+    return ModifyOpticalDigitalServiceForm
 
-    class ModifyOpticalDigitalServiceDualForm(ModifyOpticalDigitalServiceForm):
-        frequency_2: Frequency = channels[1].optical_transport_central_frequency
-        bandwidth_2: SpectralWidth = (
-            channels[1].optical_transport_spectrum.optical_spectrum_passband[1]
-            - channels[1].optical_transport_spectrum.optical_spectrum_passband[0]
-        )
 
-        @model_validator(mode="after")
-        def validate_second_channel(self) -> "ModifyOpticalDigitalServiceDualForm":
-            ensure_passband_aligned_to_grid(
-                passband_from(self.frequency_2, self.bandwidth_2), FLEXILS_SPECTRAL_GRID_MHZ
-            )
-            first_passband = passband_from(self.frequency_1, self.bandwidth_1)
-            second_passband = passband_from(self.frequency_2, self.bandwidth_2)
-            if disjoint_intervals_overlap_search([first_passband], second_passband):
-                msg = "The two transport channels must use non-overlapping passbands"
-                raise ValueError(msg)
-            return self
-
-    return ModifyOpticalDigitalServiceDualForm
+def _current_frequencies(block: OpticalDigitalServiceBlock) -> dict[str, int]:
+    """Return the current central frequency and spectral width of every transport channel, by field name."""
+    values: dict[str, int] = {}
+    for index, channel in enumerate(block.optical_digital_service_transport_channels, start=1):
+        passband = channel.optical_transport_spectrum.optical_spectrum_passband
+        values[f"frequency_{index}"] = int(channel.optical_transport_central_frequency)
+        values[f"bandwidth_{index}"] = int(passband[1] - passband[0])
+    return values
 
 
 def _yield_modify_routing_constraint_pages(product_name: str) -> FormGenerator:
@@ -268,15 +247,16 @@ def modify_optical_digital_service_form_pages(
 
     This is the shipped modify form as a page sequence: it yields the prefilled
     identity page (service and transport channel names), the prefilled channels
-    page (mode, frequencies) and, only when the first transport channel is
-    service-owned with deployed OLS sections, the waypoints page, the
-    constraints page and the path page. The optical path is recomputed between
-    the fixed line ports of the first channel (endpoints and ports never
-    change) with the new passband of the channels page, mirroring the shipped
-    create form; the service's own old passbands are forgiven on the service's
-    current path ports in the overlap test so an unchanged passband on the same
-    path does not block itself. The second channel of a reverse-multiplexed pair derives its
-    path from the chosen one in :func:`update_optical_digital_sections_path
+    page (mode), only when the first transport channel is service-owned with
+    deployed OLS sections the waypoints page, the constraints page and the path
+    page, and finally the prefilled frequencies page. The optical path is
+    recomputed between the fixed line ports of the first channel (endpoints and
+    ports never change) regardless of frequency, mirroring the shipped create
+    form; the frequencies page then lists the free ranges of the chosen path,
+    where the service's own old passbands are forgiven on the service's current
+    path ports so an unchanged passband on the same path does not block itself.
+    The second channel of a reverse-multiplexed pair derives its path from the
+    chosen one in :func:`update_optical_digital_sections_path
     <orchestrator.optical.workflows.optical_digital_service.shared.update_optical_digital_sections_path>`.
     It returns the collected user input as a flat dict of the ``optical_*``
     state keys, consumed by the shipped steps of
@@ -304,19 +284,26 @@ def modify_optical_digital_service_form_pages(
         str(reference.owner_subscription_id) != str(block.owner_subscription_id)
         or not reference.optical_transport_spectrum.optical_spectrum_sections
     ):
+        user_input_dict.update(
+            (
+                yield optical_digital_service_frequencies_form(
+                    product_name, len(channels), None, _current_frequencies(block)
+                )
+            ).model_dump()
+        )
+        user_input_dict.pop("available_frequency_ranges", None)
         return user_input_dict
 
     user_input_dict.update((yield from _yield_modify_routing_constraint_pages(product_name)))
 
     line_ports = reference.optical_transport_line_ports
-    passband = passband_from(user_input_dict["frequency_1"], user_input_dict["bandwidth_1"])
     # The stored used passbands still contain this service's own circuits: forgive the
     # old passbands of the service-owned channels, but only on the service's current
     # path ports — a same-frequency interval on any other pipe belongs to a different
     # service (spatial frequency reuse) and still blocks. Both channels share the OLS
     # interior, so both olds are forgiven; a new overlap between the two channels
-    # themselves is rejected by the form above. The reference channel is service-owned
-    # here (checked above), so the owned set is never empty.
+    # themselves is rejected by the frequencies page. The reference channel is
+    # service-owned here (checked above), so the owned set is never empty.
     own_channels = [
         channel for channel in channels if str(channel.owner_subscription_id) == str(block.owner_subscription_id)
     ]
@@ -336,27 +323,33 @@ def modify_optical_digital_service_form_pages(
             )
         ),
     )
+    candidates: OpticalPathCandidates | None = None
     try:
-        path_choice = optical_digital_service_path_choice(
+        path_choice, candidates = optical_digital_service_path_choice(
             str(line_ports[0].subscription_instance_id),
             str(line_ports[1].subscription_instance_id),
             user_input_dict["intermediate_node_instance_ids"],
-            passband,
             user_input_dict["exclude_node_instance_ids"],
             user_input_dict["exclude_pipe_instance_ids"],
-            own_occupancy=own_occupancy,
         )
     except (NoOpticalPathFoundError, ValueError):
         # No path (or an unresolvable fiber attachment): the form offers the
         # rejecting placeholder so the user adjusts the constraints.
-        logger.exception(
-            "No optical path found",
-            passband=passband,
-        )
+        logger.exception("No optical path found")
         path_choice = no_optical_path_placeholder_choice()
 
     user_input_dict.update((yield create_optical_digital_service_path_form(path_choice)).model_dump())
-    user_input_dict["optical_path"] = decode_optical_path(user_input_dict["optical_path"])
+    optical_path = decode_optical_path(user_input_dict["optical_path"])
+    available = optical_digital_service_available_passbands(candidates, optical_path, own_occupancy)
+    user_input_dict.update(
+        (
+            yield optical_digital_service_frequencies_form(
+                product_name, len(channels), available, _current_frequencies(block)
+            )
+        ).model_dump()
+    )
+    user_input_dict.pop("available_frequency_ranges", None)
+    user_input_dict["optical_path"] = optical_path
     return user_input_dict
 
 

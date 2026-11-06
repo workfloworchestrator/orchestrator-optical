@@ -28,10 +28,10 @@ adding their own pages::
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 """
 
-from typing import Annotated, Any, cast
+from typing import Any, cast
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
 from structlog import get_logger
@@ -43,7 +43,6 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
-from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.port import set_port_description
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     LINE_SYSTEM_ROLES,
@@ -57,7 +56,7 @@ from orchestrator.optical.products.product_types.optical_spectrum_service import
     OpticalSpectrumServiceSubscriptionInactive,
     OpticalSpectrumServiceSubscriptionProvisioning,
 )
-from orchestrator.optical.utils.custom_types.frequencies import Frequency, ensure_passband_aligned_to_grid
+from orchestrator.optical.utils.custom_types.frequencies import Frequency
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
@@ -65,10 +64,15 @@ from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     NO_OPTICAL_PATH_FOUND_MSG,
     NoOpticalPathFoundError,
+    OpticalPathCandidates,
+    PathEndpoint,
+    candidate_available_passbands,
     check_optical_spectrum_add_drop_port_availability,
+    compute_optical_path_candidates,
     load_ols_port,
     multiple_optical_node_selector,
     optical_node_selector_of_roles,
+    optical_passband_form,
     optical_spectrum_block_from_state,
     optical_spectrum_path_selector,
     provision_optical_sections,
@@ -89,8 +93,9 @@ logger = get_logger(__name__)
 def create_optical_spectrum_identity_form(product_name: str) -> type[FormPage]:
     """Return the identity FormPage of the Optical Spectrum create form.
 
-    This is the first page of the shipped create form: the spectrum name and the
-    frequency range (passband) of the service. It is a building block for
+    This is the first page of the shipped create form: the spectrum name of the
+    service (the passband is collected on the last page, once the path is chosen and
+    its free frequencies are known). It is a building block for
     consumers that compose their own create form generator: the shipped page
     sequence (:func:`create_optical_spectrum_form_pages`) yields it first.
 
@@ -105,16 +110,6 @@ def create_optical_spectrum_identity_form(product_name: str) -> type[FormPage]:
         model_config = ConfigDict(title=product_name)
 
         optical_spectrum_name: str
-        frequency_min: Annotated[Frequency, Field(title="Start frequency (THz)")]
-        frequency_max: Annotated[Frequency, Field(title="End frequency (THz)")]
-
-        @model_validator(mode="after")
-        def validate_frequencies(self) -> "CreateOpticalSpectrumIdentityForm":
-            if self.frequency_min > self.frequency_max:
-                msg = "Max frequency must be greater than min frequency. Did you make a typo?"
-                raise ValueError(msg)
-            ensure_passband_aligned_to_grid((self.frequency_min, self.frequency_max), FLEXILS_SPECTRAL_GRID_MHZ)
-            return self
 
     return CreateOpticalSpectrumIdentityForm
 
@@ -309,12 +304,14 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
 
     This is the shipped create form as a page sequence: it yields the identity
     page, the two-nodes page, the add/drop page, the waypoints page, the
-    constraints page and the path page, and returns the collected user input as
+    constraints page, the path page and the frequency page, and returns the collected user input as
     a flat dict of the ``optical_*`` state keys, consumed by the shipped
     construct step (:func:`construct_optical_spectrum_subscription`). The
     dependent choices are computed between the pages (the node selectors, the
-    add/drop port selectors, the waypoint and exclusion selectors, and the path
-    selector). The customer of the subscription is collected separately by the
+    add/drop port selectors, the waypoint and exclusion selectors, the path
+    selector over the K shortest paths regardless of frequency, and the free
+    frequency ranges of the chosen path, including the internal routes of the
+    add/drop ports read from the devices). The customer of the subscription is collected separately by the
     consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
@@ -387,15 +384,17 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
         ).model_dump()
     )
 
-    passband = (user_input_dict["frequency_min"], user_input_dict["frequency_max"])
+    candidates: OpticalPathCandidates | None = None
     try:
-        path_choice = optical_spectrum_path_selector(
-            str(node_a.subscription_instance_id),
-            str(node_b.subscription_instance_id),
+        candidates = compute_optical_path_candidates(
+            PathEndpoint(node_a, user_input_dict["src_optical_port_name"]),
+            PathEndpoint(node_b, user_input_dict["dst_optical_port_name"]),
             user_input_dict["intermediate_node_instance_ids"],
-            passband,
             user_input_dict["exclude_node_instance_ids"],
             user_input_dict["exclude_pipe_instance_ids"],
+        )
+        path_choice = optical_spectrum_path_selector(
+            candidates,
             prompt=(
                 "Select the optical path, if you don't see the desired path,"
                 " adjust constraints in previous step or validate fibers along the path."
@@ -406,7 +405,6 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
             "No optical path found",
             src_optical_node_instance_id=user_input_dict["src_optical_node_instance_id"],
             dst_optical_node_instance_id=user_input_dict["dst_optical_node_instance_id"],
-            passband=passband,
             exclude_node_instance_ids=user_input_dict["exclude_node_instance_ids"],
             exclude_pipe_instance_ids=user_input_dict["exclude_pipe_instance_ids"],
         )
@@ -421,7 +419,11 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
         )
 
     user_input_dict.update((yield create_optical_spectrum_path_form(path_choice, node_a, node_b)).model_dump())
-    user_input_dict["optical_path"] = user_input_dict["optical_path"].split(";")
+    optical_path = user_input_dict["optical_path"].split(";")
+    available = candidate_available_passbands(candidates, optical_path) if candidates is not None else None
+    user_input_dict.update((yield optical_passband_form(product_name, available)).model_dump())
+    user_input_dict.pop("available_frequency_ranges", None)
+    user_input_dict["optical_path"] = optical_path
     return user_input_dict
 
 

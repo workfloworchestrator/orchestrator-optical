@@ -341,7 +341,7 @@ def _shelf_client(
         url=f"https://{fqdn}",
         data=SimpleNamespace(
             ne_ne=SimpleNamespace(
-                shelf=SimpleNamespace(retrieve=lambda **_: [SimpleNamespace(slot=slots)]),
+                shelf=SimpleNamespace(retrieve=lambda **_: [SimpleNamespace(shelf_id=1, slot=slots)]),
                 services=SimpleNamespace(optical_interfaces=SimpleNamespace(retrieve=lambda **_: optical_interfaces)),
             )
         ),

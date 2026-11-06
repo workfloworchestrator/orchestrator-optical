@@ -14,7 +14,7 @@
 """Frequency, bandwidth and passband types plus passband arithmetic helpers."""
 
 import ast
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Annotated
 
 from pydantic import AfterValidator, BeforeValidator, Field
@@ -247,10 +247,58 @@ def passband_overlaps_excluding_ignored(
     return disjoint_intervals_overlap_search(remainder, target)
 
 
+#: The usable C-band of the Open Line Systems, ``[start, end)`` in MHz.
+OLS_BAND: tuple[int, int] = (191_325_000, 196_125_000)
+
+
+def merge_intervals(intervals: Iterable[tuple[int, int] | list[int]]) -> list[tuple[int, int]]:
+    """Return the sorted union of the given ``[start, end)`` intervals.
+
+    Overlapping and edge-touching intervals are merged; empty intervals are dropped.
+
+    Args:
+        intervals: The intervals to merge, in any order.
+
+    Returns:
+        The sorted disjoint union of the intervals.
+    """
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted((int(start), int(end)) for start, end in intervals):
+        if start >= end:
+            continue
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def free_intervals(
+    used: Iterable[tuple[int, int] | list[int]],
+    band: tuple[int, int] = OLS_BAND,
+) -> list[tuple[int, int]]:
+    """Return the free ``[start, end)`` intervals of the band, given the used ones.
+
+    Args:
+        used: The used intervals, in any order, possibly overlapping.
+        band: The whole band, defaults to :data:`OLS_BAND`.
+
+    Returns:
+        The sorted disjoint free intervals of the band.
+    """
+    return subtract_intervals([band], merge_intervals(used))
+
+
+def passband_within_any(passband: tuple[int, int] | list[int], intervals: Sequence[tuple[int, int]]) -> bool:
+    """Return whether the passband lies entirely within one of the given intervals."""
+    start, end = int(passband[0]), int(passband[1])
+    return any(low <= start and end <= high for low, high in intervals)
+
+
 def available_to_used_passbands(
     available_passbands: list[Passband],
-    absolute_min_freq: Frequency = 191_325_000,
-    absolute_max_freq: Frequency = 196_125_000,
+    absolute_min_freq: Frequency = OLS_BAND[0],
+    absolute_max_freq: Frequency = OLS_BAND[1],
 ) -> list[Passband]:
     """Calculate used frequency passbands within an absolute frequency range.
 

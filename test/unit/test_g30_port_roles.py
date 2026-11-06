@@ -96,7 +96,7 @@ def g30_client(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     )
     transponder_card = _card(CardTypeEnum.CHM2, ports=[_port("port-1/2/1", 1), _port("port-1/2/3", 3)])
     client = _fake_g30_client(
-        shelves=[SimpleNamespace(slot=_card_slots((3, occ2_card), (2, transponder_card)))],
+        shelves=[SimpleNamespace(shelf_id=1, slot=_card_slots((3, occ2_card), (2, transponder_card)))],
         ots_names=["ots-1/3.3/1"],
     )
     _patch_g30_client(monkeypatch, client)
@@ -129,7 +129,7 @@ def amplifier_client(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     )
     transponder_card = _card(CardTypeEnum.CHM2, ports=[_port("port-1/2/1", 1)])
     client = _fake_g30_client(
-        shelves=[SimpleNamespace(slot=_card_slots((3, amplifier_card), (2, transponder_card)))],
+        shelves=[SimpleNamespace(shelf_id=1, slot=_card_slots((3, amplifier_card), (2, transponder_card)))],
         ots_names=["ots-1/3.3/1"],
     )
     _patch_g30_client(monkeypatch, client)

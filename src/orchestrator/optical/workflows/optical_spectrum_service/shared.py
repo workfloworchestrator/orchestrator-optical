@@ -21,23 +21,27 @@ device selectors to the generalized Optical Node/Port model:
   and by ``optical_node_selector_of_roles`` / ``transceiver_mode_selector``.
 """
 
+import heapq
 from collections import deque
 from collections.abc import Iterable, Sequence
-from itertools import pairwise, product
+from dataclasses import dataclass, field
 from typing import Annotated, Any, NamedTuple, cast
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, model_validator
 from pydantic_forms.types import State, UUIDstr
 from pydantic_forms.validators import Choice, choice_list
 from structlog import get_logger
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.domain.base import ProductBlockModel
+from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Label
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
-from orchestrator.optical.db import pipe_blocks_all, pipe_blocks_by_types
+from orchestrator.optical.db import pipe_blocks_all
 from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
+from orchestrator.optical.hal.connectivity import IntraNodeEdge, g30_shelf_of_port, retrieve_add_drop_connectivity
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import retrieve_transceiver_modes
 from orchestrator.optical.hal.spectrum import (
@@ -67,11 +71,16 @@ from orchestrator.optical.products.product_blocks.optical_spectrum_section impor
     OpticalSpectrumSectionBlockInactive,
     OpticalSpectrumSectionBlockProvisioning,
 )
+from orchestrator.optical.settings import get_settings
 from orchestrator.optical.utils.custom_types.frequencies import (
+    Frequency,
     Passband,
-    disjoint_intervals_overlap_search,
-    passband_overlaps_excluding_ignored,
+    ensure_passband_aligned_to_grid,
+    free_intervals,
+    merge_intervals,
+    passband_within_any,
     snap_passband_to_grid,
+    subtract_intervals,
 )
 from orchestrator.optical.utils.datadiff import DiffResult
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
@@ -88,16 +97,20 @@ NO_OPTICAL_PATH_FOUND_MSG = (
 
 # ``AbstractOpticalNodeBlockInactive.subscription_instance_id``
 Node = UUIDstr
+# A path graph vertex: the node instance id, or ``"<node instance id>#<shelf>"`` on a Groove G30
+Vertex = str
 # ``AbstractOpticalOlsPortBlockInactive.subscription_instance_id``
 Port = UUIDstr
 Edge = tuple[Port, Port]
-NeighborConnection = tuple[Node, Edge]
-Graph = dict[Node, list[NeighborConnection]]  # {node_id: [(neighbor_id, (port_a_id, port_b_id)), ...]}
+NeighborConnection = tuple[Vertex, Edge]
+Graph = dict[Vertex, list[NeighborConnection]]  # {vertex: [(neighbor_vertex, (port_a_id, port_b_id)), ...]}
 Path = list[Port]  # list of ``AbstractOpticalOlsPortBlockInactive.subscription_instance_id``
+
+_SHELF_SEPARATOR = "#"
 
 
 class OwnOccupancy(NamedTuple):
-    """A service's own circuits to forgive during path computation (modify workflows).
+    """A service's own circuits to forgive when computing the free frequencies (modify workflows).
 
     The stored used passbands still contain the circuit being replaced (the modify
     form runs before any device change), so an unchanged passband on the same path
@@ -535,139 +548,119 @@ def check_optical_spectrum_add_drop_port_availability(
         raise ValueError(msg)
 
 
-def build_constrained_graph_from_active_fibers(
-    passband: Passband,
-    exclude_node_instance_ids: list[UUIDstr] | None = None,
-    exclude_span_instance_ids: list[UUIDstr] | None = None,
-) -> Graph:
-    """Build a constrained graph representation of the active fiber spans.
-
-    The graph is built from the active fiber span blocks: each node in the graph
-    is an Optical Node block and each edge is a fiber span connecting two of its
-    ``OlsLinePortBlock`` terminations.
-
-    Args:
-        passband: The passband used to filter fibers based on overlapping intervals.
-        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
-        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
-
-    Returns:
-        An adjacency list representation of the graph where keys are the
-        ``subscription_instance_id`` of the Optical Nodes and values are lists
-        of tuples containing a connected node id and the pair of port ids of
-        the fiber span, e.g. ``{node_A: [(node_B, (port_A2B, port_B2A)), ...]}``.
-
-    Notes:
-        - Spans are excluded if their block instance id matches any in ``exclude_span_instance_ids``.
-        - Spans are excluded if any of their terminations belong to nodes with instance ids in
-          ``exclude_node_instance_ids``.
-        - Spans are excluded if their terminations overlap with the provided passband.
-        - Spans connected to transponder cards (ports without a dot in their name on Groove G30
-          nodes) are excluded, as well as spans terminated on GX G42 nodes.
-    """
-    # retrieve all active fiber span blocks (block-based, no subscriptions)
-    active_fibers = pipe_blocks_by_types(["Span"], [SubscriptionLifecycle.ACTIVE])
-
-    # filter out fibers that are excluded by the constraints
-    exclude_node_sub_id_set = set(exclude_node_instance_ids or [])
-    exclude_span_sub_id_set = set(exclude_span_instance_ids or [])
-    logger.debug(
-        "Exclusion sets for path computation",
-        exclude_node_instance_ids=exclude_node_sub_id_set,
-        exclude_span_instance_ids=exclude_span_sub_id_set,
-    )
-
-    def does_fiber_pass_exclusion(fiber):
-        if str(fiber.subscription_instance_id) in exclude_span_sub_id_set:
-            return False
-        for port in fiber.optical_pipe_terminations:
-            node = port.optical_port_host_node
-            if str(node.subscription_instance_id) in exclude_node_sub_id_set:
-                return False
-            if disjoint_intervals_overlap_search(port.optical_passbands, passband):
-                return False
-            if (
-                node.management.optical_module_node_vendor,
-                node.management.optical_module_node_platform,
-            ) == (Vendor.NOKIA, Platform.GROOVE_G30) and "." not in (port.optical_port_name or ""):
-                # all ports with a dot are on OLS cards
-                # all ports without a dot are on transponder cards and must be excluded
-                return False
-            if (
-                node.management.optical_module_node_vendor,
-                node.management.optical_module_node_platform,
-            ) == (Vendor.NOKIA, Platform.GX_G42):
-                return False
-        return True
-
-    sifted_fibers = list(filter(does_fiber_pass_exclusion, active_fibers))
-    logger.debug("Graph edges for path computation", sifted_fibers=[f.optical_pipe_name for f in sifted_fibers])
-
-    # convert the fibers into an adjacency list
-    graph: dict[Node, list[NeighborConnection]] = {}
-    for fiber in sifted_fibers:
-        port_a = fiber.optical_pipe_terminations[0]
-        port_b = fiber.optical_pipe_terminations[1]
-        id_port_a = str(port_a.subscription_instance_id)
-        id_port_b = str(port_b.subscription_instance_id)
-        id_node_a = str(port_a.optical_port_host_node.subscription_instance_id)
-        id_node_b = str(port_b.optical_port_host_node.subscription_instance_id)
-        if id_node_a not in graph:
-            graph[id_node_a] = []
-        if id_node_b not in graph:
-            graph[id_node_b] = []
-        graph[id_node_a].append((id_node_b, (id_port_a, id_port_b)))
-        graph[id_node_b].append((id_node_a, (id_port_b, id_port_a)))
-
-    return graph
-
-
 def _port_blocks_passband(
     port: AbstractOpticalOlsPortBlockInactive,
-    passband: Passband,
     own_occupancy: OwnOccupancy | None,
-) -> bool:
-    """Return whether the stored used passbands of a port block the given passband.
+) -> list[tuple[int, int]]:
+    """Return the stored used passbands of a port, minus the service's own ones on its own path.
 
     On the ports of the service's own current path the service's old passbands are
-    subtracted first (in-memory equivalent of freeing the circuit being replaced);
-    on every other port the strict overlap test applies.
+    subtracted (in-memory equivalent of freeing the circuit being replaced); on every
+    other port the stored passbands are returned unchanged.
     """
+    used = [(int(start), int(end)) for start, end in port.optical_passbands]
     if own_occupancy is not None and str(port.subscription_instance_id) in own_occupancy.port_ids:
-        return (
-            passband_overlaps_excluding_ignored(port.optical_passbands, passband, own_occupancy.passbands) is not None
-        )
-    return disjoint_intervals_overlap_search(port.optical_passbands, passband) is not None
+        return subtract_intervals(used, own_occupancy.passbands)
+    return used
+
+
+def _is_g30(node: AbstractOpticalNodeBlockInactive) -> bool:
+    return (
+        node.management.optical_module_node_vendor,
+        node.management.optical_module_node_platform,
+    ) == (Vendor.NOKIA, Platform.GROOVE_G30)
+
+
+def graph_vertex(node: AbstractOpticalNodeBlockInactive, port_name: str | None) -> Vertex:
+    """Return the path graph vertex of a port of the given Optical Node.
+
+    A Groove G30 port on shelf X only connects to ports on shelf X, so every shelf of a
+    G30 node is its own vertex (``"<node instance id>#<shelf>"``). Any other node (e.g. a
+    FlexILS, whose express routes are any-to-any) is a single vertex, its instance id.
+
+    Args:
+        node: The Optical Node block hosting the port.
+        port_name: Device name of the port (only used for the Groove G30).
+
+    Returns:
+        The vertex of the port in the path graph.
+    """
+    node_id = str(node.subscription_instance_id)
+    if _is_g30(node) and port_name:
+        return f"{node_id}{_SHELF_SEPARATOR}{g30_shelf_of_port(port_name)}"
+    return node_id
+
+
+def physical_node(vertex: Vertex) -> Node:
+    """Return the Optical Node instance id of a path graph vertex."""
+    return vertex.split(_SHELF_SEPARATOR, 1)[0]
+
+
+@dataclass
+class PathGraph:
+    """The topology graph of the active optical pipes, frequency-agnostic.
+
+    Attributes:
+        adjacency: ``{vertex: [(neighbor vertex, (local port id, remote port id)), ...]}``;
+            parallel pipes between the same vertices are distinct entries.
+        port_names: Device port name of every pipe termination port id in the graph.
+        line_ports: The port ids of the terminations that are OLS line ports (degrees).
+    """
+
+    adjacency: Graph = field(default_factory=dict)
+    port_names: dict[Port, str] = field(default_factory=dict)
+    line_ports: set[Port] = field(default_factory=set)
+
+    def vertices_of(self, node_id: Node) -> list[Vertex]:
+        """Return the vertices of the given Optical Node (one per shelf on a Groove G30)."""
+        return sorted(vertex for vertex in self.adjacency if physical_node(vertex) == str(node_id))
+
+    def restricted_endpoint(self, vertex: Vertex, allowed_port_names: Iterable[str]) -> "PathGraph":
+        """Return a copy where ``vertex`` only connects through the allowed local line ports.
+
+        Used at the source and destination nodes: only the line ports (degrees) the
+        add/drop port can reach internally may carry the path. Pipes terminated on
+        another add/drop port of the node (e.g. a leased spectrum handed off on an
+        add/drop port, joined by a local cross-connection) are kept: the internal
+        connectivity only describes the degrees. Both the outgoing and incoming entries
+        of the vertex are filtered; paths are loopless, so no other route is affected.
+        """
+        allowed = set(allowed_port_names)
+
+        def blocked(port: Port) -> bool:
+            return port in self.line_ports and self.port_names.get(port) not in allowed
+
+        adjacency: Graph = {}
+        for current, neighbors in self.adjacency.items():
+            adjacency[current] = [
+                (neighbor, (local_port, remote_port))
+                for neighbor, (local_port, remote_port) in neighbors
+                if not (current == vertex and blocked(local_port)) and not (neighbor == vertex and blocked(remote_port))
+            ]
+        return PathGraph(adjacency=adjacency, port_names=self.port_names, line_ports=self.line_ports)
 
 
 def build_graph_from_pipes(
     pipes: Iterable[AbstractOpticalPipeBlockInactive],
-    passband: Passband,
     exclude_node_instance_ids: list[UUIDstr] | None = None,
     exclude_span_instance_ids: list[UUIDstr] | None = None,
-    own_occupancy: OwnOccupancy | None = None,
-) -> Graph:
-    """Build a constrained graph representation from the given optical pipes.
+) -> PathGraph:
+    """Build the frequency-agnostic topology graph from the given optical pipes.
 
     A pipe is included only when both of its ``optical_pipe_terminations`` are Open
     Line System ports (``AbstractOpticalOlsPortBlockInactive``, i.e. role ``OLS_LINE``
     or ``OLS_ADD_DROP``). Any pipe terminated on a transponder line/client port or on
-    a coherent pluggable is skipped entirely.
+    a coherent pluggable is skipped entirely. The spectral occupation of the ports is
+    not considered here: it is evaluated on the selected path afterwards (see
+    :func:`available_passbands_for_path`).
 
     Args:
         pipes: The optical pipe blocks to build the graph from.
-        passband: The passband used to filter pipes based on overlapping intervals.
         exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
         exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
-        own_occupancy: The service's own current circuits, forgiven only on their own
-            path ports (modify workflows). ``None`` (create workflows) keeps the
-            strict check everywhere.
 
     Returns:
-        An adjacency list representation of the graph where keys are the
-        ``subscription_instance_id`` of the Optical Nodes and values are lists
-        of tuples containing a connected node id and the pair of port ids of
-        the pipe, e.g. ``{node_A: [(node_B, (port_A2B, port_B2A)), ...]}``.
+        The topology graph (see :class:`PathGraph`, vertices from :func:`graph_vertex`).
 
     Raises:
         ValueError: If a pipe does not have exactly two terminations.
@@ -678,10 +671,9 @@ def build_graph_from_pipes(
         "Exclusion sets for path computation",
         exclude_node_instance_ids=sorted(exclude_node_sub_id_set),
         exclude_span_instance_ids=sorted(exclude_span_sub_id_set),
-        passband=passband,
     )
 
-    graph: dict[Node, list[NeighborConnection]] = {}
+    graph = PathGraph()
     sifted: list[str] = []
     for pipe in pipes:
         pipe_name = pipe.optical_pipe_name
@@ -709,25 +701,28 @@ def build_graph_from_pipes(
         ):
             logger.debug("Skipping pipe: excluded node", pipe_name=pipe_name, pipe_owner=pipe_owner)
             continue
-        if any(_port_blocks_passband(port, passband, own_occupancy) for port in (port_a, port_b)):
-            logger.debug("Skipping pipe: passband overlap", pipe_name=pipe_name, pipe_owner=pipe_owner)
-            continue
 
         id_port_a = str(port_a.subscription_instance_id)
         id_port_b = str(port_b.subscription_instance_id)
-        id_node_a = str(port_a.optical_port_host_node.subscription_instance_id)
-        id_node_b = str(port_b.optical_port_host_node.subscription_instance_id)
-        graph.setdefault(id_node_a, []).append((id_node_b, (id_port_a, id_port_b)))
-        graph.setdefault(id_node_b, []).append((id_node_a, (id_port_b, id_port_a)))
+        vertex_a = graph_vertex(port_a.optical_port_host_node, port_a.optical_port_name)
+        vertex_b = graph_vertex(port_b.optical_port_host_node, port_b.optical_port_name)
+        graph.adjacency.setdefault(vertex_a, []).append((vertex_b, (id_port_a, id_port_b)))
+        graph.adjacency.setdefault(vertex_b, []).append((vertex_a, (id_port_b, id_port_a)))
+        graph.port_names[id_port_a] = port_a.optical_port_name or ""
+        graph.port_names[id_port_b] = port_b.optical_port_name or ""
+        graph.line_ports.update(
+            port_id
+            for port_id, port in ((id_port_a, port_a), (id_port_b, port_b))
+            if port.optical_port_role is OpticalPortRole.OLS_LINE
+        )
         sifted.append(f"{pipe_name} ({port_a.optical_port_name} --- {port_b.optical_port_name})")
 
     logger.debug(
         "Graph edges for path computation",
         sifted_pipes=sifted,
-        num_nodes=len(graph),
-        num_edges=sum(len(edges) for edges in graph.values()) // 2,
+        num_vertices=len(graph.adjacency),
+        num_edges=sum(len(edges) for edges in graph.adjacency.values()) // 2,
     )
-
     return graph
 
 
@@ -746,142 +741,434 @@ def _load_active_pipes() -> list[AbstractOpticalPipeBlockInactive]:
 
 
 def build_constrained_graph(
-    passband: Passband,
     exclude_node_instance_ids: list[UUIDstr] | None = None,
     exclude_span_instance_ids: list[UUIDstr] | None = None,
-    own_occupancy: OwnOccupancy | None = None,
-) -> Graph:
-    """Build a constrained graph from all active optical pipes.
+) -> PathGraph:
+    """Build the topology graph from all active optical pipes.
 
     The active Fiber Span, Fiber Patch and Leased Spectrum blocks are loaded
     from the database and delegated to :func:`build_graph_from_pipes`.
 
     Args:
-        passband: The passband used to filter pipes based on overlapping intervals.
         exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
         exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
-        own_occupancy: The service's own current circuits, forgiven only on their own
-            path ports (modify workflows).
 
     Returns:
-        An adjacency list representation of the constrained graph (see
-        :func:`build_graph_from_pipes`).
+        The topology graph (see :func:`build_graph_from_pipes`).
     """
-    pipes = _load_active_pipes()
-    return build_graph_from_pipes(pipes, passband, exclude_node_instance_ids, exclude_span_instance_ids, own_occupancy)
+    return build_graph_from_pipes(_load_active_pipes(), exclude_node_instance_ids, exclude_span_instance_ids)
 
 
-def all_valid_shortest_paths_between_oadms(
-    src_optical_device_block_id: UUIDstr,
-    dst_optical_device_block_id: UUIDstr,
-    passband: Passband,
-    exclude_node_instance_ids: list[UUIDstr] | None = None,
-    exclude_span_instance_ids: list[UUIDstr] | None = None,
-) -> list[Path]:
-    """Find all shortest paths between two Optical Add-Drop Multiplexers.
+class _RoutedPath(NamedTuple):
+    """A path through the graph: its vertices and the port pair of every hop."""
+
+    vertices: tuple[Vertex, ...]
+    edges: tuple[Edge, ...]
+
+    @property
+    def ports(self) -> Path:
+        return [port for edge in self.edges for port in edge]
+
+    def is_loopless(self) -> bool:
+        nodes = [physical_node(vertex) for vertex in self.vertices]
+        return len(nodes) == len(set(nodes))
+
+
+def _bfs_shortest_path(
+    graph: PathGraph,
+    src: Vertex,
+    dst: Vertex,
+    banned_vertices: set[Vertex],
+    banned_edges: set[tuple[Vertex, Edge]],
+) -> _RoutedPath | None:
+    """Return a minimum-hop path avoiding the banned vertices/edges, or None (BFS)."""
+    previous: dict[Vertex, tuple[Vertex, Edge] | None] = {src: None}
+    queue = deque([src])
+    while queue:
+        current = queue.popleft()
+        if current == dst:
+            vertices: list[Vertex] = [dst]
+            edges: list[Edge] = []
+            while (hop := previous[vertices[-1]]) is not None:
+                vertices.append(hop[0])
+                edges.append(hop[1])
+            return _RoutedPath(tuple(reversed(vertices)), tuple(reversed(edges)))
+        for neighbor, edge in graph.adjacency.get(current, []):
+            if neighbor in previous or neighbor in banned_vertices or (current, edge) in banned_edges:
+                continue
+            previous[neighbor] = (current, edge)
+            queue.append(neighbor)
+    return None
+
+
+def _path_sort_key(path: _RoutedPath) -> tuple[int, tuple[Edge, ...]]:
+    return len(path.edges), path.edges
+
+
+def _k_shortest_routed_paths(graph: PathGraph, src: Vertex, dst: Vertex, k: int) -> list[_RoutedPath]:
+    """Yen's K loopless shortest paths by hop count; a physical node is never revisited."""
+    if src == dst:
+        return [_RoutedPath((src,), ())]
+    first = _bfs_shortest_path(graph, src, dst, set(), set())
+    if first is None:
+        return []
+    accepted: list[_RoutedPath] = [first]
+    candidates: list[tuple[tuple[int, tuple[Edge, ...]], _RoutedPath]] = []
+    seen: set[tuple[Edge, ...]] = {first.edges}
+    while len(accepted) < k:
+        last = accepted[-1]
+        for spur_index in range(len(last.edges)):
+            root_vertices = last.vertices[: spur_index + 1]
+            root_edges = last.edges[:spur_index]
+            spur = root_vertices[-1]
+            banned_edges = {
+                (spur, path.edges[spur_index])
+                for path in accepted
+                if path.vertices[: spur_index + 1] == root_vertices and path.edges[:spur_index] == root_edges
+            }
+            root_nodes = {physical_node(vertex) for vertex in root_vertices[:-1]}
+            banned_vertices = {vertex for vertex in graph.adjacency if physical_node(vertex) in root_nodes}
+            spur_path = _bfs_shortest_path(graph, spur, dst, banned_vertices, banned_edges)
+            if spur_path is None:
+                continue
+            candidate = _RoutedPath(root_vertices[:-1] + spur_path.vertices, root_edges + spur_path.edges)
+            if candidate.edges in seen or not candidate.is_loopless():
+                continue
+            seen.add(candidate.edges)
+            heapq.heappush(candidates, (_path_sort_key(candidate), candidate))
+        if not candidates:
+            break
+        accepted.append(heapq.heappop(candidates)[1])
+    return [path for path in accepted if path.is_loopless()]
+
+
+def k_shortest_paths(graph: PathGraph, src: Vertex, dst: Vertex, k: int) -> list[Path]:
+    """Find the K loopless shortest paths from src to dst, where the cost is the hop count.
+
+    Yen's algorithm on the topology graph; parallel pipes between the same two vertices
+    are distinct paths. Paths are returned from the shortest, ties broken
+    deterministically by their port ids.
 
     Args:
-        src_optical_device_block_id: Subscription instance id of the source Optical Node block.
-        dst_optical_device_block_id: Subscription instance id of the destination Optical Node block.
-        passband: The passband configuration for the optical path.
-        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
-        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
+        graph: The topology graph.
+        src: The source vertex.
+        dst: The destination vertex.
+        k: The maximum number of paths.
 
     Returns:
-        A list of all shortest paths between the two nodes.
+        Up to ``k`` paths, each a list of Optical Port subscription instance ids.
+
+    Raises:
+        NoOpticalPathFoundError: If no path exists between the source and destination.
     """
-    fiber_graph = build_constrained_graph_from_active_fibers(
-        passband, exclude_node_instance_ids, exclude_span_instance_ids
+    paths = _k_shortest_routed_paths(graph, src, dst, k)
+    if not paths:
+        raise NoOpticalPathFoundError(src=src, dst=dst)
+    return [path.ports for path in paths]
+
+
+class PathEndpoint(NamedTuple):
+    """An end of an optical path: the add/drop port of an Optical Node."""
+
+    node: AbstractOpticalNodeBlockInactive
+    add_drop_port_name: str
+
+
+@dataclass(frozen=True)
+class OpticalPathCandidates:
+    """The K shortest paths between two add/drop ports, with the endpoint internal routes.
+
+    Attributes:
+        paths: The candidate paths, each the list of the OLS port instance ids between the
+            two add/drop ports (the first and last are line ports of the endpoint nodes).
+        src_edges: The internal routes of the source add/drop port, by line port name.
+        dst_edges: The internal routes of the destination add/drop port, by line port name.
+    """
+
+    paths: list[Path]
+    src_edges: dict[str, IntraNodeEdge]
+    dst_edges: dict[str, IntraNodeEdge]
+
+
+def _endpoint_edges(endpoint: PathEndpoint) -> dict[str, IntraNodeEdge]:
+    edges = retrieve_add_drop_connectivity(
+        cast(AnyOpticalNodeBlockProvisioningUnion, endpoint.node), endpoint.add_drop_port_name
     )
-    return compute_all_shortest_paths(fiber_graph, src_optical_device_block_id, dst_optical_device_block_id)
+    logger.debug(
+        "Internal routes of add/drop port",
+        node=_node_fqdn(endpoint.node),
+        add_drop_port=endpoint.add_drop_port_name,
+        line_ports=[edge.line_port for edge in edges],
+    )
+    return {edge.line_port: edge for edge in edges}
 
 
-def all_valid_shortest_paths_between_trxs(
-    src_trx_port_block_id: UUIDstr,
-    dst_trx_port_block_id: UUIDstr,
-    passband: Passband,
-    exclude_node_instance_ids: list[UUIDstr] | None = None,
-    exclude_span_instance_ids: list[UUIDstr] | None = None,
+def _waypoint_stops(
+    graph: PathGraph,
+    src_vertex: Vertex,
+    dst_vertex: Vertex,
+    waypoint_node_instance_ids: list[UUIDstr] | None,
+) -> list[list[Vertex]]:
+    """Return the candidate vertices of every stop, collapsing consecutive duplicate nodes."""
+    stops: list[list[Vertex]] = [[src_vertex]]
+    for node_id in waypoint_node_instance_ids or []:
+        if physical_node(stops[-1][0]) != str(node_id):
+            stops.append(graph.vertices_of(node_id) or [str(node_id)])
+    if physical_node(stops[-1][0]) == physical_node(dst_vertex):
+        stops[-1] = [dst_vertex]
+    else:
+        stops.append([dst_vertex])
+    return stops
+
+
+def _extend_paths(
+    graph: PathGraph,
+    partial: dict[Vertex, list[_RoutedPath]],
+    end_vertex: Vertex,
+    k: int,
+) -> list[_RoutedPath]:
+    """Extend the partial paths (keyed by their end vertex) to ``end_vertex``; keep the K best."""
+    combined: list[_RoutedPath] = []
+    for start_vertex, prefixes in partial.items():
+        for segment in _k_shortest_routed_paths(graph, start_vertex, end_vertex, k):
+            for prefix in prefixes:
+                path = _RoutedPath(prefix.vertices + segment.vertices[1:], prefix.edges + segment.edges)
+                if path.is_loopless():
+                    combined.append(path)
+    return sorted(combined, key=_path_sort_key)[:k]
+
+
+def k_shortest_paths_through_waypoints(
+    graph: PathGraph,
+    src_vertex: Vertex,
+    dst_vertex: Vertex,
+    waypoint_node_instance_ids: list[UUIDstr] | None,
+    k: int,
 ) -> list[Path]:
-    """Find all shortest paths between two transponder ports, considering the specified passband and constraints."""
-    src_add_drop_port, dst_add_drop_port = find_add_drop_ports(src_trx_port_block_id, dst_trx_port_block_id)
-    if (
-        str(src_add_drop_port.subscription_instance_id) == dst_trx_port_block_id
-        and str(dst_add_drop_port.subscription_instance_id) == src_trx_port_block_id
-    ):
-        # transponder ports are directly connected to each other
-        return [[]]
+    """Find the K shortest loopless paths from source to destination through the ordered waypoints.
 
-    src_ols_dev_id = str(src_add_drop_port.optical_port_host_node.subscription_instance_id)
-    dst_ols_dev_id = str(dst_add_drop_port.optical_port_host_node.subscription_instance_id)
-    paths = all_valid_shortest_paths_between_oadms(
-        src_ols_dev_id,
-        dst_ols_dev_id,
-        passband,
-        exclude_node_instance_ids,
-        exclude_span_instance_ids,
-    )
+    The path is computed segment by segment between consecutive stops; a waypoint is a
+    physical Optical Node, satisfied by any of its vertices (any shelf of a Groove G30),
+    and consecutive segments meet at the same vertex. Consecutive duplicate stops are
+    collapsed; combined paths revisiting a physical node are dropped.
 
-    valid_paths = []
+    Args:
+        graph: The topology graph (endpoint restrictions already applied).
+        src_vertex: The source vertex.
+        dst_vertex: The destination vertex.
+        waypoint_node_instance_ids: Ordered subscription instance ids of the Optical Node
+            blocks the path must traverse.
+        k: The maximum number of paths.
+
+    Returns:
+        Up to ``k`` paths, shortest first.
+
+    Raises:
+        NoOpticalPathFoundError: If no path traverses all the stops.
+    """
+    partial: dict[Vertex, list[_RoutedPath]] = {src_vertex: [_RoutedPath((src_vertex,), ())]}
+    for next_stop in _waypoint_stops(graph, src_vertex, dst_vertex, waypoint_node_instance_ids)[1:]:
+        extended = {
+            end_vertex: paths for end_vertex in next_stop if (paths := _extend_paths(graph, partial, end_vertex, k))
+        }
+        if not extended:
+            raise NoOpticalPathFoundError(src=src_vertex, dst=dst_vertex)
+        partial = extended
+
+    paths = sorted((path for paths in partial.values() for path in paths), key=_path_sort_key)
+    unique: dict[tuple[Edge, ...], Path] = {}
     for path in paths:
-        path.insert(0, str(src_add_drop_port.subscription_instance_id))
-        path.append(str(dst_add_drop_port.subscription_instance_id))
-        if are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path):
-            valid_paths.append(path)
-
-    if not valid_paths:
-        raise NoOpticalPathFoundError(
-            src=src_trx_port_block_id,
-            dst=dst_trx_port_block_id,
-        )
-
-    return valid_paths
+        unique.setdefault(path.edges, path.ports)
+    if not unique:
+        raise NoOpticalPathFoundError(src=src_vertex, dst=dst_vertex)
+    return list(unique.values())[:k]
 
 
-def are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(path: Path) -> bool:
-    """Validate whether the given path represents a valid connection between optical device ports.
+def compute_optical_path_candidates(
+    src: PathEndpoint,
+    dst: PathEndpoint,
+    waypoint_node_instance_ids: list[UUIDstr] | None = None,
+    exclude_node_instance_ids: list[UUIDstr] | None = None,
+    exclude_span_instance_ids: list[UUIDstr] | None = None,
+    k: int | None = None,
+) -> OpticalPathCandidates:
+    """Compute the K shortest paths between two add/drop ports, regardless of frequency.
 
-    The function iterates through the path and checks if ports on the same Groove G30 are on the
-    same shelf and slot. It skips every second port in the path and performs the validation
-    only for ports associated with Groove G30 nodes.
+    The internal connectivity of the source and destination nodes is fetched from the
+    devices: the path may only leave the source node (and enter the destination node)
+    through a line port the add/drop port can be connected to. The topology graph is
+    built once from the active optical pipes; the frequencies are evaluated afterwards on
+    the selected path (see :func:`available_passbands_for_path`).
 
     Args:
-        path: A sequence of optical ports represented as Path objects.
+        src: The source add/drop port.
+        dst: The destination add/drop port.
+        waypoint_node_instance_ids: Ordered subscription instance ids of the intermediate
+            Optical Node blocks the path must traverse.
+        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
+        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
+        k: The maximum number of paths, defaults to ``OPTICAL_PATH_K``.
 
     Returns:
-        True if the path is valid and all relevant ports are connected on the same
-        Groove G30 shelf and slot; False otherwise.
+        The candidate paths with the internal routes of both endpoints.
+
+    Raises:
+        NoOpticalPathFoundError: If no path exists.
     """
-    for i in range(len(path) - 1):
-        if i % 2 == 1:
+    k = k if k is not None else get_settings().path_k
+    src_edges = _endpoint_edges(src)
+    dst_edges = _endpoint_edges(dst)
+    src_vertex = graph_vertex(src.node, src.add_drop_port_name)
+    dst_vertex = graph_vertex(dst.node, dst.add_drop_port_name)
+    graph = (
+        build_constrained_graph(exclude_node_instance_ids, exclude_span_instance_ids)
+        .restricted_endpoint(src_vertex, src_edges)
+        .restricted_endpoint(dst_vertex, dst_edges)
+    )
+    try:
+        paths = k_shortest_paths_through_waypoints(graph, src_vertex, dst_vertex, waypoint_node_instance_ids, k)
+    except NoOpticalPathFoundError as exc:
+        raise NoOpticalPathFoundError(src=_node_fqdn(src.node), dst=_node_fqdn(dst.node)) from exc
+    return OpticalPathCandidates(paths=paths, src_edges=src_edges, dst_edges=dst_edges)
+
+
+def available_passbands_for_path(
+    path: Path,
+    src_edge: IntraNodeEdge | None = None,
+    dst_edge: IntraNodeEdge | None = None,
+    own_occupancy: OwnOccupancy | None = None,
+) -> list[tuple[int, int]]:
+    """Return the free frequency ranges along a path, including the endpoint internal routes.
+
+    The used passbands are the union of the stored ``optical_passbands`` of every OLS port
+    of the path and of the ``used_passbands`` of the two internal routes (add/drop port to
+    line port) of the endpoints. In modify workflows the service's own passbands are
+    forgiven on its own current ports and on the endpoint internal routes.
+
+    Args:
+        path: The OLS port instance ids of the path.
+        src_edge: The internal route of the source add/drop port to the first line port.
+        dst_edge: The internal route of the destination add/drop port to the last line port.
+        own_occupancy: The service's own current circuits (modify workflows).
+
+    Returns:
+        The sorted free ``[start, end)`` ranges of the OLS band (MHz).
+    """
+    used: list[tuple[int, int]] = []
+    for port_id in path:
+        used.extend(_port_blocks_passband(_load_ols_port(port_id), own_occupancy))
+    for edge in (src_edge, dst_edge):
+        if edge is None:
             continue
+        edge_used = list(edge.used_passbands)
+        if own_occupancy is not None:
+            edge_used = subtract_intervals(merge_intervals(edge_used), own_occupancy.passbands)
+        used.extend(edge_used)
+    return free_intervals(used)
 
-        port_i = _load_ols_port(path[i])
-        if (
-            port_i.optical_port_host_node.management.optical_module_node_vendor,
-            port_i.optical_port_host_node.management.optical_module_node_platform,
-        ) != (Vendor.NOKIA, Platform.GROOVE_G30):
-            continue
 
-        ii = i + 1
-        port_ii = _load_ols_port(path[ii])
+def candidate_available_passbands(
+    candidates: OpticalPathCandidates,
+    path: Path,
+    own_occupancy: OwnOccupancy | None = None,
+) -> list[tuple[int, int]]:
+    """Return the free frequency ranges of one of the candidate paths.
 
-        def _(g30_port_name: str) -> tuple[int, int]:
-            ids = g30_port_name.rsplit("-", maxsplit=1)[-1]  # port-1/3.3/1.1 --> 1/3.3/1.1
-            shelf, slot, _ = ids.split("/")  # 1/3.3/1.1 --> 1, 3.3, 1.1
-            if "." in slot:
-                slot, _ = slot.split(".")  # 3.3 --> 3, 3
-            return int(shelf), int(slot)
+    The endpoint internal routes are picked from the candidates by the first and last
+    line port of the path (fetched once by :func:`compute_optical_path_candidates`).
 
-        if port_i.optical_port_name is None or port_ii.optical_port_name is None:
-            return False
-        shelf_i, slot_i = _(port_i.optical_port_name)
-        shelf_ii, slot_ii = _(port_ii.optical_port_name)
-        if shelf_i != shelf_ii or slot_i != slot_ii:
-            # ports are not on the same G30 shelf and slot, so they are not connected
-            return False
+    Args:
+        candidates: The candidates the path was chosen from.
+        path: The chosen path (interior OLS port instance ids).
+        own_occupancy: The service's own current circuits (modify workflows).
 
-    return True
+    Returns:
+        The sorted free ``[start, end)`` ranges of the OLS band (MHz).
+    """
+    src_edge = dst_edge = None
+    if path:
+        src_edge = candidates.src_edges.get(_load_ols_port(path[0]).optical_port_name or "")
+        dst_edge = candidates.dst_edges.get(_load_ols_port(path[-1]).optical_port_name or "")
+    return available_passbands_for_path(path, src_edge, dst_edge, own_occupancy)
+
+
+def ensure_passband_available(passband: tuple[int, int], available: Sequence[tuple[int, int]] | None) -> None:
+    """Raise if the passband is not entirely within one of the available frequency ranges.
+
+    Args:
+        passband: The ``[start, end)`` passband (MHz) chosen by the user.
+        available: The free ranges of the selected path; ``None`` skips the check
+            (no path was computed, e.g. a modify that keeps the current path).
+
+    Raises:
+        ValueError: If the passband falls (even partially) outside every free range.
+    """
+    if available is None or passband_within_any(passband, available):
+        return
+    msg = (
+        f"The passband {format_passbands_thz([passband])} is not available on the selected path. "
+        f"Available frequency ranges: {format_passbands_thz(available)}"
+    )
+    raise ValueError(msg)
+
+
+def optical_passband_form(
+    title: str,
+    available: Sequence[tuple[int, int]] | None,
+    default: Passband | None = None,
+) -> type[FormPage]:
+    """Return the frequency FormPage shown after the optical path is selected.
+
+    The page lists the free frequency ranges of the selected path (see
+    :func:`candidate_available_passbands`) in a read-only label and collects the
+    passband (``frequency_min``/``frequency_max``), rejecting values that are not in
+    order, not aligned to the FlexILS grid or not within a single free range.
+
+    Args:
+        title: The page title.
+        available: The free ranges of the selected path; ``None`` skips the
+            availability check (and the label says so).
+        default: The prefilled passband (modify workflows).
+
+    Returns:
+        The frequency FormPage.
+    """
+    label = (
+        f"Available frequency ranges on the selected path: {format_passbands_thz(available)}"
+        if available is not None
+        else "The available frequency ranges were not computed: no new path was selected."
+    )
+    defaults = {"frequency_min": default[0], "frequency_max": default[1]} if default is not None else {}
+
+    class OpticalPassbandForm(FormPage):
+        model_config = ConfigDict(title=title)
+
+        available_frequency_ranges: Label = label
+        frequency_min: Annotated[Frequency, Field(title="Start frequency (THz)", **_default("frequency_min", defaults))]
+        frequency_max: Annotated[Frequency, Field(title="End frequency (THz)", **_default("frequency_max", defaults))]
+
+        @model_validator(mode="after")
+        def validate_frequencies(self) -> "OpticalPassbandForm":
+            if self.frequency_min > self.frequency_max:
+                msg = "Max frequency must be greater than min frequency. Did you make a typo?"
+                raise ValueError(msg)
+            ensure_passband_aligned_to_grid((self.frequency_min, self.frequency_max), FLEXILS_SPECTRAL_GRID_MHZ)
+            ensure_passband_available((self.frequency_min, self.frequency_max), available)
+            return self
+
+    return OpticalPassbandForm
+
+
+def _default(key: str, defaults: dict[str, Any]) -> dict[str, Any]:
+    """Return the ``Field`` kwargs setting the default of ``key`` when one is given."""
+    return {"default": defaults[key]} if key in defaults else {}
+
+
+def format_passbands_thz(passbands: Sequence[tuple[int, int]]) -> str:
+    """Return a human-readable list of frequency ranges in THz (e.g. ``191.3250-192.1000 THz``)."""
+    if not passbands:
+        return "none"
+    return ", ".join(f"{start / 1_000_000:.4f}-{end / 1_000_000:.4f} THz" for start, end in passbands)
 
 
 def _peer_of_line_port(
@@ -1010,136 +1297,6 @@ def find_add_drop_ports(
     return src_add_drop_port, dst_add_drop_port
 
 
-def compute_all_shortest_paths(graph: Graph, src: Node, dst: Node) -> list[Path]:
-    """Find all shortest paths from src to dst in a graph where path cost is the number of accumulated port pairs.
-
-    Args:
-        graph: Adjacency list representation of the graph, e.g.
-            ``{node_A: [(node_B, (port_A2B, port_B2A)), (node_C, (port_A2C, port_C2A))], ...}``
-        src: The starting node subscription instance id.
-        dst: The destination node subscription instance id.
-
-    Returns:
-        A list of all shortest paths. Each path is a list of Optical Port subscription instance ids.
-
-    Raises:
-        NoOpticalPathFoundError: If no valid path exists between the source and destination nodes.
-    """
-    # Queue stores (current_node, src_to_current_node_path, current_path_length)
-    # The path length is crucial for determining 'shortest' and 'equal cost'.
-    queue = deque([(src, [], 0)])  # (node, src_to_node_path, hop_count)
-
-    # Store the minimum distance found to a node so far.
-    min_dist_to_node = {node: float("inf") for node in graph}
-    min_dist_to_node[src] = 0
-
-    # This will store all found shortest paths
-    all_shortest_paths = []
-    min_overall_path_length = float("inf")
-
-    while queue:
-        current_node, src_to_current_node_path, current_path_length = queue.popleft()
-
-        # Pruning: If we've already found a shorter path to this node,
-        # or if this path is already longer than the best path to the destination found so far,
-        # then this path cannot be a shortest path.
-        if current_path_length > min_dist_to_node[current_node]:
-            continue
-        if current_path_length > min_overall_path_length:
-            continue  # This path is already longer than the shortest path we've found to destination.
-
-        if current_node == dst:
-            # If this is the first time we reach the destination, or it's an equally short path
-            if current_path_length < min_overall_path_length:
-                min_overall_path_length = current_path_length
-                all_shortest_paths = [src_to_current_node_path]  # Start new list for shorter paths
-            elif current_path_length == min_overall_path_length:
-                all_shortest_paths.append(src_to_current_node_path)
-            # We don't 'continue' here, as other paths might reach DST with the same length
-            # from different branches.
-            continue  # Important: don't process neighbors of the destination node
-
-        for adjacent_node, fiber_ports in graph.get(current_node, []):
-            # Calculate the new path length
-            new_path_length = current_path_length + 1  # Every edge costs 1 hop
-
-            # If this new path to adjacent_node is shorter than any previously found,
-            # or if it's of equal length (meaning it's potentially another valid shortest path to 'adjacent_node'),
-            # then we add it to the queue.
-            if new_path_length < min_dist_to_node[adjacent_node]:
-                min_dist_to_node[adjacent_node] = new_path_length
-                src_to_adj_node_path = list(src_to_current_node_path)  # Create a true copy
-                src_to_adj_node_path.extend(fiber_ports)
-                queue.append((adjacent_node, src_to_adj_node_path, new_path_length))
-            elif new_path_length == min_dist_to_node[adjacent_node]:
-                # If we find an equally short path to 'adjacent_node', we must also explore it.
-                # This is crucial for finding *all* shortest paths.
-                src_to_adj_node_path = list(src_to_current_node_path)
-                src_to_adj_node_path.extend(fiber_ports)
-                queue.append((adjacent_node, src_to_adj_node_path, new_path_length))
-
-    if not all_shortest_paths:
-        raise NoOpticalPathFoundError(src=src, dst=dst)
-
-    return all_shortest_paths
-
-
-def all_shortest_paths_through_waypoints(
-    src_node_instance_id: UUIDstr,
-    dst_node_instance_id: UUIDstr,
-    waypoint_node_instance_ids: list[UUIDstr] | None,
-    passband: Passband,
-    exclude_node_instance_ids: list[UUIDstr] | None = None,
-    exclude_span_instance_ids: list[UUIDstr] | None = None,
-    own_occupancy: OwnOccupancy | None = None,
-) -> list[Path]:
-    """Find all shortest paths from source to destination through the ordered waypoints.
-
-    The graph is built once from the active optical pipes; the path is then computed
-    segment by segment between consecutive stops (source, the ordered waypoints and
-    destination). Consecutive duplicate stops are collapsed. Every node reference is a
-    block subscription instance id; subscription ids are never accepted here.
-
-    Args:
-        src_node_instance_id: Subscription instance id of the source Optical Node block.
-        dst_node_instance_id: Subscription instance id of the destination Optical Node block.
-        waypoint_node_instance_ids: Ordered subscription instance ids of the intermediate
-            Optical Node blocks the path must traverse.
-        passband: The passband configuration for the optical path.
-        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
-        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
-        own_occupancy: The service's own current circuits, forgiven only on their own
-            path ports (modify workflows).
-
-    Returns:
-        A list of all shortest paths as lists of Optical Port subscription instance ids.
-
-    Raises:
-        NoOpticalPathFoundError: If any segment between two consecutive stops has no path.
-    """
-    graph = build_constrained_graph(passband, exclude_node_instance_ids, exclude_span_instance_ids, own_occupancy)
-    if not waypoint_node_instance_ids:
-        return compute_all_shortest_paths(graph, src_node_instance_id, dst_node_instance_id)
-
-    stops = [src_node_instance_id]
-    for stop in [*waypoint_node_instance_ids, dst_node_instance_id]:
-        if stop != stops[-1]:
-            stops.append(stop)
-
-    segments: list[list[Path]] = []
-    for segment_src, segment_dst in pairwise(stops):
-        try:
-            segments.append(compute_all_shortest_paths(graph, segment_src, segment_dst))
-        except NoOpticalPathFoundError as exc:
-            raise NoOpticalPathFoundError(src=src_node_instance_id, dst=dst_node_instance_id) from exc
-
-    unique_paths: dict[tuple[Port, ...], Path] = {}
-    for segment_combination in product(*segments):
-        path: Path = [port for segment in segment_combination for port in segment]
-        unique_paths.setdefault(tuple(path), path)
-    return list(unique_paths.values())
-
-
 def human_readable_optical_spectrum_path_selector(
     paths: list[Path],
     prompt: str = "Select an optical path.",
@@ -1166,7 +1323,7 @@ def human_readable_optical_spectrum_path_selector(
         human_readable_path += f"{ne_name} ({last_port.optical_port_name})"
 
         path_subscription_ids = ";".join(str(port_id) for port_id in path)
-        paths_dict[path_subscription_ids] = human_readable_path
+        paths_dict[path_subscription_ids] = f"[{len(path) // 2} hops] {human_readable_path}"
 
     return cast(type[Choice], Choice(prompt, zip(paths_dict.keys(), paths_dict.items(), strict=False)))
 
@@ -1200,83 +1357,24 @@ def human_readable_transport_channel_path_selector(
     return cast(type[Choice], Choice(prompt, zip(paths_dict.keys(), paths_dict.items(), strict=False)))
 
 
-def transport_channel_path_selector(
-    src_trx_port_block_id: UUIDstr,
-    dst_trx_port_block_id: UUIDstr,
-    passband: Passband,
-    exclude_node_instance_ids: list[UUIDstr] | None = None,
-    exclude_span_instance_ids: list[UUIDstr] | None = None,
+def optical_spectrum_path_selector(
+    candidates: OpticalPathCandidates,
     prompt: str = "Select an optical path.",
 ) -> type[Choice]:
-    """Select an optical path between two transceiver port blocks based on the given parameters.
+    """Select an optical path among the K shortest candidate paths.
 
     The selected path MUST then be parsed using ``path.split(";")`` to obtain the sequence
     of subscription instance ids of the Optical Port blocks.
 
     Args:
-        src_trx_port_block_id: Subscription instance id of the source transceiver port block.
-        dst_trx_port_block_id: Subscription instance id of the destination transceiver port block.
-        passband: The passband configuration for the optical path.
-        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
-        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
-        prompt: A prompt message for the user to select an optical path. Defaults to "Select an optical path.".
+        candidates: The candidate paths (see :func:`compute_optical_path_candidates`).
+        prompt: A prompt message for the user to select an optical path.
 
     Returns:
-        A Choice object containing the prompt and a list of valid optical paths represented as
-        subscription instance ids and human-readable strings.
+        A Choice object whose values are the ``;``-joined port instance ids of each path
+        and whose labels are the human-readable paths.
     """
-    paths = all_valid_shortest_paths_between_trxs(
-        src_trx_port_block_id,
-        dst_trx_port_block_id,
-        passband,
-        exclude_node_instance_ids,
-        exclude_span_instance_ids,
-    )
-    return human_readable_transport_channel_path_selector(paths, prompt)
-
-
-def optical_spectrum_path_selector(
-    src_node_instance_id: UUIDstr,
-    dst_node_instance_id: UUIDstr,
-    waypoint_node_instance_ids: list[UUIDstr] | None,
-    passband: Passband,
-    exclude_node_instance_ids: list[UUIDstr] | None = None,
-    exclude_span_instance_ids: list[UUIDstr] | None = None,
-    prompt: str = "Select an optical path.",
-    own_occupancy: OwnOccupancy | None = None,
-) -> type[Choice]:
-    """Select an optical path between two optical devices based on the given parameters.
-
-    Every node reference is a block subscription instance id; subscription ids are never
-    accepted here. The selected path MUST then be parsed using ``path.split(";")`` to obtain
-    the sequence of subscription instance ids of the Optical Port blocks.
-
-    Args:
-        src_node_instance_id: Subscription instance id of the source Optical Node block.
-        dst_node_instance_id: Subscription instance id of the destination Optical Node block.
-        waypoint_node_instance_ids: Ordered subscription instance ids of the Optical Node
-            blocks the path must traverse.
-        passband: The passband configuration for the optical path.
-        exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
-        exclude_span_instance_ids: Subscription instance ids of pipe blocks to exclude.
-        prompt: A prompt message for the user to select an optical path. Defaults to "Select an optical path.".
-        own_occupancy: The service's own current circuits, forgiven only on their own
-            path ports (modify workflows).
-
-    Returns:
-        A Choice object containing the prompt and a list of valid optical paths represented as
-        subscription instance ids and human-readable strings.
-    """
-    paths = all_shortest_paths_through_waypoints(
-        src_node_instance_id,
-        dst_node_instance_id,
-        waypoint_node_instance_ids,
-        passband,
-        exclude_node_instance_ids,
-        exclude_span_instance_ids,
-        own_occupancy,
-    )
-    return human_readable_optical_spectrum_path_selector(paths, prompt)
+    return human_readable_optical_spectrum_path_selector(candidates.paths, prompt)
 
 
 def store_list_of_ports_into_spectrum_sections(

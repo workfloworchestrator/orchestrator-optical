@@ -118,6 +118,7 @@ class G30Module:
         ots_ids: The ids of the Optical Transmission Sections configured on the node,
             used to tell an OLS line port from an add/drop port. Same set on every
             module of a node; carried here so port enumeration needs a single read.
+        shelf_id: Id of the shelf holding the card.
     """
 
     card_type: CardTypeEnum
@@ -126,6 +127,7 @@ class G30Module:
     slot_id: int
     subslot_id: int | None = None
     ots_ids: frozenset[str] = frozenset()
+    shelf_id: int = 1
 
     @property
     def is_amplifier(self) -> bool:
@@ -176,6 +178,7 @@ def g30_modules(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> lis
                     is_occ2=is_occ2,
                     slot_id=slot.slot_id,
                     ots_ids=ots_ids,
+                    shelf_id=shelf.shelf_id,
                 )
             )
             for subslot in slot.card.subslot or []:
@@ -189,6 +192,7 @@ def g30_modules(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> lis
                         slot_id=slot.slot_id,
                         subslot_id=subslot.subslot_id,
                         ots_ids=ots_ids,
+                        shelf_id=shelf.shelf_id,
                     )
                 )
     return modules

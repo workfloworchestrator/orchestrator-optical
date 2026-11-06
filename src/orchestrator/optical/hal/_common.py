@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from decimal import Decimal
 
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
@@ -33,6 +34,24 @@ ROLE_ORDER: tuple[OpticalPortRole, ...] = (
     OpticalPortRole.TRANSPONDER_LINE,
     OpticalPortRole.COHERENT_PLUGGABLE,
 )
+
+
+@dataclass(frozen=True)
+class IntraNodeEdge:
+    """An internal route of an Optical Node from an add/drop port to an OLS line port.
+
+    Attributes:
+        add_drop_port: Device name of the add/drop port the route starts from.
+        line_port: Device name of the OLS line port (the degree) the route reaches.
+        used_passbands: The ``[start, end)`` passbands (MHz) already occupied on the
+            internal route by the circuits provisioned on the device, merged and sorted.
+            The occupation of the line port itself is *not* included: it is stored on
+            the line port block and accounted for by the path engine.
+    """
+
+    add_drop_port: str
+    line_port: str
+    used_passbands: tuple[tuple[int, int], ...] = ()
 
 
 class UnsupportedPlatformError(NotImplementedError):

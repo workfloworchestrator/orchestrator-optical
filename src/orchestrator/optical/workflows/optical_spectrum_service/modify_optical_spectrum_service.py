@@ -25,9 +25,9 @@ subscription)::
     user_input_dict.update((yield my_own_page).model_dump())
 """
 
-from typing import Annotated, Any, cast
+from typing import Any, cast
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, model_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 from pydantic_forms.validators import Choice
 from structlog import get_logger
@@ -56,7 +56,6 @@ from orchestrator.optical.products.product_types.optical_spectrum_service import
 from orchestrator.optical.utils.custom_types.frequencies import (
     Frequency,
     Passband,
-    ensure_passband_aligned_to_grid,
     snap_passband_to_grid,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
@@ -66,12 +65,17 @@ from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     NO_OPTICAL_PATH_FOUND_MSG,
     NoOpticalPathFoundError,
+    OpticalPathCandidates,
     OwnOccupancy,
+    PathEndpoint,
+    candidate_available_passbands,
+    compute_optical_path_candidates,
     delete_optical_spectrum_sections,
     load_ols_port,
     load_optical_spectrum_block,
     load_spectrum_section,
     multiple_optical_node_selector,
+    optical_passband_form,
     optical_spectrum_block_from_state,
     optical_spectrum_path_selector,
     refresh_optical_spectrum_used_passbands,
@@ -88,18 +92,17 @@ logger = get_logger(__name__)
 def modify_optical_spectrum_identity_form(
     product_name: str,
     old_name: str,
-    old_passband: Passband,
 ) -> type[FormPage]:
     """Return the identity FormPage of the Optical Spectrum modify form.
 
-    This is the first page of the shipped modify form: the spectrum name and the
-    frequency range (passband) of the service, prefilled with the current values
-    so unchanged fields remain intact.
+    This is the first page of the shipped modify form: the spectrum name of the
+    service, prefilled with the current value so an unchanged name remains
+    intact (the passband is collected on the last page, once the path is chosen
+    and its free frequencies are known).
 
     Args:
         product_name: Name of the product being modified, used as the page title.
         old_name: The current name of the optical spectrum.
-        old_passband: The current passband of the optical spectrum.
 
     Returns:
         The identity FormPage of the shipped modify form.
@@ -109,16 +112,6 @@ def modify_optical_spectrum_identity_form(
         model_config = ConfigDict(title=product_name)
 
         optical_spectrum_name: str = old_name
-        frequency_min: Annotated[Frequency, Field(title="Start frequency (THz)")] = old_passband[0]
-        frequency_max: Annotated[Frequency, Field(title="End frequency (THz)")] = old_passband[1]
-
-        @model_validator(mode="after")
-        def validate_frequencies(self) -> "ModifyOpticalSpectrumIdentityForm":
-            if self.frequency_min > self.frequency_max:
-                msg = "Max frequency must be greater than min frequency. Did you make a typo?"
-                raise ValueError(msg)
-            ensure_passband_aligned_to_grid((self.frequency_min, self.frequency_max), FLEXILS_SPECTRAL_GRID_MHZ)
-            return self
 
     return ModifyOpticalSpectrumIdentityForm
 
@@ -237,18 +230,20 @@ def modify_optical_spectrum_form_pages(
     """Yield the FormPages of the Optical Spectrum modify form, in order.
 
     This is the shipped modify form as a page sequence: it yields the identity
-    page, the waypoints page, the constraints page and the path page, and returns
+    page, the waypoints page, the constraints page, the path page (the K
+    shortest paths regardless of frequency) and the frequency page (the free
+    ranges of the chosen path, prefilled with the current passband), and returns
     the collected user input as a flat dict of the ``optical_*`` state keys,
     consumed by the shipped block steps of
     :data:`MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS`. The source and destination
     add/drop port blocks are reused from the existing sections: the path is
     recomputed between the existing source and destination nodes, with the
     ordered waypoints and the exclusions collected by the form. The service's
-    own old passband is forgiven on the service's current path ports in the
-    overlap test so an unchanged passband on the same path does not block
-    itself. Consumers yield
-    from it in one line inside their own modify form generator, optionally
-    interleaving their own pages. The customer of the subscription is collected
+    own old passband is forgiven on the service's current path ports (and on the
+    endpoint internal routes) in the availability computation, so an unchanged
+    passband on the same path does not block itself. Consumers yield from it in
+    one line inside their own modify form generator, optionally interleaving
+    their own pages. The customer of the subscription is collected
     separately by the consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
@@ -269,9 +264,7 @@ def modify_optical_spectrum_form_pages(
     dst_node = dst_endpoint.optical_port_host_node
 
     user_input_dict: dict[str, Any] = {}
-    user_input_dict.update(
-        (yield modify_optical_spectrum_identity_form(product_name, old_name, old_passband)).model_dump()
-    )
+    user_input_dict.update((yield modify_optical_spectrum_identity_form(product_name, old_name)).model_dump())
 
     waypoints_choice = multiple_optical_node_selector(
         roles=LINE_SYSTEM_ROLES,
@@ -292,33 +285,20 @@ def modify_optical_spectrum_form_pages(
         ).model_dump()
     )
 
-    passband = (user_input_dict["frequency_min"], user_input_dict["frequency_max"])
+    candidates: OpticalPathCandidates | None = None
     try:
-        path_choice = optical_spectrum_path_selector(
-            str(src_node.subscription_instance_id),
-            str(dst_node.subscription_instance_id),
+        candidates = compute_optical_path_candidates(
+            PathEndpoint(src_node, src_endpoint.optical_port_name or ""),
+            PathEndpoint(dst_node, dst_endpoint.optical_port_name or ""),
             user_input_dict["intermediate_node_instance_ids"],
-            passband,
             user_input_dict["exclude_node_instance_ids"],
             user_input_dict["exclude_pipe_instance_ids"],
+        )
+        path_choice = optical_spectrum_path_selector(
+            candidates,
             prompt=(
                 "Select the optical path, if you don't see the desired path,"
                 " adjust constraints in previous step or validate fibers along the path."
-            ),
-            # The stored used passbands still contain this service's own circuit:
-            # forgive its old passband, but only on the service's current path
-            # ports — a same-frequency interval on any other pipe belongs to a
-            # different service (spatial frequency reuse) and still blocks.
-            own_occupancy=OwnOccupancy(
-                passbands=((int(old_passband[0]), int(old_passband[1])),),
-                port_ids=frozenset(
-                    str(port.subscription_instance_id)
-                    for section in sections
-                    for port in (
-                        *section.optical_spectrum_section_add_drop_ports,
-                        *section.optical_spectrum_section_express_ports,
-                    )
-                ),
             ),
         )
     except NoOpticalPathFoundError:
@@ -326,7 +306,6 @@ def modify_optical_spectrum_form_pages(
             "No optical path found",
             src_optical_node_instance_id=str(src_node.subscription_instance_id),
             dst_optical_node_instance_id=str(dst_node.subscription_instance_id),
-            passband=passband,
             exclude_node_instance_ids=user_input_dict["exclude_node_instance_ids"],
             exclude_pipe_instance_ids=user_input_dict["exclude_pipe_instance_ids"],
         )
@@ -343,7 +322,29 @@ def modify_optical_spectrum_form_pages(
     user_input_dict.update(
         (yield modify_optical_spectrum_path_form(path_choice, src_endpoint, dst_endpoint)).model_dump()
     )
-    user_input_dict["optical_path"] = user_input_dict["optical_path"].split(";")
+    optical_path = user_input_dict["optical_path"].split(";")
+    # The stored used passbands (and the device cross-connections of the endpoint
+    # internal routes) still contain this service's own circuit: forgive its old
+    # passband, but only on the service's current path ports — a same-frequency
+    # interval on any other pipe belongs to a different service (spatial
+    # frequency reuse) and still blocks.
+    own_occupancy = OwnOccupancy(
+        passbands=((int(old_passband[0]), int(old_passband[1])),),
+        port_ids=frozenset(
+            str(port.subscription_instance_id)
+            for section in sections
+            for port in (
+                *section.optical_spectrum_section_add_drop_ports,
+                *section.optical_spectrum_section_express_ports,
+            )
+        ),
+    )
+    available = (
+        candidate_available_passbands(candidates, optical_path, own_occupancy) if candidates is not None else None
+    )
+    user_input_dict.update((yield optical_passband_form(product_name, available, old_passband)).model_dump())
+    user_input_dict.pop("available_frequency_ranges", None)
+    user_input_dict["optical_path"] = optical_path
     return user_input_dict
 
 

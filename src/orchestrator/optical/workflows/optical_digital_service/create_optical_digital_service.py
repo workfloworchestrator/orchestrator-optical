@@ -28,8 +28,9 @@ adding their own pages::
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 """
 
+from collections.abc import Sequence
 from time import sleep
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, NamedTuple, cast
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field, model_validator
@@ -38,6 +39,7 @@ from pydantic_forms.validators import Choice, choice_list
 from structlog import get_logger
 
 from orchestrator.core.forms import FormPage
+from orchestrator.core.forms.validators import Label
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
@@ -57,7 +59,9 @@ from orchestrator.optical.products.product_types.optical_digital_service import 
 from orchestrator.optical.utils.custom_types.frequencies import (
     Frequency,
     SpectralWidth,
+    disjoint_intervals_overlap_search,
     ensure_passband_aligned_to_grid,
+    free_intervals,
     passband_from,
 )
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
@@ -95,11 +99,15 @@ from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spec
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     NO_OPTICAL_PATH_FOUND_MSG,
     NoOpticalPathFoundError,
+    OpticalPathCandidates,
     OwnOccupancy,
-    all_shortest_paths_through_waypoints,
-    are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path,
+    PathEndpoint,
+    candidate_available_passbands,
     check_optical_spectrum_add_drop_port_availability,
+    compute_optical_path_candidates,
+    ensure_passband_available,
     find_add_drop_ports,
+    format_passbands_thz,
     human_readable_transport_channel_path_selector,
     multiple_optical_node_selector,
 )
@@ -355,17 +363,17 @@ def create_optical_digital_service_lines_form(
 
 def create_optical_digital_service_channels_form(
     product_name: str,
-    num_channels: int,
     mode_choice: type[Choice],
 ) -> type[FormPage]:
     """Return the transport channels FormPage of the Optical Digital Service create form.
 
-    This page collects the shared operating mode and the central frequency
-    and spectral width of each new transport channel (one, or two for reverse
-    multiplexing). It is only shown for new transport channels: the names were
-    already collected on the identity page. The mode is a drop-down over the
-    intersection of the live mode tables of the selected line port cards (see
-    :func:`optical_transport_mode_selector
+    This page collects the shared operating mode of the new transport channels.
+    It is only shown for new transport channels: the names were already
+    collected on the identity page, and the frequencies are collected after the
+    path is chosen (see :func:`optical_digital_service_frequencies_form`), once
+    the free frequency ranges of the path are known. The mode is a drop-down
+    over the intersection of the live mode tables of the selected line port
+    cards (see :func:`optical_transport_mode_selector
     <orchestrator.optical.workflows.optical_digital_service.shared.optical_transport_mode_selector>`);
     when the cards share no common mode the drop-down holds only a rejecting
     placeholder. The authoritative check against the live modes of the line port
@@ -374,7 +382,6 @@ def create_optical_digital_service_channels_form(
 
     Args:
         product_name: Name of the product being created, used as the page title.
-        num_channels: Number of new transport channels (1, or 2 for reverse multiplexing).
         mode_choice: ``Choice`` of the operating modes supported by the selected
             line ports.
 
@@ -386,32 +393,86 @@ def create_optical_digital_service_channels_form(
         model_config = ConfigDict(title=product_name)
 
         optical_transport_mode: mode_choice
-        frequency_1: Frequency
-        bandwidth_1: SpectralWidth
 
         @model_validator(mode="after")
         def validate_channels(self) -> "CreateOpticalDigitalServiceChannelsForm":
             reject_placeholder_transport_mode(str(self.optical_transport_mode))
-            ensure_passband_aligned_to_grid(
-                passband_from(self.frequency_1, self.bandwidth_1), FLEXILS_SPECTRAL_GRID_MHZ
-            )
+            return self
+
+    return CreateOpticalDigitalServiceChannelsForm
+
+
+def optical_digital_service_frequencies_form(
+    title: str,
+    num_channels: int,
+    available: Sequence[tuple[int, int]] | None,
+    defaults: dict[str, int] | None = None,
+) -> type[FormPage]:
+    """Return the frequencies FormPage of the Optical Digital Service create and modify forms.
+
+    Shown after the optical path is chosen: a read-only label lists the free
+    frequency ranges of the chosen path (see
+    :func:`orchestrator.optical.workflows.optical_spectrum_service.shared.candidate_available_passbands`),
+    and the page collects the central frequency and spectral width of each
+    transport channel (one, or two for reverse multiplexing). Every channel
+    passband must be aligned to the grid and lie within a single free range, and
+    the two channels must not overlap.
+
+    Args:
+        title: The page title.
+        num_channels: Number of transport channels (1, or 2 for reverse multiplexing).
+        available: The free ranges of the chosen path; ``None`` skips the
+            availability check (no new path was computed).
+        defaults: The prefilled values (modify workflows), keyed by field name
+            (``frequency_1``, ``bandwidth_1``, ``frequency_2``, ``bandwidth_2``).
+
+    Returns:
+        The frequencies FormPage.
+    """
+    values = defaults or {}
+    label = (
+        f"Available frequency ranges on the selected path: {format_passbands_thz(available)}"
+        if available is not None
+        else "The available frequency ranges were not computed: no new path was selected."
+    )
+
+    def _field(name: str) -> Any:
+        return Field(default=values[name]) if name in values else Field()
+
+    def _check(frequency: int, bandwidth: int) -> tuple[int, int]:
+        passband = passband_from(frequency, bandwidth)
+        ensure_passband_aligned_to_grid(passband, FLEXILS_SPECTRAL_GRID_MHZ)
+        ensure_passband_available(passband, available)
+        return passband
+
+    class OpticalDigitalServiceFrequenciesForm(FormPage):
+        model_config = ConfigDict(title=title)
+
+        available_frequency_ranges: Label = label
+        frequency_1: Frequency = _field("frequency_1")
+        bandwidth_1: SpectralWidth = _field("bandwidth_1")
+
+        @model_validator(mode="after")
+        def validate_first_channel(self) -> "OpticalDigitalServiceFrequenciesForm":
+            _check(self.frequency_1, self.bandwidth_1)
             return self
 
     if num_channels == 1:
-        return CreateOpticalDigitalServiceChannelsForm
+        return OpticalDigitalServiceFrequenciesForm
 
-    class CreateOpticalDigitalServiceDualChannelsForm(CreateOpticalDigitalServiceChannelsForm):
-        frequency_2: Frequency
-        bandwidth_2: SpectralWidth
+    class OpticalDigitalServiceDualFrequenciesForm(OpticalDigitalServiceFrequenciesForm):
+        frequency_2: Frequency = _field("frequency_2")
+        bandwidth_2: SpectralWidth = _field("bandwidth_2")
 
         @model_validator(mode="after")
-        def validate_second_channel(self) -> "CreateOpticalDigitalServiceDualChannelsForm":
-            ensure_passband_aligned_to_grid(
-                passband_from(self.frequency_2, self.bandwidth_2), FLEXILS_SPECTRAL_GRID_MHZ
-            )
+        def validate_second_channel(self) -> "OpticalDigitalServiceDualFrequenciesForm":
+            second_passband = _check(self.frequency_2, self.bandwidth_2)
+            if disjoint_intervals_overlap_search([passband_from(self.frequency_1, self.bandwidth_1)], second_passband):
+                msg = "The two transport channels must use non-overlapping passbands"
+                raise ValueError(msg)
             return self
 
-    return CreateOpticalDigitalServiceDualChannelsForm
+    return OpticalDigitalServiceDualFrequenciesForm
 
 
 def create_optical_digital_service_path_form(path_choice: type[Choice]) -> type[FormPage]:
@@ -456,38 +517,46 @@ def create_optical_digital_service_path_form(path_choice: type[Choice]) -> type[
     return CreateOpticalDigitalServicePathForm
 
 
+class OpticalDigitalServicePathChoice(NamedTuple):
+    """The path selector of a digital service, with what is needed to compute its frequencies.
+
+    Attributes:
+        choice: The ``Choice`` of the candidate paths (``"direct_connection"`` when the
+            line ports are directly connected).
+        candidates: The candidate paths and the endpoint internal routes, or ``None``
+            for a direct connection.
+    """
+
+    choice: type[Choice]
+    candidates: OpticalPathCandidates | None
+
+
 def optical_digital_service_path_choice(
     line_a_1: UUIDstr,
     line_b_1: UUIDstr,
     waypoint_node_instance_ids: list[UUIDstr] | None,
-    passband: tuple[int, int],
     exclude_node_instance_ids: list[UUIDstr] | None,
     exclude_pipe_instance_ids: list[UUIDstr] | None,
-    own_occupancy: OwnOccupancy | None = None,
-) -> type[Choice]:
-    """Create the optical-path selector between two transponder line ports.
+) -> OpticalDigitalServicePathChoice:
+    """Create the optical-path selector between two transponder line ports, regardless of frequency.
 
-    This mirrors :func:`orchestrator.optical.workflows.optical_spectrum_service.shared.transport_channel_path_selector`
-    with ordered waypoints: the line ports resolve to their add/drop ports
-    (or to themselves when directly connected), the waypoint engine computes
-    the OLS interior, and each path is wrapped with the add/drop ends — the
-    exact shape the trx engine produces, so :func:`build_optical_digital_service_block`
-    consumes it unchanged. Every node reference is a block subscription instance id;
-    subscription ids are never accepted here.
+    The line ports resolve to their add/drop ports (or to themselves when directly
+    connected), the path engine computes the K shortest OLS interiors between the
+    add/drop ports — restricted at both ends to the line ports the add/drop ports can
+    reach internally — and each path is wrapped with the add/drop ends, the shape
+    :func:`build_optical_digital_service_block` consumes. Every node reference is a
+    block subscription instance id; subscription ids are never accepted here.
 
     Args:
         line_a_1: Subscription instance id of the first source line port block.
         line_b_1: Subscription instance id of the first destination line port block.
         waypoint_node_instance_ids: Ordered subscription instance ids of the intermediate
             Optical Node blocks the path must traverse.
-        passband: The passband configuration for the optical path.
         exclude_node_instance_ids: Subscription instance ids of Optical Node blocks to exclude.
         exclude_pipe_instance_ids: Subscription instance ids of pipe blocks to exclude.
-        own_occupancy: The service's own current circuits, forgiven only on their own
-            path ports (modify workflows).
 
     Returns:
-        A ``Choice`` class whose values are ``";"``-joined port instance ids.
+        The path ``Choice`` (values are ``";"``-joined port instance ids) and the candidates.
 
     Raises:
         NoOpticalPathFoundError: If no valid path exists.
@@ -505,41 +574,53 @@ def optical_digital_service_path_choice(
         if waypoint_node_instance_ids:
             msg = "The endpoints are directly connected: clear the intermediate nodes to proceed"
             raise ValueError(msg)
-        return human_readable_transport_channel_path_selector([[]], prompt)
-    src_ols_dev_id = str(first_add_drop.optical_port_host_node.subscription_instance_id)
-    dst_ols_dev_id = str(last_add_drop.optical_port_host_node.subscription_instance_id)
+        return OpticalDigitalServicePathChoice(human_readable_transport_channel_path_selector([[]], prompt), None)
     logger.debug(
         "Computing digital service optical path",
         src_line_id=str(line_a_1),
         dst_line_id=str(line_b_1),
         first_add_drop_id=str(first_add_drop.subscription_instance_id),
         last_add_drop_id=str(last_add_drop.subscription_instance_id),
-        src_ols_dev_id=src_ols_dev_id,
-        dst_ols_dev_id=dst_ols_dev_id,
-        passband=passband,
     )
-    ols_paths = all_shortest_paths_through_waypoints(
-        src_ols_dev_id,
-        dst_ols_dev_id,
+    candidates = compute_optical_path_candidates(
+        PathEndpoint(first_add_drop.optical_port_host_node, first_add_drop.optical_port_name or ""),
+        PathEndpoint(last_add_drop.optical_port_host_node, last_add_drop.optical_port_name or ""),
         waypoint_node_instance_ids,
-        passband,
         exclude_node_instance_ids,
         exclude_pipe_instance_ids,
-        own_occupancy,
     )
-    wrapped_paths = []
-    for path in ols_paths:
-        wrapped = [str(first_add_drop.subscription_instance_id), *path, str(last_add_drop.subscription_instance_id)]
-        if are_trx_and_oadm_in_the_same_shelf_for_g30s_in_path(wrapped):
-            wrapped_paths.append(wrapped)
-    if not wrapped_paths:
-        if ols_paths:
-            logger.warning(
-                "All candidate optical paths were discarded by the G30 same-shelf filter",
-                num_candidates=len(ols_paths),
-            )
-        raise NoOpticalPathFoundError(src=line_a_1, dst=line_b_1)
-    return human_readable_transport_channel_path_selector(wrapped_paths, prompt)
+    wrapped_paths = [
+        [str(first_add_drop.subscription_instance_id), *path, str(last_add_drop.subscription_instance_id)]
+        for path in candidates.paths
+    ]
+    return OpticalDigitalServicePathChoice(
+        human_readable_transport_channel_path_selector(wrapped_paths, prompt), candidates
+    )
+
+
+def optical_digital_service_available_passbands(
+    candidates: OpticalPathCandidates | None,
+    optical_path: list[UUIDstr],
+    own_occupancy: OwnOccupancy | None = None,
+) -> list[tuple[int, int]]:
+    """Return the free frequency ranges of a chosen digital service path.
+
+    The chosen path is wrapped with the add/drop ports (see
+    :func:`optical_digital_service_path_choice`): the OLS interior and the endpoint
+    internal routes decide the availability. A direct connection (no candidates) has
+    the whole band available.
+
+    Args:
+        candidates: The candidates the path was chosen from, or ``None`` for a direct connection.
+        optical_path: The chosen path, as decoded port instance ids.
+        own_occupancy: The service's own current circuits (modify workflows).
+
+    Returns:
+        The sorted free ``[start, end)`` ranges of the OLS band (MHz).
+    """
+    if candidates is None:
+        return free_intervals([])
+    return candidate_available_passbands(candidates, optical_path[1:-1], own_occupancy)
 
 
 def create_optical_digital_service_form_pages(product_name: str) -> FormGenerator:
@@ -548,8 +629,8 @@ def create_optical_digital_service_form_pages(product_name: str) -> FormGenerato
     This is the shipped create form as a page sequence: it yields the identity
     page (name, endpoints and transport channel names — the names ARE the
     new-vs-reuse fork), the client ports page, and then, only for new
-    transport channels, the lines page, the channels page (mode,
-    frequencies), the waypoints page, the constraints page and the path page.
+    transport channels, the lines page, the channels page (mode), the
+    waypoints page, the constraints page, the path page and the frequencies page.
     It returns the collected user input as a flat dict of the state keys,
     consumed by the shipped construct step
     (:func:`construct_optical_digital_service_subscription`). The customer of
@@ -678,9 +759,10 @@ def _yield_new_channel_spec_pages(
 ) -> FormGenerator:
     """Yield the new-channel spec pages of the Optical Digital Service create form.
 
-    Only shown for new transport channels: the channels page (mode,
-    frequencies), the waypoints page, the constraints page and the path page.
-    Returns the collected input; the caller merges it.
+    Only shown for new transport channels: the channels page (mode), the
+    waypoints page, the constraints page, the path page (the K shortest paths
+    regardless of frequency) and the frequencies page (the free ranges of the
+    chosen path). Returns the collected input; the caller merges it.
 
     Args:
         product_name: Name of the product being created.
@@ -693,18 +775,15 @@ def _yield_new_channel_spec_pages(
     """
     collected: dict[str, Any] = {}
     mode_choice = optical_transport_mode_selector([*src_line_ids, *dst_line_ids])
-    collected.update(
-        (yield create_optical_digital_service_channels_form(product_name, num_channels, mode_choice)).model_dump()
-    )
+    collected.update((yield create_optical_digital_service_channels_form(product_name, mode_choice)).model_dump())
     collected.update((yield from _yield_routing_constraint_pages(product_name)))
 
-    passband = passband_from(collected["frequency_1"], collected["bandwidth_1"])
+    candidates: OpticalPathCandidates | None = None
     try:
-        path_choice = optical_digital_service_path_choice(
+        path_choice, candidates = optical_digital_service_path_choice(
             src_line_ids[0],
             dst_line_ids[0],
             collected["intermediate_node_instance_ids"],
-            passband,
             collected["exclude_node_instance_ids"],
             collected["exclude_pipe_instance_ids"],
         )
@@ -712,16 +791,17 @@ def _yield_new_channel_spec_pages(
         # No path (or an unresolvable fiber attachment, e.g. a coherent
         # pluggable whose fiber attachment cannot be resolved yet): the form
         # offers the rejecting placeholder so the user adjusts the constraints.
-        logger.exception(
-            "No optical path found",
-            src_lines=src_line_ids,
-            dst_lines=dst_line_ids,
-            passband=passband,
-        )
+        logger.exception("No optical path found", src_lines=src_line_ids, dst_lines=dst_line_ids)
         path_choice = _no_optical_path_placeholder_choice()
 
     collected.update((yield create_optical_digital_service_path_form(path_choice)).model_dump())
-    collected["optical_path"] = _decode_optical_path(collected["optical_path"])
+    optical_path = _decode_optical_path(collected["optical_path"])
+    available = optical_digital_service_available_passbands(candidates, optical_path)
+    collected.update(
+        (yield optical_digital_service_frequencies_form(product_name, num_channels, available)).model_dump()
+    )
+    collected.pop("available_frequency_ranges", None)
+    collected["optical_path"] = optical_path
     return collected
 
 
@@ -951,6 +1031,7 @@ __all__ = [
     "SUMMARY_FIELDS_BASE",
     "SUMMARY_FIELDS_DUAL_EXTRA",
     "SUMMARY_FIELDS_NEW",
+    "OpticalDigitalServicePathChoice",
     "construct_optical_digital_service_subscription",
     "create_optical_digital_service",
     "create_optical_digital_service_channels_form",
@@ -963,6 +1044,8 @@ __all__ = [
     "decode_optical_path",
     "no_optical_path_placeholder_choice",
     "normalize_channel_names",
+    "optical_digital_service_available_passbands",
+    "optical_digital_service_frequencies_form",
     "optical_digital_service_path_choice",
     "wait_before_power_alignment",
 ]

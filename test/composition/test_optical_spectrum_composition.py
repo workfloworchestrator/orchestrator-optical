@@ -83,6 +83,7 @@ EXPECTED_CREATE_PAGE_NAMES = [
     "CreateOpticalSpectrumWaypointsForm",
     "CreateOpticalSpectrumConstraintsForm",
     "CreateOpticalSpectrumPathForm",
+    "OpticalPassbandForm",
 ]
 
 #: The page classes yielded by the shipped modify page sequence, in order.
@@ -91,6 +92,7 @@ EXPECTED_MODIFY_PAGE_NAMES = [
     "ModifyOpticalSpectrumWaypointsForm",
     "ModifyOpticalSpectrumConstraintsForm",
     "ModifyOpticalSpectrumPathForm",
+    "OpticalPassbandForm",
 ]
 
 
@@ -144,8 +146,8 @@ def _make_spectrum_subscription(
     """Build a DB-free subscription whose block has two endpoint add/drop sections."""
     node_a = _FakeNode("node-a")
     node_b = _FakeNode("node-b")
-    port_a = SimpleNamespace(subscription_instance_id="port-a", optical_port_host_node=node_a)
-    port_b = SimpleNamespace(subscription_instance_id="port-b", optical_port_host_node=node_b)
+    port_a = SimpleNamespace(subscription_instance_id="port-a", optical_port_name="ad-a", optical_port_host_node=node_a)
+    port_b = SimpleNamespace(subscription_instance_id="port-b", optical_port_name="ad-b", optical_port_host_node=node_b)
     section_a = SimpleNamespace(
         optical_spectrum_section_add_drop_ports=[port_a], optical_spectrum_section_express_ports=[]
     )
@@ -165,6 +167,28 @@ def _make_spectrum_subscription(
     )
 
 
+#: The free ranges reported by the faked availability computation.
+FAKE_AVAILABLE = [(191_325_000, 196_125_000)]
+
+
+def _monkeypatch_path_engine(monkeypatch: pytest.MonkeyPatch, module: Any) -> list[tuple]:
+    """Patch the device/DB-backed path engine of a form module; return the recorded calls."""
+    calls: list[tuple] = []
+
+    def fake_candidates(*args: Any, **kwargs: Any) -> str:
+        calls.append(("candidates", args, kwargs))
+        return "fake-candidates"
+
+    def fake_available(*args: Any, **kwargs: Any) -> list[tuple[int, int]]:
+        calls.append(("available", args, kwargs))
+        return FAKE_AVAILABLE
+
+    monkeypatch.setattr(module, "compute_optical_path_candidates", fake_candidates)
+    monkeypatch.setattr(module, "candidate_available_passbands", fake_available)
+    monkeypatch.setattr(module, "optical_spectrum_path_selector", _fake_path_choice)
+    return calls
+
+
 def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch the DB/device-backed create page selectors with DB-free fakes.
 
@@ -175,7 +199,6 @@ def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(spectrum_create, "multiple_optical_node_selector", _fake_multiple_choice)
     monkeypatch.setattr(spectrum_create, "multiple_optical_pipe_selector", _fake_multiple_choice)
     monkeypatch.setattr(spectrum_create, "optical_port_selector", _fake_single_choice)
-    monkeypatch.setattr(spectrum_create, "optical_spectrum_path_selector", _fake_path_choice)
     monkeypatch.setattr(spectrum_create, "validate_optical_spectrum_path", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(spectrum_create, "ProductBlockModel", _FakeProductBlockModel)
 
@@ -184,7 +207,6 @@ def _monkeypatch_modify_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch the DB/device-backed modify page selectors with DB-free fakes."""
     monkeypatch.setattr(spectrum_modify, "multiple_optical_node_selector", _fake_multiple_choice)
     monkeypatch.setattr(spectrum_modify, "multiple_optical_pipe_selector", _fake_multiple_choice)
-    monkeypatch.setattr(spectrum_modify, "optical_spectrum_path_selector", _fake_path_choice)
     monkeypatch.setattr(spectrum_modify, "validate_optical_spectrum_path", lambda *_args, **_kwargs: None)
 
 
@@ -284,20 +306,15 @@ def test_reconcile_block_steps_have_the_expected_order() -> None:
 def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     """The create page sequence resolves the choices between yields and returns a flat dict."""
     _monkeypatch_create_selectors(monkeypatch)
+    calls = _monkeypatch_path_engine(monkeypatch, spectrum_create)
     generator = create_optical_spectrum_form_pages("Optical Spectrum")
     page_names: list[str] = []
 
     page_1 = next(generator)
     page_names.append(page_1.__name__)
-    assert set(page_1.model_fields) == {"optical_spectrum_name", "frequency_min", "frequency_max"}
+    assert set(page_1.model_fields) == {"optical_spectrum_name"}
 
-    page_2 = generator.send(
-        page_1(
-            optical_spectrum_name="spec-01",
-            frequency_min=FREQUENCY_MIN,
-            frequency_max=FREQUENCY_MAX,
-        )
-    )
+    page_2 = generator.send(page_1(optical_spectrum_name="spec-01"))
     page_names.append(page_2.__name__)
     assert set(page_2.model_fields) == {"src_optical_node_instance_id", "dst_optical_node_instance_id"}
 
@@ -318,8 +335,17 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch: pytest.
     )
     page_names.append(page_6.__name__)
     assert set(page_6.model_fields) == {"optical_path"}
+    # The paths are computed regardless of frequency, between the two add/drop ports.
+    (_, (src, dst, *_), _) = calls[0]
+    assert (src.add_drop_port_name, dst.add_drop_port_name) == ("opt-a", "opt-b")
 
-    user_input = finish_form(generator, page_6(optical_path="p1;p2"))
+    page_7 = generator.send(page_6(optical_path="p1;p2"))
+    page_names.append(page_7.__name__)
+    assert set(page_7.model_fields) == {"available_frequency_ranges", "frequency_min", "frequency_max"}
+    assert "191.3250-196.1250 THz" in page_7.model_fields["available_frequency_ranges"].default
+    assert calls[1][1] == ("fake-candidates", ["p1", "p2"])
+
+    user_input = finish_form(generator, page_7(frequency_min=FREQUENCY_MIN, frequency_max=FREQUENCY_MAX))
 
     assert page_names == EXPECTED_CREATE_PAGE_NAMES
     assert "customer_id" not in user_input
@@ -343,6 +369,7 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch: pytest.
 def test_modify_form_pages_yield_the_prefilled_pages_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     """The modify page sequence yields the prefilled pages and returns a flat dict."""
     _monkeypatch_modify_selectors(monkeypatch)
+    calls = _monkeypatch_path_engine(monkeypatch, spectrum_modify)
     subscription = _make_spectrum_subscription()
     generator = modify_optical_spectrum_form_pages(
         subscription.optical_spectrum_service, product_name=subscription.product.name
@@ -351,18 +378,10 @@ def test_modify_form_pages_yield_the_prefilled_pages_in_order(monkeypatch: pytes
 
     page_1 = next(generator)
     page_names.append(page_1.__name__)
-    assert set(page_1.model_fields) == {"optical_spectrum_name", "frequency_min", "frequency_max"}
+    assert set(page_1.model_fields) == {"optical_spectrum_name"}
     assert page_1.model_fields["optical_spectrum_name"].default == "spec-01"
-    assert page_1.model_fields["frequency_min"].default == FREQUENCY_MIN
-    assert page_1.model_fields["frequency_max"].default == FREQUENCY_MAX
 
-    page_2 = generator.send(
-        page_1(
-            optical_spectrum_name="spec-02",
-            frequency_min=FREQUENCY_MIN,
-            frequency_max=FREQUENCY_MAX,
-        )
-    )
+    page_2 = generator.send(page_1(optical_spectrum_name="spec-02"))
     page_names.append(page_2.__name__)
     assert set(page_2.model_fields) == {"intermediate_node_instance_ids"}
 
@@ -376,7 +395,16 @@ def test_modify_form_pages_yield_the_prefilled_pages_in_order(monkeypatch: pytes
     page_names.append(page_4.__name__)
     assert set(page_4.model_fields) == {"optical_path"}
 
-    user_input = finish_form(generator, page_4(optical_path="p1;p2"))
+    page_5 = generator.send(page_4(optical_path="p1;p2"))
+    page_names.append(page_5.__name__)
+    assert page_5.model_fields["frequency_min"].default == FREQUENCY_MIN
+    assert page_5.model_fields["frequency_max"].default == FREQUENCY_MAX
+    # The service's own passband is forgiven on its own ports in the availability computation.
+    own_occupancy = calls[1][1][2]
+    assert own_occupancy.passbands == ((FREQUENCY_MIN, FREQUENCY_MAX),)
+    assert own_occupancy.port_ids == frozenset({"port-a", "port-b"})
+
+    user_input = finish_form(generator, page_5(frequency_min=FREQUENCY_MIN, frequency_max=FREQUENCY_MAX))
 
     assert page_names == EXPECTED_MODIFY_PAGE_NAMES
     assert "customer_id" not in user_input

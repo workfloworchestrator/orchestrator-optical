@@ -40,6 +40,8 @@ src/orchestrator/optical/
 │   ├── port.py               #   port enumeration (incl. get_device_ports_by_role) / admin state / fiber-termination
 │   │                         #   configure-reset-check keyed by (local port role, pipe type)
 │   ├── spectrum.py           #   FlexILS optical-circuit engine (OEL/OSNC/OCRS); no-ops on G30/G42
+│   ├── connectivity.py       #   intra-node routes add/drop port -> reachable degrees (+ occupancy), IntraNodeEdge;
+│   │                         #   FlexILS: RTRV-SCG PROVNBRTP + RTRV-EQPT card rules + RTRV-OCRS; G30: fiber-connection
 │   ├── transport_channel.py  #   transponder line/client/crossconnect config + validation + power alignment
 │   └── adapters/             #   per-device implementations: nokia_flexils (TL1) / nokia_groove_g30, nokia_gx_g42 (RESTCONF)
 ├── services/                 # Device integrations (do not "fix" the auto-generated parts)
@@ -53,7 +55,7 @@ src/orchestrator/optical/
 │   │                         #   per-vendor thin wrappers over shared step lists (shared/terminate.py, shared/validate.py)
 │   ├── optical_pipe/         #   fiber_span / fiber_patch / leased_spectrum (workflows + parts)
 │   ├── optical_spectrum_service/   #  path-finding engine (shared.py) + workflows
-│   ├── optical_digital_service/    #  4-form create + modify/terminate/validate + reconcile (identity/client/lines/channels/waypoints/constraints/path pages)
+│   ├── optical_digital_service/    #  4-form create + modify/terminate/validate + reconcile (identity/client/lines/channels/waypoints/constraints/path/frequencies pages)
 │   ├── optical_coherent_pluggable/ #   create/modify/terminate/validate workflows + parts + shared helpers
 │   │                         #   (block-based, state key OPTICAL_MODULE_BLOCK_STATE_KEY)
 │   └── optical_location/     #   reference family: workflows + parts (selectors/helpers)
@@ -244,8 +246,12 @@ uv build                        # package build
   optical nodes (FlexILS, G30, G42); create,modify,validate,terminate + reconcile for the 3 optical pipes
   (`fiber_span`, `fiber_patch`, `leased_spectrum`); create,modify,validate,terminate + reconcile for
   `optical_spectrum_service`
-  (the path engine builds the constrained graph from fiber spans + patches + leased spectra but only OLS
-  `OLS_LINE`/`OLS_ADD_DROP` ports, supports ordered waypoints, and splits the chosen path into single-platform
-  sections at the add/drop ports); create,modify,validate,terminate + reconcile for `optical_digital_service`;
+  (the path engine builds a frequency-agnostic graph from fiber spans + patches + leased spectra but only OLS
+  `OLS_LINE`/`OLS_ADD_DROP` ports, returns the K shortest loopless paths by hop count (Yen, `OPTICAL_PATH_K`,
+  default 5) with ordered waypoints, restricts the source/destination degrees to those the add/drop port reaches
+  internally (`hal.retrieve_add_drop_connectivity`, live from the device), splits Groove G30 nodes into one
+  vertex per shelf (a port on shelf X only connects to shelf X; FlexILS express nodes are any-to-any), and only
+  then computes the free frequencies of the chosen path (line ports + endpoint internal routes) for the frequency
+  page; the chosen path is split into single-platform sections at the add/drop ports); create,modify,validate,terminate + reconcile for `optical_digital_service`;
   create,modify,validate,terminate for `optical_coherent_pluggable`. Model-only / no shipped workflows:
   `JuniperMx204` (unregistered) and the standalone packet-node product (compose the packet-node block instead).

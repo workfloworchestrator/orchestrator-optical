@@ -18,9 +18,9 @@ credentials/endpoints are resolved lazily by the services that need them.
 """
 
 from functools import lru_cache
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 #: Env-var tokens enabling TLS/SSH verification (case-insensitive).
@@ -89,6 +89,8 @@ class OpticalSettings(BaseSettings):
             (``OPTICAL_CUSTOMER_CHOICE``), as ``module.path:function_name``. The
             function must return a ``type[Choice]`` whose option values are the
             customer ids used as subscription ``customer_id``.
+        path_k: Maximum number of candidate paths the path engine offers
+            (``OPTICAL_PATH_K``, default 5): the K shortest loopless paths by hop count.
     """
 
     model_config = SettingsConfigDict(env_prefix="OPTICAL_", env_file=".env", extra="ignore")
@@ -113,6 +115,8 @@ class OpticalSettings(BaseSettings):
     flexils_verify_host_key: bool | str = True
 
     customer_choice: str | None = None
+
+    path_k: Annotated[int, Field(ge=1)] = 5
 
     @field_validator("g30_verify", "g42_verify", "tnms_verify", "flexils_verify_host_key", mode="before")
     @classmethod

@@ -396,8 +396,6 @@ EXCLUDED_WRITERS: dict[str, str] = {
     # Step wrappers around the covered ``update_used_passbands`` block writer.
     # Builds the path-finding graph, never a block.
     "orchestrator.optical.workflows.optical_spectrum_service.shared."
-    "build_constrained_graph_from_active_fibers": "builds the path-finding graph, writes no block field",
-    "orchestrator.optical.workflows.optical_spectrum_service.shared."
     "build_graph_from_pipes": "builds the path-finding graph, writes no block field",
     "orchestrator.optical.workflows.optical_spectrum_service.shared."
     "build_constrained_graph": "builds the path-finding graph, writes no block field",

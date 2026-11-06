@@ -118,10 +118,11 @@ def _create_user_inputs(
         },
         {"unused_src_client": FAKE_CLIENT_PORT, "unused_dst_client": FAKE_CLIENT_PORT},
         {"src_lines": [src_line], "dst_lines": [dst_line]},
-        {"optical_transport_mode": FAKE_MODE, "frequency_1": FREQUENCY_1, "bandwidth_1": BANDWIDTH_1},
+        {"optical_transport_mode": FAKE_MODE},
         {"intermediate_node_instance_ids": []},
         {"exclude_node_instance_ids": [], "exclude_pipe_instance_ids": []},
         {"optical_path": "direct_connection"},
+        {"frequency_1": FREQUENCY_1, "bandwidth_1": BANDWIDTH_1},
         {},
     ]
 
@@ -205,7 +206,8 @@ def test_full_lifecycle_create_modify_validate_reconcile_terminate(
             {"subscription_id": subscription_id},
             {"customer_id": CUSTOMER_ID},
             {"optical_digital_service_name": "ods-svc-02", "channel_name_1": "ods-ch-02"},
-            {"optical_transport_mode": FAKE_MODE, "frequency_1": MODIFIED_FREQUENCY_1, "bandwidth_1": BANDWIDTH_1},
+            {"optical_transport_mode": FAKE_MODE},
+            {"frequency_1": MODIFIED_FREQUENCY_1, "bandwidth_1": BANDWIDTH_1},
             {},
         ],
     )

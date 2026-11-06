@@ -10,6 +10,8 @@ product block with ``match/case``:
   fiber-termination configure/reset/check.
 - :mod:`orchestrator.optical.hal.transport_channel` — transponder line/client
   configuration, cross-connects, validation and power alignment.
+- :mod:`orchestrator.optical.hal.connectivity` — the internal routes of a node
+  from an add/drop port to its reachable degrees, with their occupancy.
 - :mod:`orchestrator.optical.hal.spectrum` — the FlexILS optical circuit
   (OEL/OSNC/OCRS) engine and optical cross-connections.
 
@@ -17,6 +19,7 @@ Each area module routes to a per-device adapter under
 :mod:`orchestrator.optical.hal.adapters` (one subpackage per vendor platform).
 """
 
+from orchestrator.optical.hal.connectivity import IntraNodeEdge, retrieve_add_drop_connectivity
 from orchestrator.optical.hal.node import (
     FlexilsGneProvider,
     discover_flexils_node,
@@ -68,6 +71,7 @@ from orchestrator.optical.hal.transport_channel import (
 
 __all__ = [
     "FlexilsGneProvider",
+    "IntraNodeEdge",
     "align_tx_power_to_target",
     "check_fiber_terminating_port",
     "configure_line_transceivers",
@@ -94,6 +98,7 @@ __all__ = [
     "get_transceiver_capacity_from_mode",
     "is_transponder_line_port",
     "parse_port_identifiers",
+    "retrieve_add_drop_connectivity",
     "retrieve_omses_terminating_on_device",
     "retrieve_optical_node_role_and_software_version",
     "retrieve_ports_spectral_occupations",

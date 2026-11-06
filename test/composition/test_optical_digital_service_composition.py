@@ -39,8 +39,13 @@ def _fake_multiple_choice(*args: Any, **kwargs: Any) -> type[list[Choice]]:
     return cast(type[list[Choice]], choice_list(base))
 
 
-def _fake_path_choice(*args: Any, **kwargs: Any) -> type[Choice]:
-    return cast(type[Choice], Choice("FakePathChoice", {"p1;p2": ("p1;p2", "nodeA (p1) x nodeB (p2)")}))
+def _fake_path_choice(*args: Any, **kwargs: Any) -> tuple[type[Choice], str]:
+    choice = cast(type[Choice], Choice("FakePathChoice", {"p1;p2": ("p1;p2", "nodeA (p1) x nodeB (p2)")}))
+    return choice, "fake-candidates"
+
+
+#: The free ranges reported by the faked availability computation (excludes FREQUENCY_1 + 1 THz).
+FAKE_AVAILABLE = [(191_325_000, 194_000_000)]
 
 
 def _make_channel(
@@ -109,6 +114,7 @@ def _monkeypatch_modify_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(digital_modify, "multiple_optical_pipe_selector", _fake_multiple_choice)
     monkeypatch.setattr(digital_modify, "optical_digital_service_path_choice", _fake_path_choice)
     monkeypatch.setattr(digital_modify, "channel_names_taken_by_others", lambda _ids: {})
+    monkeypatch.setattr(digital_modify, "optical_digital_service_available_passbands", lambda *_a: FAKE_AVAILABLE)
 
 
 def test_modify_block_steps_have_the_expected_order() -> None:
@@ -152,11 +158,9 @@ def test_modify_form_pages_yield_routing_pages_for_owned_sections(monkeypatch: p
         page_1(optical_digital_service_name="svcB", channel_name_1="ch-02"),
     )
     page_names.append(page_2.__name__)
-    assert set(page_2.model_fields) == {"optical_transport_mode", "frequency_1", "bandwidth_1"}
+    assert set(page_2.model_fields) == {"optical_transport_mode"}
 
-    page_3 = generator.send(
-        page_2(optical_transport_mode="opt-a", frequency_1=FREQUENCY_1, bandwidth_1=BANDWIDTH_1),
-    )
+    page_3 = generator.send(page_2(optical_transport_mode="opt-a"))
     page_names.append(page_3.__name__)
     assert set(page_3.model_fields) == {"intermediate_node_instance_ids"}
 
@@ -170,12 +174,22 @@ def test_modify_form_pages_yield_routing_pages_for_owned_sections(monkeypatch: p
     page_names.append(page_5.__name__)
     assert set(page_5.model_fields) == {"optical_path"}
 
+    page_6 = generator.send(page_5(optical_path="p1;p2"))
+    page_names.append(page_6.__name__)
+    assert set(page_6.model_fields) == {"available_frequency_ranges", "frequency_1", "bandwidth_1"}
+    assert page_6.model_fields["frequency_1"].default == FREQUENCY_1
+    assert page_6.model_fields["bandwidth_1"].default == BANDWIDTH_1
+    with pytest.raises(ValueError, match="not available"):
+        page_6(frequency_1=194_500_000, bandwidth_1=BANDWIDTH_1)
+
     with pytest.raises(StopIteration) as exc_info:
-        generator.send(page_5(optical_path="p1;p2"))
+        generator.send(page_6(frequency_1=FREQUENCY_1, bandwidth_1=BANDWIDTH_1))
     result = exc_info.value.value
     assert result["optical_digital_service_name"] == "svcB"
     assert result["channel_name_1"] == "ch-02"
     assert result["optical_path"] == ["p1", "p2"]
+    assert result["frequency_1"] == FREQUENCY_1
+    assert "available_frequency_ranges" not in result
 
     assert page_names == [
         "ModifyOpticalDigitalServiceIdentityForm",
@@ -183,11 +197,12 @@ def test_modify_form_pages_yield_routing_pages_for_owned_sections(monkeypatch: p
         "CreateOpticalSpectrumWaypointsForm",
         "CreateOpticalSpectrumConstraintsForm",
         "CreateOpticalDigitalServicePathForm",
+        "OpticalDigitalServiceFrequenciesForm",
     ]
 
 
 def test_modify_form_pages_skip_routing_pages_for_reused_channels(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Reused channels keep their owner's path: the sequence stops after the channels page."""
+    """Reused channels keep their owner's path: no routing pages, frequencies without availability."""
     _monkeypatch_modify_selectors(monkeypatch)
     subscription = _make_digital_subscription(channel_owner="sub-other")
     generator = modify_optical_digital_service_form_pages(
@@ -200,15 +215,16 @@ def test_modify_form_pages_skip_routing_pages_for_reused_channels(monkeypatch: p
         page_1(optical_digital_service_name="svcA", channel_name_1="ch-01"),
     )
     assert page_2.__name__ == "ModifyOpticalDigitalServiceForm"
+    page_3 = generator.send(page_2(optical_transport_mode="opt-a"))
+    assert page_3.__name__ == "OpticalDigitalServiceFrequenciesForm"
+    assert "not computed" in page_3.model_fields["available_frequency_ranges"].default
     with pytest.raises(StopIteration) as exc_info:
-        generator.send(
-            page_2(optical_transport_mode="opt-a", frequency_1=FREQUENCY_1, bandwidth_1=BANDWIDTH_1),
-        )
+        generator.send(page_3(frequency_1=FREQUENCY_1, bandwidth_1=BANDWIDTH_1))
     assert "optical_path" not in exc_info.value.value
 
 
 def test_modify_form_pages_skip_routing_pages_without_sections(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Directly connected services have no OLS path to change: the sequence stops after the channels page."""
+    """Directly connected services have no OLS path to change: no routing pages before the frequencies."""
     _monkeypatch_modify_selectors(monkeypatch)
     subscription = _make_digital_subscription(with_sections=False)
     generator = modify_optical_digital_service_form_pages(
@@ -219,10 +235,10 @@ def test_modify_form_pages_skip_routing_pages_without_sections(monkeypatch: pyte
     page_2 = generator.send(
         page_1(optical_digital_service_name="svcA", channel_name_1="ch-01"),
     )
+    page_3 = generator.send(page_2(optical_transport_mode="opt-a"))
+    assert page_3.__name__ == "OpticalDigitalServiceFrequenciesForm"
     with pytest.raises(StopIteration) as exc_info:
-        generator.send(
-            page_2(optical_transport_mode="opt-a", frequency_1=FREQUENCY_1, bandwidth_1=BANDWIDTH_1),
-        )
+        generator.send(page_3(frequency_1=FREQUENCY_1, bandwidth_1=BANDWIDTH_1))
     assert "optical_path" not in exc_info.value.value
 
 

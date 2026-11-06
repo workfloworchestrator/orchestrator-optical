@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from orchestrator.optical.hal.connectivity import IntraNodeEdge
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 
@@ -33,6 +34,11 @@ def _fake_retrieve_transceiver_modes(block: Any, port_name: str) -> list[str]:
 def _fake_retrieve_ports_spectral_occupations(block: Any) -> dict[str, Any]:
     """Return no spectral occupations for the faked device ports."""
     return {}
+
+
+def _fake_retrieve_add_drop_connectivity(block: Any, add_drop_port_name: str) -> list[IntraNodeEdge]:
+    """Return a free internal route from the add/drop port to every faked line port."""
+    return [IntraNodeEdge(add_drop_port_name, line_port) for line_port in FAKE_LINE_PORTS]
 
 
 def _fake_configure_termination_when_attaching_new_fiber(*args: Any) -> dict[str, Any]:
@@ -233,6 +239,7 @@ def install_device_stubs(
             },
             "orchestrator.optical.workflows.optical_spectrum_service.shared": {
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
+                "retrieve_add_drop_connectivity": _fake_retrieve_add_drop_connectivity,
                 "ensure_optical_circuit": _fake_ensure_optical_circuit,
                 "validate_optical_circuit": _fake_validate_optical_circuit,
                 "delete_optical_circuit": _fake_delete_optical_circuit,
@@ -272,6 +279,7 @@ def install_device_stubs(
             "orchestrator.optical.workflows.optical_spectrum_service.shared": {
                 "delete_optical_circuit": _fake_delete_optical_circuit,
                 "delete_optical_circuit_oel": _fake_delete_optical_circuit_oel,
+                "retrieve_add_drop_connectivity": _fake_retrieve_add_drop_connectivity,
             },
             "orchestrator.optical.workflows.optical_digital_service.create_optical_digital_service": {
                 "sleep": _fake_sleep,

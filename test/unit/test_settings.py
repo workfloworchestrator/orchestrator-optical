@@ -39,8 +39,25 @@ _VERIFY_FIELDS = {
 _OPTICAL_ENV_VARS = [f"OPTICAL_{name.upper()}" for name in _EXPECTED_FIELDS]
 
 
+#: Settings with a non-None default value (checked by their own test).
+_DEFAULTED_FIELDS = {"path_k"}
+
+
 def test_settings_exposes_expected_optional_fields() -> None:
-    assert set(OpticalSettings.model_fields) == _EXPECTED_FIELDS
+    assert set(OpticalSettings.model_fields) == _EXPECTED_FIELDS | _DEFAULTED_FIELDS
+
+
+def test_path_k_defaults_to_five_and_reads_env(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OPTICAL_PATH_K", raising=False)
+    get_settings.cache_clear()
+    try:
+        assert get_settings().path_k == 5
+        monkeypatch.setenv("OPTICAL_PATH_K", "3")
+        get_settings.cache_clear()
+        assert get_settings().path_k == 3
+    finally:
+        get_settings.cache_clear()
 
 
 def test_get_settings_returns_defaults_without_env(monkeypatch, tmp_path: Path) -> None:
