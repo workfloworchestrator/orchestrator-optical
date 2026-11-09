@@ -33,6 +33,7 @@ from uuid import UUID
 
 from pydantic_forms.types import State, UUIDstr
 from pydantic_forms.validators import Choice
+from sqlalchemy import select
 from structlog import get_logger
 
 from orchestrator.core.db import ProductTable, SubscriptionInstanceTable, SubscriptionTable, db
@@ -1379,7 +1380,7 @@ def optical_digital_service_speed_and_type_for_product(
         KeyError: If no product exists for the given product name.
         ValueError: If a fixed input is missing or not a valid enum member.
     """
-    product_db = ProductTable.query.filter_by(name=product_name).one_or_none()
+    product_db = db.session.scalars(select(ProductTable).where(ProductTable.name == product_name)).one_or_none()
     if product_db is None:
         msg = f"Could not find a product for the given product_name {product_name}"
         raise KeyError(msg)

@@ -11,6 +11,7 @@ only, never model dependencies.
 from typing import cast
 
 from pydantic_forms.types import UUIDstr
+from sqlalchemy import Select, select
 from sqlalchemy.orm import aliased
 
 from orchestrator.core.db import (
@@ -20,6 +21,7 @@ from orchestrator.core.db import (
     SubscriptionInstanceTable,
     SubscriptionInstanceValueTable,
     SubscriptionTable,
+    db,
 )
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
@@ -50,6 +52,16 @@ __all__ = [
 ]
 
 
+def _all[T](statement: Select[T]) -> list[T]:
+    """Execute a SQLAlchemy 2.x ``select()`` on the core session and return every row entity."""
+    return list(db.session.scalars(statement).all())
+
+
+def _one_or_none[T](statement: Select[T]) -> T | None:
+    """Execute a SQLAlchemy 2.x ``select()`` on the core session and return at most one row entity."""
+    return db.session.scalars(statement).one_or_none()
+
+
 def subscription_instances_by_block_type(
     product_block_type: str,
     states: list[SubscriptionLifecycle],
@@ -64,12 +76,12 @@ def subscription_instances_by_block_type(
         List of SubscriptionInstanceTable entries (i.e. rows of the subscription_instances table)
             whose product block type matches and whose owner subscription is in one of the given states.
     """
-    return (
-        SubscriptionInstanceTable.query.join(SubscriptionTable)
+    return _all(
+        select(SubscriptionInstanceTable)
+        .join(SubscriptionTable)
         .join(ProductBlockTable)
-        .filter(SubscriptionTable.status.in_(states))
-        .filter(ProductBlockTable.name == product_block_type)
-        .all()
+        .where(SubscriptionTable.status.in_(states))
+        .where(ProductBlockTable.name == product_block_type)
     )
 
 
@@ -115,10 +127,11 @@ def subscription_instances_by_block_types_and_resource_values(
             matching all criteria
     """
     query = (
-        SubscriptionInstanceTable.query.join(SubscriptionTable)
+        select(SubscriptionInstanceTable)
+        .join(SubscriptionTable)
         .join(ProductBlockTable)
-        .filter(SubscriptionTable.status.in_(states))
-        .filter(ProductBlockTable.name.in_(block_names))
+        .where(SubscriptionTable.status.in_(states))
+        .where(ProductBlockTable.name.in_(block_names))
     )
     for resource_type, values in resource_values.items():
         wanted = [values] if isinstance(values, str) else list(values)
@@ -132,10 +145,10 @@ def subscription_instances_by_block_types_and_resource_values(
                 values_table.subscription_instance_id == SubscriptionInstanceTable.subscription_instance_id,
             )
             .join(resource_table, values_table.resource_type_id == resource_table.resource_type_id)
-            .filter(resource_table.resource_type == resource_type)
-            .filter(values_table.value.in_(wanted))
+            .where(resource_table.resource_type == resource_type)
+            .where(values_table.value.in_(wanted))
         )
-    return query.all()
+    return _all(query)
 
 
 def subscription_instances_by_block_type_and_resource_value(
@@ -220,8 +233,9 @@ def subscription_instance_values_by_block_type_depending_on_instance_id(
     Returns:
         List[SubscriptionInstanceValueTable]: A list of all the subscription instance values that match your criteria.
     """
-    return (
-        SubscriptionInstanceValueTable.query.join(
+    return _all(
+        select(SubscriptionInstanceValueTable)
+        .join(
             SubscriptionInstanceTable,
             SubscriptionInstanceTable.subscription_instance_id
             == SubscriptionInstanceValueTable.subscription_instance_id,
@@ -242,11 +256,10 @@ def subscription_instance_values_by_block_type_depending_on_instance_id(
             ResourceTypeTable,
             SubscriptionInstanceValueTable.resource_type_id == ResourceTypeTable.resource_type_id,
         )
-        .filter(SubscriptionInstanceRelationTable.depends_on_id == depending_on_instance_id)
-        .filter(SubscriptionTable.status.in_(states))
-        .filter(ProductBlockTable.name == product_block_type)
-        .filter(ResourceTypeTable.resource_type == resource_type)
-        .all()
+        .where(SubscriptionInstanceRelationTable.depends_on_id == depending_on_instance_id)
+        .where(SubscriptionTable.status.in_(states))
+        .where(ProductBlockTable.name == product_block_type)
+        .where(ResourceTypeTable.resource_type == resource_type)
     )
 
 
@@ -270,14 +283,14 @@ def subscription_instance_values_by_instance_ids_and_resource_type(
     """
     if not instance_ids:
         return []
-    return (
-        SubscriptionInstanceValueTable.query.join(
+    return _all(
+        select(SubscriptionInstanceValueTable)
+        .join(
             ResourceTypeTable,
             SubscriptionInstanceValueTable.resource_type_id == ResourceTypeTable.resource_type_id,
         )
-        .filter(SubscriptionInstanceValueTable.subscription_instance_id.in_(instance_ids))
-        .filter(ResourceTypeTable.resource_type == resource_type)
-        .all()
+        .where(SubscriptionInstanceValueTable.subscription_instance_id.in_(instance_ids))
+        .where(ResourceTypeTable.resource_type == resource_type)
     )
 
 
@@ -300,12 +313,12 @@ def subscription_instances_by_block_names(
     Returns:
         The matching subscription instances.
     """
-    return (
-        SubscriptionInstanceTable.query.join(SubscriptionTable)
+    return _all(
+        select(SubscriptionInstanceTable)
+        .join(SubscriptionTable)
         .join(ProductBlockTable)
-        .filter(SubscriptionTable.status.in_(states))
-        .filter(ProductBlockTable.name.in_(block_names))
-        .all()
+        .where(SubscriptionTable.status.in_(states))
+        .where(ProductBlockTable.name.in_(block_names))
     )
 
 
@@ -327,11 +340,11 @@ def _block_instance_of_subscription(
     Raises:
         ValueError: If the subscription has no matching block instance, or more than one.
     """
-    instances = (
-        SubscriptionInstanceTable.query.join(ProductBlockTable)
-        .filter(ProductBlockTable.name.in_(block_names))
-        .filter(SubscriptionInstanceTable.subscription_id == subscription_id)
-        .all()
+    instances = _all(
+        select(SubscriptionInstanceTable)
+        .join(ProductBlockTable)
+        .where(ProductBlockTable.name.in_(block_names))
+        .where(SubscriptionInstanceTable.subscription_id == subscription_id)
     )
     if not instances:
         msg = f"Subscription {subscription_id} has no {block_description}"
@@ -357,12 +370,12 @@ def pipe_instances_by_block_names(
     Returns:
         The matching subscription instances.
     """
-    return (
-        SubscriptionInstanceTable.query.join(SubscriptionTable)
+    return _all(
+        select(SubscriptionInstanceTable)
+        .join(SubscriptionTable)
         .join(ProductBlockTable)
-        .filter(SubscriptionTable.status.in_(states))
-        .filter(ProductBlockTable.name.in_(block_names))
-        .all()
+        .where(SubscriptionTable.status.in_(states))
+        .where(ProductBlockTable.name.in_(block_names))
     )
 
 
@@ -382,10 +395,10 @@ def node_block_from_instance(instance_id: UUIDstr) -> AnyOpticalNodeBlockUnion:
     Raises:
         ValueError: If the instance does not exist or is not an Optical Node block.
     """
-    instance = (
-        SubscriptionInstanceTable.query.join(ProductBlockTable)
-        .filter(SubscriptionInstanceTable.subscription_instance_id == instance_id)
-        .one_or_none()
+    instance = _one_or_none(
+        select(SubscriptionInstanceTable)
+        .join(ProductBlockTable)
+        .where(SubscriptionInstanceTable.subscription_instance_id == instance_id)
     )
     if instance is None:
         msg = f"Subscription instance {instance_id} does not exist"
@@ -511,10 +524,10 @@ def location_block_from_instance(instance_id: UUIDstr) -> OpticalModuleLocationB
     Raises:
         ValueError: If the instance does not exist or is not an Optical Module Location block.
     """
-    instance = (
-        SubscriptionInstanceTable.query.join(ProductBlockTable)
-        .filter(SubscriptionInstanceTable.subscription_instance_id == instance_id)
-        .one_or_none()
+    instance = _one_or_none(
+        select(SubscriptionInstanceTable)
+        .join(ProductBlockTable)
+        .where(SubscriptionInstanceTable.subscription_instance_id == instance_id)
     )
     if instance is None:
         msg = f"Subscription instance {instance_id} does not exist"
@@ -543,10 +556,10 @@ def packet_node_block_from_instance(instance_id: UUIDstr) -> OpticalModulePacket
     Raises:
         ValueError: If the instance does not exist or is not an Optical Module Packet Node block.
     """
-    instance = (
-        SubscriptionInstanceTable.query.join(ProductBlockTable)
-        .filter(SubscriptionInstanceTable.subscription_instance_id == instance_id)
-        .one_or_none()
+    instance = _one_or_none(
+        select(SubscriptionInstanceTable)
+        .join(ProductBlockTable)
+        .where(SubscriptionInstanceTable.subscription_instance_id == instance_id)
     )
     if instance is None:
         msg = f"Subscription instance {instance_id} does not exist"

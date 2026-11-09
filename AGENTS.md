@@ -3,7 +3,7 @@
 ## What this project is
 
 An addon module for [Workflow Orchestrator](https://workfloworchestrator.org) (built on
-[`orchestrator-core`](https://github.com/workfloworchestrator/orchestrator-core) >= 5) that models and provisions
+[`orchestrator-core`](https://github.com/workfloworchestrator/orchestrator-core) >= 5.6) that models and provisions
 optical transport equipment: Nokia **FlexILS** (TL1 over SSH), **Groove G30** and **GX G42** (RESTCONF), and the
 Nokia **TNMS** (TAPI) management system (client-only: `services/nokia/tnms` ships the API client, nothing under
 `hal/` or `workflows/` drives it).
@@ -85,7 +85,7 @@ src/orchestrator/optical/
   that are persisted. Abstract blocks and subscriptions do not have those args.
 - Field names are `optical_*`-prefixed and descriptive (`optical_port_name`, `optical_transport_central_frequency`).
 
-#### Persistence quirk (orchestrator-core 5.1.3)
+#### Persistence quirk (orchestrator-core 5.1.3–5.6.0, verified unchanged)
 
 `ProductBlockModel._find_special_fields` persists **only fields declared directly in a class body** — any inherited
 field (from an abstract base or from a concrete sibling in the same chain) is silently dropped on save and missing on
@@ -97,7 +97,7 @@ every field it inherits**, or reloads will crash with ValidationError. The four 
 This rule is fully applied: all 19 concrete block chains redeclare every inherited field. Any new block must follow the rule.
 
 - Product-block fields must **not** use `Annotated`-wrapped discriminated unions (`Annotated[Union[...],
-  Field(discriminator=...)]` or `Discriminator(fn)`): core 5.1.3's `is_list_type`/`is_union_type`/`is_of_type`
+  Field(discriminator=...)]` or `Discriminator(fn)`): core's (5.1.3–5.6.0) `is_list_type`/`is_union_type`/`is_of_type`
   cannot see through `Annotated`, so such fields are misclassified as scalar strings (silently saved as `repr()`,
   ValidationError on reload). The union aliases in `optical_port/unions.py` and `optical_node/unions.py` are plain
   `Union[...]` on purpose — keep them plain (disambiguation is done by the `enforce_*` model validators).
@@ -119,6 +119,8 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
   `orchestrator.optical.workflows.*` or from `orchestrator.optical.products.product_types.*`. Subscription ids are
   acceptable input parameters, but they are resolved to blocks (never to subscription models), via the neutral DB query
   helpers in `orchestrator/optical/db.py` — the shared home for database queries used by both `hal/` and `workflows/`.
+  Queries use SQLAlchemy 2.x `select()` executed on `db.session` (`db.py::_all` / `_one_or_none`); never the legacy
+  `Model.query` / `db.session.query()` API (deprecated in core 5.5, removed in v6).
 - Shipped `*_form_pages` (the public form surface) follow the same rule: they depend only on shipped **blocks** plus
   scalar ids (`product_name`, `subscription_instance_id` / `exclude_subscription_id`, `customer_id` include). They never
   take `subscription: SubscriptionModel`, `block_field_name`, or `subscription_model`, and never import from
