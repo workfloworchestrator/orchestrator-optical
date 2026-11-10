@@ -3,28 +3,23 @@
 from decimal import Decimal
 from typing import Any, Literal
 
-from requests.exceptions import HTTPError
-
-from orchestrator.optical.hal._common import _as_decimal, _node_id
-from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
-from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
-from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
-from orchestrator.optical.services.nokia import G42Client
-from orchestrator.optical.services.nokia.g42.data_models.ioa_network_element import (
-    AdminStateEnum,
-    AlarmReportControlEnum,
-    EnableSwitchEnum,
+from orchestrator.optical.hal._common import _as_decimal, _node_id, _retrieve_required
+from orchestrator.optical.hal.adapters.nokia_gx_g42._sdk import (
+    CreateXconInput,
+    G42Client,
     LldpAdminStatusEnum,
     LldpModeEnum,
-    LoopbackEnum,
+    PayloadTypeEnum,
     PhyModeEnum,
-    PrbsDirectionEnum,
     ServiceTypeEnum,
     SignalTypeEnum,
     XconItem,
 )
+from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
+from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
+from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
-from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects
+from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects, yang_dump
 
 
 def _client_speed_config(speed: OpticalDigitalServiceSpeed) -> tuple[str, str, str, str]:
@@ -60,13 +55,8 @@ def _find_xcon(
     Raises:
         ValueError: If a cross-connect with the same source and destination already exists.
     """
-    try:
-        xcons = g42.data.ne.services.xcon.retrieve(depth=2, content="config")
-    except HTTPError as e:
-        no_xcon_exists_code = 404
-        if e.response.status_code == no_xcon_exists_code:
-            return None
-        raise
+    # An empty list reads as no data over NETCONF.
+    xcons = g42.data.ioa_network_element_ne.services.xcon.retrieve(depth=2, content="config") or []
 
     for xcon in xcons:
         source_destination_match = (xcon.source == client and line in xcon.destination) or (
@@ -109,23 +99,25 @@ def _create_xcon(
         dst_time_slots: Time slots for the cross-connect.
 
     Raises:
-        HTTPError: If the cross-connect creation fails.
+        RuntimeError: If the cross-connect creation fails (an existing one is not a failure).
     """
+    # The SDK marks both cases of the YANG source/destination choices as mandatory, so
+    # validating the input would reject this valid one (existing source, new destination
+    # ODU): build it unvalidated.
+    xcon_input = CreateXconInput.model_construct(
+        payload_type=PayloadTypeEnum(payload_type),
+        direction=direction,
+        label=label,
+        circuit_id_suffix=label,
+        source=client,
+        dst_parent_odu=dst_parent_odu,
+        dst_time_slots=dst_time_slots,
+    )
     try:
-        g42.operations.create_xcon(
-            payload_type=payload_type,
-            direction=direction,
-            label=label,
-            circuit_id_suffix=label,
-            source=client,
-            dst_parent_odu=dst_parent_odu,
-            dst_time_slots=dst_time_slots,
-        )
-    except HTTPError as e:
-        xcon_already_exists_code = 412
-        if e.response.status_code == xcon_already_exists_code:
-            pass
-        else:
+        g42.operations.ioa_services_create_xcon(xcon_input)
+    except RuntimeError as e:
+        # The SDK maps NETCONF <rpc-error>s to RuntimeError, keeping the RFC 6241 <error-tag>.
+        if getattr(e, "rpc_error_tag", None) != "data-exists":
             raise
 
 
@@ -149,11 +141,13 @@ def _derive_optical_channel_key(line_port_names: list[str]) -> str:
 
 def _retrieve_payload_type(g42: G42Client, client_port_name: str) -> Literal["100GBE", "400GBE"]:
     """Retrieve the payload type of the given client port on a G42 device."""
-    trib_ptp = g42.data.ne.facilities.trib_ptp(client_port_name).retrieve(depth=2, content="config")
+    trib_ptp = _retrieve_required(
+        g42.data.ioa_network_element_ne.facilities.trib_ptp(client_port_name).retrieve, depth=2, content="config"
+    )
     payload_type = trib_ptp.service_type
 
     if payload_type is None:
-        msg = f"Unable to retrieve payload type for {g42.url} {client_port_name}"
+        msg = f"Unable to retrieve payload type for {g42.host} {client_port_name}"
         raise ValueError(msg)
 
     match payload_type.value:
@@ -161,7 +155,7 @@ def _retrieve_payload_type(g42: G42Client, client_port_name: str) -> Literal["10
             return "100GBE"
         case "400GBE":
             return "400GBE"
-    msg = f"Invalid payload type '{payload_type}' for {g42.url} {client_port_name}. Expected '100GBE' or '400GBE'."
+    msg = f"Invalid payload type '{payload_type}' for {g42.host} {client_port_name}. Expected '100GBE' or '400GBE'."
     raise ValueError(msg)
 
 
@@ -169,7 +163,7 @@ def _retrieve_time_slots(g42: G42Client, odu_name: str, speed: Literal["100GBE",
     """Retrieve the first block of available time slots of the given ODU with enough capacity for the speed."""
     minimum_slots_required = 80 if speed == "100GBE" else 320
 
-    odu = g42.data.ne.facilities.odu(odu_name).retrieve(depth=2)
+    odu = _retrieve_required(g42.data.ioa_network_element_ne.facilities.odu(odu_name).retrieve, depth=2)
     available_time_slots = odu.available_time_slots  # e.g. "1..80,161..480"
     if not available_time_slots:
         msg = f"The key 'available-time-slots' is missing or empty in the ODU data.ODU: {odu}"
@@ -184,7 +178,7 @@ def _retrieve_time_slots(g42: G42Client, odu_name: str, speed: Literal["100GBE",
             return f"{start}..{start + minimum_slots_required - 1}"
 
     msg = (
-        f"Not enough available time slots for {g42.url} {odu}. "
+        f"Not enough available time slots for {g42.host} {odu}. "
         f"Minimum required: {minimum_slots_required}, "
         f"Available: {available_time_slots}"
     )
@@ -206,7 +200,7 @@ def get_signal_bandwidth(optical_node_block: NokiaGxG42BlockProvisioning, port_n
     """
     g42 = get_g42_client(optical_node_block)
     channel = None
-    channels = g42.data.ne.facilities.super_channel.retrieve(depth=2)
+    channels = g42.data.ioa_network_element_ne.facilities.super_channel.retrieve(depth=2)
     for ch in channels:
         if any(carrier.startswith(port_name) for carrier in ch.carriers):
             channel = ch
@@ -259,21 +253,21 @@ def configure_line_transceivers(
     # port
     for port_name, description in zip(port_names, descriptions, strict=True):
         shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
-        navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+        navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
         before = navigator.retrieve(content="config", depth=2)
-        # Minimal PATCH: list key plus changed leaves only.
+        # Minimal merge: list key plus changed leaves only.
         navigator.update(
             name=port_id,
-            admin_state=AdminStateEnum.UNLOCK,
+            admin_state="unlock",
             label=description,
-            alarm_report_control=AlarmReportControlEnum.ALLOWED,
+            alarm_report_control="allowed",
         )
         after = navigator.retrieve(content="config", depth=2)
         diffs = compare_pydantic_objects(before, after)
         configurations[f"port-{port_name}"] = diffs
 
         # super-channel-group
-        navigator = g42.data.ne.facilities.super_channel_group(port_name)
+        navigator = g42.data.ioa_network_element_ne.facilities.super_channel_group(port_name)
         before = navigator.retrieve(content="config", depth=2)
         navigator.update(name=port_name, admin_state="unlock", label=description, alarm_report_control="allowed")
         after = navigator.retrieve(content="config", depth=2)
@@ -282,7 +276,7 @@ def configure_line_transceivers(
 
     # super-channel
     sup_ch_name = "_".join(port_names)
-    navigator = g42.data.ne.facilities.super_channel(sup_ch_name)
+    navigator = g42.data.ioa_network_element_ne.facilities.super_channel(sup_ch_name)
     before = navigator.retrieve(content="config", depth=2)
     navigator.update(
         name=sup_ch_name,
@@ -298,7 +292,7 @@ def configure_line_transceivers(
 
     # optical-carrier
     for port_name, description, frequency in zip(port_names, descriptions, central_frequencies, strict=True):
-        navigator = g42.data.ne.facilities.optical_carrier(f"{port_name}-1")
+        navigator = g42.data.ioa_network_element_ne.facilities.optical_carrier(f"{port_name}-1")
         before = navigator.retrieve(content="config", depth=2)
         navigator.update(
             name=f"{port_name}-1",
@@ -342,43 +336,43 @@ def configure_transceiver_client(
     configurations = {}
 
     # port
-    navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+    navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
     before = navigator.retrieve(content="config", depth=2)
-    # Minimal PATCH: list key plus changed leaves only.
+    # Minimal merge: list key plus changed leaves only.
     navigator.update(
         name=port_id,
-        admin_state=AdminStateEnum.UNLOCK,
+        admin_state="unlock",
         label=description,
-        alarm_report_control=AlarmReportControlEnum.ALLOWED,
+        alarm_report_control="allowed",
     )
     after = navigator.retrieve(content="config", depth=2)
     diffs = compare_pydantic_objects(before, after)
     configurations["1.port"] = diffs
 
     # TOM
-    navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
+    navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
     before = navigator.retrieve(content="config", depth=2)
-    # Minimal PATCH on the singleton TOM facility: only the changed leaves.
+    # Minimal merge on the singleton TOM facility: only the changed leaves.
     navigator.update(
-        admin_state=AdminStateEnum.UNLOCK,
+        admin_state="unlock",
         label=description,
         required_type=required_type,
         required_subtype=required_subtype,
         phy_mode=PhyModeEnum(phy_mode),
-        alarm_report_control=AlarmReportControlEnum.ALLOWED,
+        alarm_report_control="allowed",
     )
     after = navigator.retrieve(content="config", depth=2)
     diffs = compare_pydantic_objects(before, after)
     configurations["2.tom"] = diffs
 
     # trib-ptp
-    navigator = g42.data.ne.facilities.trib_ptp(port_name)
+    navigator = g42.data.ioa_network_element_ne.facilities.trib_ptp(port_name)
     before = navigator.retrieve(content="config", depth=2)
     navigator.update(
         name=port_name,
-        admin_state=AdminStateEnum.UNLOCK,
+        admin_state="unlock",
         label=description,
-        alarm_report_control=AlarmReportControlEnum.ALLOWED,
+        alarm_report_control="allowed",
         service_type=ServiceTypeEnum(service_type),
     )
     after = navigator.retrieve(content="config", depth=2)
@@ -386,17 +380,17 @@ def configure_transceiver_client(
     configurations["3.trib-ptp"] = diffs
 
     # ethernet
-    navigator = g42.data.ne.facilities.ethernet(port_name)
+    navigator = g42.data.ioa_network_element_ne.facilities.ethernet(port_name)
     before = navigator.retrieve(content="config", depth=2)
     navigator.update(
         name=port_name,
-        admin_state=AdminStateEnum.UNLOCK,
+        admin_state="unlock",
         label=description,
-        alarm_report_control=AlarmReportControlEnum.ALLOWED,
-        fec_mode=EnableSwitchEnum.ENABLED,
-        loopback=LoopbackEnum.NONE,
+        alarm_report_control="allowed",
+        fec_mode="enabled",
+        loopback="none",
         test_signal_type=SignalTypeEnum.NONE,
-        test_signal_direction=PrbsDirectionEnum.EGRESS,
+        test_signal_direction="egress",
         test_signal_monitoring=False,
         lldp_admin_status=LldpAdminStatusEnum.RX_ONLY,
         lldp_ingress_mode=LldpModeEnum.SNOOP,
@@ -440,9 +434,9 @@ def configure_transponder_crossconnect(
 
     xcon = _find_xcon(g42, client, och_key, direction, payload_type)
     if xcon:
-        endpoint = g42.data.ne.services.xcon(xcon.name)
-        before = endpoint.retrieve(depth=2, content="config")
-        # Minimal PATCH: list key plus changed leaves only.
+        endpoint = g42.data.ioa_network_element_ne.services.xcon(xcon.name)
+        before = _retrieve_required(endpoint.retrieve, depth=2, content="config")
+        # Minimal merge: list key plus changed leaves only.
         endpoint.update(name=before.name, label=label, circuit_id_suffix=label)
         after = endpoint.retrieve(depth=2, content="config")
         return compare_pydantic_objects(before, after)
@@ -459,7 +453,7 @@ def configure_transponder_crossconnect(
     )
     xcon = _find_xcon(g42, client, och_key, direction, payload_type)
     if xcon:
-        return xcon.model_dump(exclude_unset=True)
+        return yang_dump(xcon, exclude_unset=True)
 
     msg = f"Unable to create XCON for client {client_port_name} on {_node_id(optical_node_block)}. "
     raise ValueError(msg)
@@ -483,19 +477,13 @@ def delete_transponder_crossconnect(
     g42 = get_g42_client(optical_node_block)
     client = f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
 
-    try:
-        xcons = g42.data.ne.services.xcon.retrieve(depth=2, content="config")
-    except HTTPError as e:
-        no_xcon_exists_code = 404
-        if e.response.status_code == no_xcon_exists_code:
-            xcons = []
-        else:
-            raise
+    # An empty list reads as no data over NETCONF.
+    xcons = g42.data.ioa_network_element_ne.services.xcon.retrieve(depth=2, content="config") or []
 
     deleted_xcons = []
     for xcon in xcons:
         if client in (xcon.source, xcon.destination):
-            uri = g42.data.ne.services.xcon(xcon.name)
+            uri = g42.data.ioa_network_element_ne.services.xcon(xcon.name)
             uri.delete()
             deleted_xcons.append(xcon)
 
@@ -529,31 +517,31 @@ def factory_reset_transponder_client(
     configurations = {}
 
     # 1. Ethernet configuration
-    navigator = g42.data.ne.facilities.ethernet(port_name)
+    navigator = g42.data.ioa_network_element_ne.facilities.ethernet(port_name)
     conf = navigator.retrieve(content="config", depth=2)
     navigator.update(name=port_name, admin_state="lock", label="")
     diff = compare_pydantic_objects(conf, navigator.retrieve(depth=2, content="config"))
     configurations["1.ethernet"] = diff
 
     # 2. Tributary point-to-point configuration
-    navigator = g42.data.ne.facilities.trib_ptp(port_name)
+    navigator = g42.data.ioa_network_element_ne.facilities.trib_ptp(port_name)
     conf = navigator.retrieve(content="config", depth=2)
     navigator.update(name=port_name, label="", admin_state="lock")
     diff = compare_pydantic_objects(conf, navigator.retrieve(depth=2, content="config"))
     configurations["2.trib-ptp"] = diff
 
     # 3. TOM configuration
-    navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
+    navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
     conf = navigator.retrieve(content="config", depth=2)
-    # Minimal PATCH on the singleton TOM facility: only the changed leaves.
+    # Minimal merge on the singleton TOM facility: only the changed leaves.
     navigator.update(label="", admin_state="lock")
     diff = compare_pydantic_objects(conf, navigator.retrieve(depth=2, content="config"))
     configurations["3.tom"] = diff
 
     # 4. Port configuration
-    navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+    navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
     conf = navigator.retrieve(content="config", depth=2)
-    # Minimal PATCH: list key plus changed leaves only.
+    # Minimal merge: list key plus changed leaves only.
     navigator.update(name=port_id, label="", admin_state="lock")
     diff = compare_pydantic_objects(conf, navigator.retrieve(depth=2, content="config"))
     configurations["4.port"] = diff
@@ -580,21 +568,21 @@ def factory_reset_transponder_lines(
     for port_name in line_port_names:
         # port
         shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
-        navigator = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+        navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
         before = navigator.retrieve(content="config", depth=2)
-        # Minimal PATCH: list key plus changed leaves only.
+        # Minimal merge: list key plus changed leaves only.
         navigator.update(
             name=port_id,
-            admin_state=AdminStateEnum.LOCK,
+            admin_state="lock",
             label="",
-            alarm_report_control=AlarmReportControlEnum.ALLOWED,
+            alarm_report_control="allowed",
         )
         after = navigator.retrieve(content="config", depth=2)
         diff = compare_pydantic_objects(before, after)
         configurations[f"port-{port_name}"] = diff
 
         # super-channel-group
-        navigator = g42.data.ne.facilities.super_channel_group(port_name)
+        navigator = g42.data.ioa_network_element_ne.facilities.super_channel_group(port_name)
         before = navigator.retrieve(depth=2, content="config")
         navigator.update(name=port_name, admin_state="lock", label="", alarm_report_control="allowed")
         after = navigator.retrieve(depth=2, content="config")
@@ -603,7 +591,7 @@ def factory_reset_transponder_lines(
 
     # super-channel
     sup_ch_name = "_".join(line_port_names)
-    navigator = g42.data.ne.facilities.super_channel(sup_ch_name)
+    navigator = g42.data.ioa_network_element_ne.facilities.super_channel(sup_ch_name)
     before = navigator.retrieve(depth=2, content="config")
     navigator.delete()
     configurations[f"super-channel-{sup_ch_name}"] = compare_pydantic_objects(before, None)
@@ -661,17 +649,19 @@ def validate_trx_line(
         strict=False,
     ):
         shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
-        endpoint = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-        actual_config["ports"][port_name] = endpoint.retrieve(depth=2, content="config").model_dump(exclude_unset=True)
-
-        endpoint = g42.data.ne.facilities.super_channel_group(port_name)
-        actual_config["super-channel-groups"][port_name] = endpoint.retrieve(depth=2, content="config").model_dump(
-            exclude_unset=True
+        endpoint = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+        actual_config["ports"][port_name] = yang_dump(
+            _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
         )
 
-        endpoint = g42.data.ne.facilities.optical_carrier(f"{port_name}-1")
-        actual_config["optical-carriers"][port_name] = endpoint.retrieve(depth=2, content="config").model_dump(
-            exclude_unset=True
+        endpoint = g42.data.ioa_network_element_ne.facilities.super_channel_group(port_name)
+        actual_config["super-channel-groups"][port_name] = yang_dump(
+            _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
+        )
+
+        endpoint = g42.data.ioa_network_element_ne.facilities.optical_carrier(f"{port_name}-1")
+        actual_config["optical-carriers"][port_name] = yang_dump(
+            _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
         )
 
         desired_config["ports"][port_name] = {
@@ -698,8 +688,10 @@ def validate_trx_line(
         }
 
     super_channel_name = "_".join(port_names)
-    endpoint = g42.data.ne.facilities.super_channel(super_channel_name)
-    actual_config["super-channel"] = endpoint.retrieve(depth=2, content="config").model_dump(exclude_unset=True)
+    endpoint = g42.data.ioa_network_element_ne.facilities.super_channel(super_channel_name)
+    actual_config["super-channel"] = yang_dump(
+        _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
+    )
 
     carriers = [f"{port_name}-1" for port_name in port_names]
     desired_config["super-channel"] = {
@@ -745,17 +737,25 @@ def validate_trx_client(
 
     actual_config = {}
     # port
-    endpoint = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    actual_config["port"] = endpoint.retrieve(depth=2, content="config").model_dump(exclude_unset=True)
+    endpoint = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+    actual_config["port"] = yang_dump(
+        _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
+    )
     # TOM
-    endpoint = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
-    actual_config["tom"] = endpoint.retrieve(depth=2, content="config").model_dump(exclude_unset=True)
+    endpoint = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
+    actual_config["tom"] = yang_dump(
+        _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
+    )
     # trib-ptp
-    endpoint = g42.data.ne.facilities.trib_ptp(port_name)
-    actual_config["trib-ptp"] = endpoint.retrieve(depth=2, content="config").model_dump(exclude_unset=True)
+    endpoint = g42.data.ioa_network_element_ne.facilities.trib_ptp(port_name)
+    actual_config["trib-ptp"] = yang_dump(
+        _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
+    )
     # ethernet
-    endpoint = g42.data.ne.facilities.ethernet(port_name)
-    actual_config["ethernet"] = endpoint.retrieve(depth=2, content="config").model_dump(exclude_unset=True)
+    endpoint = g42.data.ioa_network_element_ne.facilities.ethernet(port_name)
+    actual_config["ethernet"] = yang_dump(
+        _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
+    )
 
     desired_config = {
         "tom": {
@@ -827,14 +827,14 @@ def validate_trx_crossconnect(
     label = xconn_description
     payload_type = _retrieve_payload_type(g42, client_port_name)
 
-    xcons = g42.data.ne.services.xcon.retrieve(depth=2, content="config")
+    xcons = g42.data.ioa_network_element_ne.services.xcon.retrieve(depth=2, content="config")
 
     actual_config = None
     for xcon in xcons:
         if (xcon.source == client and och_key in xcon.destination) or (
             xcon.destination == client and och_key in xcon.source
         ):
-            actual_config = xcon.model_dump(exclude_unset=True)
+            actual_config = yang_dump(xcon, exclude_unset=True)
             break
 
     if actual_config is None:
@@ -885,8 +885,8 @@ def align_tx_power_to_target(
     max_tx_power = Decimal("9.00")
 
     g42 = get_g42_client(optical_node_block)
-    uri = g42.data.ne.facilities.optical_carrier(f"{line_port_name}-1")
-    conf = uri.retrieve(depth=2, content="config")
+    uri = g42.data.ioa_network_element_ne.facilities.optical_carrier(f"{line_port_name}-1")
+    conf = _retrieve_required(uri.retrieve, depth=2, content="config")
     current_tx_power = conf.tx_power
     if current_tx_power is None:
         msg = f"No transmit power configured on {_node_id(optical_node_block)} {line_port_name}"
@@ -894,7 +894,7 @@ def align_tx_power_to_target(
     new_tx_power = round(current_tx_power - db_from_target, 2)
     new_tx_power = min(max_tx_power, new_tx_power)
     new_tx_power = max(min_tx_power, new_tx_power)
-    # Minimal PATCH: list key plus the changed leaf only.
+    # Minimal merge: list key plus the changed leaf only.
     uri.update(name=f"{line_port_name}-1", tx_power=new_tx_power)
     new_conf = conf.model_copy(deep=True)
     new_conf.tx_power = new_tx_power

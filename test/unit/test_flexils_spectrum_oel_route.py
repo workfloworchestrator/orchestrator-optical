@@ -7,10 +7,14 @@ OTEINTFs for OLS *line* ports: the add/drop ports are FMMC tributary (T) ports a
 have no OTEINTF, so passing them here fails on real devices.
 """
 
+import pytest
+
+pytest.importorskip("flexils_tl1")
+
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
+from flexils_tl1.exceptions import TL1CommandDeniedError
 
 from orchestrator.optical.hal.adapters.nokia_flexils import spectrum as flexils_spectrum
 from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import (
@@ -29,7 +33,6 @@ from orchestrator.optical.products.product_blocks.optical_port.abstracts import 
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlockProvisioning,
 )
-from orchestrator.optical.services.nokia.flexils.exceptions import TL1CommandDeniedError
 
 
 class _FakeFlex:

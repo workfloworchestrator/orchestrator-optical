@@ -16,13 +16,15 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
+from orchestrator.optical.hal._common import _connect_first
+from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import CardTypeEnum, EquipmentTypeEnum_1, G30Client
+from orchestrator.optical.hal.adapters.nokia_groove_g30.naming import g30_ids_from_port_name
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
-from orchestrator.optical.services.nokia import G30Client
-from orchestrator.optical.services.nokia.g30.data_models.ne import CardTypeEnum
+from orchestrator.optical.settings import get_settings
 
 if TYPE_CHECKING:
-    from orchestrator.optical.services.nokia.g30.data_navigators.ne import PortItemNode, SubportItemNode
+    from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import PortItemNode, SubportItemNode
 
 
 class G30Function(StrEnum):
@@ -263,70 +265,65 @@ def g30_role(functions: frozenset[G30Function], fqdn: str | None = None) -> Opti
 
 
 def get_g30_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> G30Client:
-    """Return a RESTCONF client to reach the given Nokia Groove G30 node.
+    """Return a NETCONF client connected to the given Nokia Groove G30 node.
+
+    Every edit is applied immediately (``auto_commit``), as each HAL operation is one
+    self-contained change; the G30 has no candidate datastore, so edits hit running.
 
     Args:
         optical_node_block: The Nokia Groove G30 node block (any lifecycle variant).
 
     Returns:
-        A Groove G30 RESTCONF client.
+        A connected Groove G30 NETCONF client.
     """
-    return G30Client(
-        loopback_ip=str(optical_node_block.management.optical_module_node_dcn_loopback_ip or "") or None,
-        management_ip=str(optical_node_block.management.optical_module_node_dcn_interface_ip or "") or None,
+    settings = get_settings()
+    return _connect_first(
+        G30Client,
+        optical_node_block,
+        username=settings.g30_user,
+        password=settings.g30_password,
+        verify=settings.g30_verify,
+        auto_commit=True,
     )
 
 
-def g30_ids_from_port_name(port_name: str) -> tuple[int, int, int | None, int, int | None]:
-    """Return the shelf, slot, subslot, port and subport ids of a Groove G30 port name.
+def g30_shelf_serial_number(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> str:
+    """Return the serial number of shelf 1 of the given Nokia Groove G30 node.
 
     Args:
-        port_name: The name of the port to obtain the ids from, e.g. ``"port-1/2/3"``
-            or ``"port-1/3.1/1.4"``.
+        optical_node_block: The Nokia Groove G30 node block (any lifecycle variant).
 
     Returns:
-        A tuple with the shelf id, slot id, subslot id (or None), port id and
-        subport id (or None).
+        The serial number of shelf 1, which identifies the G30 device.
 
     Raises:
-        ValueError: If a subport id is given without a subslot id.
+        ValueError: If shelf 1 is missing from the inventory or has no serial number.
     """
-    ids = port_name.rsplit("-", maxsplit=1)[-1]  # port-1/2/3 -> 1/2/3 or port-1/3.1/1.4 -> 1/3.1/1.4
-    shelf_id, slot_id, port_id = ids.split("/")  # 1/2/3 -> 1, 2, 3 or 1/3.1/1.4 -> 1, 3.1, 1.4
+    fqdn = optical_node_block.management.optical_module_node_fqdn
+    inventory = get_g30_client(optical_node_block).data.ne_ne.inventory_data.inventory.retrieve(depth=2)
+    for item in inventory:
+        if item.equipment_type == EquipmentTypeEnum_1.SHELF and item.shelf_id == 1:
+            if item.serial_number is None:
+                msg = f"Shelf 1 of G30 device {fqdn} has no serial number"
+                raise ValueError(msg)
+            return item.serial_number
 
-    subslot_id = None
-    if "." in slot_id:
-        slot_id, subslot_id = slot_id.split(".")
-
-    subport_id = None
-    if "." in port_id:
-        port_id, subport_id = port_id.split(".")
-
-    if subport_id and not subslot_id:
-        msg = "Subport ID is not supported without subslot ID in Groove G30 configuration."
-        raise ValueError(msg)
-
-    return (
-        int(shelf_id),
-        int(slot_id),
-        int(subslot_id) if subslot_id is not None else None,
-        int(port_id),
-        int(subport_id) if subport_id is not None else None,
-    )
+    msg = f"Could not find shelf serial number for G30 device {fqdn}"
+    raise ValueError(msg)
 
 
 def g30_port_navigator_node_from_port_name(
     g30_device_block: AnyOpticalNodeBlockProvisioningUnion,
     port_name: str,
 ) -> tuple[PortItemNode | SubportItemNode, int, int, int | None, int, int | None]:
-    """Return the RESTCONF endpoint of a Groove G30 port, with its shelf, slot, subslot, port and subport ids.
+    """Return the NETCONF navigator node of a Groove G30 port, with its shelf, slot, subslot, port and subport ids.
 
     Args:
         g30_device_block: Optical Node block of the Groove G30 device.
         port_name: The name of the port to obtain the endpoint from.
 
     Returns:
-        A tuple with the RESTCONF endpoint, shelf id, slot id, subslot id (or None),
+        A tuple with the navigator node, shelf id, slot id, subslot id (or None),
         port id and subport id (or None).
 
     Raises:

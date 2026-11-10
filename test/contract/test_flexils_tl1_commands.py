@@ -11,20 +11,22 @@ No SSH, network or database is involved: every input is a canned string.
 
 import pytest
 
-from orchestrator.optical.services.nokia.flexils.commands.base import (
+pytest.importorskip("flexils_tl1")
+
+from flexils_tl1.commands.base import (
     TL1BaseCommand,
     TL1BaseResponse,
     TL1CommandRegistry,
 )
-from orchestrator.optical.services.nokia.flexils.commands.eqpt import RetrieveEqpt
-from orchestrator.optical.services.nokia.flexils.commands.ocrs import (
+from flexils_tl1.commands.eqpt import RetrieveEqpt
+from flexils_tl1.commands.ocrs import (
     DeleteOcrs,
     EditOcrs,
     EnterOcrs,
     OcrsResponse,
     RetrieveOcrs,
 )
-from orchestrator.optical.services.nokia.flexils.commands.oel import (
+from flexils_tl1.commands.oel import (
     DeleteOel,
     EditOel,
     EnterOel,
@@ -32,15 +34,15 @@ from orchestrator.optical.services.nokia.flexils.commands.oel import (
     OperateValrouteOel,
     RetrieveOel,
 )
-from orchestrator.optical.services.nokia.flexils.commands.osnc import (
+from flexils_tl1.commands.osnc import (
     DeleteOsnc,
     EditOsnc,
     EnterOsnc,
     OsncResponse,
     RetrieveOsnc,
 )
-from orchestrator.optical.services.nokia.flexils.exceptions import TL1CommandDeniedError
-from orchestrator.optical.services.nokia.flexils.utils import TL1CompletionStatus
+from flexils_tl1.exceptions import TL1CommandDeniedError
+from flexils_tl1.utils import TL1CompletionStatus
 
 TAG = "WFOTAG"
 

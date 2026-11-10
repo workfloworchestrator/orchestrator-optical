@@ -1,39 +1,51 @@
-"""Unit tests for TLS/SSH verification wiring of the Nokia device clients.
+"""Unit tests for the TLS/SSH verification wiring of the Nokia device clients.
 
-TLS verification is secure by default (``True``): labs opt out explicitly with
-``OPTICAL_*_VERIFY=false``, and private-PKI production networks point the setting
-at a CA bundle file. The FlexILS SSH client follows the SSH-analogous semantics
-(reject unknown host keys by default, ``false`` auto-accepts them for labs, or a
-known-hosts file path). No device is contacted.
+Verification is secure by default. The G30/G42 NETCONF sessions verify the SSH host
+key unless ``OPTICAL_*_VERIFY=false`` (lab use only); the FlexILS SSH client rejects
+unknown host keys by default, ``false`` auto-accepts them, or it verifies against a
+known-hosts file path. The device clients take credentials and the verification
+policy as explicit arguments; the ``hal`` client factories read them from the
+settings. No device is contacted.
 """
-
-from typing import ClassVar
 
 import pytest
 
-from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
-from orchestrator.optical.services.nokia.g30.session_manager import RestconfClient as G30RestconfClient
-from orchestrator.optical.services.nokia.g42.session_manager import RestconfClient as G42RestconfClient
-from orchestrator.optical.services.nokia.tnms.client import TnmsClient
+pytest.importorskip("flexils_tl1")
+pytest.importorskip("g30_4_8_0")
+pytest.importorskip("g42_8_0_2")
+
+from types import SimpleNamespace
+from typing import Any, ClassVar
+
+import g30_4_8_0
+import g42_8_0_2
+from flexils_tl1.client import FlexilsClient
+
+from orchestrator.optical.hal.adapters.nokia_flexils._shared import _flexils_client
+from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
+from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
 from orchestrator.optical.settings import get_settings
+from test.support.netconf import WRITABLE_RUNNING, FakeManager, install_fake_netconf
 
 pytestmark = pytest.mark.unit
 
 _AUTH_VALUE = "not-a-real-secret"
 
-_G30_ENV = {
-    "OPTICAL_G30_USER": "user",
-    "OPTICAL_G30_PASSWORD": "password",
-}
-_G42_ENV = {
-    "OPTICAL_G42_USER": "user",
-    "OPTICAL_G42_PASSWORD": "password",
-}
-_TNMS_ENV = {
-    "OPTICAL_TNMS_USER": "user",
-    "OPTICAL_TNMS_PASSWORD": "password",
-    "OPTICAL_TNMS_ENDPOINT": "https://tnms.example.com",
-}
+_NETCONF_FACTORIES = [
+    pytest.param(get_g30_client, g30_4_8_0, "G30", id="g30"),
+    pytest.param(get_g42_client, g42_8_0_2, "G42", id="g42"),
+]
+
+
+def _node_block() -> Any:
+    """Duck-typed node block exposing only the management fields read by the client factories."""
+    return SimpleNamespace(
+        management=SimpleNamespace(
+            optical_module_node_fqdn="node.example.net",
+            optical_module_node_dcn_loopback_ip=None,
+            optical_module_node_dcn_interface_ip="10.0.0.1",
+        )
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -45,108 +57,62 @@ def _clear_caches():
     FlexilsClient.close_all()
 
 
-def test_g30_verifies_tls_by_default(monkeypatch) -> None:
-    for key, value in _G30_ENV.items():
-        monkeypatch.setenv(key, value)
-    for var in ("OPTICAL_G30_VERIFY",):
-        monkeypatch.delenv(var, raising=False)
+@pytest.mark.parametrize(("factory", "sdk", "prefix"), _NETCONF_FACTORIES)
+def test_netconf_factory_threads_settings(factory, sdk, prefix: str, monkeypatch) -> None:
+    attempts = install_fake_netconf(monkeypatch, sdk, FakeManager((WRITABLE_RUNNING,)))
+    monkeypatch.setenv(f"OPTICAL_{prefix}_USER", "alice")
+    monkeypatch.setenv(f"OPTICAL_{prefix}_PASSWORD", _AUTH_VALUE)
+    monkeypatch.delenv(f"OPTICAL_{prefix}_VERIFY", raising=False)
 
-    client = G30RestconfClient(management_ip="10.0.0.1")
+    client = factory(_node_block())
 
-    assert client._session.verify is True  # noqa: SLF001
-    assert client._session.trust_env is True  # noqa: SLF001
+    assert client.auto_commit is True
+    assert attempts[-1]["host"] == "10.0.0.1"
+    assert attempts[-1]["port"] == 830
+    assert attempts[-1]["username"] == "alice"
+    assert attempts[-1]["password"] == _AUTH_VALUE
+    assert attempts[-1]["hostkey_verify"] is True
 
-
-def test_g30_explicit_verify_overrides_settings(monkeypatch) -> None:
-    for key, value in _G30_ENV.items():
-        monkeypatch.setenv(key, value)
-    monkeypatch.setenv("OPTICAL_G30_VERIFY", "false")
-
-    disabled = G30RestconfClient(management_ip="10.0.0.1")
-    assert disabled._session.verify is False  # noqa: SLF001
-    assert disabled._session.trust_env is False  # noqa: SLF001
-
-    explicit = G30RestconfClient(management_ip="10.0.0.1", verify=True)
-    assert explicit._session.verify is True  # noqa: SLF001
-
-    bundle = G30RestconfClient(management_ip="10.0.0.1", verify="/etc/ssl/g30-ca.pem")
-    assert bundle._session.verify == "/etc/ssl/g30-ca.pem"  # noqa: SLF001
-    assert bundle._session.trust_env is True  # noqa: SLF001
-
-
-def test_g42_verifies_tls_by_default(monkeypatch) -> None:
-    for key, value in _G42_ENV.items():
-        monkeypatch.setenv(key, value)
-    for var in ("OPTICAL_G42_VERIFY",):
-        monkeypatch.delenv(var, raising=False)
-
-    client = G42RestconfClient(management_ip="10.0.0.1")
-
-    assert client._session.verify is True  # noqa: SLF001
-    assert client._session.trust_env is True  # noqa: SLF001
-
-
-def test_g42_explicit_verify_overrides_settings(monkeypatch) -> None:
-    for key, value in _G42_ENV.items():
-        monkeypatch.setenv(key, value)
-    monkeypatch.setenv("OPTICAL_G42_VERIFY", "false")
-
-    disabled = G42RestconfClient(management_ip="10.0.0.1")
-    assert disabled._session.verify is False  # noqa: SLF001
-    assert disabled._session.trust_env is False  # noqa: SLF001
-
-    explicit = G42RestconfClient(management_ip="10.0.0.1", verify=True)
-    assert explicit._session.verify is True  # noqa: SLF001
-
-    bundle = G42RestconfClient(management_ip="10.0.0.1", verify="/etc/ssl/g42-ca.pem")
-    assert bundle._session.verify == "/etc/ssl/g42-ca.pem"  # noqa: SLF001
-    assert bundle._session.trust_env is True  # noqa: SLF001
-
-
-def test_tnms_verifies_tls_by_default(monkeypatch) -> None:
-    for var in ("OPTICAL_TNMS_VERIFY",):
-        monkeypatch.delenv(var, raising=False)
-
-    client = TnmsClient("user", "password", "https://tnms.example.com")
-
-    assert client._session.verify is True  # noqa: SLF001
-    assert client._session.trust_env is True  # noqa: SLF001
-
-
-def test_tnms_from_settings_threads_verify(monkeypatch) -> None:
-    for key, value in _TNMS_ENV.items():
-        monkeypatch.setenv(key, value)
-    monkeypatch.setenv("OPTICAL_TNMS_VERIFY", "false")
-
-    assert TnmsClient.from_settings()._session.verify is False  # noqa: SLF001
-
-    monkeypatch.setenv("OPTICAL_TNMS_VERIFY", "/etc/ssl/tnms-ca.pem")
+    monkeypatch.setenv(f"OPTICAL_{prefix}_VERIFY", "false")
     get_settings.cache_clear()
+    factory(_node_block())
+    assert attempts[-1]["hostkey_verify"] is False
 
-    assert TnmsClient.from_settings()._session.verify == "/etc/ssl/tnms-ca.pem"  # noqa: SLF001
+
+@pytest.mark.parametrize("prefix", ["G30", "G42"])
+def test_netconf_verify_rejects_a_trust_store_path(prefix: str, monkeypatch) -> None:
+    monkeypatch.setenv(f"OPTICAL_{prefix}_VERIFY", "/etc/ssl/ca.pem")
+
+    with pytest.raises(ValueError, match="takes no file path"):
+        get_settings()
 
 
-def test_flexils_verifies_host_key_by_default(monkeypatch) -> None:
-    for var in ("OPTICAL_FLEXILS_VERIFY_HOST_KEY",):
-        monkeypatch.delenv(var, raising=False)
-
+def test_flexils_verifies_host_key_by_default() -> None:
     client = FlexilsClient(tid="FLEXILS", gne_ip="10.0.0.1")
 
     assert client._verify_host_key is True  # noqa: SLF001
 
 
-def test_flexils_explicit_verify_overrides_settings(monkeypatch) -> None:
-    monkeypatch.setenv("OPTICAL_FLEXILS_VERIFY_HOST_KEY", "false")
-
-    assert FlexilsClient(tid="FLEXILS", gne_ip="10.0.0.1")._verify_host_key is False  # noqa: SLF001
+def test_flexils_explicit_verify() -> None:
+    assert FlexilsClient(tid="FLEXILS", gne_ip="10.0.0.1", verify_host_key=False)._verify_host_key is False  # noqa: SLF001
     client = FlexilsClient(tid="FLEXILS", gne_ip="10.0.0.1", verify_host_key="/root/.ssh/known_hosts")
     assert client._verify_host_key == "/root/.ssh/known_hosts"  # noqa: SLF001
 
 
-def test_flexils_cache_key_distinguishes_verify_policies(monkeypatch) -> None:
-    for var in ("OPTICAL_FLEXILS_VERIFY_HOST_KEY",):
-        monkeypatch.delenv(var, raising=False)
+def test_flexils_factory_threads_settings(monkeypatch) -> None:
+    monkeypatch.setenv("OPTICAL_FLEXILS_USER", "alice")
+    monkeypatch.setenv("OPTICAL_FLEXILS_PASSWORD", _AUTH_VALUE)
+    monkeypatch.setenv("OPTICAL_FLEXILS_VERIFY_HOST_KEY", "/root/.ssh/known_hosts")
 
+    client = _flexils_client("FLEXILS", "10.0.0.1")
+
+    assert client._username == "alice"  # noqa: SLF001
+    assert client._password == _AUTH_VALUE  # noqa: SLF001
+    assert client._verify_host_key == "/root/.ssh/known_hosts"  # noqa: SLF001
+    assert _flexils_client("FLEXILS", "10.0.0.1") is client
+
+
+def test_flexils_cache_key_distinguishes_verify_policies() -> None:
     default = FlexilsClient.get_instance(tid="FLEXILS", gne_ip="10.0.0.1")
     assert FlexilsClient.get_instance(tid="FLEXILS", gne_ip="10.0.0.1") is default
 

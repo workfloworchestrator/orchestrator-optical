@@ -64,22 +64,15 @@ class OpticalSettings(BaseSettings):
     Attributes:
         flexils_user: Username for the FlexILS TL1 client (``OPTICAL_FLEXILS_USER``).
         flexils_password: Password for the FlexILS TL1 client (``OPTICAL_FLEXILS_PASSWORD``).
-        g30_user: Username for the Nokia G30 restconf client (``OPTICAL_G30_USER``).
-        g30_password: Password for the Nokia G30 restconf client (``OPTICAL_G30_PASSWORD``).
-        g42_user: Username for the Nokia G42 restconf client (``OPTICAL_G42_USER``).
-        g42_password: Password for the Nokia G42 restconf client (``OPTICAL_G42_PASSWORD``).
-        tnms_endpoint: Primary endpoint of the TNMS API (``OPTICAL_TNMS_ENDPOINT``).
-        tnms_secondary_endpoint: Fallback endpoint of the TNMS API (``OPTICAL_TNMS_SECONDARY_ENDPOINT``).
-        tnms_user: Username for the TNMS API (``OPTICAL_TNMS_USER``).
-        tnms_password: Password for the TNMS API (``OPTICAL_TNMS_PASSWORD``).
-        g30_verify: TLS verification for the Nokia G30 RESTCONF client
-            (``OPTICAL_G30_VERIFY``): ``True`` (default, system CA store),
-            ``False`` (lab use only, disables verification), or a path to a
-            custom CA bundle file for private-PKI networks.
-        g42_verify: TLS verification for the Nokia G42 RESTCONF client
+        g30_user: Username for the Nokia G30 NETCONF client (``OPTICAL_G30_USER``).
+        g30_password: Password for the Nokia G30 NETCONF client (``OPTICAL_G30_PASSWORD``).
+        g42_user: Username for the Nokia G42 NETCONF client (``OPTICAL_G42_USER``).
+        g42_password: Password for the Nokia G42 NETCONF client (``OPTICAL_G42_PASSWORD``).
+        g30_verify: SSH host-key verification for the Nokia G30 NETCONF client
+            (``OPTICAL_G30_VERIFY``): ``True`` (default, verify against the
+            known-hosts files) or ``False`` (lab use only, accept any host key).
+        g42_verify: SSH host-key verification for the Nokia G42 NETCONF client
             (``OPTICAL_G42_VERIFY``), same semantics as ``g30_verify``.
-        tnms_verify: TLS verification for the TNMS API client
-            (``OPTICAL_TNMS_VERIFY``), same semantics as ``g30_verify``.
         flexils_verify_host_key: SSH host-key verification for the FlexILS TL1
             client (``OPTICAL_FLEXILS_VERIFY_HOST_KEY``): ``True`` (default,
             reject unknown host keys against the system known-hosts file),
@@ -103,14 +96,8 @@ class OpticalSettings(BaseSettings):
     g42_user: str | None = None
     g42_password: str | None = None
 
-    tnms_endpoint: str | None = None
-    tnms_secondary_endpoint: str | None = None
-    tnms_user: str | None = None
-    tnms_password: str | None = None
-
-    g30_verify: bool | str = True
-    g42_verify: bool | str = True
-    tnms_verify: bool | str = True
+    g30_verify: bool = True
+    g42_verify: bool = True
 
     flexils_verify_host_key: bool | str = True
 
@@ -118,11 +105,21 @@ class OpticalSettings(BaseSettings):
 
     path_k: Annotated[int, Field(ge=1)] = 5
 
-    @field_validator("g30_verify", "g42_verify", "tnms_verify", "flexils_verify_host_key", mode="before")
+    @field_validator("flexils_verify_host_key", mode="before")
     @classmethod
     def _parse_verify(cls, value: Any) -> bool | str:
         """Normalize verify settings; blank/unset values fall back to the secure default."""
         parsed = parse_verify(value)
+        return True if parsed is None else parsed
+
+    @field_validator("g30_verify", "g42_verify", mode="before")
+    @classmethod
+    def _parse_netconf_verify(cls, value: Any) -> bool:
+        """Normalize NETCONF host-key verification; it is a boolean (no trust-store path)."""
+        parsed = parse_verify(value)
+        if isinstance(parsed, str):
+            msg = f"expected true/false, got {parsed!r}: NETCONF host-key verification takes no file path"
+            raise ValueError(msg)  # noqa: TRY004 - pydantic reports ValueError as a validation error
         return True if parsed is None else parsed
 
 

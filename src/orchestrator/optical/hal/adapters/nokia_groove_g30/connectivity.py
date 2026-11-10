@@ -29,6 +29,7 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_modules,
     get_g30_client,
 )
+from orchestrator.optical.hal.adapters.nokia_groove_g30.naming import g30_shelf_of_port
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import (
     NokiaGrooveG30BlockProvisioning,
 )
@@ -63,11 +64,6 @@ def g30_port_name_from_xpath(xpath: str) -> str:
     slot = f"{ids['slot']}.{ids['subslot']}" if "subslot" in ids else ids["slot"]
     port = f"{ids['port']}.{ids['subport']}" if "subport" in ids else ids["port"]
     return f"port-{ids['shelf']}/{slot}/{port}"
-
-
-def g30_shelf_of_port(port_name: str) -> int:
-    """Return the shelf id of a Groove G30 port name (``port-2/3.3/3`` -> 2)."""
-    return g30_ids_from_port_name(port_name)[0]
 
 
 def _module_key(port_name: str) -> ModuleKey:

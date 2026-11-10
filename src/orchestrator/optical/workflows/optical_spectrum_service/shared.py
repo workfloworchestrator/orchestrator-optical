@@ -40,11 +40,11 @@ from orchestrator.core.forms.validators import Label
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
 from orchestrator.optical.db import pipe_blocks_all
-from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.connectivity import IntraNodeEdge, g30_shelf_of_port, retrieve_add_drop_connectivity
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import retrieve_transceiver_modes
 from orchestrator.optical.hal.spectrum import (
+    FLEXILS_SPECTRAL_GRID_MHZ,
     delete_optical_circuit,
     delete_optical_circuit_oel,
     ensure_optical_circuit,

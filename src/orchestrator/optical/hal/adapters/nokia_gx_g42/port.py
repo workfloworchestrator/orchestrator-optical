@@ -9,18 +9,17 @@ from orchestrator.optical.hal._common import (
     _node_id,
     _port_name,
     _ports_by_role,
+    _retrieve_required,
     _same_node,
+)
+from orchestrator.optical.hal.adapters.nokia_gx_g42._sdk import (
+    PortTypeEnum,
 )
 from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
-from orchestrator.optical.services.nokia.g42.data_models.ioa_network_element import (
-    AdminStateEnum,
-    ExternalConnectivityEnum,
-    PortTypeEnum,
-)
-from orchestrator.optical.utils.datadiff import compare_pydantic_objects
+from orchestrator.optical.utils.datadiff import compare_pydantic_objects, yang_dump
 
 #: Port roles a GX G42 node can enumerate: transponder line and client ports (no OLS ports).
 _G42_SUPPORTED_ROLES = frozenset({OpticalPortRole.TRANSPONDER_LINE, OpticalPortRole.TRANSPONDER_CLIENT})
@@ -30,7 +29,9 @@ def _g42_chm6_cards(optical_node_block: NokiaGxG42BlockProvisioning) -> list[Any
     """Return the CHM6 cards of a GX G42 node."""
     g42 = get_g42_client(optical_node_block)
     return [
-        card for card in g42.data.ne.equipment.card.retrieve(depth=3, content="all") if card.required_type == "gx:CHM6"
+        card
+        for card in g42.data.ioa_network_element_ne.equipment.card.retrieve(depth=3, content="all")
+        if card.required_type == "gx:CHM6"
     ]
 
 
@@ -150,7 +151,9 @@ def retrieve_transceiver_modes(optical_node_block: NokiaGxG42BlockProvisioning, 
 
     g42 = get_g42_client(optical_node_block)
 
-    card = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").retrieve(depth=2, content="config")
+    card = _retrieve_required(
+        g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").retrieve, depth=2, content="config"
+    )
     card_type = card.required_subtype
 
     supported_modes = mapping.get(card_type) if card_type is not None else None
@@ -176,10 +179,10 @@ def set_port_description(port_block: AnyOpticalPortBlockProvisioning, port_descr
     port_name = _port_name(port_block)
     shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
     g42 = get_g42_client(host_node)
-    port_uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+    port_uri = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
 
     before = port_uri.retrieve(content="config", depth=2)
-    # Minimal PATCH: list key plus changed leaves only.
+    # Minimal merge: list key plus changed leaves only.
     port_uri.update(name=port_id, label=port_description)
 
     return compare_pydantic_objects(before, port_uri.retrieve(content="config", depth=2))
@@ -204,7 +207,7 @@ def set_channel_description(
     port_name = facility_id  # e.g. "1-4-L2"
 
     channel_name = None
-    channels = g42.data.ne.facilities.super_channel.retrieve(depth=2, content="config")
+    channels = g42.data.ioa_network_element_ne.facilities.super_channel.retrieve(depth=2, content="config")
     for ch in channels:
         if any(carrier.startswith(port_name) for carrier in ch.carriers):
             channel_name = ch.name
@@ -214,10 +217,10 @@ def set_channel_description(
         msg = f"Channel with port {port_name} not found"
         raise ValueError(msg)
 
-    uri = g42.data.ne.facilities.super_channel(channel_name)
-    # Minimal PATCH: list key plus changed leaves only.
+    uri = g42.data.ioa_network_element_ne.facilities.super_channel(channel_name)
+    # Minimal merge: list key plus changed leaves only.
     uri.update(name=channel_name, label=description)
-    return uri.retrieve(depth=2, content="config").model_dump()
+    return yang_dump(_retrieve_required(uri.retrieve, depth=2, content="config"))
 
 
 def set_port_admin_state(
@@ -236,19 +239,19 @@ def set_port_admin_state(
     host_node = port_block.optical_port_host_node
     port_name = _port_name(port_block)
     mapping = {
-        "up": AdminStateEnum.UNLOCK,
-        "down": AdminStateEnum.LOCK,
-        "maintenance": AdminStateEnum.MAINTENANCE,
+        "up": "unlock",
+        "down": "lock",
+        "maintenance": "maintenance",
     }
     status = mapping[admin_state]
 
     shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
 
     g42 = get_g42_client(host_node)
-    uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+    uri = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
 
     before = uri.retrieve(content="config", depth=2)
-    # Minimal PATCH: list key plus changed leaves only.
+    # Minimal merge: list key plus changed leaves only.
     uri.update(name=port_id, admin_state=status)
 
     return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
@@ -268,21 +271,21 @@ def configure_termination(
     remote_port_name = _port_name(remote_port_block)
     shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
     g42 = get_g42_client(host_node)
-    uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+    uri = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
     before = uri.retrieve(content="config", depth=2)
     if _same_node(host_node, remote_host_node):
         uri.update(
             name=port_id,
-            external_connectivity=ExternalConnectivityEnum.NO,
+            external_connectivity="no",
             connected_to=f"patched to {remote_port_name}",
-            admin_state=AdminStateEnum.UNLOCK,
+            admin_state="unlock",
         )
     else:
         uri.update(
             name=port_id,
-            external_connectivity=ExternalConnectivityEnum.YES,
+            external_connectivity="yes",
             connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
-            admin_state=AdminStateEnum.UNLOCK,
+            admin_state="unlock",
         )
     return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
 
@@ -292,14 +295,14 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
     host_node = optical_port_block.optical_port_host_node
     g42 = get_g42_client(host_node)
     shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
-    uri = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+    uri = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
     before = uri.retrieve(content="config", depth=2)
-    # Minimal PATCH: list key plus changed leaves only.
+    # Minimal merge: list key plus changed leaves only.
     uri.update(
         name=port_id,
-        external_connectivity=ExternalConnectivityEnum.NO,
+        external_connectivity="no",
         connected_to="",
-        admin_state=AdminStateEnum.LOCK,
+        admin_state="lock",
         label="",
     )
     return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
@@ -315,18 +318,18 @@ def check_fiber(
     remote_port_name = _port_name(remote_port_block)
     g42 = get_g42_client(host_node)
     shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
-    endpoint = g42.data.ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    conf = endpoint.retrieve(depth=2, content="config")
+    endpoint = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
+    conf = _retrieve_required(endpoint.retrieve, depth=2, content="config")
 
     if _same_node(host_node, remote_host_node):
         expected_connected_to = f"patched to {remote_port_name}"
-        expected_connectivity = ExternalConnectivityEnum.NO
+        expected_connectivity = "no"
     else:
         expected_connected_to = f"{_node_id(remote_host_node)} {remote_port_name}"
-        expected_connectivity = ExternalConnectivityEnum.YES
+        expected_connectivity = "yes"
 
     checks = (
-        conf.admin_state == AdminStateEnum.UNLOCK
+        conf.admin_state == "unlock"
         and conf.external_connectivity == expected_connectivity
         and conf.connected_to == expected_connected_to
     )
@@ -338,7 +341,7 @@ def check_fiber(
                     "port_name": _port_name(optical_port_block),
                     "expected": {
                         "admin-status": "unlock",
-                        "external-connectivity": expected_connectivity.value,
+                        "external-connectivity": expected_connectivity,
                         "connected-to": expected_connected_to,
                     },
                     "actual": {

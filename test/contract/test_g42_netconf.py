@@ -1,20 +1,26 @@
-"""Contract tests for the Nokia GX G42 RESTCONF adapter.
+"""Contract tests for the Nokia GX G42 NETCONF adapter.
 
 The G42 client/navigator tree is faked with ``SimpleNamespace``/``_Nav`` objects and
 the adapter's ``get_g42_client`` factory is monkeypatched, so no device is contacted.
 Pure helpers are exercised directly; navigator-reading functions assert the value
-they return and the RESTCONF operation they issue on the fake endpoint.
+they return and the NETCONF operation they issue on the fake endpoint.
 """
 
 from __future__ import annotations
+
+import pytest
+
+pytest.importorskip("g42_8_0_2")
 
 import copy
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-from requests.exceptions import HTTPError
+from g42_8_0_2.data_models.ioa_network_element import (
+    PortTypeEnum,
+    ServiceTypeEnum,
+)
 
 from orchestrator.optical.hal._common import UnsupportedPortRoleError
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import _shared as g42_shared
@@ -31,12 +37,6 @@ from orchestrator.optical.hal.adapters.nokia_gx_g42.transponder import (
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
-from orchestrator.optical.services.nokia.g42.data_models.ioa_network_element import (
-    AdminStateEnum,
-    ExternalConnectivityEnum,
-    PortTypeEnum,
-    ServiceTypeEnum,
-)
 
 
 class _Model(SimpleNamespace):
@@ -62,7 +62,7 @@ class _Nav(SimpleNamespace):
 
 
 class _Endpoint(SimpleNamespace):
-    """Fake RESTCONF endpoint that records the update/delete calls issued on it."""
+    """Fake NETCONF navigator node that records the update/delete calls issued on it."""
 
     def __init__(self, model: Any) -> None:
         super().__init__(model=model, update_calls=[], delete_calls=0)
@@ -100,22 +100,22 @@ def _port_block(port_name: str, host_node: Any | None = None) -> Any:
 
 def _equipment_client(**equipment: Any) -> Any:
     return SimpleNamespace(
-        url="https://g42.example.net",
-        data=SimpleNamespace(ne=SimpleNamespace(equipment=SimpleNamespace(**equipment))),
+        host="g42.example.net",
+        data=SimpleNamespace(ioa_network_element_ne=SimpleNamespace(equipment=SimpleNamespace(**equipment))),
     )
 
 
 def _facilities_client(**facilities: Any) -> Any:
     return SimpleNamespace(
-        url="https://g42.example.net",
-        data=SimpleNamespace(ne=SimpleNamespace(facilities=SimpleNamespace(**facilities))),
+        host="g42.example.net",
+        data=SimpleNamespace(ioa_network_element_ne=SimpleNamespace(facilities=SimpleNamespace(**facilities))),
     )
 
 
 def _services_client(**services: Any) -> Any:
     return SimpleNamespace(
-        url="https://g42.example.net",
-        data=SimpleNamespace(ne=SimpleNamespace(services=SimpleNamespace(**services))),
+        host="g42.example.net",
+        data=SimpleNamespace(ioa_network_element_ne=SimpleNamespace(services=SimpleNamespace(**services))),
     )
 
 
@@ -157,9 +157,9 @@ def test_derive_optical_channel_key_rejects_invalid_coupled_lines() -> None:
 def _software_client(active: Any) -> Any:
     endpoint = SimpleNamespace(retrieve=lambda **_: active)
     return SimpleNamespace(
-        url="https://g42.example.net",
+        host="g42.example.net",
         data=SimpleNamespace(
-            ne=SimpleNamespace(
+            ioa_network_element_ne=SimpleNamespace(
                 system=SimpleNamespace(sw_management=SimpleNamespace(software_load=_Nav(child=endpoint)))
             )
         ),
@@ -235,21 +235,21 @@ def _port_endpoint_client(endpoint: Any) -> Any:
 
 
 def test_g42_set_port_admin_state_updates_the_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    endpoint = _Endpoint(_Model(admin_state=AdminStateEnum.LOCK, label="link"))
+    endpoint = _Endpoint(_Model(admin_state="lock", label="link"))
     _patch_g42_client(monkeypatch, _port_endpoint_client(endpoint))
 
     diffs = g42_port.set_port_admin_state(_port_block("1-4-L1"), "up")
 
     assert endpoint.update_calls
-    assert endpoint.model.admin_state is AdminStateEnum.UNLOCK
-    assert diffs["+++"]["root['admin_state']"] is AdminStateEnum.UNLOCK
+    assert endpoint.model.admin_state == "unlock"
+    assert diffs["+++"]["root['admin_state']"] == "unlock"
 
 
 def test_g42_factory_reset_prunes_the_port_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     endpoint = _Endpoint(
         _Model(
-            admin_state=AdminStateEnum.UNLOCK,
-            external_connectivity=ExternalConnectivityEnum.YES,
+            admin_state="unlock",
+            external_connectivity="yes",
             connected_to="remote 1-4-L1",
             label="link",
         )
@@ -259,9 +259,9 @@ def test_g42_factory_reset_prunes_the_port_configuration(monkeypatch: pytest.Mon
     diffs = g42_port.factory_reset(_port_block("1-4-L1"))
 
     assert endpoint.update_calls
-    assert endpoint.model.external_connectivity is ExternalConnectivityEnum.NO
+    assert endpoint.model.external_connectivity == "no"
     assert endpoint.model.connected_to == ""
-    assert endpoint.model.admin_state is AdminStateEnum.LOCK
+    assert endpoint.model.admin_state == "lock"
     assert endpoint.model.label == ""
     assert diffs["+++"]  # the reset produced changes
 
@@ -352,11 +352,9 @@ def test_g42_find_xcon_rejects_a_tributary_that_is_already_connected(monkeypatch
         _find_xcon(g42_shared.get_g42_client(SimpleNamespace()), "/client", "1-4-L1", "two-way", "100GBE")
 
 
-def test_g42_find_xcon_returns_none_when_the_device_reports_404(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _raise_404(**_: Any) -> None:
-        raise HTTPError(response=SimpleNamespace(status_code=404))
-
-    _patch_g42_client(monkeypatch, _services_client(xcon=_Nav(retrieve=_raise_404)))
+def test_g42_find_xcon_returns_none_when_the_device_has_no_xcon(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty xcon list reads as no data (None) over NETCONF."""
+    _patch_g42_client(monkeypatch, _services_client(xcon=_Nav(retrieve=lambda **_: None)))
     assert _find_xcon(g42_shared.get_g42_client(SimpleNamespace()), "/client", "1-4-L1", "two-way", "100GBE") is None
 
 

@@ -9,23 +9,30 @@ block and derive the host node from it.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from orchestrator.optical.hal._common import (
+    LazyAdapter,
     UnsupportedPlatformError,
     _as_flexils_block,
     _as_g30_block,
     _as_g42_block,
     _vendor_platform,
 )
-from orchestrator.optical.hal.adapters.nokia_flexils import port as flexils
-from orchestrator.optical.hal.adapters.nokia_groove_g30 import port as groove_g30
-from orchestrator.optical.hal.adapters.nokia_gx_g42 import port as gx_g42
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
+
+if TYPE_CHECKING:
+    from orchestrator.optical.hal.adapters.nokia_flexils import port as flexils
+    from orchestrator.optical.hal.adapters.nokia_groove_g30 import port as groove_g30
+    from orchestrator.optical.hal.adapters.nokia_gx_g42 import port as gx_g42
+else:
+    flexils = LazyAdapter("orchestrator.optical.hal.adapters.nokia_flexils.port")
+    groove_g30 = LazyAdapter("orchestrator.optical.hal.adapters.nokia_groove_g30.port")
+    gx_g42 = LazyAdapter("orchestrator.optical.hal.adapters.nokia_gx_g42.port")
 
 __all__ = [
     "check_fiber_terminating_port",

@@ -26,7 +26,6 @@ exclude = ["db.py"]
 "__init__.py" = 98
 "hal" = 45
 "products" = 87
-"services" = 67
 "settings.py" = 98
 "utils" = 76
 "workflows" = 43

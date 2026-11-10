@@ -1,12 +1,16 @@
-"""Contract tests for the Nokia Groove G30 RESTCONF adapter.
+"""Contract tests for the Nokia Groove G30 NETCONF adapter.
 
 The G30 client/navigator tree is faked with ``SimpleNamespace`` objects and the
 adapter's ``get_g30_client`` factory is monkeypatched, so no device is contacted.
 Pure helpers are exercised directly; navigator-reading functions assert the value
-they return and the RESTCONF operation they issue on the fake endpoint.
+they return and the NETCONF operation they issue on the fake endpoint.
 """
 
 from __future__ import annotations
+
+import pytest
+
+pytest.importorskip("g30_4_8_0")
 
 import copy
 import itertools
@@ -14,7 +18,10 @@ from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
+from g30_4_8_0.data_models.ne import (
+    CardTypeEnum,
+    PortModeEnum,
+)
 
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as g30_shared
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as g30_node
@@ -31,13 +38,6 @@ from orchestrator.optical.products.product_blocks.optical_node.abstracts import 
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
-from orchestrator.optical.services.nokia.g30.data_models.ne import (
-    AdminStatusEnum,
-    CardTypeEnum,
-    PortModeEnum,
-    SwloadStateEnum,
-    YesNoEnum,
-)
 
 
 class _Model(SimpleNamespace):
@@ -53,7 +53,7 @@ class _Model(SimpleNamespace):
 
 
 class _Endpoint(SimpleNamespace):
-    """Fake RESTCONF endpoint that records the update/delete calls issued on it."""
+    """Fake NETCONF navigator node that records the update/delete calls issued on it."""
 
     def __init__(self, model: Any) -> None:
         super().__init__(model=model, update_calls=[], delete_calls=0)
@@ -98,7 +98,7 @@ def _port_block(port_name: str, host_node: Any | None = None) -> Any:
 def _port_endpoint_client(endpoint: Any) -> Any:
     """Fake client whose ``shelf(s).slot(sl).card.port(p)`` chain yields ``endpoint``."""
     return SimpleNamespace(
-        url="https://g30.example.net",
+        host="g30.example.net",
         data=SimpleNamespace(
             ne_ne=SimpleNamespace(
                 shelf=lambda *_: SimpleNamespace(
@@ -289,7 +289,7 @@ def test_extract_shelf_slot_port_ids_from_odu_string_rejects_garbage() -> None:
 
 def _software_client(items: list[Any]) -> Any:
     return SimpleNamespace(
-        url="https://g30.example.net",
+        host="g30.example.net",
         data=SimpleNamespace(
             ne_ne=SimpleNamespace(
                 system=SimpleNamespace(
@@ -302,15 +302,15 @@ def _software_client(items: list[Any]) -> Any:
 
 def test_g30_software_version_returns_the_active_load(monkeypatch: pytest.MonkeyPatch) -> None:
     items = [
-        SimpleNamespace(swload_state=SwloadStateEnum.INACTIVE, swload_version="21.0"),
-        SimpleNamespace(swload_state=SwloadStateEnum.ACTIVE, swload_version="22.1"),
+        SimpleNamespace(swload_state="Inactive", swload_version="21.0"),
+        SimpleNamespace(swload_state="Active", swload_version="22.1"),
     ]
     _patch_g30_client(monkeypatch, _software_client(items))
     assert g30_node.software_version(SimpleNamespace()) == "22.1"
 
 
 def test_g30_software_version_raises_without_an_active_load(monkeypatch: pytest.MonkeyPatch) -> None:
-    items = [SimpleNamespace(swload_state=SwloadStateEnum.INACTIVE, swload_version="21.0")]
+    items = [SimpleNamespace(swload_state="Inactive", swload_version="21.0")]
     _patch_g30_client(monkeypatch, _software_client(items))
     with pytest.raises(ValueError, match="No current firmware version found"):
         g30_node.software_version(SimpleNamespace())
@@ -421,7 +421,7 @@ def test_g30_role_maps_every_combination_of_functions() -> None:
 def _card_client(card_type: CardTypeEnum) -> Any:
     card = SimpleNamespace(required_type=card_type)
     return SimpleNamespace(
-        url="https://g30.example.net",
+        host="g30.example.net",
         data=SimpleNamespace(
             ne_ne=SimpleNamespace(
                 shelf=lambda *_: SimpleNamespace(
@@ -446,21 +446,21 @@ def test_g30_retrieve_transceiver_modes_rejects_unsupported_card(monkeypatch: py
 
 
 def test_g30_set_port_admin_state_updates_the_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    endpoint = _Endpoint(_Model(admin_status=AdminStatusEnum.DOWN, service_label="link"))
+    endpoint = _Endpoint(_Model(admin_status="down", service_label="link"))
     _patch_g30_client(monkeypatch, _port_endpoint_client(endpoint))
 
     diffs = g30_port.set_port_admin_state(_port_block("port-1/2/3"), "up")
 
     assert endpoint.update_calls
-    assert endpoint.model.admin_status is AdminStatusEnum.UP
-    assert diffs["+++"]["root['admin_status']"] is AdminStatusEnum.UP
+    assert endpoint.model.admin_status == "up"
+    assert diffs["+++"]["root['admin_status']"] == "up"
 
 
 def test_g30_factory_reset_prunes_the_port_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     endpoint = _Endpoint(
         _Model(
-            admin_status=AdminStatusEnum.UP,
-            external_connectivity=YesNoEnum.YES,
+            admin_status="up",
+            external_connectivity="yes",
             connected_to="remote 1/2/3",
             port_mode=PortModeEnum("100GBE"),
             service_label="link",
@@ -471,9 +471,9 @@ def test_g30_factory_reset_prunes_the_port_configuration(monkeypatch: pytest.Mon
     diffs = g30_port.factory_reset(_port_block("port-1/2/3"))
 
     assert endpoint.update_calls
-    assert endpoint.model.external_connectivity is YesNoEnum.NO
+    assert endpoint.model.external_connectivity == "no"
     assert endpoint.model.connected_to == ""
-    assert endpoint.model.admin_status is AdminStatusEnum.DOWN
+    assert endpoint.model.admin_status == "down"
     assert endpoint.model.port_mode is PortModeEnum.NOT_APPLICABLE
     assert diffs["+++"]  # the reset produced changes
 
@@ -481,7 +481,7 @@ def test_g30_factory_reset_prunes_the_port_configuration(monkeypatch: pytest.Mon
 def test_g30_configure_termination_to_a_flexils_node_sets_external_connectivity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    endpoint = _Endpoint(_Model(external_connectivity=YesNoEnum.NO, connected_to="", admin_status=AdminStatusEnum.DOWN))
+    endpoint = _Endpoint(_Model(external_connectivity="no", connected_to="", admin_status="down"))
     _patch_g30_client(monkeypatch, _port_endpoint_client(endpoint))
     host = _node_block("local.example.net", Vendor.NOKIA, Platform.GROOVE_G30)
     remote = _node_block("remote.example.net", Vendor.NOKIA, Platform.FLEXILS)
@@ -491,7 +491,7 @@ def test_g30_configure_termination_to_a_flexils_node_sets_external_connectivity(
         _port_block("port-9/9/9", remote),
     )
 
-    assert endpoint.model.external_connectivity is YesNoEnum.YES
+    assert endpoint.model.external_connectivity == "yes"
     assert endpoint.model.connected_to == "remote.example.net port-9/9/9"
     assert diffs["+++"]  # the update produced changes
 
@@ -499,8 +499,8 @@ def test_g30_configure_termination_to_a_flexils_node_sets_external_connectivity(
 def test_g30_check_fiber_passes_when_the_port_is_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     endpoint = _Endpoint(
         _Model(
-            admin_status=AdminStatusEnum.UP,
-            external_connectivity=YesNoEnum.YES,
+            admin_status="up",
+            external_connectivity="yes",
             connected_to="remote.example.net port-9/9/9",
         )
     )
@@ -514,8 +514,8 @@ def test_g30_check_fiber_passes_when_the_port_is_configured(monkeypatch: pytest.
 def test_g30_check_fiber_raises_when_the_port_is_misconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
     endpoint = _Endpoint(
         _Model(
-            admin_status=AdminStatusEnum.DOWN,
-            external_connectivity=YesNoEnum.NO,
+            admin_status="down",
+            external_connectivity="no",
             connected_to="",
         )
     )
@@ -533,7 +533,7 @@ def test_g30_check_fiber_raises_when_the_port_is_misconfigured(monkeypatch: pyte
 def _och_os_client(och_os: _Endpoint) -> Any:
     port_node = SimpleNamespace(och_os=och_os)
     return SimpleNamespace(
-        url="https://g30.example.net",
+        host="g30.example.net",
         data=SimpleNamespace(
             ne_ne=SimpleNamespace(
                 shelf=lambda *_: SimpleNamespace(
@@ -556,8 +556,8 @@ def test_g30_get_signal_bandwidth_maps_the_fec_type(
 
 
 def test_g30_configure_transceiver_client_updates_port_and_ethernet(monkeypatch: pytest.MonkeyPatch) -> None:
-    endpoint = _Endpoint(_Model(admin_status=AdminStatusEnum.DOWN, service_label="", port_mode=None))
-    eth = _Endpoint(_Model(admin_status=AdminStatusEnum.DOWN))
+    endpoint = _Endpoint(_Model(admin_status="down", service_label="", port_mode=None))
+    eth = _Endpoint(_Model(admin_status="down"))
     endpoint.eth100g = eth
     _patch_g30_client(monkeypatch, _port_endpoint_client(endpoint))
 
@@ -570,7 +570,7 @@ def test_g30_configure_transceiver_client_updates_port_and_ethernet(monkeypatch:
 
     assert endpoint.update_calls
     assert eth.update_calls
-    assert endpoint.model.admin_status is AdminStatusEnum.UP
+    assert endpoint.model.admin_status == "up"
     assert endpoint.model.service_label == "client link"
     assert endpoint.model.port_mode is PortModeEnum("100GBE")
     assert diffs["+++"]  # the update produced changes

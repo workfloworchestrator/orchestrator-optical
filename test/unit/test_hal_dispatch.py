@@ -6,12 +6,16 @@ adapter. Device-bound branches are exercised by replacing the adapter seam with 
 recorder, so no network or SSH connection is ever made.
 """
 
+import pytest
+
+pytest.importorskip("flexils_tl1")
+pytest.importorskip("g30_4_8_0")
+pytest.importorskip("g42_8_0_2")
+
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
-
-import pytest
 
 from orchestrator.optical.hal import node as hal_node
 from orchestrator.optical.hal import port as hal_port

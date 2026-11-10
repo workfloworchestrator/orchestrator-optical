@@ -22,11 +22,6 @@ _EXPECTED_FIELDS = {
     "g42_user",
     "g42_password",
     "g42_verify",
-    "tnms_endpoint",
-    "tnms_secondary_endpoint",
-    "tnms_user",
-    "tnms_password",
-    "tnms_verify",
     "customer_choice",
 }
 # Verify settings are secure by default (True), everything else defaults to None.
@@ -34,7 +29,6 @@ _VERIFY_FIELDS = {
     "flexils_verify_host_key",
     "g30_verify",
     "g42_verify",
-    "tnms_verify",
 }
 _OPTICAL_ENV_VARS = [f"OPTICAL_{name.upper()}" for name in _EXPECTED_FIELDS]
 
@@ -76,10 +70,10 @@ def test_get_settings_returns_defaults_without_env(monkeypatch, tmp_path: Path) 
 
 def test_get_settings_picks_up_env_override(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("OPTICAL_TNMS_USER", "alice")
+    monkeypatch.setenv("OPTICAL_G30_USER", "alice")
     get_settings.cache_clear()
     try:
-        assert get_settings().tnms_user == "alice"
+        assert get_settings().g30_user == "alice"
     finally:
         get_settings.cache_clear()
 
@@ -141,24 +135,21 @@ def test_verify_settings_default_to_secure(monkeypatch, tmp_path: Path) -> None:
         settings = get_settings()
         assert settings.g30_verify is True
         assert settings.g42_verify is True
-        assert settings.tnms_verify is True
         assert settings.flexils_verify_host_key is True
     finally:
         get_settings.cache_clear()
 
 
-def test_verify_settings_accept_false_and_ca_bundle_path(monkeypatch, tmp_path: Path) -> None:
+def test_verify_settings_accept_false_and_known_hosts_path(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("OPTICAL_G30_VERIFY", "false")
     monkeypatch.setenv("OPTICAL_G42_VERIFY", "0")
-    monkeypatch.setenv("OPTICAL_TNMS_VERIFY", "/etc/ssl/tnms-ca.pem")
-    monkeypatch.setenv("OPTICAL_FLEXILS_VERIFY_HOST_KEY", "off")
+    monkeypatch.setenv("OPTICAL_FLEXILS_VERIFY_HOST_KEY", "/etc/ssh/known_hosts")
     get_settings.cache_clear()
     try:
         settings = get_settings()
         assert settings.g30_verify is False
         assert settings.g42_verify is False
-        assert settings.tnms_verify == "/etc/ssl/tnms-ca.pem"
-        assert settings.flexils_verify_host_key is False
+        assert settings.flexils_verify_host_key == "/etc/ssh/known_hosts"
     finally:
         get_settings.cache_clear()

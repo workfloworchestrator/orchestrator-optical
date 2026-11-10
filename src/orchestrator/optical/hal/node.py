@@ -8,30 +8,41 @@ operations, routing with ``match/case`` on the node's vendor and platform.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from orchestrator.optical.hal._common import (
+    LazyAdapter,
     UnsupportedPlatformError,
     _as_flexils_block,
     _as_g30_block,
     _as_g42_block,
     _vendor_platform,
 )
-from orchestrator.optical.hal.adapters.nokia_flexils import node as flexils
-from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
-    FlexilsGneProvider,
-    discover_flexils_node,
-    get_flex_client,
-)
-from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as groove_g30
-from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
-from orchestrator.optical.hal.adapters.nokia_gx_g42 import node as gx_g42
-from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
+from orchestrator.optical.hal.adapters.nokia_flexils.gne import FlexilsGneProvider
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
-from orchestrator.optical.services.nokia import G30Client, G42Client
-from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
+
+if TYPE_CHECKING:
+    from orchestrator.optical.hal.adapters.nokia_flexils import _shared as flexils_shared
+    from orchestrator.optical.hal.adapters.nokia_flexils import node as flexils
+    from orchestrator.optical.hal.adapters.nokia_flexils._sdk import FlexilsClient
+    from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as groove_g30_shared
+    from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as groove_g30
+    from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import G30Client
+    from orchestrator.optical.hal.adapters.nokia_gx_g42 import _shared as gx_g42_shared
+    from orchestrator.optical.hal.adapters.nokia_gx_g42 import node as gx_g42
+    from orchestrator.optical.hal.adapters.nokia_gx_g42._sdk import G42Client
+    from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockProvisioning
+    from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
+    from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+else:
+    flexils_shared = LazyAdapter("orchestrator.optical.hal.adapters.nokia_flexils._shared")
+    flexils = LazyAdapter("orchestrator.optical.hal.adapters.nokia_flexils.node")
+    groove_g30_shared = LazyAdapter("orchestrator.optical.hal.adapters.nokia_groove_g30._shared")
+    gx_g42_shared = LazyAdapter("orchestrator.optical.hal.adapters.nokia_gx_g42._shared")
+    groove_g30 = LazyAdapter("orchestrator.optical.hal.adapters.nokia_groove_g30.node")
+    gx_g42 = LazyAdapter("orchestrator.optical.hal.adapters.nokia_gx_g42.node")
 
 __all__ = [
     "FlexilsGneProvider",
@@ -45,6 +56,38 @@ __all__ = [
     "retrieve_ports_spectral_occupations",
     "retrieve_software_version",
 ]
+
+
+def get_flex_client(optical_node_block: NokiaFlexIlsBlockProvisioning) -> FlexilsClient:
+    """Return a TL1 client to reach the given Nokia FlexILS node (see the FlexILS adapter)."""
+    return flexils_shared.get_flex_client(optical_node_block)
+
+
+def get_g30_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> G30Client:
+    """Return a NETCONF client connected to the given Nokia Groove G30 node (see the G30 adapter)."""
+    return groove_g30_shared.get_g30_client(optical_node_block)
+
+
+def get_g42_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> G42Client:
+    """Return a NETCONF client connected to the given Nokia GX G42 node (see the G42 adapter)."""
+    return gx_g42_shared.get_g42_client(optical_node_block)
+
+
+def discover_flexils_node(
+    optical_flexils_target_id: str,
+    optical_management_ip: IPAddress | None = None,
+    optical_loopback_ip: IPAddress | None = None,
+    optical_flexils_gmpls_id: IPAddress | None = None,
+    location: OpticalModuleLocationBlockProvisioning | None = None,
+) -> tuple[OpticalNodeRole, str]:
+    """Discover the role and software version of a Nokia FlexILS node (see the FlexILS adapter)."""
+    return flexils_shared.discover_flexils_node(
+        optical_flexils_target_id,
+        optical_management_ip=optical_management_ip,
+        optical_loopback_ip=optical_loopback_ip,
+        optical_flexils_gmpls_id=optical_flexils_gmpls_id,
+        location=location,
+    )
 
 
 def get_optical_node_client(

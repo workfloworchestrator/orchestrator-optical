@@ -10,13 +10,12 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
-from orchestrator.optical.services.nokia.g30.data_models.ne import SwloadStateEnum
 
 logger = get_logger(__name__)
 
 
 def software_version(node: NokiaGrooveG30BlockProvisioning) -> str:
-    """Retrieve the software version of a Groove G30 node from the device via RESTCONF.
+    """Retrieve the software version of a Groove G30 node from the device via NETCONF.
 
     Args:
         node: The Groove G30 node block.
@@ -31,13 +30,13 @@ def software_version(node: NokiaGrooveG30BlockProvisioning) -> str:
     current_fw = g30.data.ne_ne.system.sw_management.softwareload.retrieve(content="all", depth=2)
 
     version = next(
-        (item.swload_version for item in current_fw if item.swload_state == SwloadStateEnum.ACTIVE),
+        (item.swload_version for item in current_fw if item.swload_state == "Active"),
         None,
     )
     if version is None:
         msg = "No current firmware version found on the Groove G30 node"
         raise ValueError(msg)
-    logger.info("Retrieved Groove G30 software version", g30_url=g30.url, software_version=version)
+    logger.info("Retrieved Groove G30 software version", g30_host=g30.host, software_version=version)
     return version
 
 

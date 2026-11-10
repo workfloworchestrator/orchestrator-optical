@@ -4,9 +4,7 @@
 
 An addon module for [Workflow Orchestrator](https://workfloworchestrator.org) (built on
 [`orchestrator-core`](https://github.com/workfloworchestrator/orchestrator-core) >= 5.6) that models and provisions
-optical transport equipment: Nokia **FlexILS** (TL1 over SSH), **Groove G30** and **GX G42** (RESTCONF), and the
-Nokia **TNMS** (TAPI) management system (client-only: `services/nokia/tnms` ships the API client, nothing under
-`hal/` or `workflows/` drives it).
+optical transport equipment: Nokia **FlexILS** (TL1 over SSH), **Groove G30** and **GX G42** (NETCONF).
 
 It is a **generalized, reusable** module: it was ported away from a GARR-specific implementation. It must stay free of
 any organization-specific business logic (see "Hard rules" below). Users install it into their own WFO deployment and
@@ -43,10 +41,9 @@ src/orchestrator/optical/
 │   ├── connectivity.py       #   intra-node routes add/drop port -> reachable degrees (+ occupancy), IntraNodeEdge;
 │   │                         #   FlexILS: RTRV-SCG PROVNBRTP + RTRV-EQPT card rules + RTRV-OCRS; G30: fiber-connection
 │   ├── transport_channel.py  #   transponder line/client/crossconnect config + validation + power alignment
-│   └── adapters/             #   per-device implementations: nokia_flexils (TL1) / nokia_groove_g30, nokia_gx_g42 (RESTCONF)
-├── services/                 # Device integrations (do not "fix" the auto-generated parts)
-│   └── nokia/                #   flexils (TL1 client + per-command modules), g30, g42 (RESTCONF clients with
-│                             #   auto-generated data_models/data_navigators), tnms (TAPI client)
+│   └── adapters/             #   per-device implementations: nokia_flexils (TL1) / nokia_groove_g30, nokia_gx_g42 (NETCONF);
+│                             #   each imports its vendor SDK only in `_sdk.py` (the SDK contract); SDK-free helpers
+│                             #   live in naming.py / gne.py / constants.py
 ├── workflows/                # WFO workflows of the shipped product types (ready-to-use) + importable parts
 │   ├── __init__.py           #   docs the consumption model (register shipped workflows with LazyWorkflowInstance,
 │   │                         #   compose your own with the parts)
@@ -147,8 +144,19 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
 ### Configuration
 
 - All env-driven config lives in `settings.py` (`OPTICAL_`-prefixed; e.g. `OPTICAL_FLEXILS_USER`,
-  `OPTICAL_TNMS_ENDPOINT`). **No import-time side effects**: importing any module must work with zero env vars.
-  Use `get_settings()`; keep clients lazy (`get_tnms_client()`).
+  `OPTICAL_G30_VERIFY`). **No import-time side effects**: importing any module must work with zero env vars.
+  Use `get_settings()`; keep clients lazy (built on demand by the `hal/` client factories).
+- **Vendor SDKs are external and confidential**: `flexils_tl1`, `g30_4_8_0`, `g42_8_0_2` (yang2sdk NETCONF, named after the firmware release) live under the
+  gitignored `sdks/` (installed editable by `just sync` / `just sdks`) and are never committed or re-added under
+  `src/`. They never import `orchestrator.optical.*`: credentials and verify policy are explicit client arguments,
+  passed from the settings by the `hal/` factories (`get_g30_client`, `get_g42_client`,
+  `nokia_flexils/_shared.py::_flexils_client`).
+- Only `hal/adapters/<device>/_sdk.py` imports an SDK (re-exporting the names used; missing SDK →
+  `VendorSdkNotInstalledError`). The area dispatchers hold adapters through `_common.LazyAdapter` (real import under
+  `TYPE_CHECKING`), so `import orchestrator.optical.*` works with no SDK installed: never import an adapter module
+  eagerly from `hal/<area>.py`, `hal/__init__.py` or `workflows/` (SDK-free values go in `naming.py`/`gne.py`/
+  `constants.py`, re-exported by the area module). Cross-device adapter calls are local imports.
+- Tests needing an SDK (directly or through an adapter) start with `pytest.importorskip("<sdk>")`.
 
 ### Workflows
 
@@ -235,8 +243,6 @@ uv build                        # package build
 
 ### Known pre-existing noise (do NOT "fix" these as a side quest)
 
-- `services/nokia/{g30,g42}/data_models|data_navigators/*` — auto-generated YANG models, tens of thousands of
-  ruff/ty findings; never edit manually.
 - `ARG001` on terminate-form `customer_id`/`subscription` params in stub steps.
 
 ### Current status (branch `porting/workflows`)

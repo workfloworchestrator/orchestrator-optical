@@ -45,7 +45,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_instance
-from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
+from orchestrator.optical.hal.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlockInactive,
 )

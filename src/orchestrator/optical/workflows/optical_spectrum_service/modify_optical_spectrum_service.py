@@ -39,8 +39,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
-from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
-from orchestrator.optical.hal.spectrum import ensure_optical_circuit
+from orchestrator.optical.hal.spectrum import FLEXILS_SPECTRAL_GRID_MHZ, ensure_optical_circuit
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     LINE_SYSTEM_ROLES,
 )

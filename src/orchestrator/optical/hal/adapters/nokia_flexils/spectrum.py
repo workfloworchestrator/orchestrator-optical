@@ -11,7 +11,9 @@ from orchestrator.optical.hal._common import (
     _node_id,
     _port_name,
 )
+from orchestrator.optical.hal.adapters.nokia_flexils._sdk import TL1CommandDeniedError
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import FlexilsClientProtocol, _get_flex_client
+from orchestrator.optical.hal.adapters.nokia_flexils.constants import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.adapters.nokia_flexils.port import _ensure_manualmode2
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
@@ -19,7 +21,6 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import Any
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlockProvisioning,
 )
-from orchestrator.optical.services.nokia.flexils.exceptions import TL1CommandDeniedError
 from orchestrator.optical.utils.custom_types.frequencies import (
     Bandwidth,
     Frequency,
@@ -27,9 +28,6 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     snap_passband_to_grid,
 )
 from orchestrator.optical.utils.datadiff import DiffResult, compare_jsons
-
-#: Frequency grid the FlexILS cross-connect engine requires for PASSBANDLIST edges, in MHz.
-FLEXILS_SPECTRAL_GRID_MHZ = 12_500
 
 #: TL1 response marker returned when a requested object does not exist on the node.
 _OBJECT_DOES_NOT_EXIST = "SPECIFIED OBJECT ENTITY DOES NOT EXIST"

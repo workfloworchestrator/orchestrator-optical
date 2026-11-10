@@ -11,6 +11,7 @@ from orchestrator.optical.hal._common import (
     _port_name,
     _ports_by_role,
 )
+from orchestrator.optical.hal.adapters.nokia_flexils._sdk import TL1CommandDeniedError
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
     _get_remote_node_id,
     get_flex_client,
@@ -19,7 +20,6 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils imp
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
-from orchestrator.optical.services.nokia import TL1CommandDeniedError
 from orchestrator.optical.utils.datadiff import compare_jsons
 
 #: Port roles a Nokia FlexILS node can enumerate: OTS line ports and SCG add/drop (tributary) ports.

@@ -2,18 +2,21 @@
 
 The role of every G30 port is derived from the device (card type, OTS presence
 and port id), not from heuristics on the port name. These tests fake the G30
-RESTCONF navigators so the rules are exercised without a live device.
+NETCONF navigators so the rules are exercised without a live device.
 """
+
+import pytest
+
+pytest.importorskip("g30_4_8_0")
 
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
+from g30_4_8_0.data_models.ne import CardTypeEnum
 
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as g30_shared
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import port as g30_port
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
-from orchestrator.optical.services.nokia.g30.data_models.ne import CardTypeEnum
 
 
 def _port(alias_name: str, port_id: int, subports: list[Any] | None = None) -> SimpleNamespace:

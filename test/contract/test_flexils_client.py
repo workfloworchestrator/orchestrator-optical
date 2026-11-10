@@ -8,8 +8,10 @@ credentials are required to construct a client.
 
 import pytest
 
-from orchestrator.optical.services.nokia.flexils.client import FlexilsClient
-from orchestrator.optical.services.nokia.flexils.utils import TL1CompletionStatus
+pytest.importorskip("flexils_tl1")
+
+from flexils_tl1.client import FlexilsClient
+from flexils_tl1.utils import TL1CompletionStatus
 
 TID = "flex.bo01"
 GNE_IP = "10.0.0.1"
@@ -94,5 +96,5 @@ def test_connect_requires_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _client()
     monkeypatch.setattr(client, "_username", None)
     monkeypatch.setattr(client, "_password", None)
-    with pytest.raises(RuntimeError, match="OPTICAL_FLEXILS_USER"):
+    with pytest.raises(RuntimeError, match="credentials are not configured"):
         client._connect()  # noqa: SLF001

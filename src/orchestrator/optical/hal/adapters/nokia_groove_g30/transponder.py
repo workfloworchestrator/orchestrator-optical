@@ -4,9 +4,8 @@ from decimal import Decimal
 from re import search
 from typing import Any
 
-from requests.exceptions import HTTPError
-
-from orchestrator.optical.hal._common import _as_decimal, _node_id
+from orchestrator.optical.hal._common import _as_decimal, _node_id, _retrieve_required
+from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import PortModeEnum
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_ids_from_port_name,
     g30_port_navigator_node_from_port_name,
@@ -14,9 +13,8 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
-from orchestrator.optical.services.nokia.g30.data_models.ne import AdminStatusEnum, PortModeEnum
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
-from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects
+from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects, yang_dump
 
 
 def _client_speed_config(speed: OpticalDigitalServiceSpeed) -> tuple[str, str, str]:
@@ -113,7 +111,9 @@ def get_signal_bandwidth(optical_node_block: NokiaGrooveG30BlockProvisioning, po
     """
     g30 = get_g30_client(optical_node_block)
     shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
-    och_os = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os.retrieve(depth=2, content="config")
+    och_os = _retrieve_required(
+        g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os.retrieve, depth=2, content="config"
+    )
     if och_os.fec_type == "SDFEC27ND":
         bw = 75_000
     elif och_os.fec_type == "SDFEC15ND2":
@@ -154,14 +154,14 @@ def configure_line_transceivers(
         shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
         uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
         before = uri.retrieve(depth=3, content="config")
-        # Minimal parent PATCH: never resend system-created children (och-os,
+        # Minimal parent merge: never resend system-created children (och-os,
         # pluggable, ...) via the port resource — the device rejects them as
         # read-only. The och-os facility is configured separately below.
         uri.update(
             port_id=port_id,
             port_mode=mode,
             service_label=description,
-            admin_status=AdminStatusEnum.UP,
+            admin_status="up",
         )
         modulation, rate = _get_modulation_and_rate_from_mode(mode)
         uri.och_os.update(
@@ -170,7 +170,7 @@ def configure_line_transceivers(
             frequency=central_frequency,
             rx_frequency=central_frequency,
             service_label=description,
-            admin_status=AdminStatusEnum.UP,
+            admin_status="up",
             laser_enable="enabled",
             loopback_enable="disabled",
             loopback_type="none",
@@ -205,26 +205,26 @@ def configure_transceiver_client(
 
     before = navigator.retrieve(content="config", depth=3)
 
-    # Minimal parent PATCH: never resend system-created children (eth*, och-os,
+    # Minimal parent merge: never resend system-created children (eth*, och-os,
     # pluggable, ...) via the port resource — the device rejects stale child
     # combinations (e.g. mapping-mode GMP with an explicit gfp-payload-fcs).
     if subport_id is not None:
         navigator.update(
             subport_id=subport_id,
-            admin_status=AdminStatusEnum.UP,
+            admin_status="up",
             service_label=description,
             port_mode=PortModeEnum(port_mode),
         )
     else:
         navigator.update(
             port_id=port_id,
-            admin_status=AdminStatusEnum.UP,
+            admin_status="up",
             service_label=description,
             port_mode=PortModeEnum(port_mode),
         )
 
     eth.update(
-        admin_status=AdminStatusEnum.UP,
+        admin_status="up",
         service_label=description,
         loopback_enable="disabled",
         test_signal_enable="NONE",
@@ -285,14 +285,8 @@ def configure_transponder_crossconnect(  # noqa: PLR0912, PLR0915
     )
 
     odu_b = None
-    try:
-        crs = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config")
-    except HTTPError as e:
-        no_xcon_exists_code = 404
-        if e.response.status_code == no_xcon_exists_code:
-            crs = []
-        else:
-            raise
+    # An empty list reads as no data over NETCONF.
+    crs = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config") or []
     for c in crs:
         if c.src_tp == odu_a:
             odu_b = c.dst_tp
@@ -420,7 +414,7 @@ def delete_transponder_crossconnect(
 
     uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card
 
-    card = uri.retrieve(depth=2)
+    card = _retrieve_required(uri.retrieve, depth=2)
     if card.required_type == "CHM1":
         result["message"] = (
             f"{_node_id(optical_node_block)} {client_port_name}: no need to delete any xcon,"
@@ -444,14 +438,8 @@ def delete_transponder_crossconnect(
         f"[odutype-L3='unused'][oduid-L3='0'][odutype-L4='unused'][oduid-L4='0']"
     )
 
-    try:
-        crs = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config")
-    except HTTPError as e:
-        no_xcon_exists_code = 404
-        if e.response.status_code == no_xcon_exists_code:
-            crs = []
-        else:
-            raise
+    # An empty list reads as no data over NETCONF.
+    crs = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config") or []
 
     deleted_crs = []
     for c in crs:
@@ -485,19 +473,19 @@ def factory_reset_transponder_client(
     """
     navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
     before = navigator.retrieve(depth=3, content="config")
-    # Minimal parent PATCH (see configure_transceiver_client): resetting the
+    # Minimal parent merge (see configure_transceiver_client): resetting the
     # port-mode must not resend the stale eth* children.
     if subport_id is not None:
         navigator.update(
             subport_id=subport_id,
-            admin_status=AdminStatusEnum.DOWN,
+            admin_status="down",
             service_label="",
             port_mode="not-applicable",
         )
     else:
         navigator.update(
             port_id=port_id,
-            admin_status=AdminStatusEnum.DOWN,
+            admin_status="down",
             service_label="",
             port_mode="not-applicable",
         )
@@ -522,18 +510,18 @@ def factory_reset_transponder_lines(
     for port_name in line_port_names:
         navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
         before = navigator.retrieve(depth=3, content="config")
-        # Minimal parent PATCH (see configure_transceiver_client).
+        # Minimal parent merge (see configure_transceiver_client).
         if subport_id is not None:
             navigator.update(
                 subport_id=subport_id,
-                admin_status=AdminStatusEnum.DOWN,
+                admin_status="down",
                 service_label="",
                 port_mode="not-applicable",
             )
         else:
             navigator.update(
                 port_id=port_id,
-                admin_status=AdminStatusEnum.DOWN,
+                admin_status="down",
                 service_label="",
                 port_mode="not-applicable",
             )
@@ -580,7 +568,7 @@ def validate_trx_line(
     ):
         shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
         port_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
-        actual_config = port_uri.retrieve(depth=3, content="config").model_dump(exclude_unset=True)
+        actual_config = yang_dump(_retrieve_required(port_uri.retrieve, depth=3, content="config"), exclude_unset=True)
 
         desired_config = {
             "och-os": {
@@ -632,7 +620,7 @@ def validate_trx_client(
 
     port_mode, eth_name, fec_type = _client_speed_config(speed)
 
-    actual_config = port_uri.retrieve(depth=3, content="config").model_dump(exclude_unset=True)
+    actual_config = yang_dump(_retrieve_required(port_uri.retrieve, depth=3, content="config"), exclude_unset=True)
 
     desired_config = {
         eth_name: {
@@ -735,7 +723,7 @@ def align_tx_power_to_target(
     g30 = get_g30_client(optical_node_block)
     shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(line_port_name)
     och_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os
-    och_os = och_uri.retrieve(content="config", depth=2)
+    och_os = _retrieve_required(och_uri.retrieve, content="config", depth=2)
     current_tx_power = och_os.required_tx_optical_power
     if current_tx_power is None:
         msg = f"No required transmit power configured on {_node_id(optical_node_block)} {line_port_name}"
@@ -743,7 +731,7 @@ def align_tx_power_to_target(
     new_tx_power = current_tx_power - db_from_target
     new_tx_power = min(max_tx_power, new_tx_power)
     new_tx_power = max(min_tx_power, new_tx_power)
-    # Minimal PATCH on the singleton och-os facility: only the changed leaf.
+    # Minimal merge on the singleton och-os facility: only the changed leaf.
     och_uri.update(required_tx_optical_power=new_tx_power)
     new_och_os = och_os.model_copy(deep=True)
     new_och_os.required_tx_optical_power = new_tx_power

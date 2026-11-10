@@ -11,12 +11,15 @@ not have internal optical cross-connections. The FlexILS implementation lives in
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from orchestrator.optical.hal._common import (
+    LazyAdapter,
     UnsupportedPlatformError,
     _as_flexils_block,
     _vendor_platform,
 )
-from orchestrator.optical.hal.adapters.nokia_flexils import spectrum as flexils
+from orchestrator.optical.hal.adapters.nokia_flexils.constants import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
@@ -26,7 +29,13 @@ from orchestrator.optical.products.product_blocks.optical_spectrum_section impor
 from orchestrator.optical.utils.custom_types.frequencies import Bandwidth, Frequency, Passband
 from orchestrator.optical.utils.datadiff import DiffResult, compare_jsons
 
+if TYPE_CHECKING:
+    from orchestrator.optical.hal.adapters.nokia_flexils import spectrum as flexils
+else:
+    flexils = LazyAdapter("orchestrator.optical.hal.adapters.nokia_flexils.spectrum")
+
 __all__ = [
+    "FLEXILS_SPECTRAL_GRID_MHZ",
     "create_optical_cross_connection",
     "delete_optical_circuit",
     "delete_optical_circuit_oel",

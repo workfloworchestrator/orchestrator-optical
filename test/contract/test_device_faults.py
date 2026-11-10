@@ -1,48 +1,63 @@
 """Fault-injection contract tests for the device-facing layers.
 
-These tests pin down how the RESTCONF (G30/G42), TL1 (FlexILS) and TNMS clients behave
-when a device misbehaves: connection timeout, HTTP 500, malformed payloads and denied
-TL1 commands. They assert the *current* contract, including the places where a raw
-``requests``/``json`` exception is leaked instead of being mapped to a domain error, so
-that a silent change in error handling is caught by the regression net.
+These tests pin down how the NETCONF (G30/G42) and TL1 (FlexILS) paths behave when a
+device misbehaves: unreachable management IPs, ``<rpc-error>`` replies, missing objects
+and denied TL1 commands. The NETCONF tests run the real SDK clients against a fake
+ncclient manager (see :mod:`test.support.netconf`), so the HAL factories, the SDK
+session handling and the adapters are exercised together.
 """
 
-import re
+import pytest
+
+pytest.importorskip("flexils_tl1")
+pytest.importorskip("g30_4_8_0")
+pytest.importorskip("g42_8_0_2")
+
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-import requests
-import responses
-from requests.exceptions import JSONDecodeError
+import g30_4_8_0
+import g42_8_0_2
+from flexils_tl1.commands.base import TL1BaseResponse
+from flexils_tl1.commands.eqpt import RetrieveEqpt
+from flexils_tl1.exceptions import TL1CommandDeniedError
+from flexils_tl1.utils import TL1CompletionStatus
 
-from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as g30_node
+from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as g30_shared
+from orchestrator.optical.hal.adapters.nokia_gx_g42 import _shared as g42_shared
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import node as g42_node
-from orchestrator.optical.services.nokia.flexils.commands.base import TL1BaseResponse
-from orchestrator.optical.services.nokia.flexils.commands.eqpt import RetrieveEqpt
-from orchestrator.optical.services.nokia.flexils.exceptions import TL1CommandDeniedError
-from orchestrator.optical.services.nokia.flexils.utils import TL1CompletionStatus
-from orchestrator.optical.services.nokia.g30.session_manager import RestconfClient as G30RestconfClient
-from orchestrator.optical.services.nokia.g42.session_manager import RestconfClient as G42RestconfClient
-from orchestrator.optical.services.nokia.tnms.client import TnmsClient
-from orchestrator.optical.services.nokia.tnms.exceptions import ApiError
+from orchestrator.optical.hal.adapters.nokia_gx_g42 import port as g42_port
+from orchestrator.optical.hal.adapters.nokia_gx_g42 import transponder as g42_transponder
+from orchestrator.optical.settings import get_settings
+from test.support.netconf import CANDIDATE, WRITABLE_RUNNING, FakeManager, install_fake_netconf, rpc_error
 
 pytestmark = pytest.mark.contract
 
-_RESTCONF_URL = "https://10.0.0.1:8181/restconf/data/contract-test"
-_RESTCONF_URL_PATTERN = re.compile(r"https://10\.0\.0\.1:8181/restconf/.*")
-_TNMS_URL = "https://tnms.example/api"
 _AUTH_VALUE = "not-a-real-secret"
 
-_RESTCONF_CLIENTS = [
-    pytest.param(G30RestconfClient, id="g30"),
-    pytest.param(G42RestconfClient, id="g42"),
-]
+
+@pytest.fixture(autouse=True)
+def _credentials(monkeypatch: pytest.MonkeyPatch):
+    for prefix in ("G30", "G42"):
+        monkeypatch.setenv(f"OPTICAL_{prefix}_USER", "user")
+        monkeypatch.setenv(f"OPTICAL_{prefix}_PASSWORD", _AUTH_VALUE)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
-def _restconf_client(client_cls: type) -> Any:
-    """Build a RESTCONF client against a fake address; no connection is opened."""
-    return client_cls(management_ip="10.0.0.1", username="user", password=_AUTH_VALUE)
+def _node_block(loopback_ip: str | None = "10.0.0.1", interface_ip: str | None = "10.0.0.2") -> Any:
+    return SimpleNamespace(
+        management=SimpleNamespace(
+            optical_module_node_fqdn="node.example.net",
+            optical_module_node_dcn_loopback_ip=loopback_ip,
+            optical_module_node_dcn_interface_ip=interface_ip,
+        )
+    )
+
+
+def _port_block(port_name: str) -> Any:
+    return SimpleNamespace(optical_port_name=port_name, optical_port_host_node=_node_block())
 
 
 class _FakeFlexilsClient:
@@ -56,70 +71,115 @@ class _FakeFlexilsClient:
         return self._raw_response
 
 
-@pytest.mark.parametrize("client_cls", _RESTCONF_CLIENTS)
-@responses.activate
-def test_restconf_connection_timeout_becomes_exception_group(client_cls: type) -> None:
-    """A timeout on every endpoint surfaces as an ExceptionGroup of the transport errors."""
-    client = _restconf_client(client_cls)
-    responses.add(responses.GET, _RESTCONF_URL, body=requests.Timeout("simulated timeout"))
+def test_netconf_factory_falls_back_to_the_interface_ip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An unreachable loopback IP is skipped: the session is opened on the DCN interface IP."""
+    fake = FakeManager((WRITABLE_RUNNING,))
 
-    with pytest.raises(ExceptionGroup, match="All connection attempts") as excinfo:
-        client._request("GET", "/data/contract-test")  # noqa: SLF001
+    def connect(**kwargs: Any) -> FakeManager:
+        if kwargs["host"] == "10.0.0.1":
+            msg = "no route to host"
+            raise OSError(msg)
+        return fake
 
-    assert any(isinstance(error, requests.Timeout) for error in excinfo.value.exceptions)
+    attempts = install_fake_netconf(monkeypatch, g30_4_8_0, connect)
 
+    client = g30_shared.get_g30_client(_node_block())
 
-@pytest.mark.parametrize("client_cls", _RESTCONF_CLIENTS)
-@responses.activate
-def test_restconf_http_500_becomes_requests_http_error(client_cls: type) -> None:
-    """An HTTP 500 is re-raised as requests.HTTPError carrying the status and the body."""
-    client = _restconf_client(client_cls)
-    responses.add(responses.GET, _RESTCONF_URL, status=500, body="upstream failure")
-
-    with pytest.raises(requests.HTTPError) as excinfo:
-        client._request("GET", "/data/contract-test")  # noqa: SLF001
-
-    assert excinfo.value.response.status_code == 500
-    assert "HTTP 500 Error" in str(excinfo.value)
+    assert [a["host"] for a in attempts] == ["10.0.0.1", "10.0.0.2"]
+    assert client.host == "10.0.0.2"
+    assert attempts[-1]["username"] == "user"
+    assert attempts[-1]["hostkey_verify"] is True
 
 
-@pytest.mark.parametrize("client_cls", _RESTCONF_CLIENTS)
-@responses.activate
-def test_restconf_malformed_json_leaks_raw_decode_error(client_cls: type) -> None:
-    """A 2xx body that is not JSON currently leaks the raw JSONDecodeError instead of a domain error."""
-    client = _restconf_client(client_cls)
-    responses.add(
-        responses.GET,
-        _RESTCONF_URL,
-        status=200,
-        body="<html>not json</html>",
-        content_type="application/json",
+def test_netconf_factory_reports_every_failed_ip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When no management IP is reachable the factory raises one exception per attempt."""
+
+    def connect(**kwargs: Any) -> FakeManager:
+        msg = f"unreachable {kwargs['host']}"
+        raise OSError(msg)
+
+    install_fake_netconf(monkeypatch, g42_8_0_2, connect)
+
+    with pytest.raises(ExceptionGroup, match="node.example.net") as excinfo:
+        g42_shared.get_g42_client(_node_block())
+
+    assert len(excinfo.value.exceptions) == 2
+
+
+def test_netconf_factory_requires_a_management_ip() -> None:
+    """A node without management IPs is rejected before any connection attempt."""
+    with pytest.raises(ValueError, match="no management IP"):
+        g42_shared.get_g42_client(_node_block(loopback_ip=None, interface_ip=None))
+
+
+def test_g42_edit_is_committed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A G42 HAL write edits the candidate datastore and commits it right away."""
+    fake = FakeManager((CANDIDATE,))
+    install_fake_netconf(monkeypatch, g42_8_0_2, fake)
+
+    g42_port.set_port_admin_state(_port_block("1-4-L1"), "down")
+
+    names = fake.names()
+    edit = next(xml for name, xml in fake.calls if name == "edit-config")
+    assert names.index("edit-config") < names.index("commit")
+    assert "<candidate/>" in edit
+    assert "<admin-state>lock</admin-state>" in edit
+
+
+def test_g30_edit_targets_running_without_commit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The G30 has no candidate datastore: a HAL write edits running and sends no commit."""
+    fake = FakeManager((WRITABLE_RUNNING,))
+    install_fake_netconf(monkeypatch, g30_4_8_0, fake)
+
+    client = g30_shared.get_g30_client(_node_block())
+    client.data.ne_ne.shelf(1).slot(2).card.port(1).update(port_id=1, admin_status="down")
+
+    edit = next(xml for name, xml in fake.calls if name == "edit-config")
+    assert "<running/>" in edit
+    assert "commit" not in fake.names()
+
+
+def test_g42_rpc_error_surfaces_with_its_error_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An <rpc-error> on a HAL write is raised as RuntimeError carrying the RFC 6241 error-tag."""
+    install_fake_netconf(
+        monkeypatch, g42_8_0_2, FakeManager((CANDIDATE,), dispatch_error=rpc_error("operation-failed", "boom"))
     )
 
-    with pytest.raises(JSONDecodeError):
-        client._request("GET", "/data/contract-test")  # noqa: SLF001
+    with pytest.raises(RuntimeError, match="boom") as excinfo:
+        g42_port.set_port_admin_state(_port_block("1-4-L1"), "up")
+
+    assert getattr(excinfo.value, "rpc_error_tag", None) == "operation-failed"
 
 
-@responses.activate
-def test_g30_adapter_surfaces_restconf_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The G30 adapter does not swallow a RESTCONF HTTPError raised by the client."""
-    client = _restconf_client(G30RestconfClient)
-    monkeypatch.setattr(g30_node, "get_g30_client", lambda *_: client)
-    responses.add(responses.GET, _RESTCONF_URL_PATTERN, status=500, body="boom")
+def test_g42_create_existing_xcon_is_tolerated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A create-xcon answered with data-exists keeps provisioning idempotent."""
+    fake = FakeManager((CANDIDATE,), dispatch_error=rpc_error("data-exists"))
+    install_fake_netconf(monkeypatch, g42_8_0_2, fake)
+    g42 = g42_shared.get_g42_client(_node_block())
 
-    with pytest.raises(requests.HTTPError):
-        g30_node.software_version(SimpleNamespace())
+    g42_transponder._create_xcon(  # noqa: SLF001
+        g42,
+        client="/ioa-ne:ne/facilities/ethernet[name='1-4-T1']",
+        dst_parent_odu="x",
+        direction="two-way",
+        payload_type="100GBE",
+        label="label",
+        dst_time_slots="1..20",
+    )
+
+    rpc = next(xml for name, xml in fake.calls if name == "create-xcon")
+    assert "<source>/ioa-ne:ne/facilities/ethernet[name='1-4-T1']</source>" in rpc
+    assert "<dst-parent-odu>x</dst-parent-odu>" in rpc
+    assert "<payload-type>100GBE</payload-type>" in rpc
+    assert "destination" not in rpc.replace("dst-", "")
 
 
-@responses.activate
-def test_g42_adapter_surfaces_restconf_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The G42 adapter does not swallow a RESTCONF HTTPError raised by the client."""
-    client = _restconf_client(G42RestconfClient)
-    monkeypatch.setattr(g42_node, "get_g42_client", lambda *_: client)
-    responses.add(responses.GET, _RESTCONF_URL_PATTERN, status=500, body="boom")
+def test_g42_missing_object_raises_value_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A read of an object the device does not have fails loudly instead of returning None."""
+    install_fake_netconf(monkeypatch, g42_8_0_2, FakeManager((CANDIDATE,)))
 
-    with pytest.raises(requests.HTTPError):
-        g42_node.software_version(SimpleNamespace())
+    with pytest.raises(ValueError, match="returned no data"):
+        g42_node.software_version(_node_block())
 
 
 def test_tl1_parse_missing_tag_raises_value_error() -> None:
@@ -160,42 +220,3 @@ def test_tl1_deny_with_already_marker_is_tolerated() -> None:
     response = RetrieveEqpt(ctag="WFOTAG").execute(_FakeFlexilsClient(raw))
 
     assert response.status == TL1CompletionStatus.DENY
-
-
-@responses.activate
-def test_tnms_http_500_is_mapped_to_api_error() -> None:
-    """A TNMS 500 response is wrapped into ApiError carrying the status code."""
-    client = TnmsClient(user="user", password=_AUTH_VALUE, url=_TNMS_URL)
-    responses.add(responses.GET, f"{_TNMS_URL}/data/contract-test", status=500, body="upstream failure")
-
-    with pytest.raises(ApiError) as excinfo:
-        client._request("GET", "/data/contract-test")  # noqa: SLF001
-
-    assert excinfo.value.status_code == 500
-
-
-@responses.activate
-def test_tnms_malformed_body_leaks_raw_decode_error() -> None:
-    """A non-JSON TNMS body currently leaks the raw JSONDecodeError instead of an ApiError."""
-    client = TnmsClient(user="user", password=_AUTH_VALUE, url=_TNMS_URL)
-    responses.add(
-        responses.GET,
-        f"{_TNMS_URL}/data/contract-test",
-        status=200,
-        body="not json",
-        content_type="application/json",
-    )
-
-    with pytest.raises(JSONDecodeError):
-        client._request("GET", "/data/contract-test")  # noqa: SLF001
-
-
-@responses.activate
-def test_tnms_401_triggers_reauth_and_retry() -> None:
-    """A 401 triggers re-authentication and exactly one retry, returning the retried payload."""
-    client = TnmsClient(user="user", password=_AUTH_VALUE, url=_TNMS_URL)
-    responses.add(responses.POST, f"{_TNMS_URL}/auth", json={"token_type": "Bearer", "access_token": "token"})
-    responses.add(responses.GET, f"{_TNMS_URL}/data/contract-test", status=401, body="expired")
-    responses.add(responses.GET, f"{_TNMS_URL}/data/contract-test", json={"value": 1})
-
-    assert client._request("GET", "/data/contract-test") == {"value": 1}  # noqa: SLF001

@@ -7,6 +7,9 @@ host node and needs no test beyond the smoke import.
 
 import pytest
 
+pytest.importorskip("g30_4_8_0")
+pytest.importorskip("g42_8_0_2")
+
 from orchestrator.optical.hal.adapters.nokia_groove_g30.port import (
     get_transceiver_capacity_from_mode as g30_capacity_from_mode,
 )

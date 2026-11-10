@@ -9,3 +9,6 @@ dist/
 .coverage
 coverage.json
 coverage.xml
+
+# Vendor SDKs (confidential, never committed): one package per directory, installed with `just sdks`.
+sdks/

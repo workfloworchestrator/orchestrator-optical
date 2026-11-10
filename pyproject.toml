@@ -10,8 +10,7 @@ authors = [
 license = "Apache-2.0"
 requires-python = ">=3.12,<3.15"
 dependencies = [
-    "orchestrator-core>=5.6",
-    "paramiko>=3.5",
+    "orchestrator-core==5.6",
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -86,7 +85,8 @@ exclude = [
     # Test suite and dev tooling are behavior-verified by pytest / run manually, not type-gated.
     "test",
     "scripts",
-    "src/orchestrator/optical/services",
+    # Local vendor SDKs (gitignored, see README "Vendor SDKs").
+    "sdks",
 ]
 
 [tool.ty.rules]
@@ -100,11 +100,8 @@ src = ["src"]
 exclude = [
     "venv",
     ".venv",
-    # Auto-generated Nokia YANG models/navigators; never hand-edit (see AGENTS.md).
-    "src/orchestrator/optical/services/nokia/g30/data_models",
-    "src/orchestrator/optical/services/nokia/g30/data_navigators",
-    "src/orchestrator/optical/services/nokia/g42/data_models",
-    "src/orchestrator/optical/services/nokia/g42/data_navigators",
+    # Local vendor SDKs (gitignored, see README "Vendor SDKs"): external packages, not linted here.
+    "sdks",
 ]
 line-length = 120
 indent-width = 4
@@ -188,17 +185,6 @@ ban-relative-imports = "all"
 "scripts/**" = ["T201"]
 "orchestrator/optical/workflows/*" = ["PLR0917", "PLR0914"]
 "test/**" = ["ARG001", "D", "S101", "PLR2004", "PLR0917", "PLR0914", "PLC0415", "PLC2701"]
-# Ported vendor driver / integration code (Nokia FlexILS/G30/G42/TNMS): excluded from the
-# type checkers and its docstrings are not maintained, so do not require them here.
-"src/orchestrator/optical/services/**" = ["D"]
-# TL1 command modules are derived from device help text (see
-# services/nokia/flexils/utils/tl1_command_help_to_pydantic_generator.py): long help_text literals
-# and the response parser's branch/statement count are inherent to the generated definitions.
-"src/orchestrator/optical/services/nokia/flexils/commands/*" = ["E501", "PLR0912", "PLR0915"]
-# Manual, run-once developer helper that prints the generated class to stdout.
-"src/orchestrator/optical/services/nokia/flexils/utils/tl1_command_help_to_pydantic_generator.py" = ["E501", "T201"]
-# Endpoints deliberately call the client's package-internal `_request` helper.
-"src/orchestrator/optical/services/nokia/tnms/endpoints.py" = ["SLF001"]
 # Alembic-generated revision files (do not hand-edit).
 "src/orchestrator/optical/migrations/**" = ["D", "INP001"]
 # Maintainer-owned product model: leave the location-code length literal untouched.
@@ -232,10 +218,6 @@ TESTING = "true"
 [tool.coverage.run]
 branch = true
 omit = [
-    "*/services/nokia/g30/data_models/*",
-    "*/services/nokia/g30/data_navigators/*",
-    "*/services/nokia/g42/data_models/*",
-    "*/services/nokia/g42/data_navigators/*",
     "*/optical/migrations/*",
 ]
 source = ["orchestrator.optical"]
@@ -257,7 +239,7 @@ project-excludes = [
     # Test suite and dev tooling are behavior-verified by pytest / run manually, not type-gated.
     "test/**",
     "scripts/**",
-    "src/orchestrator/optical/services/**",
+    "sdks/**",
 ]
 
 [[tool.pyrefly.sub-config]]

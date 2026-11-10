@@ -10,22 +10,29 @@ matching per-device adapter (see :mod:`orchestrator.optical.hal.adapters`).
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from orchestrator.optical.hal._common import (
+    LazyAdapter,
     UnsupportedPlatformError,
     _as_flexils_block,
     _as_g30_block,
     _as_g42_block,
     _vendor_platform,
 )
-from orchestrator.optical.hal.adapters.nokia_flexils import transponder as flexils
-from orchestrator.optical.hal.adapters.nokia_groove_g30 import transponder as groove_g30
-from orchestrator.optical.hal.adapters.nokia_gx_g42 import transponder as gx_g42
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
+
+if TYPE_CHECKING:
+    from orchestrator.optical.hal.adapters.nokia_flexils import transponder as flexils
+    from orchestrator.optical.hal.adapters.nokia_groove_g30 import transponder as groove_g30
+    from orchestrator.optical.hal.adapters.nokia_gx_g42 import transponder as gx_g42
+else:
+    flexils = LazyAdapter("orchestrator.optical.hal.adapters.nokia_flexils.transponder")
+    groove_g30 = LazyAdapter("orchestrator.optical.hal.adapters.nokia_groove_g30.transponder")
+    gx_g42 = LazyAdapter("orchestrator.optical.hal.adapters.nokia_gx_g42.transponder")
 
 __all__ = [
     "align_tx_power_to_target",

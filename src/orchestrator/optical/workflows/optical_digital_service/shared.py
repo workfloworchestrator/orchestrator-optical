@@ -47,7 +47,6 @@ from orchestrator.optical.db import (
     subscription_instances_by_block_type,
 )
 from orchestrator.optical.hal._common import UnsupportedPlatformError
-from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import FLEXILS_SPECTRAL_GRID_MHZ
 from orchestrator.optical.hal.port import (
     get_transceiver_capacity_from_mode as hal_get_transceiver_capacity_from_mode,
 )
@@ -58,6 +57,7 @@ from orchestrator.optical.hal.port import (
     retrieve_transceiver_modes,
 )
 from orchestrator.optical.hal.spectrum import (
+    FLEXILS_SPECTRAL_GRID_MHZ,
     ensure_optical_circuit,
     set_optical_circuit_label,
     validate_optical_circuit,

@@ -10,10 +10,12 @@ not import from any adapter, so that the dependency direction stays
 
 from __future__ import annotations
 
+import importlib
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
 
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import (
@@ -60,6 +62,102 @@ class UnsupportedPlatformError(NotImplementedError):
 
 class UnsupportedPortRoleError(NotImplementedError):
     """Raised when a port role is requested that the node's vendor/platform cannot enumerate."""
+
+
+class VendorSdkNotInstalledError(ImportError):
+    """Raised when a device adapter is used but the vendor SDK it drives is not installed.
+
+    The vendor SDKs are not distributed with this package: install the SDK package named
+    in the message into the same environment (see the README, "Vendor SDKs").
+    """
+
+    def __init__(self, sdk: str, device: str) -> None:
+        """Build the error for the missing ``sdk`` package of ``device``."""
+        super().__init__(f"The {device} adapter requires the {sdk!r} SDK package, which is not installed", name=sdk)
+
+
+def _retrieve_required[T](retrieve: Callable[..., T | None], **kwargs: Any) -> T:
+    """Read an object from the device, raising when it does not exist.
+
+    A NETCONF read of an object that does not exist returns no data (``None``) instead of
+    failing; HAL operations need the object, so they fail loudly here.
+
+    Args:
+        retrieve: The bound ``retrieve`` method of an SDK navigator node.
+        **kwargs: The ``retrieve`` arguments (``depth``, ``content``, ...).
+
+    Returns:
+        The object read from the device.
+
+    Raises:
+        ValueError: If the device returned no data for the object.
+    """
+    value = retrieve(**kwargs)
+    if value is None:
+        node = getattr(retrieve, "__self__", None)
+        where = node.instance_identifier() if hasattr(node, "instance_identifier") else repr(node)
+        msg = f"The device returned no data for {where}"
+        raise ValueError(msg)
+    return value
+
+
+def _connect_first[ClientT](
+    client_cls: Callable[..., ClientT],
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
+    **client_kwargs: Any,
+) -> ClientT:
+    """Open a device session on the first reachable management IP of a node.
+
+    The DCN loopback IP is tried first, then the DCN interface IP: the NETCONF clients
+    take a single host and open the session in their constructor.
+
+    Args:
+        client_cls: The SDK client class (its constructor opens the session).
+        optical_node_block: The Optical Node block whose management IPs are tried.
+        **client_kwargs: Credentials and options passed to every connection attempt.
+
+    Returns:
+        The connected client.
+
+    Raises:
+        ValueError: If the node has no management IP.
+        ExceptionGroup: If no management IP is reachable (one exception per attempt).
+    """
+    management = optical_node_block.management
+    hosts = [
+        str(ip)
+        for ip in (management.optical_module_node_dcn_loopback_ip, management.optical_module_node_dcn_interface_ip)
+        if ip is not None
+    ]
+    if not hosts:
+        msg = f"Node {management.optical_module_node_fqdn} has no management IP to connect to"
+        raise ValueError(msg)
+    errors: list[Exception] = []
+    for host in hosts:
+        try:
+            return client_cls(management_ip=host, **client_kwargs)
+        except Exception as exc:  # noqa: BLE001 - each attempt's failure is reported in the group
+            errors.append(exc)
+    msg = f"Could not connect to node {management.optical_module_node_fqdn} on any of {hosts}"
+    raise ExceptionGroup(msg, errors)
+
+
+class LazyAdapter:
+    """A device adapter module imported on first attribute access.
+
+    The adapters import their vendor SDK at module level; the area dispatchers hold
+    them through this proxy so that importing :mod:`orchestrator.optical.hal` (and the
+    workflows) works without any vendor SDK installed. A missing SDK only surfaces,
+    as :class:`VendorSdkNotInstalledError`, when a node of that platform is driven.
+    """
+
+    def __init__(self, module_name: str) -> None:
+        """Proxy the adapter module ``module_name`` (fully qualified)."""
+        self._module_name = module_name
+
+    def __getattr__(self, name: str) -> Any:
+        """Import the adapter module (cached by :mod:`sys.modules`) and return its attribute."""
+        return getattr(importlib.import_module(self._module_name), name)
 
 
 def _ports_by_role(

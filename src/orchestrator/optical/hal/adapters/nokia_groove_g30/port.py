@@ -9,7 +9,13 @@ from orchestrator.optical.hal._common import (
     _node_id,
     _port_name,
     _ports_by_role,
+    _retrieve_required,
     _same_node,
+)
+from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import (
+    CardTypeEnum,
+    GainRangeTypeEnum,
+    PortModeEnum,
 )
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     G30_MAX_SLOT_ID,
@@ -27,18 +33,7 @@ from orchestrator.optical.products.product_blocks.optical_node.unions import Any
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
-from orchestrator.optical.services.nokia.g30.data_models.ne import (
-    AdminStatusEnum,
-    CardTypeEnum,
-    ControlModeEnum,
-    EnableSwitchEnum,
-    GainRangeControlEnum,
-    GainRangeTypeEnum,
-    PortModeEnum,
-    TiltControlModeEnum,
-    YesNoEnum,
-)
-from orchestrator.optical.utils.datadiff import compare_pydantic_objects
+from orchestrator.optical.utils.datadiff import compare_pydantic_objects, yang_dump
 
 #: Subslot of the OCC2 card holding the booster of an amplifier card; the
 #: preamplifier lives in the amplifier port's own subslot. A Groove G30 amplifier card
@@ -181,7 +176,7 @@ def retrieve_transceiver_modes(optical_node_block: NokiaGrooveG30BlockProvisioni
 
     g30 = get_g30_client(optical_node_block)
 
-    card = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.retrieve(depth=2)
+    card = _retrieve_required(g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.retrieve, depth=2)
 
     card_type = card.required_type
 
@@ -214,7 +209,7 @@ def set_port_description(
     port_name = _port_name(port_block)
     endpoint, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
     before = endpoint.retrieve(content="config", depth=2)
-    # Minimal PATCH: only the changed leaf plus the list key.
+    # Minimal merge: only the changed leaf plus the list key.
     if subport_id is not None:
         endpoint.update(subport_id=subport_id, service_label=port_description)
     else:
@@ -244,10 +239,10 @@ def set_channel_description(
     shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(facility_id)
     uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os
 
-    # Minimal PATCH on the singleton och-os facility.
+    # Minimal merge on the singleton och-os facility.
     uri.update(service_label=description)
 
-    return uri.retrieve(content="config", depth=2).model_dump()
+    return yang_dump(_retrieve_required(uri.retrieve, content="config", depth=2))
 
 
 def set_port_admin_state(
@@ -269,16 +264,16 @@ def set_port_admin_state(
     host_node = port_block.optical_port_host_node
     port_name = _port_name(port_block)
     mapping = {
-        "up": AdminStatusEnum.UP,
-        "down": AdminStatusEnum.DOWN,
-        "maintenance": AdminStatusEnum.UP_NO_ALM,
+        "up": "up",
+        "down": "down",
+        "maintenance": "up-no-alm",
     }
     status = mapping[admin_state]
 
     port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
 
     before = port_uri.retrieve(depth=2, content="config")
-    # Minimal PATCH: only the changed leaf plus the list key.
+    # Minimal merge: only the changed leaf plus the list key.
     if subport_id is not None:
         port_uri.update(subport_id=subport_id, admin_status=status)
     else:
@@ -320,7 +315,7 @@ def _configure_g30_amplifier_port(
         shelf_id: The shelf id of the amplifier port.
         slot_id: The slot id of the amplifier port.
         subslot_id: The subslot id of the amplifier port.
-        endpoint: The RESTCONF endpoint of the amplifier port.
+        endpoint: The NETCONF navigator node of the amplifier port.
         remote_host_node: The remote Groove G30 node block the fiber leads to.
         remote_port_name: The name of the remote port the fiber leads to.
 
@@ -340,18 +335,18 @@ def _configure_g30_amplifier_port(
 
     booster_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(_BOOSTER_SUBSLOT_ID).subcard.amplifier("ba")
     booster_before = booster_uri.retrieve(content="config", depth=2)
-    # Minimal PATCH: list key plus changed leaves only.
+    # Minimal merge: list key plus changed leaves only.
     booster_uri.update(
         amplifier_name="ba",
-        admin_status=AdminStatusEnum.UP,
-        amplifier_enable=EnableSwitchEnum.ENABLED,
-        input_los_shutdown=EnableSwitchEnum.DISABLED,
-        control_mode=ControlModeEnum.MANUAL,
-        gain_range_control=GainRangeControlEnum.MANUAL,
+        admin_status="up",
+        amplifier_enable="enabled",
+        input_los_shutdown="disabled",
+        control_mode="manual",
+        gain_range_control="manual",
         target_gain_range=GainRangeTypeEnum.STANDARD,
         target_gain=Decimal("22.0"),
         output_voa=Decimal("10.0"),
-        tilt_control_mode=TiltControlModeEnum.MANUAL,
+        tilt_control_mode="manual",
         gain_tilt=Decimal("0.0"),
     )
 
@@ -359,20 +354,20 @@ def _configure_g30_amplifier_port(
     preamp_before = preamp_uri.retrieve(content="config", depth=2)
     preamp_uri.update(
         amplifier_name="pa",
-        admin_status=AdminStatusEnum.UP,
-        amplifier_enable=EnableSwitchEnum.ENABLED,
-        input_los_shutdown=EnableSwitchEnum.DISABLED,
-        control_mode=ControlModeEnum.AUTO,
-        gain_range_control=GainRangeControlEnum.AUTO,
+        admin_status="up",
+        amplifier_enable="enabled",
+        input_los_shutdown="disabled",
+        control_mode="auto",
+        gain_range_control="auto",
         target_gain_range=GainRangeTypeEnum.STANDARD,
-        tilt_control_mode=TiltControlModeEnum.AUTO,
+        tilt_control_mode="auto",
     )
 
     endpoint.update(
         port_id=port_before.port_id,
-        external_connectivity=YesNoEnum.YES,
+        external_connectivity="yes",
         connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
-        admin_status=AdminStatusEnum.UP,
+        admin_status="up",
     )
 
     return {
@@ -397,7 +392,7 @@ def configure_termination(
     )
 
     def _minimal_port_update(**leaves: Any) -> None:
-        # Minimal PATCH: only changed leaves plus the list key; never resend
+        # Minimal merge: only changed leaves plus the list key; never resend
         # the eth*/och-os/pluggable children via the port resource.
         if subport_id is not None:
             endpoint.update(subport_id=subport_id, **leaves)
@@ -411,9 +406,9 @@ def configure_termination(
         case (Vendor.NOKIA, Platform.FLEXILS):
             before = endpoint.retrieve(depth=2, content="config")
             _minimal_port_update(
-                external_connectivity=YesNoEnum.YES,
+                external_connectivity="yes",
                 connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
-                admin_status=AdminStatusEnum.UP,
+                admin_status="up",
             )
             return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
         case (Vendor.NOKIA, Platform.GROOVE_G30):
@@ -423,18 +418,18 @@ def configure_termination(
             if is_same_device:
                 before = endpoint.retrieve(depth=2, content="config")
                 _minimal_port_update(
-                    external_connectivity=YesNoEnum.NO,
+                    external_connectivity="no",
                     connected_to=f"patched to {remote_port_name}",
-                    admin_status=AdminStatusEnum.UP,
+                    admin_status="up",
                 )
                 return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
 
             if not is_amplifier_port:
                 before = endpoint.retrieve(depth=2, content="config")
                 _minimal_port_update(
-                    external_connectivity=YesNoEnum.YES,
+                    external_connectivity="yes",
                     connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
-                    admin_status=AdminStatusEnum.UP,
+                    admin_status="up",
                 )
                 return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
 
@@ -463,7 +458,7 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
     port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
 
     before = port_uri.retrieve(content="config", depth=2)
-    # Minimal PATCH: only changed leaves plus the list key.
+    # Minimal merge: only changed leaves plus the list key.
     if "." in port_name:  # inside OCC2 card
         if subport_id is not None:
             port_uri.update(subport_id=subport_id, connected_to="")
@@ -472,18 +467,18 @@ def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[s
     elif subport_id is not None:
         port_uri.update(
             subport_id=subport_id,
-            external_connectivity=YesNoEnum.NO,
+            external_connectivity="no",
             connected_to="",
-            admin_status=AdminStatusEnum.DOWN,
+            admin_status="down",
             port_mode=PortModeEnum.NOT_APPLICABLE,
             service_label="",
         )
     else:
         port_uri.update(
             port_id=port_id,
-            external_connectivity=YesNoEnum.NO,
+            external_connectivity="no",
             connected_to="",
-            admin_status=AdminStatusEnum.DOWN,
+            admin_status="down",
             port_mode=PortModeEnum.NOT_APPLICABLE,
             service_label="",
         )
@@ -500,20 +495,20 @@ def check_fiber(
     remote_host_node = remote_port_block.optical_port_host_node
     port_name = _port_name(optical_port_block)
     endpoint = g30_port_navigator_node_from_port_name(host_node, port_name)[0]
-    port_data = endpoint.retrieve(depth=2)
+    port_data = _retrieve_required(endpoint.retrieve, depth=2)
 
     if (
         remote_host_node.management.optical_module_node_vendor,
         remote_host_node.management.optical_module_node_platform,
     ) == (Vendor.NOKIA, Platform.GROOVE_G30) and _same_node(host_node, remote_host_node):
         con_to_string = f"patched to {_port_name(remote_port_block)}"
-        ext_connectivity = YesNoEnum.NO
+        ext_connectivity = "no"
     else:
         con_to_string = f"{_node_id(remote_host_node)} {_port_name(remote_port_block)}"
-        ext_connectivity = YesNoEnum.YES
+        ext_connectivity = "yes"
 
     checks = (
-        port_data.admin_status == AdminStatusEnum.UP
+        port_data.admin_status == "up"
         and port_data.external_connectivity == ext_connectivity
         and port_data.connected_to == con_to_string
     )
@@ -526,7 +521,7 @@ def check_fiber(
                     "port_name": port_name,
                     "expected": {
                         "admin-status": "up",
-                        "external-connectivity": ext_connectivity.value,
+                        "external-connectivity": ext_connectivity,
                         "connected-to": con_to_string,
                     },
                     "actual": {

@@ -15,6 +15,8 @@
 
 from typing import Any, Literal
 
+from pydantic import BaseModel
+
 JsonData = str | int | float | bool | None | dict[str, Any] | list[Any]
 FlatDict = dict[str, str | int | float | bool | None]
 DiffResult = dict[str, FlatDict]
@@ -105,13 +107,53 @@ def compare_jsons(
     return diff
 
 
+def _yang_keys(model: BaseModel, data: Any) -> Any:
+    """Rename the keys of ``data`` (the dump of ``model``) to the YANG node names of its fields."""
+    if not isinstance(data, dict):
+        return data
+    fields = getattr(type(model), "model_fields", {})
+    renamed: dict[str, Any] = {}
+    for key, value in data.items():
+        field = fields.get(key)
+        extra = field.json_schema_extra if field is not None and isinstance(field.json_schema_extra, dict) else {}
+        child = getattr(model, key, None) if field is not None else None
+        if isinstance(child, BaseModel):
+            renamed_value = _yang_keys(child, value)
+        elif isinstance(child, list) and isinstance(value, list):
+            renamed_value = [
+                _yang_keys(c, v) if isinstance(c, BaseModel) else v for c, v in zip(child, value, strict=False)
+            ]
+        else:
+            renamed_value = value
+        renamed[str(extra.get("tag", key))] = renamed_value
+    return renamed
+
+
+def yang_dump(model: BaseModel, **kwargs: Any) -> dict[str, Any]:
+    """Dump a YANG-generated pydantic model keyed by YANG node names (``admin-state``).
+
+    The NETCONF SDK models carry the YANG node name in each field's ``tag`` metadata
+    rather than as a pydantic alias, so their ``model_dump`` is keyed by Python field
+    names (``admin_state``); comparisons and reports use the YANG names. Fields
+    without a ``tag`` keep their field name.
+
+    Args:
+        model: The model to dump.
+        **kwargs: Passed to ``model.model_dump`` (e.g. ``exclude_unset=True``).
+
+    Returns:
+        The dump, keyed by YANG node names at every nesting level.
+    """
+    return _yang_keys(model, model.model_dump(**kwargs))
+
+
 def anydump(model):
-    """Dump a pydantic model (or list of models) to a dict, excluding unset fields."""
+    """Dump a pydantic model (or list of models) keyed by YANG node names, excluding unset fields."""
     if model is None:
         return {}
     if isinstance(model, list):
-        return [i.model_dump(exclude_unset=True) for i in model]
-    return model.model_dump(exclude_unset=True)
+        return [yang_dump(i, exclude_unset=True) for i in model]
+    return yang_dump(model, exclude_unset=True)
 
 
 def compare_pydantic_objects(

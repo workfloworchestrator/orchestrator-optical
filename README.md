@@ -12,12 +12,46 @@ To use the models and services from this module, you will need to make some chan
 WFO. Please follow the steps below to install the WFO Optical module, including some file edits:
 
 1. `uv add orchestrator-optical`
-2. Provision the shipped catalog in your database. See "Database migrations" below: until the module reaches a
+2. Install the vendor SDKs of the devices you drive (see "Vendor SDKs" below).
+3. Provision the shipped catalog in your database. See "Database migrations" below: until the module reaches a
    stable release this is done with the orchestrator-core CLI wizards; from the first stable release the module ships
    the catalog as Alembic migrations.
-3. The module is currently a work in progress (ported from a GARR-specific implementation): the model files are still
+4. The module is currently a work in progress (ported from a GARR-specific implementation): the model files are still
    being finalized and are subject to change between releases. See the "Consumption model" section below for how to
    decouple your own products from those changes.
+
+## Vendor SDKs
+
+The device clients are **not** distributed with this module: they are confidential vendor SDKs, generated from the
+device YANG models with yang2sdk (or received privately). The module imports without any of
+them; a device adapter raises `VendorSdkNotInstalledError` (an `ImportError`) only when a node of that platform is
+driven. Install the SDK of each platform you use into the same environment:
+
+| platform | SDK package (import name) | used by |
+|---|---|---|
+| Nokia FlexILS (TL1 over SSH) | `flexils_tl1` | `hal/adapters/nokia_flexils` |
+| Nokia Groove G30 (NETCONF, firmware 4.8.0) | `g30_4_8_0` | `hal/adapters/nokia_groove_g30` |
+| Nokia GX G42 (NETCONF, firmware 8.0.2) | `g42_8_0_2` | `hal/adapters/nokia_gx_g42` |
+
+Point your project at them with the standard packaging mechanisms (no environment variable is involved):
+
+```toml
+# your WFO deployment's pyproject.toml
+[project]
+dependencies = ["orchestrator-optical", "g30_4_8_0", "flexils_tl1"]
+
+[tool.uv.sources]
+g30_4_8_0 = { path = "vendor/g30_4_8_0" }                                         # generated with yang2sdk
+flexils_tl1 = { git = "https://git.example.org/nokia-sdks", subdirectory = "flexils_tl1", tag = "v0.1.0" }  # private git
+# or a private index: { index = "private" } with [[tool.uv.index]] name = "private", url = "...", explicit = true
+```
+
+The `OPTICAL_*` settings (credentials, TLS/SSH verification) are read by this module and passed to the SDK clients;
+the SDKs never read the environment themselves. `OPTICAL_G30_VERIFY` / `OPTICAL_G42_VERIFY` control the SSH
+host-key verification of the NETCONF sessions (`true`/`false`). Every HAL write is committed immediately.
+
+Each adapter imports its SDK in exactly one module, `hal/adapters/<device>/_sdk.py`, which re-exports the SDK names
+the adapter uses: it is the SDK contract, and the one place to change when moving to another SDK release.
 
 ## Database migrations
 
@@ -100,7 +134,7 @@ The module ships **concrete product blocks** (e.g. `OpticalFiberSpanBlock`), the
 ### Architecture
 
 The module is strictly layered: `products/` (blocks and subscription models) → `hal/` (device-facing logic) →
-`workflows/` (orchestration), with `services/` (device clients) behind `hal/`. **Blocks are the shared
+`workflows/` (orchestration), with the external vendor SDKs (device clients, see "Vendor SDKs") behind `hal/`. **Blocks are the shared
 contracts**: `hal/` depends only on blocks, never on subscription models — a subscription id may be an input
 parameter, but it is resolved to a block, never to a model. Consequently nothing under `hal/` imports from
 `workflows/`; the database queries both layers need live in the neutral `orchestrator/optical/db.py`. This keeps the
@@ -505,4 +539,7 @@ unregistered (no product, no workflows, excluded from the node unions); the stan
 ## Development
 
 * Clone this repository
+* Put the vendor SDKs under `sdks/` (gitignored: one package directory each, e.g. `sdks/g30_4_8_0/pyproject.toml`)
+  and run `just sync`: it syncs the environment and installs every SDK found there as an editable package
+  (`just sdks` re-installs only the SDKs). Without SDKs the tests that need them are skipped.
 * On your local implementation of the WFO, run `uv add --editable /this/repo` (or `pip install -e /this/repo`).

@@ -9,18 +9,26 @@ the vendor-neutral :class:`IntraNodeEdge` contract.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from orchestrator.optical.hal._common import (
     IntraNodeEdge,
+    LazyAdapter,
     UnsupportedPlatformError,
     _as_flexils_block,
     _as_g30_block,
     _vendor_platform,
 )
-from orchestrator.optical.hal.adapters.nokia_flexils import connectivity as flexils
-from orchestrator.optical.hal.adapters.nokia_groove_g30 import connectivity as groove_g30
-from orchestrator.optical.hal.adapters.nokia_groove_g30.connectivity import g30_shelf_of_port
+from orchestrator.optical.hal.adapters.nokia_groove_g30.naming import g30_shelf_of_port
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+
+if TYPE_CHECKING:
+    from orchestrator.optical.hal.adapters.nokia_flexils import connectivity as flexils
+    from orchestrator.optical.hal.adapters.nokia_groove_g30 import connectivity as groove_g30
+else:
+    flexils = LazyAdapter("orchestrator.optical.hal.adapters.nokia_flexils.connectivity")
+    groove_g30 = LazyAdapter("orchestrator.optical.hal.adapters.nokia_groove_g30.connectivity")
 
 __all__ = ["IntraNodeEdge", "g30_shelf_of_port", "retrieve_add_drop_connectivity"]
 

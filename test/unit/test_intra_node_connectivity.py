@@ -9,13 +9,17 @@ installed modules.
 
 import pytest
 
+pytest.importorskip("flexils_tl1")
+pytest.importorskip("g30_4_8_0")
+
+from flexils_tl1.commands.ocrs import OcrsResponse
+from flexils_tl1.commands.scg import ScgResponse
+from g30_4_8_0.data_models.ne import CardTypeEnum
+
 from orchestrator.optical.hal.adapters.nokia_flexils.connectivity import add_drop_connectivity_from_records
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import connectivity as g30_connectivity
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import G30Function, G30Module
 from orchestrator.optical.hal.connectivity import IntraNodeEdge
-from orchestrator.optical.services.nokia.flexils.commands.ocrs import OcrsResponse
-from orchestrator.optical.services.nokia.flexils.commands.scg import ScgResponse
-from orchestrator.optical.services.nokia.g30.data_models.ne import CardTypeEnum
 from orchestrator.optical.utils.custom_types.frequencies import (
     OLS_BAND,
     free_intervals,

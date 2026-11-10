@@ -8,9 +8,24 @@
 default:
     @just --list
 
-# Install/sync virtual environment with UV
+# Install/sync virtual environment with UV, then the local vendor SDKs (see `sdks`)
 sync:
-    uv sync --all-groups
+    uv sync --all-groups --inexact
+    just sdks
+
+# Install every vendor SDK found under sdks/ (gitignored) as an editable package
+sdks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    shopt -s nullglob
+    pkgs=(sdks/*/pyproject.toml)
+    if [ ${#pkgs[@]} -eq 0 ]; then
+        echo "No vendor SDK under sdks/: device adapters raise VendorSdkNotInstalledError, SDK tests are skipped."
+        exit 0
+    fi
+    args=()
+    for pkg in "${pkgs[@]}"; do args+=(-e "$(dirname "$pkg")"); done
+    uv pip install "${args[@]}"
 
 alias install := sync
 
