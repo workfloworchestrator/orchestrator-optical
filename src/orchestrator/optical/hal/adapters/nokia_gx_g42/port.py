@@ -1,6 +1,9 @@
-"""Nokia GX G42 port-level HAL operations."""
+"""Nokia GX G42 port-level HAL operations.
 
-import json
+The configuration is declarative (see :mod:`orchestrator.optical.hal.reconcile`): it is
+rendered, then applied, verified or released. It is owned by the Optical Port block.
+"""
+
 import re
 from typing import Any, Literal
 
@@ -15,11 +18,11 @@ from orchestrator.optical.hal._common import (
 from orchestrator.optical.hal.adapters.nokia_gx_g42._sdk import (
     PortTypeEnum,
 )
-from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
+from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import g42_port_node, get_g42_client
+from orchestrator.optical.hal.reconcile import Fragment, apply_config, fragment, release_config, verify_config
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
-from orchestrator.optical.utils.datadiff import compare_pydantic_objects, yang_dump
 
 #: Port roles a GX G42 node can enumerate: transponder line and client ports (no OLS ports).
 _G42_SUPPORTED_ROLES = frozenset({OpticalPortRole.TRANSPONDER_LINE, OpticalPortRole.TRANSPONDER_CLIENT})
@@ -165,27 +168,26 @@ def retrieve_transceiver_modes(optical_node_block: NokiaGxG42BlockProvisioning, 
     return supported_modes
 
 
+#: Rendering units of the port configuration owned by an Optical Port block.
+DESCRIPTION_SCOPE = "description"
+ADMIN_STATE_SCOPE = "admin-state"
+TERMINATION_SCOPE = "termination"
+CHANNEL_DESCRIPTION_SCOPE = "channel-description:{}"
+
+_ADMIN_STATE = {"up": "unlock", "down": "lock", "maintenance": "maintenance"}
+
+
+def _port_node(port_block: AnyOpticalPortBlockProvisioning) -> Any:
+    """Return the navigator node of the device port of an Optical Port block."""
+    return g42_port_node(get_g42_client(port_block.optical_port_host_node).data, _port_name(port_block))
+
+
 def set_port_description(port_block: AnyOpticalPortBlockProvisioning, port_description: str) -> dict[str, Any]:
-    """Set the description of a GX G42 optical port.
-
-    Args:
-        port_block: Optical Port of which the description is to be set.
-        port_description: The description to set on the port.
-
-    Returns:
-        The difference between the port configuration before and after the update.
-    """
-    host_node = port_block.optical_port_host_node
-    port_name = _port_name(port_block)
-    shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
-    g42 = get_g42_client(host_node)
-    port_uri = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-
-    before = port_uri.retrieve(content="config", depth=2)
-    # Minimal merge: list key plus changed leaves only.
-    port_uri.update(name=port_id, label=port_description)
-
-    return compare_pydantic_objects(before, port_uri.retrieve(content="config", depth=2))
+    """Make a GX G42 optical port carry the given description; return the applied diff."""
+    fragments = [fragment(_port_node(port_block), label=port_description)]
+    return apply_config(
+        port_block.optical_port_host_node, port_block.subscription_instance_id, DESCRIPTION_SCOPE, fragments
+    )
 
 
 def set_channel_description(
@@ -193,75 +195,54 @@ def set_channel_description(
     facility_id: str,
     description: str,
 ) -> dict[str, Any]:
-    """Set the description of a GX G42 optical channel.
+    """Make the GX G42 super-channel carried by a line port carry the given description; return the applied diff.
 
     Args:
-        optical_node_block: Optical Node of which the optical channel is to be modified.
-        facility_id: The id of the optical channel to set the description on (e.g. ``"1/1/1"``).
+        optical_node_block: Optical Node of which the optical channel is to be modified,
+            which also owns the setting.
+        facility_id: The name of the line port carrying the channel (e.g. ``"1-4-L2"``).
         description: The description to set on the channel.
 
-    Returns:
-        The channel configuration after the update.
+    Raises:
+        ValueError: If no super-channel is carried by the port.
     """
     g42 = get_g42_client(optical_node_block)
-    port_name = facility_id  # e.g. "1-4-L2"
-
-    channel_name = None
-    channels = g42.data.ioa_network_element_ne.facilities.super_channel.retrieve(depth=2, content="config")
-    for ch in channels:
-        if any(carrier.startswith(port_name) for carrier in ch.carriers):
-            channel_name = ch.name
-            break
-
+    super_channels = g42.data.ioa_network_element_ne.facilities.super_channel
+    channel_name = next(
+        (
+            channel.name
+            for channel in super_channels.retrieve(depth=2, content="config") or []
+            if any(carrier.startswith(facility_id) for carrier in channel.carriers)
+        ),
+        None,
+    )
     if channel_name is None:
-        msg = f"Channel with port {port_name} not found"
+        msg = f"Channel with port {facility_id} not found"
         raise ValueError(msg)
-
-    uri = g42.data.ioa_network_element_ne.facilities.super_channel(channel_name)
-    # Minimal merge: list key plus changed leaves only.
-    uri.update(name=channel_name, label=description)
-    return yang_dump(_retrieve_required(uri.retrieve, depth=2, content="config"))
+    return apply_config(
+        optical_node_block,
+        optical_node_block.subscription_instance_id,
+        CHANNEL_DESCRIPTION_SCOPE.format(facility_id),
+        [fragment(super_channels(channel_name), label=description)],
+    )
 
 
 def set_port_admin_state(
     port_block: AnyOpticalPortBlockProvisioning,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
-    """Set the administrative state of a GX G42 optical port.
-
-    Args:
-        port_block: Optical Port of which the admin state is to be set.
-        admin_state: The administrative state to set on the port: ["up", "down", "maintenance"].
-
-    Returns:
-        The difference between the port configuration before and after the update.
-    """
-    host_node = port_block.optical_port_host_node
-    port_name = _port_name(port_block)
-    mapping = {
-        "up": "unlock",
-        "down": "lock",
-        "maintenance": "maintenance",
-    }
-    status = mapping[admin_state]
-
-    shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
-
-    g42 = get_g42_client(host_node)
-    uri = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-
-    before = uri.retrieve(content="config", depth=2)
-    # Minimal merge: list key plus changed leaves only.
-    uri.update(name=port_id, admin_state=status)
-
-    return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
+    """Make a GX G42 optical port run the given administrative state; return the applied diff."""
+    fragments = [fragment(_port_node(port_block), admin_state=_ADMIN_STATE[admin_state])]
+    return apply_config(
+        port_block.optical_port_host_node, port_block.subscription_instance_id, ADMIN_STATE_SCOPE, fragments
+    )
 
 
-def configure_termination(
+def render_termination(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
-) -> dict[str, Any]:
-    """Configure a GX G42 port when attaching a fiber to it.
+) -> list[Fragment]:
+    """Render a GX G42 port terminating a fiber that leads to the remote port.
 
     A same-node fiber patch (both ends on this device) is recorded as an internal
     patch (no external connectivity); every other connection is an external one.
@@ -269,90 +250,65 @@ def configure_termination(
     host_node = optical_port_block.optical_port_host_node
     remote_host_node = remote_port_block.optical_port_host_node
     remote_port_name = _port_name(remote_port_block)
-    shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
-    g42 = get_g42_client(host_node)
-    uri = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    before = uri.retrieve(content="config", depth=2)
     if _same_node(host_node, remote_host_node):
-        uri.update(
-            name=port_id,
-            external_connectivity="no",
-            connected_to=f"patched to {remote_port_name}",
-            admin_state="unlock",
-        )
+        connectivity, connected_to = "no", f"patched to {remote_port_name}"
     else:
-        uri.update(
-            name=port_id,
-            external_connectivity="yes",
-            connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
+        connectivity, connected_to = "yes", f"{_node_id(remote_host_node)} {remote_port_name}"
+    return [
+        fragment(
+            _port_node(optical_port_block),
+            external_connectivity=connectivity,
+            connected_to=connected_to,
             admin_state="unlock",
         )
-    return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
+    ]
 
 
-def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[str, Any]:
-    """Prune the configuration of a GX G42 port."""
-    host_node = optical_port_block.optical_port_host_node
-    g42 = get_g42_client(host_node)
-    shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
-    uri = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    before = uri.retrieve(content="config", depth=2)
-    # Minimal merge: list key plus changed leaves only.
-    uri.update(
-        name=port_id,
-        external_connectivity="no",
-        connected_to="",
-        admin_state="lock",
-        label="",
+def configure_termination(
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
+) -> dict[str, Any]:
+    """Make a GX G42 port run the configuration of the fiber attached to it; return the applied diff."""
+    return apply_config(
+        optical_port_block.optical_port_host_node,
+        optical_port_block.subscription_instance_id,
+        TERMINATION_SCOPE,
+        render_termination(optical_port_block, remote_port_block),
     )
-    return compare_pydantic_objects(before, uri.retrieve(content="config", depth=2))
+
+
+def factory_reset(
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
+) -> dict[str, Any]:
+    """Release the fiber termination of a GX G42 port; return the applied diff.
+
+    The port leaves go back to their factory value unless another product block (e.g. a
+    service using the port) still holds them.
+    """
+    return release_config(
+        optical_port_block.optical_port_host_node,
+        optical_port_block.subscription_instance_id,
+        TERMINATION_SCOPE,
+        render_termination(optical_port_block, remote_port_block),
+    )
 
 
 def check_fiber(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> None:
-    """Check if a GX G42 port attached to a fiber is correctly configured."""
-    host_node = optical_port_block.optical_port_host_node
-    remote_host_node = remote_port_block.optical_port_host_node
-    remote_port_name = _port_name(remote_port_block)
-    g42 = get_g42_client(host_node)
-    shelf_id, slot_id, port_id = _port_name(optical_port_block).split("-")
-    endpoint = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    conf = _retrieve_required(endpoint.retrieve, depth=2, content="config")
+    """Check that a GX G42 port attached to a fiber runs its termination configuration.
 
-    if _same_node(host_node, remote_host_node):
-        expected_connected_to = f"patched to {remote_port_name}"
-        expected_connectivity = "no"
-    else:
-        expected_connected_to = f"{_node_id(remote_host_node)} {remote_port_name}"
-        expected_connectivity = "yes"
-
-    checks = (
-        conf.admin_state == "unlock"
-        and conf.external_connectivity == expected_connectivity
-        and conf.connected_to == expected_connected_to
+    Raises:
+        ValueError: If the port configuration differs.
+    """
+    verify_config(
+        optical_port_block.optical_port_host_node,
+        optical_port_block.subscription_instance_id,
+        TERMINATION_SCOPE,
+        render_termination(optical_port_block, remote_port_block),
     )
-    if not checks:
-        raise ValueError(
-            json.dumps(
-                {
-                    "optical_device": _node_id(host_node),
-                    "port_name": _port_name(optical_port_block),
-                    "expected": {
-                        "admin-status": "unlock",
-                        "external-connectivity": expected_connectivity,
-                        "connected-to": expected_connected_to,
-                    },
-                    "actual": {
-                        "admin-status": conf.admin_state,
-                        "external-connectivity": conf.external_connectivity,
-                        "connected-to": conf.connected_to,
-                    },
-                },
-                indent=4,
-            )
-        )
 
 
 def get_transceiver_capacity_from_mode(mode: str) -> int | None:

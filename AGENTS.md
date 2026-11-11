@@ -41,9 +41,11 @@ src/orchestrator/optical/
 │   ├── connectivity.py       #   intra-node routes add/drop port -> reachable degrees (+ occupancy), IntraNodeEdge;
 │   │                         #   FlexILS: RTRV-SCG PROVNBRTP + RTRV-EQPT card rules + RTRV-OCRS; G30: fiber-connection
 │   ├── transport_channel.py  #   transponder line/client/crossconnect config + validation + power alignment
+│   ├── reconcile.py          #   declarative config of the NETCONF devices (G30/G42): Fragment, diff/verify/apply/
+│   │                         #   release on the SDK primitives + the applied-config record (golden config per node)
 │   └── adapters/             #   per-device implementations: nokia_flexils (TL1) / nokia_groove_g30, nokia_gx_g42 (NETCONF);
 │                             #   each imports its vendor SDK only in `_sdk.py` (the SDK contract); SDK-free helpers
-│                             #   live in naming.py / gne.py / constants.py
+│                             #   live in naming.py / gne.py / constants.py; G30/G42 `config.py` = client + release rule
 ├── workflows/                # WFO workflows of the shipped product types (ready-to-use) + importable parts
 │   ├── __init__.py           #   docs the consumption model (register shipped workflows with LazyWorkflowInstance,
 │   │                         #   compose your own with the parts)
@@ -58,8 +60,9 @@ src/orchestrator/optical/
 │   └── optical_location/     #   reference family: workflows + parts (selectors/helpers)
 ├── settings.py               # pydantic-settings, env prefix OPTICAL_, lazy get_settings()
 ├── db.py                     # neutral DB query helpers + block resolution shared by hal/ and workflows/ (blocks as contracts)
+│                             # + the `optical_applied_config` table (model and helpers)
 ├── translations/en-GB.json   # workflow display strings (1:1 with registered workflows)
-└── utils/                    # custom_types (dns Pqdn/Fqdn, coordinates, frequencies, ip_address), datadiff,
+└── utils/                    # custom_types (dns Pqdn/Fqdn, coordinates, frequencies, ip_address), datadiff (FlexILS),
                               # singledispatch (legacy helpers only — dispatch uses match/case, never reintroduce it)
 ```
 
@@ -108,6 +111,37 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
 
 - Vendor/Platform dispatch is achieved in `hal/` with `match/case` wrt the enums in `optical_node_management.py`.
   Dynamic registration using singledispatch was removed — never reintroduce it.
+
+### Declarative device configuration (Groove G30, GX G42)
+
+- The G30/G42 adapters never push configuration imperatively. Each object (line port, client port, cross-connect,
+  fiber termination, description, admin state, TX power) has **one** `render_*` function returning
+  `hal.reconcile.Fragment`s (`fragment(navigator_node, **leaves)`); configure / validate / factory-reset are that
+  rendering handed to `apply_config` / `verify_config` / `release_config`. Never add a second code path that writes
+  or compares the same object (no `navigator.update(...)`, no hand-built expected dicts).
+- The diff is computed with the SDK primitives only: fragments and the model read from the device are flattened with
+  `model_dump_instances()`, classified by `client.diff_instances()`, sent with `client.reconcile()`.
+  `model_validate_instances()` is not used: it validates a whole node and the fragments are partial (e.g. the G30
+  `och-os` has mandatory leaves), so `fragment()` validates leaf by leaf (`model_construct` + assignment).
+- **Never let the SDK infer a removal.** `diff_instances` collapses a removed path to its highest wholly-removed
+  ancestor (up to the datastore root when nothing is intended under it). `reconcile.py` restricts the running map
+  to the rendered paths (so `removed` is always empty) and builds releases itself from the adapter's
+  `release_rule(path)`: `Reset(value)` (factory value of a leaf), `DeleteEntry(path)` (a list entry the module
+  created: G30 `CRS`, G42 `xcon` / `super-channel`) or `None` (leave alone).
+- Every apply is recorded in the `optical_applied_config` table, one row per **(node, path, owner block)** plus the
+  `scope` (rendering unit of the owner: `line`, `client:<port>`, `crossconnect:<port>`, `tx-power:<port>`,
+  `termination`, `description`, `admin-state`). Rows mean *applied*, never *desired* (always re-rendered from the
+  blocks); they are written only after the device converged. The rows of a node are its golden config
+  (`hal.golden_config`). A path may be held by several owners with the same value (released from the device when
+  the last one releases it); a different value from another owner is a `ConfigConflictError` before any edit.
+- Owners: the Optical Port block for port-level config (`hal/port.py`, signatures unchanged), the Optical Digital
+  Service block for transponder config (`owner_instance_id=` keyword of the `hal/transport_channel.py` dispatchers).
+- Fragment key leaves are dropped (the SDK edit builder would emit them twice); `stage=` orders the edits for
+  objects the device only creates after another one is configured (G30 `och-os`/`eth*` after `port-mode`, G42
+  `tom` → `trib-ptp` → `ethernet`, optical carriers after their super-channel).
+- Renderers are pure given the SDK data root (`client.data`, or an unconnected `Data(None)` in tests), except the
+  cross-connects, whose keys only the device knows (G30 free ODU, G42 RPC-created `xcon`).
+- FlexILS (TL1) is not declarative: it keeps its hand-written engine.
 
 ### Layering (hal and pages depend on blocks, never on workflows/subscriptions)
 
@@ -244,6 +278,18 @@ uv build                        # package build
 ### Known pre-existing noise (do NOT "fix" these as a side quest)
 
 - `ARG001` on terminate-form `customer_id`/`subscription` params in stub steps.
+
+### Open points of the declarative configuration (report progress here)
+
+- **Not yet verified on a lab device** (only against the fake NETCONF manager): that G30/G42 report every rendered
+  leaf back unchanged (empty re-diff after apply), that a staged edit per object is accepted, and that the reset
+  values of the release rules are accepted. Run reconcile on a lab G30 and G42 before relying on it.
+- Subscriptions provisioned before the table existed have no rows: run their reconcile workflow once to record
+  them. Releases also cover what the block still renders, and `is_last_client_for_channels` still guards shared
+  line ports, so terminating an unrecorded service behaves as before.
+- The recorded TX power (`tx-power:<port>` scope) is stored but not yet re-verified by the validate workflows.
+- G30 amplifier settings are applied with the termination but excluded from `check_fiber` and from the release
+  (they are tuned on the device afterwards).
 
 ### Current status (branch `porting/workflows`)
 

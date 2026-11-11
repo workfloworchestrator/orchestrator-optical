@@ -57,7 +57,25 @@ the adapter uses: it is the SDK contract, and the one place to change when movin
 
 The module ships **coded programmatic migrations**: its catalog (products, product blocks, resource types and the
 shipped workflows) is provisioned as data migrations, exactly like orchestrator-core provisions its own domain. The
-module owns **no tables** — everything lives in the core catalog tables.
+catalog lives in the core tables; the module owns **one table**, `optical_applied_config` (see below).
+
+### The applied-configuration table
+
+The Groove G30 and GX G42 configuration is declarative: the module renders the desired configuration of each object,
+applies only the difference, and records what it applied in `optical_applied_config`, one row per
+(node, device path, owner product block). The rows of a node are its golden configuration, i.e. the part of the
+device configuration the orchestrator manages (`orchestrator.optical.hal.golden_config(node_block)`).
+
+The table ships as its own Alembic revision (`7c1d5e9a4b20`, branch label `optical_applied_config`), independent of
+the catalog: add the shipped `versions/schema` directory to your Alembic `version_locations` (see
+`add_optical_module_migrations` below) and upgrade that branch:
+
+```shell
+orchestrator db upgrade optical_applied_config@head
+```
+
+Subscriptions provisioned before the table existed have no rows: run their reconcile workflow once to record what
+they hold on the devices.
 
 ### Until the first stable release (module < 1.0)
 

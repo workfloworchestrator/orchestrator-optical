@@ -8,11 +8,15 @@ shared contracts between the layers; subscription ids are input parameters
 only, never model dependencies.
 """
 
-from typing import cast
+from collections.abc import Mapping
+from typing import Any, cast
+from uuid import UUID
 
 from pydantic_forms.types import UUIDstr
-from sqlalchemy import Select, select
-from sqlalchemy.orm import aliased
+from sqlalchemy import ForeignKey, Select, String, Text, delete, func, select, text
+from sqlalchemy.dialects import postgresql as pg
+from sqlalchemy.orm import aliased, mapped_column
+from sqlalchemy_utils import UUIDType
 
 from orchestrator.core.db import (
     ProductBlockTable,
@@ -21,8 +25,10 @@ from orchestrator.core.db import (
     SubscriptionInstanceTable,
     SubscriptionInstanceValueTable,
     SubscriptionTable,
+    UtcTimestamp,
     db,
 )
+from orchestrator.core.db.database import BaseModel
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.domain.lifecycle import lookup_specialized_type
 from orchestrator.core.types import SubscriptionLifecycle
@@ -35,7 +41,13 @@ from orchestrator.optical.products.product_blocks.optical_node.optical_packet_no
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockUnion
 
 __all__ = [
+    "OpticalAppliedConfigTable",
+    "applied_config",
+    "applied_config_of_other_owners",
+    "forget_applied_config",
     "location_block_from_instance",
+    "lock_node_config",
+    "node_applied_config",
     "node_block_from_instance",
     "node_instance_id_of_subscription",
     "packet_node_block_from_instance",
@@ -43,6 +55,7 @@ __all__ = [
     "pipe_blocks_all",
     "pipe_blocks_by_types",
     "pipe_instances_by_block_names",
+    "replace_applied_config",
     "subscription_instance_values_by_block_type_depending_on_instance_id",
     "subscription_instance_values_by_instance_ids_and_resource_type",
     "subscription_instances_by_block_names",
@@ -593,3 +606,139 @@ def packet_node_instance_id_of_subscription(subscription_id: UUIDstr) -> str:
         "Optical Module Packet Node block",
     )
     return str(instance.subscription_instance_id)
+
+
+class OpticalAppliedConfigTable(BaseModel):
+    """The device configuration applied by this module: one row per (node, path, owner).
+
+    A row records that the product block ``owner_instance_id`` applied ``value`` at the
+    device path ``path`` of the Optical Node ``node_instance_id``. Rows mean *applied*,
+    not *desired*: they are written only after the device accepted the configuration
+    (see :mod:`orchestrator.optical.hal.reconcile`), the desired configuration is always
+    rendered again from the blocks. The rows of a node are its golden configuration,
+    i.e. the part of its configuration managed by the orchestrator.
+
+    Several owners may hold the same path with the same value (a shared object stays on
+    the device until its last owner releases it). ``scope`` names the rendering unit of
+    the owner that wrote the row (e.g. ``line``, ``client:<port>``), so that a unit is
+    replaced or released without touching the other units of the same owner. The owner
+    is deliberately not a foreign key: a block removed from its subscription must not
+    silently take along the record of what it left on the device.
+    """
+
+    __tablename__ = "optical_applied_config"
+
+    node_instance_id = mapped_column(
+        UUIDType,
+        ForeignKey("subscription_instances.subscription_instance_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    path = mapped_column(Text(), primary_key=True)
+    owner_instance_id = mapped_column(UUIDType, primary_key=True, index=True)
+    scope = mapped_column(String(255), nullable=False)
+    #: ``{"value": <applied value>}``: orchestrator-core decodes every JSON column as an object.
+    value = mapped_column(pg.JSONB(), nullable=False)
+    applied_at = mapped_column(UtcTimestamp, server_default=text("current_timestamp"), nullable=False)
+
+
+#: Key of the applied value inside the ``value`` JSON object of a row.
+_VALUE = "value"
+
+
+def _uuid(value: UUID | UUIDstr) -> UUID:
+    """Return ``value`` as a :class:`~uuid.UUID`."""
+    return value if isinstance(value, UUID) else UUID(str(value))
+
+
+def lock_node_config(node_instance_id: UUID | UUIDstr) -> None:
+    """Serialize the configuration changes of an Optical Node until the transaction ends.
+
+    Takes a PostgreSQL transaction-level advisory lock keyed by the node, so that two
+    workflows changing the same device run one after the other.
+    """
+    db.session.execute(select(func.pg_advisory_xact_lock(func.hashtext(str(_uuid(node_instance_id))))))
+
+
+def applied_config(node_instance_id: UUID | UUIDstr, owner_instance_id: UUID | UUIDstr, scope: str) -> dict[str, Any]:
+    """Return ``{path: value}`` applied by one scope of an owner block on an Optical Node."""
+    rows = _all(
+        select(OpticalAppliedConfigTable)
+        .where(OpticalAppliedConfigTable.node_instance_id == _uuid(node_instance_id))
+        .where(OpticalAppliedConfigTable.owner_instance_id == _uuid(owner_instance_id))
+        .where(OpticalAppliedConfigTable.scope == scope)
+    )
+    return {row.path: row.value[_VALUE] for row in rows}
+
+
+def applied_config_of_other_owners(
+    node_instance_id: UUID | UUIDstr, owner_instance_id: UUID | UUIDstr
+) -> dict[str, Any]:
+    """Return ``{path: value}`` applied on an Optical Node by every owner block but the given one.
+
+    Two owners may only hold the same path with the same value, so one value per path
+    is enough.
+    """
+    rows = _all(
+        select(OpticalAppliedConfigTable)
+        .where(OpticalAppliedConfigTable.node_instance_id == _uuid(node_instance_id))
+        .where(OpticalAppliedConfigTable.owner_instance_id != _uuid(owner_instance_id))
+    )
+    return {row.path: row.value[_VALUE] for row in rows}
+
+
+def node_applied_config(node_instance_id: UUID | UUIDstr) -> dict[str, Any]:
+    """Return the golden configuration of an Optical Node: ``{path: value}`` of all its owners."""
+    rows = _all(
+        select(OpticalAppliedConfigTable)
+        .where(OpticalAppliedConfigTable.node_instance_id == _uuid(node_instance_id))
+        .order_by(OpticalAppliedConfigTable.path)
+    )
+    return {row.path: row.value[_VALUE] for row in rows}
+
+
+def replace_applied_config(
+    node_instance_id: UUID | UUIDstr,
+    owner_instance_id: UUID | UUIDstr,
+    scope: str,
+    config: Mapping[str, Any],
+) -> None:
+    """Record ``config`` as what one scope of an owner block applied on an Optical Node.
+
+    The rows of the scope that are not in ``config`` are deleted, the others are
+    inserted or updated. A path the owner already holds under another scope moves to
+    this scope (an owner holds a path once).
+    """
+    node_id, owner_id = _uuid(node_instance_id), _uuid(owner_instance_id)
+    stale = delete(OpticalAppliedConfigTable).where(
+        OpticalAppliedConfigTable.node_instance_id == node_id,
+        OpticalAppliedConfigTable.owner_instance_id == owner_id,
+        OpticalAppliedConfigTable.scope == scope,
+    )
+    if config:
+        stale = stale.where(OpticalAppliedConfigTable.path.not_in(list(config)))
+    db.session.execute(stale)
+    if config:
+        upsert = pg.insert(OpticalAppliedConfigTable).values(
+            [
+                {
+                    "node_instance_id": node_id,
+                    "path": path,
+                    "owner_instance_id": owner_id,
+                    "scope": scope,
+                    "value": {_VALUE: value},
+                }
+                for path, value in config.items()
+            ]
+        )
+        db.session.execute(
+            upsert.on_conflict_do_update(
+                index_elements=["node_instance_id", "path", "owner_instance_id"],
+                set_={"scope": upsert.excluded.scope, "value": upsert.excluded.value, "applied_at": func.now()},
+            )
+        )
+    db.session.flush()
+
+
+def forget_applied_config(node_instance_id: UUID | UUIDstr, owner_instance_id: UUID | UUIDstr, scope: str) -> None:
+    """Drop the record of one scope of an owner block on an Optical Node, without touching the device."""
+    replace_applied_config(node_instance_id, owner_instance_id, scope, {})

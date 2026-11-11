@@ -26,7 +26,6 @@ from flexils_tl1.utils import TL1CompletionStatus
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as g30_shared
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import _shared as g42_shared
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import node as g42_node
-from orchestrator.optical.hal.adapters.nokia_gx_g42 import port as g42_port
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import transponder as g42_transponder
 from orchestrator.optical.settings import get_settings
 from test.support.netconf import CANDIDATE, WRITABLE_RUNNING, FakeManager, install_fake_netconf, rpc_error
@@ -112,20 +111,6 @@ def test_netconf_factory_requires_a_management_ip() -> None:
         g42_shared.get_g42_client(_node_block(loopback_ip=None, interface_ip=None))
 
 
-def test_g42_edit_is_committed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A G42 HAL write edits the candidate datastore and commits it right away."""
-    fake = FakeManager((CANDIDATE,))
-    install_fake_netconf(monkeypatch, g42_8_0_2, fake)
-
-    g42_port.set_port_admin_state(_port_block("1-4-L1"), "down")
-
-    names = fake.names()
-    edit = next(xml for name, xml in fake.calls if name == "edit-config")
-    assert names.index("edit-config") < names.index("commit")
-    assert "<candidate/>" in edit
-    assert "<admin-state>lock</admin-state>" in edit
-
-
 def test_g30_edit_targets_running_without_commit(monkeypatch: pytest.MonkeyPatch) -> None:
     """The G30 has no candidate datastore: a HAL write edits running and sends no commit."""
     fake = FakeManager((WRITABLE_RUNNING,))
@@ -137,18 +122,6 @@ def test_g30_edit_targets_running_without_commit(monkeypatch: pytest.MonkeyPatch
     edit = next(xml for name, xml in fake.calls if name == "edit-config")
     assert "<running/>" in edit
     assert "commit" not in fake.names()
-
-
-def test_g42_rpc_error_surfaces_with_its_error_tag(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An <rpc-error> on a HAL write is raised as RuntimeError carrying the RFC 6241 error-tag."""
-    install_fake_netconf(
-        monkeypatch, g42_8_0_2, FakeManager((CANDIDATE,), dispatch_error=rpc_error("operation-failed", "boom"))
-    )
-
-    with pytest.raises(RuntimeError, match="boom") as excinfo:
-        g42_port.set_port_admin_state(_port_block("1-4-L1"), "up")
-
-    assert getattr(excinfo.value, "rpc_error_tag", None) == "operation-failed"
 
 
 def test_g42_create_existing_xcon_is_tolerated(monkeypatch: pytest.MonkeyPatch) -> None:

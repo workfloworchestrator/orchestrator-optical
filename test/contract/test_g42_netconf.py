@@ -13,7 +13,6 @@ import pytest
 pytest.importorskip("g42_8_0_2")
 
 import copy
-from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 
@@ -234,38 +233,6 @@ def _port_endpoint_client(endpoint: Any) -> Any:
     return _equipment_client(card=_Nav(child=card_child))
 
 
-def test_g42_set_port_admin_state_updates_the_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    endpoint = _Endpoint(_Model(admin_state="lock", label="link"))
-    _patch_g42_client(monkeypatch, _port_endpoint_client(endpoint))
-
-    diffs = g42_port.set_port_admin_state(_port_block("1-4-L1"), "up")
-
-    assert endpoint.update_calls
-    assert endpoint.model.admin_state == "unlock"
-    assert diffs["+++"]["root['admin_state']"] == "unlock"
-
-
-def test_g42_factory_reset_prunes_the_port_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
-    endpoint = _Endpoint(
-        _Model(
-            admin_state="unlock",
-            external_connectivity="yes",
-            connected_to="remote 1-4-L1",
-            label="link",
-        )
-    )
-    _patch_g42_client(monkeypatch, _port_endpoint_client(endpoint))
-
-    diffs = g42_port.factory_reset(_port_block("1-4-L1"))
-
-    assert endpoint.update_calls
-    assert endpoint.model.external_connectivity == "no"
-    assert endpoint.model.connected_to == ""
-    assert endpoint.model.admin_state == "lock"
-    assert endpoint.model.label == ""
-    assert diffs["+++"]  # the reset produced changes
-
-
 # --------------------------------------------------------------------------- transponder
 
 
@@ -382,22 +349,3 @@ def test_g42_get_signal_bandwidth_raises_when_the_channel_is_missing(monkeypatch
 
 def _optical_carrier_client(endpoint: _Endpoint) -> Any:
     return _facilities_client(optical_carrier=_Nav(child=endpoint))
-
-
-def test_g42_align_tx_power_to_target_clamps_at_the_minimum(monkeypatch: pytest.MonkeyPatch) -> None:
-    carrier = _Endpoint(_Model(tx_power=Decimal("8.00")))
-    _patch_g42_client(monkeypatch, _optical_carrier_client(carrier))
-
-    diffs = g42_transponder.align_tx_power_to_target(_node_block(), "1-4-L1", "20.0")
-
-    assert carrier.update_calls
-    assert carrier.model.tx_power == Decimal("-6.00")
-    assert diffs["+++"]["root['tx_power']"] == Decimal("-6.00")
-
-
-def test_g42_align_tx_power_to_target_raises_without_a_configured_power(monkeypatch: pytest.MonkeyPatch) -> None:
-    carrier = _Endpoint(_Model(tx_power=None))
-    _patch_g42_client(monkeypatch, _optical_carrier_client(carrier))
-
-    with pytest.raises(ValueError, match="No transmit power configured"):
-        g42_transponder.align_tx_power_to_target(_node_block(), "1-4-L1", "1.0")

@@ -5,6 +5,7 @@ device stubs, topology seeders); this conftest only re-exports them so pytest
 registers them in the ``test/`` scope.
 """
 
+from test.support.applied_config import applied_config_store  # noqa: F401
 from test.support.db import (  # noqa: F401
     assert_process_completed,
     assert_process_failed,

@@ -118,6 +118,10 @@ def _fake_factory_reset_transponder_lines(*args: Any, **kwargs: Any) -> dict[str
     return {}
 
 
+def _fake_forget_transponder_lines(*args: Any, **kwargs: Any) -> None:
+    """Forget the faked transponder lines of a service that is not their last client."""
+
+
 def _fake_validate_trx_line(*args: Any, **kwargs: Any) -> None:
     """Accept the faked transponder line as consistent."""
 
@@ -263,6 +267,7 @@ def install_device_stubs(
                 "delete_transponder_crossconnect": _fake_delete_transponder_crossconnect,
                 "factory_reset_transponder_client": _fake_factory_reset_transponder_client,
                 "factory_reset_transponder_lines": _fake_factory_reset_transponder_lines,
+                "forget_transponder_lines": _fake_forget_transponder_lines,
                 "get_signal_bandwidth": _fake_get_signal_bandwidth,
                 "delta_rx_power_vs_target": _fake_delta_rx_power_vs_target,
                 "align_tx_power_to_target": _fake_align_tx_power_to_target,

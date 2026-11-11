@@ -71,6 +71,7 @@ from orchestrator.optical.hal.transport_channel import (
     delta_rx_power_vs_target,
     factory_reset_transponder_client,
     factory_reset_transponder_lines,
+    forget_transponder_lines,
     get_signal_bandwidth,
     validate_trx_client,
     validate_trx_crossconnect,
@@ -1814,7 +1815,9 @@ def configure_optical_digital_line_ports(optical_module_block: OpticalDigitalSer
     )
     results = {}
     for host, port_names, frequencies, modes, descriptions in line_sides:
-        results[_host_label(host)] = configure_line_transceivers(host, port_names, frequencies, modes, descriptions)
+        results[_host_label(host)] = configure_line_transceivers(
+            host, port_names, frequencies, modes, descriptions, owner_instance_id=block.subscription_instance_id
+        )
     return {"configuration_results": results}
 
 
@@ -1834,7 +1837,9 @@ def configure_optical_digital_client_ports(optical_module_block: OpticalDigitalS
     _ensure_transponder_ports(list(block.optical_digital_service_client_ports))
     results = {}
     for host, port_name, description, speed in clients:
-        results[_host_label(host)] = configure_transceiver_client(host, port_name, description, speed)
+        results[_host_label(host)] = configure_transceiver_client(
+            host, port_name, description, speed, owner_instance_id=block.subscription_instance_id
+        )
     return {"configuration_results": results}
 
 
@@ -1854,7 +1859,9 @@ def configure_optical_digital_crossconnects(optical_module_block: OpticalDigital
     _ensure_transponder_ports(list(block.optical_digital_service_client_ports))
     results = {}
     for host, client_name, line_names, description in xconns:
-        results[_host_label(host)] = configure_transponder_crossconnect(host, client_name, line_names, description)
+        results[_host_label(host)] = configure_transponder_crossconnect(
+            host, client_name, line_names, description, owner_instance_id=block.subscription_instance_id
+        )
     return {"configuration_results": results}
 
 
@@ -2189,7 +2196,7 @@ def align_optical_digital_tx_power(optical_module_block: OpticalDigitalServiceBl
             trx_node = cast(AnyOpticalNodeBlockProvisioningUnion, trx_line_port.optical_port_host_node)
             trx_port_name = trx_line_port.optical_port_name
             results[f"{_host_label(trx_node)} {trx_port_name}"] = align_tx_power_to_target(
-                trx_node, trx_port_name, db_from_target
+                trx_node, trx_port_name, db_from_target, owner_instance_id=block.subscription_instance_id
             )
             sleep(TX_POWER_REALIGN_DELAY_S)
             db_from_target = delta_rx_power_vs_target(trib_node, spectrum_name, circuit_identifier)
@@ -2220,7 +2227,9 @@ def verify_optical_digital_line_ports(optical_module_block: OpticalDigitalServic
         ]
     )
     for host, port_names, frequencies, modes, descriptions in line_sides:
-        validate_trx_line(host, port_names, frequencies, modes, descriptions)
+        validate_trx_line(
+            host, port_names, frequencies, modes, descriptions, owner_instance_id=block.subscription_instance_id
+        )
     return {}
 
 
@@ -2239,7 +2248,7 @@ def verify_optical_digital_client_ports(optical_module_block: OpticalDigitalServ
     _, clients, _ = _channel_endpoints(block)
     _ensure_transponder_ports(list(block.optical_digital_service_client_ports))
     for host, port_name, description, speed in clients:
-        validate_trx_client(host, port_name, description, speed)
+        validate_trx_client(host, port_name, description, speed, owner_instance_id=block.subscription_instance_id)
     return {}
 
 
@@ -2258,7 +2267,9 @@ def verify_optical_digital_crossconnects(optical_module_block: OpticalDigitalSer
     _, _, xconns = _channel_endpoints(block)
     _ensure_transponder_ports(list(block.optical_digital_service_client_ports))
     for host, client_name, line_names, description in xconns:
-        validate_trx_crossconnect(host, client_name, line_names, description)
+        validate_trx_crossconnect(
+            host, client_name, line_names, description, owner_instance_id=block.subscription_instance_id
+        )
     return {}
 
 
@@ -2457,7 +2468,9 @@ def factory_reset_optical_digital_crossconnects(
     results = {}
     for client_port in block.optical_digital_service_client_ports:
         host = cast(AnyOpticalNodeBlockProvisioningUnion, client_port.optical_port_host_node)
-        results[_host_label(host)] = delete_transponder_crossconnect(host, client_port.optical_port_name)
+        results[_host_label(host)] = delete_transponder_crossconnect(
+            host, client_port.optical_port_name, owner_instance_id=block.subscription_instance_id
+        )
     return {"configuration_results": results}
 
 
@@ -2477,7 +2490,9 @@ def factory_reset_optical_digital_clients(optical_module_block: OpticalDigitalSe
     results = {}
     for client_port in block.optical_digital_service_client_ports:
         host = cast(AnyOpticalNodeBlockProvisioningUnion, client_port.optical_port_host_node)
-        results[_host_label(host)] = factory_reset_transponder_client(host, client_port.optical_port_name)
+        results[_host_label(host)] = factory_reset_transponder_client(
+            host, client_port.optical_port_name, owner_instance_id=block.subscription_instance_id
+        )
     return {"configuration_results": results}
 
 
@@ -2486,17 +2501,17 @@ def factory_reset_optical_digital_lines(optical_module_block: OpticalDigitalServ
     """Factory reset the line ports of the transport channels on the devices.
 
     Operates only on the Optical Digital Service block found in the state under
-    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The step is a no-op when the service is
-    not the last client of its channels: shared line ports must stay configured
-    for the remaining services.
+    ``OPTICAL_MODULE_BLOCK_STATE_KEY``. When the service is not the last client of
+    its channels the devices are left alone (shared line ports must stay configured
+    for the remaining services): only the record of what the service applied on
+    them is dropped.
 
     Args:
         optical_module_block: The Optical Digital Service block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
     block = optical_digital_service_block_from_state(optical_module_block)
-    if not is_last_client_for_channels(list(block.optical_digital_service_transport_channels)):
-        return {"configuration_results": {}}
+    last_client = is_last_client_for_channels(list(block.optical_digital_service_transport_channels))
     _ensure_transponder_ports(
         [
             port
@@ -2515,7 +2530,12 @@ def factory_reset_optical_digital_lines(optical_module_block: OpticalDigitalServ
             if port_name not in entry[1]:
                 entry[1].append(port_name)
     for host, port_names in by_host.values():
-        results[_host_label(host)] = factory_reset_transponder_lines(host, port_names)
+        if not last_client:
+            forget_transponder_lines(host, owner_instance_id=block.subscription_instance_id)
+            continue
+        results[_host_label(host)] = factory_reset_transponder_lines(
+            host, port_names, owner_instance_id=block.subscription_instance_id
+        )
     return {"configuration_results": results}
 
 

@@ -1,7 +1,15 @@
-"""Nokia GX G42 transponder-level HAL operations."""
+"""Nokia GX G42 transponder-level HAL operations.
+
+The configuration is declarative (see :mod:`orchestrator.optical.hal.reconcile`): every
+object has one ``render_*`` function returning its desired configuration, and the
+configure / validate / factory-reset operations are that rendering applied, verified or
+released. The rendering units (scopes) of an owner block on a node are ``line``,
+``client:<port>``, ``crossconnect:<client port>`` and ``tx-power:<line port>``.
+"""
 
 from decimal import Decimal
 from typing import Any, Literal
+from uuid import UUID
 
 from orchestrator.optical.hal._common import _as_decimal, _node_id, _retrieve_required
 from orchestrator.optical.hal.adapters.nokia_gx_g42._sdk import (
@@ -15,11 +23,28 @@ from orchestrator.optical.hal.adapters.nokia_gx_g42._sdk import (
     SignalTypeEnum,
     XconItem,
 )
-from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
+from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import g42_port_node, get_g42_client
+from orchestrator.optical.hal.reconcile import (
+    ConfigDriftError,
+    Fragment,
+    apply_config,
+    forget_config,
+    fragment,
+    release_config,
+    verify_config,
+)
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
-from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects, yang_dump
+
+#: Rendering units of the transponder configuration of an owner block on a node.
+LINE_SCOPE = "line"
+CLIENT_SCOPE = "client:{}"
+CROSSCONNECT_SCOPE = "crossconnect:{}"
+TX_POWER_SCOPE = "tx-power:{}"
+
+#: Leaves shared by every GX G42 object put in service.
+_IN_SERVICE: dict[str, Any] = {"admin_state": "unlock", "alarm_report_control": "allowed"}
 
 
 def _client_speed_config(speed: OpticalDigitalServiceSpeed) -> tuple[str, str, str, str]:
@@ -221,382 +246,194 @@ def get_signal_bandwidth(optical_node_block: NokiaGxG42BlockProvisioning, port_n
     return round(bw)
 
 
-def configure_line_transceivers(
-    optical_node_block: NokiaGxG42BlockProvisioning,
+def render_line_transceivers(
+    root: Any,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
     descriptions: tuple[str, ...],
-) -> dict[str, Any]:
-    """Configure the line transceivers on the given GX G42 Optical Node.
+) -> list[Fragment]:
+    """Render the line transceivers of a GX G42: ports, super-channel groups, super-channel and carriers.
+
+    The optical carriers are created by the device with their super-channel, so they are
+    rendered one stage after it.
 
     Args:
-        optical_node_block: The Optical Node to configure.
+        root: The data root navigator of a GX G42 client (``client.data``).
         port_names: The line port names.
         central_frequencies: The central frequencies of the transport channels.
         modes: The operating modes of the transport channels.
         descriptions: The channel descriptions.
 
     Returns:
-        A dictionary of configuration diffs, keyed by port/facility name.
+        The desired configuration of the line side.
 
     Raises:
-        ValueError: If the configuration is invalid.
+        ValueError: If the modes differ.
     """
     if len(set(modes)) != 1:
         msg = f"All modes must be the same for GX_G42 transponder line configuration but got {modes}."
         raise ValueError(msg)
 
-    g42 = get_g42_client(optical_node_block)
-    configurations = {}
-
-    # port
+    facilities = root.ioa_network_element_ne.facilities
+    fragments: list[Fragment] = []
     for port_name, description in zip(port_names, descriptions, strict=True):
-        shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
-        navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-        before = navigator.retrieve(content="config", depth=2)
-        # Minimal merge: list key plus changed leaves only.
-        navigator.update(
-            name=port_id,
-            admin_state="unlock",
-            label=description,
-            alarm_report_control="allowed",
+        fragments.append(fragment(g42_port_node(root, port_name), label=description, **_IN_SERVICE))
+        fragments.append(fragment(facilities.super_channel_group(port_name), label=description, **_IN_SERVICE))
+    fragments.append(
+        fragment(
+            facilities.super_channel("_".join(port_names)),
+            label="+".join(descriptions),
+            carrier_mode=modes[0],
+            carriers=[f"{port_name}-1" for port_name in port_names],
+            **_IN_SERVICE,
         )
-        after = navigator.retrieve(content="config", depth=2)
-        diffs = compare_pydantic_objects(before, after)
-        configurations[f"port-{port_name}"] = diffs
-
-        # super-channel-group
-        navigator = g42.data.ioa_network_element_ne.facilities.super_channel_group(port_name)
-        before = navigator.retrieve(content="config", depth=2)
-        navigator.update(name=port_name, admin_state="unlock", label=description, alarm_report_control="allowed")
-        after = navigator.retrieve(content="config", depth=2)
-        diffs = compare_pydantic_objects(before, after)
-        configurations[f"super-channel-group-{port_name}"] = diffs
-
-    # super-channel
-    sup_ch_name = "_".join(port_names)
-    navigator = g42.data.ioa_network_element_ne.facilities.super_channel(sup_ch_name)
-    before = navigator.retrieve(content="config", depth=2)
-    navigator.update(
-        name=sup_ch_name,
-        admin_state="unlock",
-        label="+".join(descriptions),
-        alarm_report_control="allowed",
-        carrier_mode=modes[0],
-        carriers=[f"{port_name}-1" for port_name in port_names],
     )
-    after = navigator.retrieve(content="config", depth=2)
-    diffs = compare_pydantic_objects(before, after)
-    configurations["super-channel"] = diffs
-
-    # optical-carrier
-    for port_name, description, frequency in zip(port_names, descriptions, central_frequencies, strict=True):
-        navigator = g42.data.ioa_network_element_ne.facilities.optical_carrier(f"{port_name}-1")
-        before = navigator.retrieve(content="config", depth=2)
-        navigator.update(
-            name=f"{port_name}-1",
-            admin_state="unlock",
-            label=description,
-            alarm_report_control="allowed",
-            frequency=frequency,
+    fragments.extend(
+        fragment(
+            facilities.optical_carrier(f"{port_name}-1"), stage=1, label=description, frequency=frequency, **_IN_SERVICE
         )
-        after = navigator.retrieve(content="config", depth=2)
-        diffs = compare_pydantic_objects(before, after)
-        configurations[f"optical-carrier-{port_name}-1"] = diffs
-
-    return configurations
+        for port_name, description, frequency in zip(port_names, descriptions, central_frequencies, strict=True)
+    )
+    return fragments
 
 
-def configure_transceiver_client(
-    optical_node_block: NokiaGxG42BlockProvisioning,
+def render_transceiver_client(
+    root: Any,
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
-) -> dict[str, Any]:
-    """Configure the client port of a transceiver on the given GX G42 Optical Node.
+) -> list[Fragment]:
+    """Render a client port of a GX G42 transponder: port, TOM, tributary and ethernet facility.
+
+    Each object is created by the device once the previous one is configured, so they
+    are rendered in successive stages.
 
     Args:
-        optical_node_block: The Optical Node to configure.
+        root: The data root navigator of a GX G42 client (``client.data``).
         port_name: The client port name.
         description: The description of the client service.
         speed: The speed of the client service in Gbit/s.
 
     Returns:
-        A dictionary of configuration diffs, keyed by facility name.
+        The desired configuration of the client port.
 
     Raises:
         NotImplementedError: If the requested speed is not supported.
-        ValueError: If the configuration is invalid.
     """
-    g42 = get_g42_client(optical_node_block)
-    shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
     required_type, required_subtype, phy_mode, service_type = _client_speed_config(speed)
-
-    configurations = {}
-
-    # port
-    navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    before = navigator.retrieve(content="config", depth=2)
-    # Minimal merge: list key plus changed leaves only.
-    navigator.update(
-        name=port_id,
-        admin_state="unlock",
-        label=description,
-        alarm_report_control="allowed",
-    )
-    after = navigator.retrieve(content="config", depth=2)
-    diffs = compare_pydantic_objects(before, after)
-    configurations["1.port"] = diffs
-
-    # TOM
-    navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
-    before = navigator.retrieve(content="config", depth=2)
-    # Minimal merge on the singleton TOM facility: only the changed leaves.
-    navigator.update(
-        admin_state="unlock",
-        label=description,
-        required_type=required_type,
-        required_subtype=required_subtype,
-        phy_mode=PhyModeEnum(phy_mode),
-        alarm_report_control="allowed",
-    )
-    after = navigator.retrieve(content="config", depth=2)
-    diffs = compare_pydantic_objects(before, after)
-    configurations["2.tom"] = diffs
-
-    # trib-ptp
-    navigator = g42.data.ioa_network_element_ne.facilities.trib_ptp(port_name)
-    before = navigator.retrieve(content="config", depth=2)
-    navigator.update(
-        name=port_name,
-        admin_state="unlock",
-        label=description,
-        alarm_report_control="allowed",
-        service_type=ServiceTypeEnum(service_type),
-    )
-    after = navigator.retrieve(content="config", depth=2)
-    diffs = compare_pydantic_objects(before, after)
-    configurations["3.trib-ptp"] = diffs
-
-    # ethernet
-    navigator = g42.data.ioa_network_element_ne.facilities.ethernet(port_name)
-    before = navigator.retrieve(content="config", depth=2)
-    navigator.update(
-        name=port_name,
-        admin_state="unlock",
-        label=description,
-        alarm_report_control="allowed",
-        fec_mode="enabled",
-        loopback="none",
-        test_signal_type=SignalTypeEnum.NONE,
-        test_signal_direction="egress",
-        test_signal_monitoring=False,
-        lldp_admin_status=LldpAdminStatusEnum.RX_ONLY,
-        lldp_ingress_mode=LldpModeEnum.SNOOP,
-        lldp_egress_mode=LldpModeEnum.SNOOP,
-    )
-    after = navigator.retrieve(content="config", depth=2)
-    diffs = compare_pydantic_objects(before, after)
-    configurations["4.ethernet"] = diffs
-
-    return configurations
+    port = g42_port_node(root, port_name)
+    facilities = root.ioa_network_element_ne.facilities
+    return [
+        fragment(port, label=description, **_IN_SERVICE),
+        fragment(
+            port.tom,
+            stage=1,
+            label=description,
+            required_type=required_type,
+            required_subtype=required_subtype,
+            phy_mode=PhyModeEnum(phy_mode),
+            **_IN_SERVICE,
+        ),
+        fragment(
+            facilities.trib_ptp(port_name),
+            stage=2,
+            label=description,
+            service_type=ServiceTypeEnum(service_type),
+            **_IN_SERVICE,
+        ),
+        fragment(
+            facilities.ethernet(port_name),
+            stage=3,
+            label=description,
+            fec_mode="enabled",
+            loopback="none",
+            test_signal_type=SignalTypeEnum.NONE,
+            test_signal_direction="egress",
+            test_signal_monitoring=False,
+            lldp_admin_status=LldpAdminStatusEnum.RX_ONLY,
+            lldp_ingress_mode=LldpModeEnum.SNOOP,
+            lldp_egress_mode=LldpModeEnum.SNOOP,
+            **_IN_SERVICE,
+        ),
+    ]
 
 
-def configure_transponder_crossconnect(
+def render_tx_power(root: Any, line_port_name: str, tx_power: Decimal) -> list[Fragment]:
+    """Render the transmit power of the optical carrier of a GX G42 line port."""
+    carrier = root.ioa_network_element_ne.facilities.optical_carrier(f"{line_port_name}-1")
+    return [fragment(carrier, tx_power=tx_power)]
+
+
+def render_transponder_crossconnect(
     optical_node_block: NokiaGxG42BlockProvisioning,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
-) -> dict[str, Any]:
-    """Configure a cross-connect between client and line ports on the given GX G42 Optical Node.
+    *,
+    allocate: bool,
+) -> list[Fragment]:
+    """Render the cross-connect between a client port and the line ports of a GX G42.
+
+    A GX G42 cross-connect is created by an RPC, which names it and assigns its time
+    slots: the existing one is rendered, and when there is none (``allocate``) it is
+    created first. This is the one rendering that reads, and may change, the device.
 
     Args:
-        optical_node_block: The Optical Node to configure.
-        client_port_name: The client port name (e.g. ``"port-1/2/3"``).
+        optical_node_block: The Optical Node hosting the ports.
+        client_port_name: The client port name.
         line_port_names: List of line port names.
         xconn_description: Optional description for the cross-connect.
+        allocate: Whether to create the cross-connect when it does not exist yet.
 
     Returns:
-        The created cross-connect configuration.
+        The desired configuration of the cross-connect; empty when there is none and
+        ``allocate`` is false.
 
     Raises:
         ValueError: If the cross-connect cannot be created.
     """
     g42 = get_g42_client(optical_node_block)
-
     client = f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
     och_key = _derive_optical_channel_key(line_port_names)
-    dst_parent_odu = f"{och_key}-ODUCni"
     direction = "two-way"
-    label = xconn_description
     payload_type = _retrieve_payload_type(g42, client_port_name)
 
     xcon = _find_xcon(g42, client, och_key, direction, payload_type)
-    if xcon:
-        endpoint = g42.data.ioa_network_element_ne.services.xcon(xcon.name)
-        before = _retrieve_required(endpoint.retrieve, depth=2, content="config")
-        # Minimal merge: list key plus changed leaves only.
-        endpoint.update(name=before.name, label=label, circuit_id_suffix=label)
-        after = endpoint.retrieve(depth=2, content="config")
-        return compare_pydantic_objects(before, after)
-
-    dst_time_slots = _retrieve_time_slots(g42, dst_parent_odu, payload_type)
-    _create_xcon(
-        g42=g42,
-        client=client,
-        dst_parent_odu=dst_parent_odu,
-        direction=direction,
-        payload_type=payload_type,
-        label=label,
-        dst_time_slots=dst_time_slots,
-    )
-    xcon = _find_xcon(g42, client, och_key, direction, payload_type)
-    if xcon:
-        return yang_dump(xcon, exclude_unset=True)
-
-    msg = f"Unable to create XCON for client {client_port_name} on {_node_id(optical_node_block)}. "
-    raise ValueError(msg)
-
-
-def delete_transponder_crossconnect(
-    optical_node_block: NokiaGxG42BlockProvisioning,
-    client_port_name: str,
-) -> dict[str, Any]:
-    """Delete a cross-connect between client and line ports on the given GX G42 Optical Node.
-
-    Args:
-        optical_node_block: The Optical Node (transponder) to configure.
-        client_port_name: The client port name (e.g. ``"port-1/2/3"``).
-
-    Returns:
-        A dictionary with a ``"message"`` and the list of deleted cross-connects.
-    """
-    result = {"message": "", "deleted_xcon": []}
-
-    g42 = get_g42_client(optical_node_block)
-    client = f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
-
-    # An empty list reads as no data over NETCONF.
-    xcons = g42.data.ioa_network_element_ne.services.xcon.retrieve(depth=2, content="config") or []
-
-    deleted_xcons = []
-    for xcon in xcons:
-        if client in (xcon.source, xcon.destination):
-            uri = g42.data.ioa_network_element_ne.services.xcon(xcon.name)
-            uri.delete()
-            deleted_xcons.append(xcon)
-
-    if not deleted_xcons:
-        result["message"] = (
-            f"{_node_id(optical_node_block)} {client_port_name}:"
-            " There was no cross-connection associated to this client port in the configuration."
+    if xcon is None and allocate:
+        dst_parent_odu = f"{och_key}-ODUCni"
+        _create_xcon(
+            g42=g42,
+            client=client,
+            dst_parent_odu=dst_parent_odu,
+            direction=direction,
+            payload_type=payload_type,
+            label=xconn_description,
+            dst_time_slots=_retrieve_time_slots(g42, dst_parent_odu, payload_type),
         )
-        return result
+        xcon = _find_xcon(g42, client, och_key, direction, payload_type)
+        if xcon is None:
+            msg = f"Unable to create XCON for client {client_port_name} on {_node_id(optical_node_block)}. "
+            raise ValueError(msg)
+    if xcon is None:
+        return []
+    node = g42.data.ioa_network_element_ne.services.xcon(xcon.name)
+    return [fragment(node, label=xconn_description, circuit_id_suffix=xconn_description)]
 
-    result["deleted_xcon"] = deleted_xcons
-    return result
 
-
-def factory_reset_transponder_client(
+def configure_line_transceivers(
     optical_node_block: NokiaGxG42BlockProvisioning,
-    port_name: str,
+    port_names: tuple[str, ...],
+    central_frequencies: tuple[Frequency, ...],
+    modes: tuple[str, ...],
+    descriptions: tuple[str, ...],
+    *,
+    owner_instance_id: UUID | str,
 ) -> dict[str, Any]:
-    """Factory reset the client port configuration of the given GX G42 Optical Node.
-
-    Args:
-        optical_node_block: The Optical Node to reset.
-        port_name: The client port name.
-
-    Returns:
-        The reset configuration.
-    """
-    g42 = get_g42_client(optical_node_block)
-    shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
-
-    configurations = {}
-
-    # 1. Ethernet configuration
-    navigator = g42.data.ioa_network_element_ne.facilities.ethernet(port_name)
-    conf = navigator.retrieve(content="config", depth=2)
-    navigator.update(name=port_name, admin_state="lock", label="")
-    diff = compare_pydantic_objects(conf, navigator.retrieve(depth=2, content="config"))
-    configurations["1.ethernet"] = diff
-
-    # 2. Tributary point-to-point configuration
-    navigator = g42.data.ioa_network_element_ne.facilities.trib_ptp(port_name)
-    conf = navigator.retrieve(content="config", depth=2)
-    navigator.update(name=port_name, label="", admin_state="lock")
-    diff = compare_pydantic_objects(conf, navigator.retrieve(depth=2, content="config"))
-    configurations["2.trib-ptp"] = diff
-
-    # 3. TOM configuration
-    navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
-    conf = navigator.retrieve(content="config", depth=2)
-    # Minimal merge on the singleton TOM facility: only the changed leaves.
-    navigator.update(label="", admin_state="lock")
-    diff = compare_pydantic_objects(conf, navigator.retrieve(depth=2, content="config"))
-    configurations["3.tom"] = diff
-
-    # 4. Port configuration
-    navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    conf = navigator.retrieve(content="config", depth=2)
-    # Minimal merge: list key plus changed leaves only.
-    navigator.update(name=port_id, label="", admin_state="lock")
-    diff = compare_pydantic_objects(conf, navigator.retrieve(depth=2, content="config"))
-    configurations["4.port"] = diff
-
-    return configurations
-
-
-def factory_reset_transponder_lines(
-    optical_node_block: NokiaGxG42BlockProvisioning,
-    line_port_names: list[str],
-) -> dict[str, Any]:
-    """Factory reset the transponder line configuration of the given GX G42 Optical Node.
-
-    Args:
-        optical_node_block: The Optical Node to reset.
-        line_port_names: The line port names.
-
-    Returns:
-        The reset configuration.
-    """
-    g42 = get_g42_client(optical_node_block)
-    configurations = {}
-
-    for port_name in line_port_names:
-        # port
-        shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
-        navigator = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-        before = navigator.retrieve(content="config", depth=2)
-        # Minimal merge: list key plus changed leaves only.
-        navigator.update(
-            name=port_id,
-            admin_state="lock",
-            label="",
-            alarm_report_control="allowed",
-        )
-        after = navigator.retrieve(content="config", depth=2)
-        diff = compare_pydantic_objects(before, after)
-        configurations[f"port-{port_name}"] = diff
-
-        # super-channel-group
-        navigator = g42.data.ioa_network_element_ne.facilities.super_channel_group(port_name)
-        before = navigator.retrieve(depth=2, content="config")
-        navigator.update(name=port_name, admin_state="lock", label="", alarm_report_control="allowed")
-        after = navigator.retrieve(depth=2, content="config")
-        diff = compare_pydantic_objects(before, after)
-        configurations[f"super-channel-group-{port_name}"] = diff
-
-    # super-channel
-    sup_ch_name = "_".join(line_port_names)
-    navigator = g42.data.ioa_network_element_ne.facilities.super_channel(sup_ch_name)
-    before = navigator.retrieve(depth=2, content="config")
-    navigator.delete()
-    configurations[f"super-channel-{sup_ch_name}"] = compare_pydantic_objects(before, None)
-
-    return configurations
+    """Make the given GX G42 node run the line transceiver configuration; return the applied diff."""
+    root = get_g42_client(optical_node_block).data
+    fragments = render_line_transceivers(root, port_names, central_frequencies, modes, descriptions)
+    return apply_config(optical_node_block, owner_instance_id, LINE_SCOPE, fragments)
 
 
 def validate_trx_line(
@@ -605,112 +442,55 @@ def validate_trx_line(
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
     descriptions: tuple[str, ...],
+    *,
+    owner_instance_id: UUID | str,
 ) -> None:
-    """Validate the transceiver line configuration on the given GX G42 Optical Node.
-
-    Args:
-        optical_node_block: The Optical Node to validate.
-        port_names: The line port names.
-        central_frequencies: The central frequencies of the transport channels.
-        modes: The operating modes of the transport channels.
-        descriptions: The channel descriptions.
+    """Check the line transceiver configuration of the given GX G42 node.
 
     Raises:
-        ValueError: If the configuration is invalid.
+        ValueError: If the attributes are inconsistent or the device configuration differs.
     """
     if not (len(port_names) == len(central_frequencies) == len(modes) == len(descriptions)):
         msg = "All channel attributes must have the same length"
         raise ValueError(msg)
+    root = get_g42_client(optical_node_block).data
+    fragments = render_line_transceivers(root, port_names, central_frequencies, modes, descriptions)
+    verify_config(optical_node_block, owner_instance_id, LINE_SCOPE, fragments)
 
-    if len(set(modes)) != 1:
-        msg = f"All modes must be the same for GX_G42 validation but got {modes}."
-        raise ValueError(msg)
 
-    g42 = get_g42_client(optical_node_block)
+def factory_reset_transponder_lines(
+    optical_node_block: NokiaGxG42BlockProvisioning,
+    line_port_names: list[str],
+    *,
+    owner_instance_id: UUID | str,
+) -> dict[str, Any]:
+    """Release the line transceiver configuration of the given GX G42 node; return the applied diff.
 
-    actual_config: dict[str, Any] = {
-        "ports": {},
-        "super-channel-groups": {},
-        "optical-carriers": {},
-        "super-channel": {},
-    }
+    The super-channel is deleted and the ports and super-channel groups go back to their
+    factory configuration, unless another owner still holds them. The transmit power
+    recorded for the ports is forgotten: the optical carrier goes with the super-channel.
+    """
+    root = get_g42_client(optical_node_block).data
+    facilities = root.ioa_network_element_ne.facilities
+    rendered = [fragment(facilities.super_channel("_".join(line_port_names)), label="")]
+    for name in line_port_names:
+        rendered.append(fragment(g42_port_node(root, name), label="", admin_state="lock"))
+        rendered.append(fragment(facilities.super_channel_group(name), label="", admin_state="lock"))
+        forget_config(optical_node_block, owner_instance_id, TX_POWER_SCOPE.format(name))
+    return release_config(optical_node_block, owner_instance_id, LINE_SCOPE, rendered)
 
-    desired_config: dict[str, Any] = {
-        "ports": {},
-        "super-channel-groups": {},
-        "optical-carriers": {},
-        "super-channel": {},
-    }
 
-    for port_name, central_frequency, description in zip(
-        port_names,
-        central_frequencies,
-        descriptions,
-        strict=False,
-    ):
-        shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
-        endpoint = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-        actual_config["ports"][port_name] = yang_dump(
-            _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
-        )
-
-        endpoint = g42.data.ioa_network_element_ne.facilities.super_channel_group(port_name)
-        actual_config["super-channel-groups"][port_name] = yang_dump(
-            _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
-        )
-
-        endpoint = g42.data.ioa_network_element_ne.facilities.optical_carrier(f"{port_name}-1")
-        actual_config["optical-carriers"][port_name] = yang_dump(
-            _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
-        )
-
-        desired_config["ports"][port_name] = {
-            "name": port_id,
-            "label": description,
-            "admin-state": "unlock",
-            "alarm-report-control": "allowed",
-        }
-        desired_config["super-channel-groups"][port_name] = {
-            "name": f"{shelf_id}-{slot_id}-{port_id}",
-            "label": description,
-            "admin-state": "unlock",
-            "line-system-mode": "openwave",
-            "alarm-report-control": "allowed",
-        }
-        desired_config["optical-carriers"][port_name] = {
-            "name": f"{shelf_id}-{slot_id}-{port_id}-1",
-            "label": description,
-            "tx-cd": "0.00",
-            "frequency": str(central_frequency),
-            "admin-state": "unlock",
-            "frequency-offset": 0,
-            "alarm-report-control": "allowed",
-        }
-
-    super_channel_name = "_".join(port_names)
-    endpoint = g42.data.ioa_network_element_ne.facilities.super_channel(super_channel_name)
-    actual_config["super-channel"] = yang_dump(
-        _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
-    )
-
-    carriers = [f"{port_name}-1" for port_name in port_names]
-    desired_config["super-channel"] = {
-        "name": super_channel_name,
-        "label": "+".join(descriptions),
-        "carriers": carriers,
-        "admin-state": "unlock",
-        "carrier-mode": modes[0],
-        "alarm-report-control": "allowed",
-    }
-
-    diff = compare_dicts(desired_config, actual_config)
-    if diff["mismatched_value"] != {} or diff["missing_key"] != {}:
-        msg = (
-            f"Configuration mismatch for {_node_id(optical_node_block)} {port_names}:\n"
-            f"mismatch: {diff['mismatched_value']}\n"
-            f"missing: {diff['missing_key']}\n"
-        )
-        raise ValueError(msg)
+def configure_transceiver_client(
+    optical_node_block: NokiaGxG42BlockProvisioning,
+    port_name: str,
+    description: str,
+    speed: OpticalDigitalServiceSpeed,
+    *,
+    owner_instance_id: UUID | str,
+) -> dict[str, Any]:
+    """Make the given GX G42 node run the client port configuration; return the applied diff."""
+    fragments = render_transceiver_client(get_g42_client(optical_node_block).data, port_name, description, speed)
+    return apply_config(optical_node_block, owner_instance_id, CLIENT_SCOPE.format(port_name), fragments)
 
 
 def validate_trx_client(
@@ -718,88 +498,52 @@ def validate_trx_client(
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
+    *,
+    owner_instance_id: UUID | str,
 ) -> None:
-    """Validate the transceiver client configuration on the given GX G42 Optical Node.
-
-    Args:
-        optical_node_block: The Optical Node to validate.
-        port_name: The client port name.
-        description: The description of the client service.
-        speed: The speed of the client service in Gbit/s.
+    """Check the client port configuration of the given GX G42 node.
 
     Raises:
-        ValueError: If the configuration is invalid.
+        ValueError: If the device configuration differs.
     """
-    g42 = get_g42_client(optical_node_block)
-    shelf_id, slot_id, port_id = port_name.split("-")  # 1-4-L1 -> 1, 4, L1
+    fragments = render_transceiver_client(get_g42_client(optical_node_block).data, port_name, description, speed)
+    verify_config(optical_node_block, owner_instance_id, CLIENT_SCOPE.format(port_name), fragments)
 
-    required_type, required_subtype, phy_mode, service_type = _client_speed_config(speed)
 
-    actual_config = {}
-    # port
-    endpoint = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id)
-    actual_config["port"] = yang_dump(
-        _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
-    )
-    # TOM
-    endpoint = g42.data.ioa_network_element_ne.equipment.card(f"{shelf_id}-{slot_id}").port(port_id).tom
-    actual_config["tom"] = yang_dump(
-        _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
-    )
-    # trib-ptp
-    endpoint = g42.data.ioa_network_element_ne.facilities.trib_ptp(port_name)
-    actual_config["trib-ptp"] = yang_dump(
-        _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
-    )
-    # ethernet
-    endpoint = g42.data.ioa_network_element_ne.facilities.ethernet(port_name)
-    actual_config["ethernet"] = yang_dump(
-        _retrieve_required(endpoint.retrieve, depth=2, content="config"), exclude_unset=True
-    )
+def factory_reset_transponder_client(
+    optical_node_block: NokiaGxG42BlockProvisioning,
+    port_name: str,
+    *,
+    owner_instance_id: UUID | str,
+) -> dict[str, Any]:
+    """Release the client port configuration of the given GX G42 node; return the applied diff."""
+    root = get_g42_client(optical_node_block).data
+    port = g42_port_node(root, port_name)
+    facilities = root.ioa_network_element_ne.facilities
+    rendered = [
+        fragment(node, label="", admin_state="lock")
+        for node in (facilities.ethernet(port_name), facilities.trib_ptp(port_name), port.tom, port)
+    ]
+    return release_config(optical_node_block, owner_instance_id, CLIENT_SCOPE.format(port_name), rendered)
 
-    desired_config = {
-        "tom": {
-            "label": description,
-            "phy-mode": phy_mode,
-            "admin-state": "unlock",
-            "required-type": required_type,
-            "required-subtype": required_subtype,
-            "alarm-report-control": "allowed",
-        },
-        "port": {
-            "label": description,
-            "admin-state": "unlock",
-            "alarm-report-control": "allowed",
-        },
-        "trib-ptp": {
-            "label": description,
-            "admin-state": "unlock",
-            "service-type": service_type,
-            "alarm-report-control": "allowed",
-        },
-        "ethernet": {
-            "label": description,
-            "fec-mode": "enabled",
-            "loopback": "none",
-            "admin-state": "unlock",
-            "lldp-egress-mode": "snoop",
-            "test-signal-type": "none",
-            "lldp-admin-status": "rx-only",
-            "lldp-ingress-mode": "snoop",
-            "alarm-report-control": "allowed",
-            "test-signal-direction": "egress",
-            "test-signal-monitoring": False,
-        },
-    }
 
-    diff = compare_dicts(desired_config, actual_config)
-    if diff["mismatched_value"] != {} or diff["missing_key"] != {}:
-        msg = (
-            f"Configuration mismatch for {_node_id(optical_node_block)} {port_name}:\n"
-            f"mismatch: {diff['mismatched_value']}\n"
-            f"missing: {diff['missing_key']}\n"
-        )
-        raise ValueError(msg)
+def configure_transponder_crossconnect(
+    optical_node_block: NokiaGxG42BlockProvisioning,
+    client_port_name: str,
+    line_port_names: list[str],
+    xconn_description: str = "",
+    *,
+    owner_instance_id: UUID | str,
+) -> dict[str, Any]:
+    """Make the given GX G42 node run the client/line cross-connect; return the applied diff.
+
+    Raises:
+        ValueError: If the cross-connect cannot be created.
+    """
+    fragments = render_transponder_crossconnect(
+        optical_node_block, client_port_name, line_port_names, xconn_description, allocate=True
+    )
+    return apply_config(optical_node_block, owner_instance_id, CROSSCONNECT_SCOPE.format(client_port_name), fragments)
 
 
 def validate_trx_crossconnect(
@@ -807,74 +551,69 @@ def validate_trx_crossconnect(
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
+    *,
+    owner_instance_id: UUID | str,
 ) -> None:
-    """Validate the transponder cross-connect configuration on the given GX G42 Optical Node.
-
-    Args:
-        optical_node_block: The Optical Node to validate.
-        client_port_name: The client port name.
-        line_port_names: The line port names.
-        xconn_description: The description of the cross-connect.
+    """Check the client/line cross-connect of the given GX G42 node.
 
     Raises:
-        ValueError: If the configuration is invalid.
+        ValueError: If the cross-connect is missing or its configuration differs.
     """
-    g42 = get_g42_client(optical_node_block)
-
-    client = f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
-    och_key = _derive_optical_channel_key(line_port_names)
-    direction = "two-way"
-    label = xconn_description
-    payload_type = _retrieve_payload_type(g42, client_port_name)
-
-    xcons = g42.data.ioa_network_element_ne.services.xcon.retrieve(depth=2, content="config")
-
-    actual_config = None
-    for xcon in xcons:
-        if (xcon.source == client and och_key in xcon.destination) or (
-            xcon.destination == client and och_key in xcon.source
-        ):
-            actual_config = yang_dump(xcon, exclude_unset=True)
-            break
-
-    if actual_config is None:
+    fragments = render_transponder_crossconnect(
+        optical_node_block, client_port_name, line_port_names, xconn_description, allocate=False
+    )
+    if not fragments:
         msg = (
             f"Cross-connect not found for {_node_id(optical_node_block)} {client_port_name} to {line_port_names}. "
             "Please ensure the cross-connect exists and is correctly configured then retry."
         )
-        raise ValueError(msg)
+        raise ConfigDriftError(msg)
+    verify_config(optical_node_block, owner_instance_id, CROSSCONNECT_SCOPE.format(client_port_name), fragments)
 
-    desired_config = {
-        "label": label,
-        "direction": direction,
-        "payload-type": payload_type,
-        "circuit-id-suffix": label,
-    }
 
-    diff = compare_dicts(desired_config, actual_config)
-    if diff["mismatched_value"] != {} or diff["missing_key"] != {}:
-        msg = (
-            f"Configuration mismatch for {_node_id(optical_node_block)} {client_port_name} to {line_port_names}:\n"
-            f"mismatch: {diff['mismatched_value']}\n"
-            f"missing: {diff['missing_key']}\n"
-        )
-        raise ValueError(msg)
+def delete_transponder_crossconnect(
+    optical_node_block: NokiaGxG42BlockProvisioning,
+    client_port_name: str,
+    *,
+    owner_instance_id: UUID | str,
+) -> dict[str, Any]:
+    """Release the cross-connects of a client port of the given GX G42 node; return the applied diff.
+
+    Besides the cross-connect recorded for the owner, every cross-connect found on the
+    device for the client port is released, which covers the ones applied before they
+    were recorded.
+    """
+    g42 = get_g42_client(optical_node_block)
+    client = f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
+    # An empty list reads as no data over NETCONF.
+    xcons = g42.data.ioa_network_element_ne.services.xcon.retrieve(depth=2, content="config") or []
+    found = [
+        fragment(g42.data.ioa_network_element_ne.services.xcon(xcon.name), label=xcon.label or "")
+        for xcon in xcons
+        if client in (xcon.source, xcon.destination)
+    ]
+    return release_config(optical_node_block, owner_instance_id, CROSSCONNECT_SCOPE.format(client_port_name), found)
 
 
 def align_tx_power_to_target(
     optical_node_block: NokiaGxG42BlockProvisioning,
     line_port_name: str,
     db_from_target: Decimal | float | str,
+    *,
+    owner_instance_id: UUID | str,
 ) -> dict[str, Any]:
     """Subtract db_from_target decibels (dB) to the transmitted optical power of a GX G42 line port.
+
+    The new power is applied and recorded like any other intended setting of the node.
 
     Args:
         optical_node_block: The Optical Node to configure.
         line_port_name: The line port name.
         db_from_target: The difference between current and target transmit power in dB.
+        owner_instance_id: ``subscription_instance_id`` of the product block the setting belongs to.
 
     Returns:
-        A dictionary indicating the old and new required transmit power.
+        The applied diff.
 
     Raises:
         ValueError: If no transmit power is configured on the line port.
@@ -884,18 +623,16 @@ def align_tx_power_to_target(
     min_tx_power = Decimal("-6.00")
     max_tx_power = Decimal("9.00")
 
-    g42 = get_g42_client(optical_node_block)
-    uri = g42.data.ioa_network_element_ne.facilities.optical_carrier(f"{line_port_name}-1")
-    conf = _retrieve_required(uri.retrieve, depth=2, content="config")
-    current_tx_power = conf.tx_power
+    root = get_g42_client(optical_node_block).data
+    carrier = root.ioa_network_element_ne.facilities.optical_carrier(f"{line_port_name}-1")
+    current_tx_power = _retrieve_required(carrier.retrieve, depth=2, content="config").tx_power
     if current_tx_power is None:
         msg = f"No transmit power configured on {_node_id(optical_node_block)} {line_port_name}"
         raise ValueError(msg)
-    new_tx_power = round(current_tx_power - db_from_target, 2)
-    new_tx_power = min(max_tx_power, new_tx_power)
-    new_tx_power = max(min_tx_power, new_tx_power)
-    # Minimal merge: list key plus the changed leaf only.
-    uri.update(name=f"{line_port_name}-1", tx_power=new_tx_power)
-    new_conf = conf.model_copy(deep=True)
-    new_conf.tx_power = new_tx_power
-    return compare_pydantic_objects(conf, new_conf)
+    new_tx_power = max(min_tx_power, min(max_tx_power, round(_as_decimal(current_tx_power) - db_from_target, 2)))
+    return apply_config(
+        optical_node_block,
+        owner_instance_id,
+        TX_POWER_SCOPE.format(line_port_name),
+        render_tx_power(root, line_port_name, new_tx_power),
+    )

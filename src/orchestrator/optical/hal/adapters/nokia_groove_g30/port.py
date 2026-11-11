@@ -1,6 +1,9 @@
-"""Nokia Groove G30 port operations: discovery, description, admin state, termination and checks."""
+"""Nokia Groove G30 port operations: discovery, description, admin state, termination and checks.
 
-import json
+The configuration is declarative (see :mod:`orchestrator.optical.hal.reconcile`): it is
+rendered, then applied, verified or released. It is owned by the Optical Port block.
+"""
+
 import re
 from decimal import Decimal
 from typing import Any, Literal
@@ -15,7 +18,6 @@ from orchestrator.optical.hal._common import (
 from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import (
     CardTypeEnum,
     GainRangeTypeEnum,
-    PortModeEnum,
 )
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     G30_MAX_SLOT_ID,
@@ -23,17 +25,18 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     G30Module,
     g30_ids_from_port_name,
     g30_modules,
+    g30_och_os_node,
     g30_ots_id,
-    g30_port_navigator_node_from_port_name,
+    g30_port_node,
     get_g30_client,
 )
 from orchestrator.optical.hal.adapters.nokia_groove_g30.transponder import _get_modulation_and_rate_from_mode
+from orchestrator.optical.hal.reconcile import Fragment, apply_config, fragment, release_config, verify_config
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
-from orchestrator.optical.utils.datadiff import compare_pydantic_objects, yang_dump
 
 #: Subslot of the OCC2 card holding the booster of an amplifier card; the
 #: preamplifier lives in the amplifier port's own subslot. A Groove G30 amplifier card
@@ -189,32 +192,30 @@ def retrieve_transceiver_modes(optical_node_block: NokiaGrooveG30BlockProvisioni
     return supported_modes
 
 
+#: Rendering units of the port configuration owned by an Optical Port block.
+DESCRIPTION_SCOPE = "description"
+ADMIN_STATE_SCOPE = "admin-state"
+TERMINATION_SCOPE = "termination"
+CHANNEL_DESCRIPTION_SCOPE = "channel-description:{}"
+
+_ADMIN_STATUS = {"up": "up", "down": "down", "maintenance": "up-no-alm"}
+
+
+def _host_and_root(port_block: AnyOpticalPortBlockProvisioning) -> tuple[Any, Any, Any]:
+    """Return the host node of a port block, the data root of its client and the port navigator."""
+    host_node = port_block.optical_port_host_node
+    root = get_g30_client(host_node).data
+    return host_node, root, g30_port_node(root, _port_name(port_block))
+
+
 def set_port_description(
     port_block: AnyOpticalPortBlockProvisioning,
     port_description: str,
 ) -> dict[str, Any]:
-    """Set the description of a Groove G30 optical port.
-
-    Args:
-        port_block: Optical Port of which the description is to be set.
-        port_description: The description to set on the port.
-
-    Returns:
-        The difference between the port configuration before and after the update.
-
-    Raises:
-        ValueError: In case the configuration failed.
-    """
-    host_node = port_block.optical_port_host_node
-    port_name = _port_name(port_block)
-    endpoint, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
-    before = endpoint.retrieve(content="config", depth=2)
-    # Minimal merge: only the changed leaf plus the list key.
-    if subport_id is not None:
-        endpoint.update(subport_id=subport_id, service_label=port_description)
-    else:
-        endpoint.update(port_id=port_id, service_label=port_description)
-    return compare_pydantic_objects(before, endpoint.retrieve(content="config", depth=2))
+    """Make a Groove G30 optical port carry the given description; return the applied diff."""
+    host_node, _, port = _host_and_root(port_block)
+    fragments = [fragment(port, service_label=port_description)]
+    return apply_config(host_node, port_block.subscription_instance_id, DESCRIPTION_SCOPE, fragments)
 
 
 def set_channel_description(
@@ -222,63 +223,31 @@ def set_channel_description(
     facility_id: str,
     description: str,
 ) -> dict[str, Any]:
-    """Set the description of a Groove G30 optical channel.
+    """Make a Groove G30 optical channel carry the given description; return the applied diff.
 
     Args:
-        optical_node_block: Optical Node of which the optical channel is to be modified.
+        optical_node_block: Optical Node of which the optical channel is to be modified,
+            which also owns the setting.
         facility_id: The id of the optical channel to set the description on (e.g. ``"1/1/1"``).
         description: The description to set on the channel.
-
-    Returns:
-        The channel configuration after the update.
-
-    Raises:
-        ValueError: In case the configuration failed.
     """
-    g30 = get_g30_client(optical_node_block)
-    shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(facility_id)
-    uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os
-
-    # Minimal merge on the singleton och-os facility.
-    uri.update(service_label=description)
-
-    return yang_dump(_retrieve_required(uri.retrieve, content="config", depth=2))
+    och_os = g30_och_os_node(get_g30_client(optical_node_block).data, facility_id)
+    return apply_config(
+        optical_node_block,
+        optical_node_block.subscription_instance_id,
+        CHANNEL_DESCRIPTION_SCOPE.format(facility_id),
+        [fragment(och_os, service_label=description)],
+    )
 
 
 def set_port_admin_state(
     port_block: AnyOpticalPortBlockProvisioning,
     admin_state: Literal["up", "down", "maintenance"],
 ) -> dict[str, Any]:
-    """Set the administrative state of a Groove G30 optical port.
-
-    Args:
-        port_block: Optical Port of which the admin state is to be set.
-        admin_state: The administrative state to set on the port: ["up", "down", "maintenance"].
-
-    Returns:
-        The difference between the port configuration before and after the update.
-
-    Raises:
-        ValueError: In case the configuration failed.
-    """
-    host_node = port_block.optical_port_host_node
-    port_name = _port_name(port_block)
-    mapping = {
-        "up": "up",
-        "down": "down",
-        "maintenance": "up-no-alm",
-    }
-    status = mapping[admin_state]
-
-    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
-
-    before = port_uri.retrieve(depth=2, content="config")
-    # Minimal merge: only the changed leaf plus the list key.
-    if subport_id is not None:
-        port_uri.update(subport_id=subport_id, admin_status=status)
-    else:
-        port_uri.update(port_id=port_id, admin_status=status)
-    return compare_pydantic_objects(before, port_uri.retrieve(depth=2, content="config"))
+    """Make a Groove G30 optical port run the given administrative state; return the applied diff."""
+    host_node, _, port = _host_and_root(port_block)
+    fragments = [fragment(port, admin_status=_ADMIN_STATUS[admin_state])]
+    return apply_config(host_node, port_block.subscription_instance_id, ADMIN_STATE_SCOPE, fragments)
 
 
 def _is_amplifier_port(
@@ -299,28 +268,8 @@ def _is_amplifier_port(
     return modules[(slot_id, None)].is_amplifier
 
 
-def _configure_g30_amplifier_port(
-    host_node: AnyOpticalNodeBlockProvisioningUnion,
-    shelf_id: int,
-    slot_id: int,
-    subslot_id: int | None,
-    endpoint: Any,
-    remote_host_node: AnyOpticalNodeBlockProvisioningUnion,
-    remote_port_name: str,
-) -> dict[str, Any]:
-    """Configure the booster/preamp of a Groove G30 amplifier port and the port itself.
-
-    Args:
-        host_node: The local Groove G30 node block.
-        shelf_id: The shelf id of the amplifier port.
-        slot_id: The slot id of the amplifier port.
-        subslot_id: The subslot id of the amplifier port.
-        endpoint: The NETCONF navigator node of the amplifier port.
-        remote_host_node: The remote Groove G30 node block the fiber leads to.
-        remote_port_name: The name of the remote port the fiber leads to.
-
-    Returns:
-        The before/after configuration diffs, keyed by ``"port"``, ``"booster"`` and ``"preamp"``.
+def _render_amplifiers(root: Any, shelf_id: int, slot_id: int, subslot_id: int | None) -> list[Fragment]:
+    """Render the booster and the preamplifier of a Groove G30 amplifier port.
 
     Raises:
         ValueError: If no subslot id is available for the amplifier port.
@@ -328,121 +277,89 @@ def _configure_g30_amplifier_port(
     if subslot_id is None:
         msg = "Amplifier port configuration requires a subslot id"
         raise ValueError(msg)
+    card = root.ne_ne.shelf(shelf_id).slot(slot_id).card
+    return [
+        fragment(
+            card.subslot(_BOOSTER_SUBSLOT_ID).subcard.amplifier("ba"),
+            admin_status="up",
+            amplifier_enable="enabled",
+            input_los_shutdown="disabled",
+            control_mode="manual",
+            gain_range_control="manual",
+            target_gain_range=GainRangeTypeEnum.STANDARD,
+            target_gain=Decimal("22.0"),
+            output_voa=Decimal("10.0"),
+            tilt_control_mode="manual",
+            gain_tilt=Decimal("0.0"),
+        ),
+        fragment(
+            card.subslot(subslot_id).subcard.amplifier("pa"),
+            admin_status="up",
+            amplifier_enable="enabled",
+            input_los_shutdown="disabled",
+            control_mode="auto",
+            gain_range_control="auto",
+            target_gain_range=GainRangeTypeEnum.STANDARD,
+            tilt_control_mode="auto",
+        ),
+    ]
 
-    g30 = get_g30_client(host_node)
 
-    port_before = endpoint.retrieve(depth=2, content="config")
+def render_termination(
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
+    *,
+    amplifiers: bool = True,
+) -> list[Fragment]:
+    """Render a Groove G30 port terminating a fiber that leads to the remote port.
 
-    booster_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(_BOOSTER_SUBSLOT_ID).subcard.amplifier("ba")
-    booster_before = booster_uri.retrieve(content="config", depth=2)
-    # Minimal merge: list key plus changed leaves only.
-    booster_uri.update(
-        amplifier_name="ba",
-        admin_status="up",
-        amplifier_enable="enabled",
-        input_los_shutdown="disabled",
-        control_mode="manual",
-        gain_range_control="manual",
-        target_gain_range=GainRangeTypeEnum.STANDARD,
-        target_gain=Decimal("22.0"),
-        output_voa=Decimal("10.0"),
-        tilt_control_mode="manual",
-        gain_tilt=Decimal("0.0"),
-    )
+    A fiber between two ports of the same device is recorded as an internal patch; any
+    other one as external connectivity to the remote node and port. The amplifier port
+    of a Groove G30 facing another Groove G30 also carries the settings of its booster
+    and preamplifier, found by reading the installed cards.
 
-    preamp_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(subslot_id).subcard.amplifier("pa")
-    preamp_before = preamp_uri.retrieve(content="config", depth=2)
-    preamp_uri.update(
-        amplifier_name="pa",
-        admin_status="up",
-        amplifier_enable="enabled",
-        input_los_shutdown="disabled",
-        control_mode="auto",
-        gain_range_control="auto",
-        target_gain_range=GainRangeTypeEnum.STANDARD,
-        tilt_control_mode="auto",
-    )
+    Args:
+        optical_port_block: The local port.
+        remote_port_block: The remote port the fiber leads to.
+        amplifiers: Whether to render the booster and preamplifier of an amplifier port.
 
-    endpoint.update(
-        port_id=port_before.port_id,
+    Returns:
+        The desired configuration of the termination.
+
+    Raises:
+        ValueError: If the remote platform is not supported.
+    """
+    host_node, root, port = _host_and_root(optical_port_block)
+    remote_host_node = remote_port_block.optical_port_host_node
+    remote_port_name = _port_name(remote_port_block)
+    external = fragment(
+        port,
         external_connectivity="yes",
         connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
         admin_status="up",
     )
-
-    return {
-        "port": compare_pydantic_objects(port_before, endpoint.retrieve(depth=2, content="config")),
-        "booster": compare_pydantic_objects(booster_before, booster_uri.retrieve(depth=2, content="config")),
-        "preamp": compare_pydantic_objects(preamp_before, preamp_uri.retrieve(depth=2, content="config")),
-    }
-
-
-def configure_termination(
-    optical_port_block: AnyOpticalPortBlockProvisioning,
-    remote_port_block: AnyOpticalPortBlockProvisioning,
-) -> dict[str, Any]:
-    """Configure a Groove G30 port when attaching a fiber to it."""
-    host_node = optical_port_block.optical_port_host_node
-    remote_host_node = remote_port_block.optical_port_host_node
-    port_name = _port_name(optical_port_block)
-    remote_port_name = _port_name(remote_port_block)
-
-    endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id = g30_port_navigator_node_from_port_name(
-        host_node, port_name
-    )
-
-    def _minimal_port_update(**leaves: Any) -> None:
-        # Minimal merge: only changed leaves plus the list key; never resend
-        # the eth*/och-os/pluggable children via the port resource.
-        if subport_id is not None:
-            endpoint.update(subport_id=subport_id, **leaves)
-        else:
-            endpoint.update(port_id=port_id, **leaves)
 
     match (
         remote_host_node.management.optical_module_node_vendor,
         remote_host_node.management.optical_module_node_platform,
     ):
         case (Vendor.NOKIA, Platform.FLEXILS):
-            before = endpoint.retrieve(depth=2, content="config")
-            _minimal_port_update(
-                external_connectivity="yes",
-                connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
-                admin_status="up",
-            )
-            return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
+            return [external]
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            is_same_device = _same_node(host_node, remote_host_node)
-            is_amplifier_port = _is_amplifier_port(host_node, slot_id, subslot_id)
-
-            if is_same_device:
-                before = endpoint.retrieve(depth=2, content="config")
-                _minimal_port_update(
-                    external_connectivity="no",
-                    connected_to=f"patched to {remote_port_name}",
-                    admin_status="up",
-                )
-                return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
-
-            if not is_amplifier_port:
-                before = endpoint.retrieve(depth=2, content="config")
-                _minimal_port_update(
-                    external_connectivity="yes",
-                    connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
-                    admin_status="up",
-                )
-                return compare_pydantic_objects(before, endpoint.retrieve(depth=2, content="config"))
-
+            if _same_node(host_node, remote_host_node):
+                return [
+                    fragment(
+                        port,
+                        external_connectivity="no",
+                        connected_to=f"patched to {remote_port_name}",
+                        admin_status="up",
+                    )
+                ]
+            shelf_id, slot_id, subslot_id, _, _ = g30_ids_from_port_name(_port_name(optical_port_block))
+            if not amplifiers or not _is_amplifier_port(host_node, slot_id, subslot_id):
+                return [external]
             # link H4: the port is an amplifier port of a different Groove G30 device
-            return _configure_g30_amplifier_port(
-                host_node,
-                shelf_id,
-                slot_id,
-                subslot_id,
-                endpoint,
-                remote_host_node,
-                remote_port_name,
-            )
+            return [*_render_amplifiers(root, shelf_id, slot_id, subslot_id), external]
         case _:
             msg = (
                 "Unsupported remote optical device platform when configuring Groove G30 remote port: "
@@ -451,88 +368,54 @@ def configure_termination(
             raise ValueError(msg)
 
 
-def factory_reset(optical_port_block: AnyOpticalPortBlockProvisioning) -> dict[str, Any]:
-    """Prune the configuration of a Groove G30 port."""
-    host_node = optical_port_block.optical_port_host_node
-    port_name = _port_name(optical_port_block)
-    port_uri, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(host_node, port_name)
+def configure_termination(
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
+) -> dict[str, Any]:
+    """Make a Groove G30 port run the configuration of the fiber attached to it; return the applied diff."""
+    return apply_config(
+        optical_port_block.optical_port_host_node,
+        optical_port_block.subscription_instance_id,
+        TERMINATION_SCOPE,
+        render_termination(optical_port_block, remote_port_block),
+    )
 
-    before = port_uri.retrieve(content="config", depth=2)
-    # Minimal merge: only changed leaves plus the list key.
-    if "." in port_name:  # inside OCC2 card
-        if subport_id is not None:
-            port_uri.update(subport_id=subport_id, connected_to="")
-        else:
-            port_uri.update(port_id=port_id, connected_to="")
-    elif subport_id is not None:
-        port_uri.update(
-            subport_id=subport_id,
-            external_connectivity="no",
-            connected_to="",
-            admin_status="down",
-            port_mode=PortModeEnum.NOT_APPLICABLE,
-            service_label="",
-        )
-    else:
-        port_uri.update(
-            port_id=port_id,
-            external_connectivity="no",
-            connected_to="",
-            admin_status="down",
-            port_mode=PortModeEnum.NOT_APPLICABLE,
-            service_label="",
-        )
 
-    return compare_pydantic_objects(before, port_uri.retrieve(content="config", depth=2))
+def factory_reset(
+    optical_port_block: AnyOpticalPortBlockProvisioning,
+    remote_port_block: AnyOpticalPortBlockProvisioning,
+) -> dict[str, Any]:
+    """Release the fiber termination of a Groove G30 port; return the applied diff.
+
+    The port leaves go back to their factory value unless another product block (e.g. a
+    service using the port) still holds them.
+    """
+    return release_config(
+        optical_port_block.optical_port_host_node,
+        optical_port_block.subscription_instance_id,
+        TERMINATION_SCOPE,
+        render_termination(optical_port_block, remote_port_block, amplifiers=False),
+    )
 
 
 def check_fiber(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
 ) -> None:
-    """Check if a Groove G30 port attached to a fiber is correctly configured."""
-    host_node = optical_port_block.optical_port_host_node
-    remote_host_node = remote_port_block.optical_port_host_node
-    port_name = _port_name(optical_port_block)
-    endpoint = g30_port_navigator_node_from_port_name(host_node, port_name)[0]
-    port_data = _retrieve_required(endpoint.retrieve, depth=2)
+    """Check that a Groove G30 port attached to a fiber runs its termination configuration.
 
-    if (
-        remote_host_node.management.optical_module_node_vendor,
-        remote_host_node.management.optical_module_node_platform,
-    ) == (Vendor.NOKIA, Platform.GROOVE_G30) and _same_node(host_node, remote_host_node):
-        con_to_string = f"patched to {_port_name(remote_port_block)}"
-        ext_connectivity = "no"
-    else:
-        con_to_string = f"{_node_id(remote_host_node)} {_port_name(remote_port_block)}"
-        ext_connectivity = "yes"
+    The amplifier settings of an amplifier port are not part of the check: they are
+    tuned on the device after the fiber is attached.
 
-    checks = (
-        port_data.admin_status == "up"
-        and port_data.external_connectivity == ext_connectivity
-        and port_data.connected_to == con_to_string
+    Raises:
+        ValueError: If the port configuration differs.
+    """
+    verify_config(
+        optical_port_block.optical_port_host_node,
+        optical_port_block.subscription_instance_id,
+        TERMINATION_SCOPE,
+        render_termination(optical_port_block, remote_port_block, amplifiers=False),
     )
-
-    if not checks:
-        raise ValueError(
-            json.dumps(
-                {
-                    "optical_device": _node_id(host_node),
-                    "port_name": port_name,
-                    "expected": {
-                        "admin-status": "up",
-                        "external-connectivity": ext_connectivity,
-                        "connected-to": con_to_string,
-                    },
-                    "actual": {
-                        "admin-status": port_data.admin_status,
-                        "external-connectivity": port_data.external_connectivity,
-                        "connected-to": port_data.connected_to,
-                    },
-                },
-                indent=4,
-            )
-        )
 
 
 def get_transceiver_capacity_from_mode(mode: str) -> int | None:

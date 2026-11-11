@@ -1,20 +1,63 @@
-"""Nokia Groove G30 transponder operations: bandwidth, client/line config, cross-connects and validation."""
+"""Nokia Groove G30 transponder operations: bandwidth, client/line config, cross-connects and validation.
+
+The configuration is declarative (see :mod:`orchestrator.optical.hal.reconcile`): every
+object has one ``render_*`` function returning its desired configuration, and the
+configure / validate / factory-reset operations are that rendering applied, verified or
+released. The rendering units (scopes) of an owner block on a node are ``line``,
+``client:<port>``, ``crossconnect:<client port>`` and ``tx-power:<line port>``.
+"""
 
 from decimal import Decimal
 from re import search
 from typing import Any
+from uuid import UUID
 
 from orchestrator.optical.hal._common import _as_decimal, _node_id, _retrieve_required
-from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import PortModeEnum
+from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import G30Client, PortModeEnum
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_ids_from_port_name,
-    g30_port_navigator_node_from_port_name,
+    g30_och_os_node,
+    g30_port_node,
     get_g30_client,
+)
+from orchestrator.optical.hal.reconcile import (
+    ConfigDriftError,
+    Fragment,
+    apply_config,
+    forget_config,
+    fragment,
+    release_config,
+    verify_config,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import NokiaGrooveG30BlockProvisioning
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
-from orchestrator.optical.utils.datadiff import compare_dicts, compare_pydantic_objects, yang_dump
+
+#: Rendering units of the transponder configuration of an owner block on a node.
+LINE_SCOPE = "line"
+CLIENT_SCOPE = "client:{}"
+CROSSCONNECT_SCOPE = "crossconnect:{}"
+TX_POWER_SCOPE = "tx-power:{}"
+
+#: The ODU of a Groove G30 client port cross-connected to a line.
+_CLIENT_ODU = (
+    "/ne:ne/shelf[shelf-id='{shelf}']/slot[slot-id='{slot}']/card/port[port-id='{port}']"
+    "/{eth}/odu[odutype-L1='odu4'][oduid-L1='1'][odutype-L2='unused'][oduid-L2='0']"
+    "[odutype-L3='unused'][oduid-L3='0'][odutype-L4='unused'][oduid-L4='0']"
+)
+#: Resolution of ``required-tx-optical-power`` (one fraction digit in the device model).
+_TX_POWER_STEP = Decimal("0.1")
+_OTU_KEYS = ("otuc2", "otuc3", "otuc4", "otuc5", "otuc6", "otuc7", "otuc9", "otuc11", "otu4", "otu2", "otu2e")
+_ODU_KEYS = (
+    "odutype_L1",
+    "oduid_L1",
+    "odutype_L2",
+    "oduid_L2",
+    "odutype_L3",
+    "oduid_L3",
+    "odutype_L4",
+    "oduid_L4",
+)
 
 
 def _client_speed_config(speed: OpticalDigitalServiceSpeed) -> tuple[str, str, str]:
@@ -123,144 +166,170 @@ def get_signal_bandwidth(optical_node_block: NokiaGrooveG30BlockProvisioning, po
     return bw
 
 
-def configure_line_transceivers(
-    optical_node_block: NokiaGrooveG30BlockProvisioning,
+def render_line_transceivers(
+    root: Any,
     port_names: tuple[str, ...],
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
     descriptions: tuple[str, ...],
-) -> dict[str, Any]:
-    """Configure the line transceivers on the given Groove G30 node.
+) -> list[Fragment]:
+    """Render the line transceivers of a Groove G30: each line port and its optical channel.
+
+    The optical channel (``och-os``) is created by the device once the port mode is set,
+    so it is rendered one stage after its port.
 
     Args:
-        optical_node_block: The Optical Node to configure.
+        root: The data root navigator of a Groove G30 client (``client.data``).
         port_names: The line port names.
         central_frequencies: The central frequencies of the transport channels.
         modes: The operating modes of the transport channels.
         descriptions: The channel descriptions.
 
     Returns:
-        A dictionary of configuration diffs, keyed by port/facility name.
+        The desired configuration of the line ports.
     """
-    g30 = get_g30_client(optical_node_block)
-    configurations = {}
+    fragments: list[Fragment] = []
     for port_name, central_frequency, mode, description in zip(
-        port_names,
-        central_frequencies,
-        modes,
-        descriptions,
-        strict=True,
+        port_names, central_frequencies, modes, descriptions, strict=True
     ):
-        shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
-        uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
-        before = uri.retrieve(depth=3, content="config")
-        # Minimal parent merge: never resend system-created children (och-os,
-        # pluggable, ...) via the port resource — the device rejects them as
-        # read-only. The och-os facility is configured separately below.
-        uri.update(
-            port_id=port_id,
-            port_mode=mode,
-            service_label=description,
-            admin_status="up",
-        )
+        port = g30_port_node(root, port_name)
         modulation, rate = _get_modulation_and_rate_from_mode(mode)
-        uri.och_os.update(
-            modulation_format=modulation,
-            rate_class=rate,
-            frequency=central_frequency,
-            rx_frequency=central_frequency,
-            service_label=description,
-            admin_status="up",
-            laser_enable="enabled",
-            loopback_enable="disabled",
-            loopback_type="none",
+        fragments.append(fragment(port, port_mode=mode, service_label=description, admin_status="up"))
+        fragments.append(
+            fragment(
+                g30_och_os_node(root, port_name),
+                stage=1,
+                modulation_format=modulation,
+                rate_class=rate,
+                frequency=central_frequency,
+                rx_frequency=central_frequency,
+                service_label=description,
+                admin_status="up",
+                laser_enable="enabled",
+                loopback_enable="disabled",
+                loopback_type="none",
+            )
         )
-        after = uri.retrieve(depth=3, content="config")
-        diffs = compare_pydantic_objects(before, after)
-        configurations[port_name] = diffs
-
-    return configurations
+    return fragments
 
 
-def configure_transceiver_client(
-    optical_node_block: NokiaGrooveG30BlockProvisioning,
+def render_transceiver_client(
+    root: Any,
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
-) -> dict[str, Any]:
-    """Configure the client port of a transceiver on the given Groove G30 node.
+) -> list[Fragment]:
+    """Render a client port of a Groove G30 transponder: the port and its ethernet facility.
+
+    The ethernet facility is created by the device once the port mode is set, so it is
+    rendered one stage after its port.
 
     Args:
-        optical_node_block: The Optical Node to configure.
+        root: The data root navigator of a Groove G30 client (``client.data``).
         port_name: The client port name.
         description: The description of the client service.
         speed: The speed of the client service in Gbit/s.
 
     Returns:
-        A dictionary of configuration diffs, keyed by facility name.
+        The desired configuration of the client port.
     """
-    navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
+    port = g30_port_node(root, port_name)
     port_mode, eth_name, fec_type = _client_speed_config(speed)
-    eth = getattr(navigator, eth_name)
-
-    before = navigator.retrieve(content="config", depth=3)
-
-    # Minimal parent merge: never resend system-created children (eth*, och-os,
-    # pluggable, ...) via the port resource — the device rejects stale child
-    # combinations (e.g. mapping-mode GMP with an explicit gfp-payload-fcs).
-    if subport_id is not None:
-        navigator.update(
-            subport_id=subport_id,
+    return [
+        fragment(port, admin_status="up", service_label=description, port_mode=PortModeEnum(port_mode)),
+        fragment(
+            getattr(port, eth_name),
+            stage=1,
             admin_status="up",
             service_label=description,
-            port_mode=PortModeEnum(port_mode),
+            loopback_enable="disabled",
+            test_signal_enable="NONE",
+            client_shutdown="no",
+            eth_fec_type=fec_type,
+        ),
+    ]
+
+
+def render_tx_power(root: Any, line_port_name: str, tx_power: Decimal) -> list[Fragment]:
+    """Render the required transmit power of a Groove G30 line port."""
+    return [fragment(g30_och_os_node(root, line_port_name), required_tx_optical_power=tx_power)]
+
+
+def _free_line_odu(
+    g30: G30Client,
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
+    shelf_id: int,
+    slot_id: int,
+    line_port_ids: list[int],
+    used_odus: set[str],
+) -> str:
+    """Return the first ODU of the given line ports that no cross-connect uses."""
+    possible_odus: list[tuple[int, str]] = []
+    for line_port_id in line_port_ids:
+        och_os = (
+            g30.data.ne_ne.shelf(shelf_id)
+            .slot(slot_id)
+            .card.port(line_port_id)
+            .och_os.retrieve(depth=4, content="config")
         )
-    else:
-        navigator.update(
-            port_id=port_id,
-            admin_status="up",
-            service_label=description,
-            port_mode=PortModeEnum(port_mode),
-        )
+        otu_key = next((f for f in _OTU_KEYS if getattr(och_os, f, None) is not None), None)
+        if otu_key is None:
+            msg = f"No OTU service found for line port {line_port_id} on {_node_id(optical_node_block)}"
+            raise ValueError(msg)
+        for odu in getattr(och_os, otu_key).odu:
+            if any(getattr(odu, key, None) is None for key in _ODU_KEYS):
+                continue
+            if all(getattr(odu, key, None) != "odu4" for key in _ODU_KEYS):
+                continue
+            odu_string = (
+                f"/ne:ne/shelf[shelf-id='{shelf_id}']/slot[slot-id='{slot_id}']/card/port"
+                f"[port-id='{line_port_id}']/och-os/{otu_key}/odu[odutype-L1='{odu.odutype_L1}']"
+                f"[oduid-L1='{odu.oduid_L1}'][odutype-L2='{odu.odutype_L2}'][oduid-L2='{odu.oduid_L2}']"
+                f"[odutype-L3='{odu.odutype_L3}'][oduid-L3='{odu.oduid_L3}']"
+                f"[odutype-L4='{odu.odutype_L4}'][oduid-L4='{odu.oduid_L4}']"
+            )
+            odu_index = int(line_port_id) * 10_000 + int(odu.oduid_L1) * 100 + int(odu.oduid_L2)
+            possible_odus.append((odu_index, odu_string))
 
-    eth.update(
-        admin_status="up",
-        service_label=description,
-        loopback_enable="disabled",
-        test_signal_enable="NONE",
-        client_shutdown="no",
-        eth_fec_type=fec_type,
-    )
-
-    after = navigator.retrieve(content="config", depth=3)
-
-    return compare_pydantic_objects(before, after)
+    available_odus = sorted(odu for odu in possible_odus if odu[1] not in used_odus)
+    if not available_odus:
+        msg = f"No available ODU for crossconnect on {_node_id(optical_node_block)}"
+        raise ValueError(msg)
+    return available_odus[0][1]
 
 
-def configure_transponder_crossconnect(  # noqa: PLR0912, PLR0915
+def render_transponder_crossconnect(
     optical_node_block: NokiaGrooveG30BlockProvisioning,
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
-) -> dict[str, Any]:
-    """Configure a cross-connect between client and line ports on the given Groove G30 node.
+    *,
+    allocate: bool,
+) -> list[Fragment]:
+    """Render the cross-connect between a client port and the line ports of a Groove G30.
+
+    The cross-connect is keyed by its two ODUs, which only the device knows: the one
+    already connecting the client port to one of the line ports is kept, otherwise
+    (``allocate``) the first free ODU of the line ports is taken. This is the one
+    rendering that reads the device.
 
     Args:
-        optical_node_block: The Optical Node to configure.
+        optical_node_block: The Optical Node hosting the ports.
         client_port_name: The client port name (e.g. ``"port-1/2/3"``).
         line_port_names: List of line port names.
         xconn_description: Optional description for the cross-connect.
+        allocate: Whether to pick a free line ODU when no cross-connect exists yet.
 
     Returns:
-        The created cross-connect configuration.
+        The desired configuration of the cross-connect; empty when there is none and
+        ``allocate`` is false.
 
     Raises:
-        ValueError: If the cross-connect cannot be created.
+        ValueError: If the ports are not on the same card, the client port has no
+            ethernet service, or no line ODU is free.
     """
     g30 = get_g30_client(optical_node_block)
     shelf_id, slot_id, _, c_port_id, _ = g30_ids_from_port_name(client_port_name)
-
-    before = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config")
 
     line_port_ids = []
     for lpn in line_port_names:
@@ -277,257 +346,37 @@ def configure_transponder_crossconnect(  # noqa: PLR0912, PLR0915
     if not eth_key:
         msg = f"No eth service found on {_node_id(optical_node_block)} {client_port_name}"
         raise ValueError(msg)
-
-    odu_a = (
-        f"/ne:ne/shelf[shelf-id='{shelf_id}']/slot[slot-id='{slot_id}']/card/port[port-id='{c_port_id}']"
-        f"/{eth_key}/odu[odutype-L1='odu4'][oduid-L1='1'][odutype-L2='unused'][oduid-L2='0']"
-        f"[odutype-L3='unused'][oduid-L3='0'][odutype-L4='unused'][oduid-L4='0']"
-    )
-
-    odu_b = None
-    # An empty list reads as no data over NETCONF.
-    crs = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config") or []
-    for c in crs:
-        if c.src_tp == odu_a:
-            odu_b = c.dst_tp
-            odu_a, odu_b = (
-                odu_b,
-                odu_a,
-            )  # swap the strings, so that src-tp is odu_b string
-            break
-        if c.dst_tp == odu_a:
-            odu_b = c.src_tp
-            break
-
-    if odu_b:
-        id1, id2, id3 = _extract_shelf_slot_port_ids_from_odu_string(odu_b)
-
-        if shelf_id != id1 or slot_id != id2 or id3 not in line_port_ids:
-            xconn = g30.data.ne_ne.services.CRS(odu_b, odu_a)
-            xconn.delete()
-            odu_b = None
-
-    if odu_b is None:
-        possible_odus: list[tuple[int, str]] = []
-        for line_port_id in line_port_ids:
-            och_os = (
-                g30.data.ne_ne.shelf(shelf_id)
-                .slot(slot_id)
-                .card.port(line_port_id)
-                .och_os.retrieve(depth=4, content="config")
-            )
-            otu_key = next(
-                (
-                    f
-                    for f in (
-                        "otuc2",
-                        "otuc3",
-                        "otuc4",
-                        "otuc5",
-                        "otuc6",
-                        "otuc7",
-                        "otuc9",
-                        "otuc11",
-                        "otu4",
-                        "otu2",
-                        "otu2e",
-                    )
-                    if getattr(och_os, f, None) is not None
-                ),
-                None,
-            )
-            if otu_key is None:
-                msg = f"No OTU service found for line port {line_port_id} on {_node_id(optical_node_block)}"
-                raise ValueError(msg)
-            for odu in getattr(och_os, otu_key).odu:
-                key_list = [
-                    "odutype_L1",
-                    "oduid_L1",
-                    "odutype_L2",
-                    "oduid_L2",
-                    "odutype_L3",
-                    "oduid_L3",
-                    "odutype_L4",
-                    "oduid_L4",
-                ]
-
-                if any(getattr(odu, key, None) is None for key in key_list):
-                    continue
-
-                if all(getattr(odu, key, None) != "odu4" for key in key_list):
-                    continue
-
-                odu_string = (
-                    f"/ne:ne/shelf[shelf-id='{shelf_id}']/slot[slot-id='{slot_id}']/card/port"
-                    f"[port-id='{line_port_id}']/och-os/{otu_key}/odu[odutype-L1='{odu.odutype_L1}']"
-                    f"[oduid-L1='{odu.oduid_L1}'][odutype-L2='{odu.odutype_L2}'][oduid-L2='{odu.oduid_L2}']"
-                    f"[odutype-L3='{odu.odutype_L3}'][oduid-L3='{odu.oduid_L3}']"
-                    f"[odutype-L4='{odu.odutype_L4}'][oduid-L4='{odu.oduid_L4}']"
-                )
-                odu_index = int(line_port_id) * 10_000 + int(odu.oduid_L1) * 100 + int(odu.oduid_L2)
-                possible_odus.append((odu_index, odu_string))
-
-        used_odus = set()
-        for c in crs:
-            used_odus.add(c.dst_tp)
-            used_odus.add(c.src_tp)
-
-        available_odus = [odu for odu in possible_odus if odu[1] not in used_odus]
-        if not available_odus:
-            msg = f"No available ODU for crossconnect on {_node_id(optical_node_block)}"
-            raise ValueError(msg)
-        available_odus.sort(key=lambda x: x[0])  # sort by index
-        odu_b = available_odus[0][1]  # take the first available ODU string
-
-    xconn = g30.data.ne_ne.services.CRS(odu_b, odu_a)
-    xconn.update(
-        src_tp=odu_b,
-        dst_tp=odu_a,
-        service_label=xconn_description,
-    )
-
-    after = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config")
-    return compare_pydantic_objects(before, after)
-
-
-def delete_transponder_crossconnect(
-    optical_node_block: NokiaGrooveG30BlockProvisioning,
-    client_port_name: str,
-) -> dict[str, Any]:
-    """Delete a cross-connect between client and line ports on the given Groove G30 node.
-
-    Args:
-        optical_node_block: The Optical Node (transponder) to configure.
-        client_port_name: The client port name (e.g. ``"port-1/2/3"``).
-
-    Returns:
-        A dictionary with a ``"message"`` and the list of deleted cross-connects.
-
-    Raises:
-        ValueError: If the client port has no ethernet service.
-    """
-    result = {"message": "", "deleted_xcon": []}
-
-    g30 = get_g30_client(optical_node_block)
-
-    shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(client_port_name)
-
-    uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card
-
-    card = _retrieve_required(uri.retrieve, depth=2)
-    if card.required_type == "CHM1":
-        result["message"] = (
-            f"{_node_id(optical_node_block)} {client_port_name}: no need to delete any xcon,"
-            " CHM1 crossconnections are not configurable."
-        )
-        return result
-
-    client_port = uri.port(port_id).retrieve(depth=3, content="config")
-    eth_key = next((f for f in ("eth100g", "eth400g") if getattr(client_port, f, None) is not None), None)
-    if not eth_key:
-        msg = (
-            f"{_node_id(optical_node_block)} {client_port_name}:"
-            " This port does not have an ethernet service, it must have been deleted manually."
-        )
-        raise ValueError(msg)
-
-    odu_string = (
-        f"/ne:ne/shelf[shelf-id='{shelf_id}']/slot[slot-id='{slot_id}']"
-        f"/card/port[port-id='{port_id}']/{eth_key}/odu[odutype-L1='odu4']"
-        f"[oduid-L1='1'][odutype-L2='unused'][oduid-L2='0']"
-        f"[odutype-L3='unused'][oduid-L3='0'][odutype-L4='unused'][oduid-L4='0']"
-    )
+    client_odu = _CLIENT_ODU.format(shelf=shelf_id, slot=slot_id, port=c_port_id, eth=eth_key)
 
     # An empty list reads as no data over NETCONF.
     crs = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config") or []
-
-    deleted_crs = []
     for c in crs:
-        if odu_string in {c.src_tp, c.dst_tp}:
-            g30.data.ne_ne.services.CRS(c.src_tp, c.dst_tp).delete()
-            deleted_crs.append(c)
+        if client_odu not in {c.src_tp, c.dst_tp}:
+            continue
+        line_odu = c.dst_tp if c.src_tp == client_odu else c.src_tp
+        if _extract_shelf_slot_port_ids_from_odu_string(line_odu) in {(shelf_id, slot_id, i) for i in line_port_ids}:
+            return [fragment(g30.data.ne_ne.services.CRS(c.src_tp, c.dst_tp), service_label=xconn_description)]
 
-    if not deleted_crs:
-        result["message"] = (
-            f"{_node_id(optical_node_block)} {client_port_name}:"
-            " There was no cross-connection associated to this client port in the configuration."
-        )
-        return result
-
-    result["deleted_xcon"] = deleted_crs
-    return result
+    if not allocate:
+        return []
+    used_odus = {tp for c in crs for tp in (c.src_tp, c.dst_tp)}
+    line_odu = _free_line_odu(g30, optical_node_block, shelf_id, slot_id, line_port_ids, used_odus)
+    return [fragment(g30.data.ne_ne.services.CRS(line_odu, client_odu), service_label=xconn_description)]
 
 
-def factory_reset_transponder_client(
+def configure_line_transceivers(
     optical_node_block: NokiaGrooveG30BlockProvisioning,
-    port_name: str,
+    port_names: tuple[str, ...],
+    central_frequencies: tuple[Frequency, ...],
+    modes: tuple[str, ...],
+    descriptions: tuple[str, ...],
+    *,
+    owner_instance_id: UUID | str,
 ) -> dict[str, Any]:
-    """Factory reset the client port configuration of the given Groove G30 node.
-
-    Args:
-        optical_node_block: The Optical Node to reset.
-        port_name: The client port name.
-
-    Returns:
-        The reset configuration.
-    """
-    navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
-    before = navigator.retrieve(depth=3, content="config")
-    # Minimal parent merge (see configure_transceiver_client): resetting the
-    # port-mode must not resend the stale eth* children.
-    if subport_id is not None:
-        navigator.update(
-            subport_id=subport_id,
-            admin_status="down",
-            service_label="",
-            port_mode="not-applicable",
-        )
-    else:
-        navigator.update(
-            port_id=port_id,
-            admin_status="down",
-            service_label="",
-            port_mode="not-applicable",
-        )
-    after = navigator.retrieve(depth=3, content="config")
-    return compare_pydantic_objects(before, after)
-
-
-def factory_reset_transponder_lines(
-    optical_node_block: NokiaGrooveG30BlockProvisioning,
-    line_port_names: list[str],
-) -> list[Any]:
-    """Factory reset the transponder line configuration of the given Groove G30 node.
-
-    Args:
-        optical_node_block: The Optical Node to reset.
-        line_port_names: The line port names.
-
-    Returns:
-        The reset configuration.
-    """
-    result = []
-    for port_name in line_port_names:
-        navigator, _, _, _, port_id, subport_id = g30_port_navigator_node_from_port_name(optical_node_block, port_name)
-        before = navigator.retrieve(depth=3, content="config")
-        # Minimal parent merge (see configure_transceiver_client).
-        if subport_id is not None:
-            navigator.update(
-                subport_id=subport_id,
-                admin_status="down",
-                service_label="",
-                port_mode="not-applicable",
-            )
-        else:
-            navigator.update(
-                port_id=port_id,
-                admin_status="down",
-                service_label="",
-                port_mode="not-applicable",
-            )
-        after = navigator.retrieve(depth=3, content="config")
-        result.append(compare_pydantic_objects(before, after))
-    return result
+    """Make the given Groove G30 node run the line transceiver configuration; return the applied diff."""
+    root = get_g30_client(optical_node_block).data
+    fragments = render_line_transceivers(root, port_names, central_frequencies, modes, descriptions)
+    return apply_config(optical_node_block, owner_instance_id, LINE_SCOPE, fragments)
 
 
 def validate_trx_line(
@@ -536,63 +385,58 @@ def validate_trx_line(
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
     descriptions: tuple[str, ...],
+    *,
+    owner_instance_id: UUID | str,
 ) -> None:
-    """Validate the transceiver line configuration on the given Groove G30 node.
-
-    Args:
-        optical_node_block: The Optical Node to validate.
-        port_names: The line port names.
-        central_frequencies: The central frequencies of the transport channels.
-        modes: The operating modes of the transport channels.
-        descriptions: The channel descriptions.
+    """Check the line transceiver configuration of the given Groove G30 node.
 
     Raises:
-        ValueError: If the configuration is invalid.
+        ValueError: If the attributes are inconsistent or the device configuration differs.
     """
     if not (len(port_names) == len(central_frequencies) == len(modes) == len(descriptions)):
         msg = "All channel attributes must have the same length"
         raise ValueError(msg)
-
     if len(set(modes)) != 1:
         msg = f"All modes must be the same but got {modes}."
         raise ValueError(msg)
+    root = get_g30_client(optical_node_block).data
+    fragments = render_line_transceivers(root, port_names, central_frequencies, modes, descriptions)
+    verify_config(optical_node_block, owner_instance_id, LINE_SCOPE, fragments)
 
-    g30 = get_g30_client(optical_node_block)
 
-    for port_name, central_frequency, mode, description in zip(
-        port_names,
-        central_frequencies,
-        modes,
-        descriptions,
-        strict=False,
-    ):
-        shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
-        port_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
-        actual_config = yang_dump(_retrieve_required(port_uri.retrieve, depth=3, content="config"), exclude_unset=True)
+def factory_reset_transponder_lines(
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
+    line_port_names: list[str],
+    *,
+    owner_instance_id: UUID | str,
+) -> dict[str, Any]:
+    """Release the line transceiver configuration of the given Groove G30 node; return the applied diff.
 
-        desired_config = {
-            "och-os": {
-                "frequency": central_frequency,
-                "rx-frequency": central_frequency,
-                "service-label": description,
-                "admin-status": "up",
-                "laser-enable": "enabled",
-                "loopback-enable": "disabled",
-                "loopback-type": "none",
-            },
-            "port-mode": mode,
-            "service-label": description,
-            "admin-status": "up",
-        }
+    The line ports go back to their factory configuration unless another owner still
+    holds them. The transmit power recorded for the ports is forgotten: the optical
+    channel it belongs to goes with the port mode.
+    """
+    root = get_g30_client(optical_node_block).data
+    rendered = [
+        fragment(g30_port_node(root, name), port_mode="not-applicable", service_label="", admin_status="down")
+        for name in line_port_names
+    ]
+    for name in line_port_names:
+        forget_config(optical_node_block, owner_instance_id, TX_POWER_SCOPE.format(name))
+    return release_config(optical_node_block, owner_instance_id, LINE_SCOPE, rendered)
 
-        diff = compare_dicts(desired_config, actual_config)
-        if diff["mismatched_value"] != {} or diff["missing_key"] != {}:
-            msg = (
-                f"Configuration mismatch for {_node_id(optical_node_block)} {port_name}:\n"
-                f"mismatch: {diff['mismatched_value']}\n"
-                f"missing: {diff['missing_key']}\n"
-            )
-            raise ValueError(msg)
+
+def configure_transceiver_client(
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
+    port_name: str,
+    description: str,
+    speed: OpticalDigitalServiceSpeed,
+    *,
+    owner_instance_id: UUID | str,
+) -> dict[str, Any]:
+    """Make the given Groove G30 node run the client port configuration; return the applied diff."""
+    fragments = render_transceiver_client(get_g30_client(optical_node_block).data, port_name, description, speed)
+    return apply_config(optical_node_block, owner_instance_id, CLIENT_SCOPE.format(port_name), fragments)
 
 
 def validate_trx_client(
@@ -600,54 +444,47 @@ def validate_trx_client(
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
+    *,
+    owner_instance_id: UUID | str,
 ) -> None:
-    """Validate the transceiver client configuration on the given Groove G30 node.
-
-    Args:
-        optical_node_block: The Optical Node to validate.
-        port_name: The client port name.
-        description: The description of the client service.
-        speed: The speed of the client service in Gbit/s.
+    """Check the client port configuration of the given Groove G30 node.
 
     Raises:
-        ValueError: If the configuration is invalid.
+        ValueError: If the device configuration differs.
     """
-    g30 = get_g30_client(optical_node_block)
+    fragments = render_transceiver_client(get_g30_client(optical_node_block).data, port_name, description, speed)
+    verify_config(optical_node_block, owner_instance_id, CLIENT_SCOPE.format(port_name), fragments)
 
-    shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(port_name)
 
-    port_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
+def factory_reset_transponder_client(
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
+    port_name: str,
+    *,
+    owner_instance_id: UUID | str,
+) -> dict[str, Any]:
+    """Release the client port configuration of the given Groove G30 node; return the applied diff."""
+    port = g30_port_node(get_g30_client(optical_node_block).data, port_name)
+    rendered = [fragment(port, port_mode="not-applicable", service_label="", admin_status="down")]
+    return release_config(optical_node_block, owner_instance_id, CLIENT_SCOPE.format(port_name), rendered)
 
-    port_mode, eth_name, fec_type = _client_speed_config(speed)
 
-    actual_config = yang_dump(_retrieve_required(port_uri.retrieve, depth=3, content="config"), exclude_unset=True)
+def configure_transponder_crossconnect(
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
+    client_port_name: str,
+    line_port_names: list[str],
+    xconn_description: str = "",
+    *,
+    owner_instance_id: UUID | str,
+) -> dict[str, Any]:
+    """Make the given Groove G30 node run the client/line cross-connect; return the applied diff.
 
-    desired_config = {
-        eth_name: {
-            "admin-status": "up",
-            "service-label": description,
-            "loopback-enable": "disabled",
-            "test-signal-enable": "NONE",
-            "client-shutdown": "no",
-            "eth-fec-type": fec_type,
-            "mapping-mode": "GMP",
-        },
-        "pluggable": {
-            "admin-status": "up",
-        },
-        "port-mode": port_mode,
-        "admin-status": "up",
-        "service-label": description,
-    }
-
-    diff = compare_dicts(desired_config, actual_config)
-    if diff["mismatched_value"] != {} or diff["missing_key"] != {}:
-        msg = (
-            f"Configuration mismatch for {_node_id(optical_node_block)} {port_name}:\n"
-            f"mismatch: {diff['mismatched_value']}\n"
-            f"missing: {diff['missing_key']}\n"
-        )
-        raise ValueError(msg)
+    Raises:
+        ValueError: If the cross-connect cannot be rendered.
+    """
+    fragments = render_transponder_crossconnect(
+        optical_node_block, client_port_name, line_port_names, xconn_description, allocate=True
+    )
+    return apply_config(optical_node_block, owner_instance_id, CROSSCONNECT_SCOPE.format(client_port_name), fragments)
 
 
 def validate_trx_crossconnect(
@@ -655,62 +492,97 @@ def validate_trx_crossconnect(
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
+    *,
+    owner_instance_id: UUID | str,
 ) -> None:
-    """Validate the transponder cross-connect configuration on the given Groove G30 node.
-
-    Args:
-        optical_node_block: The Optical Node to validate.
-        client_port_name: The client port name.
-        line_port_names: The line port names.
-        xconn_description: The description of the cross-connect.
+    """Check the client/line cross-connect of the given Groove G30 node.
 
     Raises:
         ValueError: If the cross-connect is missing or its description does not match.
     """
-    g30 = get_g30_client(optical_node_block)
-    crs_list = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config")
-    for c in crs_list:
-        src_shelf_id, src_slot_id, src_port_id = _extract_shelf_slot_port_ids_from_odu_string(c.src_tp)
-        dst_shelf_id, dst_slot_id, dst_port_id = _extract_shelf_slot_port_ids_from_odu_string(c.dst_tp)
-        src_port_string = f"port-{src_shelf_id}/{src_slot_id}/{src_port_id}"
-        dst_port_string = f"port-{dst_shelf_id}/{dst_slot_id}/{dst_port_id}"
-        if (src_port_string == client_port_name and dst_port_string in line_port_names) or (
-            dst_port_string == client_port_name and src_port_string in line_port_names
-        ):
-            if c.service_label != xconn_description:
-                msg = (
-                    f"Cross-connect description mismatch for {_node_id(optical_node_block)} "
-                    f"{client_port_name} to {dst_port_string}: "
-                    f"Expected: {xconn_description}, Actual: {c.service_label}"
-                )
-                raise ValueError(msg)
-            return
-
-    msg = (
-        f"Cross-connect not found for {_node_id(optical_node_block)} {client_port_name} to {line_port_names}. "
-        "Please ensure the cross-connect exists and is correctly configured then retry."
+    fragments = render_transponder_crossconnect(
+        optical_node_block, client_port_name, line_port_names, xconn_description, allocate=False
     )
-    raise ValueError(msg)
+    if not fragments:
+        msg = (
+            f"Cross-connect not found for {_node_id(optical_node_block)} {client_port_name} to {line_port_names}. "
+            "Please ensure the cross-connect exists and is correctly configured then retry."
+        )
+        raise ConfigDriftError(msg)
+    verify_config(optical_node_block, owner_instance_id, CROSSCONNECT_SCOPE.format(client_port_name), fragments)
+
+
+def delete_transponder_crossconnect(
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
+    client_port_name: str,
+    *,
+    owner_instance_id: UUID | str,
+) -> dict[str, Any]:
+    """Release the cross-connects of a client port of the given Groove G30 node; return the applied diff.
+
+    Besides the cross-connect recorded for the owner, every cross-connect found on the
+    device for the client port is released, which covers the ones applied before they
+    were recorded. ``CHM1`` cross-connects are not configurable: nothing is sent.
+
+    Raises:
+        ValueError: If the client port has no ethernet service.
+    """
+    scope = CROSSCONNECT_SCOPE.format(client_port_name)
+    g30 = get_g30_client(optical_node_block)
+    shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(client_port_name)
+    card_node = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card
+
+    if _retrieve_required(card_node.retrieve, depth=2).required_type == "CHM1":
+        forget_config(optical_node_block, owner_instance_id, scope)
+        return {
+            "message": (
+                f"{_node_id(optical_node_block)} {client_port_name}: no need to delete any xcon,"
+                " CHM1 crossconnections are not configurable."
+            )
+        }
+
+    client_port = card_node.port(port_id).retrieve(depth=3, content="config")
+    eth_key = next((f for f in ("eth100g", "eth400g") if getattr(client_port, f, None) is not None), None)
+    if not eth_key:
+        msg = (
+            f"{_node_id(optical_node_block)} {client_port_name}:"
+            " This port does not have an ethernet service, it must have been deleted manually."
+        )
+        raise ValueError(msg)
+    client_odu = _CLIENT_ODU.format(shelf=shelf_id, slot=slot_id, port=port_id, eth=eth_key)
+
+    # An empty list reads as no data over NETCONF.
+    crs = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config") or []
+    found = [
+        fragment(g30.data.ne_ne.services.CRS(c.src_tp, c.dst_tp), service_label=c.service_label or "")
+        for c in crs
+        if client_odu in {c.src_tp, c.dst_tp}
+    ]
+    return release_config(optical_node_block, owner_instance_id, scope, found)
 
 
 def align_tx_power_to_target(
     optical_node_block: NokiaGrooveG30BlockProvisioning,
     line_port_name: str,
     db_from_target: Decimal | float | str,
+    *,
+    owner_instance_id: UUID | str,
 ) -> dict[str, Any]:
     r"""Subtract db_from_target decibels (dB) to the transmitted optical power.
 
     I.e. :math:`P^{new}_{tx} = P^{old}_{tx} - \Delta P`, where :math:`P^{old}_{tx}`
     is the currently configured required transmit power (``required-tx-optical-power``
-    on G30), used as the baseline for the adjustment.
+    on G30), used as the baseline for the adjustment. The new power is applied and
+    recorded like any other intended setting of the node.
 
     Args:
         optical_node_block: The Optical Node to configure.
         line_port_name: The line port name.
         db_from_target: The difference between current and target transmit power in dB.
+        owner_instance_id: ``subscription_instance_id`` of the product block the setting belongs to.
 
     Returns:
-        A dictionary indicating the old and new required transmit power.
+        The applied diff.
 
     Raises:
         ValueError: If no required transmit power is configured.
@@ -720,20 +592,17 @@ def align_tx_power_to_target(
     min_tx_power = Decimal("-10.00")
     max_tx_power = Decimal("6.00")
 
-    g30 = get_g30_client(optical_node_block)
-    shelf_id, slot_id, _, port_id, _ = g30_ids_from_port_name(line_port_name)
-    och_uri = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id).och_os
-    och_os = _retrieve_required(och_uri.retrieve, content="config", depth=2)
+    root = get_g30_client(optical_node_block).data
+    och_os = _retrieve_required(g30_och_os_node(root, line_port_name).retrieve, content="config", depth=2)
     current_tx_power = och_os.required_tx_optical_power
     if current_tx_power is None:
         msg = f"No required transmit power configured on {_node_id(optical_node_block)} {line_port_name}"
         raise ValueError(msg)
-    new_tx_power = current_tx_power - db_from_target
-    new_tx_power = min(max_tx_power, new_tx_power)
-    new_tx_power = max(min_tx_power, new_tx_power)
-    # Minimal merge on the singleton och-os facility: only the changed leaf.
-    och_uri.update(required_tx_optical_power=new_tx_power)
-    new_och_os = och_os.model_copy(deep=True)
-    new_och_os.required_tx_optical_power = new_tx_power
-
-    return compare_pydantic_objects(och_os, new_och_os)
+    # The SDK reads the leaf as a float when the device reports its default.
+    new_tx_power = max(min_tx_power, min(max_tx_power, _as_decimal(current_tx_power) - db_from_target))
+    return apply_config(
+        optical_node_block,
+        owner_instance_id,
+        TX_POWER_SCOPE.format(line_port_name),
+        render_tx_power(root, line_port_name, new_tx_power.quantize(_TX_POWER_STEP)),
+    )

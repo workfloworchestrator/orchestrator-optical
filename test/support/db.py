@@ -27,6 +27,7 @@ import os
 import pkgutil
 from collections.abc import Callable, Iterator
 from importlib import import_module
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
@@ -34,6 +35,8 @@ from uuid import UUID
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 from pydantic_forms.validators import Choice
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select, text
@@ -57,6 +60,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import ProcessStatus
 from orchestrator.core.workflows import LazyWorkflowInstance
 from orchestrator.optical import db as optical_db
+from orchestrator.optical.migrations import version_schema_path
 from orchestrator.optical.workflows.customer import register_customer_choice
 
 #: PostgreSQL image shipping the pgvector extension required by the orchestrator-core migration head.
@@ -127,10 +131,23 @@ def _volatile_tables() -> tuple[str, ...]:
 
 
 def _create_schema() -> None:
-    """Apply the orchestrator-core migrations (``alembic upgrade head``)."""
+    """Apply the orchestrator-core migrations (``alembic upgrade head``) and the shipped optical table revision.
+
+    The applied-configuration table ships as its own Alembic branch off the pinned
+    orchestrator-core revision (the catalog, in contrast, is generated from the models by
+    :func:`_provision_catalog`), so it is applied here through the shipped revision.
+    """
     migrations_dir = Path(import_module("orchestrator.core.migrations").__file__).parent
     config = Config(str(migrations_dir / "alembic.ini"))
     command.upgrade(config, "head")
+    (revision_path,) = version_schema_path().glob("*_optical_applied_config.py")
+    spec = spec_from_file_location("optical_applied_config_revision", revision_path)
+    assert spec is not None
+    assert spec.loader is not None
+    revision = module_from_spec(spec)
+    spec.loader.exec_module(revision)
+    with core_db.db.engine.begin() as connection, Operations.context(MigrationContext.configure(connection)):
+        revision.upgrade()
 
 
 def _discover_shipped_workflows() -> list[tuple[str, str]]:

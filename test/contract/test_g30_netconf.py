@@ -14,13 +14,11 @@ pytest.importorskip("g30_4_8_0")
 
 import copy
 import itertools
-from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 
 from g30_4_8_0.data_models.ne import (
     CardTypeEnum,
-    PortModeEnum,
 )
 
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as g30_shared
@@ -445,88 +443,6 @@ def test_g30_retrieve_transceiver_modes_rejects_unsupported_card(monkeypatch: py
         g30_port.retrieve_transceiver_modes(SimpleNamespace(), "port-1/2/1")
 
 
-def test_g30_set_port_admin_state_updates_the_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    endpoint = _Endpoint(_Model(admin_status="down", service_label="link"))
-    _patch_g30_client(monkeypatch, _port_endpoint_client(endpoint))
-
-    diffs = g30_port.set_port_admin_state(_port_block("port-1/2/3"), "up")
-
-    assert endpoint.update_calls
-    assert endpoint.model.admin_status == "up"
-    assert diffs["+++"]["root['admin_status']"] == "up"
-
-
-def test_g30_factory_reset_prunes_the_port_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
-    endpoint = _Endpoint(
-        _Model(
-            admin_status="up",
-            external_connectivity="yes",
-            connected_to="remote 1/2/3",
-            port_mode=PortModeEnum("100GBE"),
-            service_label="link",
-        )
-    )
-    _patch_g30_client(monkeypatch, _port_endpoint_client(endpoint))
-
-    diffs = g30_port.factory_reset(_port_block("port-1/2/3"))
-
-    assert endpoint.update_calls
-    assert endpoint.model.external_connectivity == "no"
-    assert endpoint.model.connected_to == ""
-    assert endpoint.model.admin_status == "down"
-    assert endpoint.model.port_mode is PortModeEnum.NOT_APPLICABLE
-    assert diffs["+++"]  # the reset produced changes
-
-
-def test_g30_configure_termination_to_a_flexils_node_sets_external_connectivity(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    endpoint = _Endpoint(_Model(external_connectivity="no", connected_to="", admin_status="down"))
-    _patch_g30_client(monkeypatch, _port_endpoint_client(endpoint))
-    host = _node_block("local.example.net", Vendor.NOKIA, Platform.GROOVE_G30)
-    remote = _node_block("remote.example.net", Vendor.NOKIA, Platform.FLEXILS)
-
-    diffs = g30_port.configure_termination(
-        _port_block("port-1/2/1", host),
-        _port_block("port-9/9/9", remote),
-    )
-
-    assert endpoint.model.external_connectivity == "yes"
-    assert endpoint.model.connected_to == "remote.example.net port-9/9/9"
-    assert diffs["+++"]  # the update produced changes
-
-
-def test_g30_check_fiber_passes_when_the_port_is_configured(monkeypatch: pytest.MonkeyPatch) -> None:
-    endpoint = _Endpoint(
-        _Model(
-            admin_status="up",
-            external_connectivity="yes",
-            connected_to="remote.example.net port-9/9/9",
-        )
-    )
-    _patch_g30_client(monkeypatch, _port_endpoint_client(endpoint))
-    host = _node_block("local.example.net", Vendor.NOKIA, Platform.GROOVE_G30)
-    remote = _node_block("remote.example.net", Vendor.NOKIA, Platform.FLEXILS)
-
-    g30_port.check_fiber(_port_block("port-1/2/1", host), _port_block("port-9/9/9", remote))
-
-
-def test_g30_check_fiber_raises_when_the_port_is_misconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
-    endpoint = _Endpoint(
-        _Model(
-            admin_status="down",
-            external_connectivity="no",
-            connected_to="",
-        )
-    )
-    _patch_g30_client(monkeypatch, _port_endpoint_client(endpoint))
-    host = _node_block("local.example.net", Vendor.NOKIA, Platform.GROOVE_G30)
-    remote = _node_block("remote.example.net", Vendor.NOKIA, Platform.FLEXILS)
-
-    with pytest.raises(ValueError, match="port-1/2/1"):
-        g30_port.check_fiber(_port_block("port-1/2/1", host), _port_block("port-9/9/9", remote))
-
-
 # --------------------------------------------------------------------------- transponder
 
 
@@ -553,43 +469,3 @@ def test_g30_get_signal_bandwidth_maps_the_fec_type(
 ) -> None:
     _patch_g30_client(monkeypatch, _och_os_client(_Endpoint(_Model(fec_type=fec_type))))
     assert g30_transponder.get_signal_bandwidth(SimpleNamespace(), "port-1/2/1") == expected
-
-
-def test_g30_configure_transceiver_client_updates_port_and_ethernet(monkeypatch: pytest.MonkeyPatch) -> None:
-    endpoint = _Endpoint(_Model(admin_status="down", service_label="", port_mode=None))
-    eth = _Endpoint(_Model(admin_status="down"))
-    endpoint.eth100g = eth
-    _patch_g30_client(monkeypatch, _port_endpoint_client(endpoint))
-
-    diffs = g30_transponder.configure_transceiver_client(
-        SimpleNamespace(),
-        "port-1/2/3",
-        "client link",
-        OpticalDigitalServiceSpeed(100),
-    )
-
-    assert endpoint.update_calls
-    assert eth.update_calls
-    assert endpoint.model.admin_status == "up"
-    assert endpoint.model.service_label == "client link"
-    assert endpoint.model.port_mode is PortModeEnum("100GBE")
-    assert diffs["+++"]  # the update produced changes
-
-
-def test_g30_align_tx_power_to_target_clamps_at_the_minimum(monkeypatch: pytest.MonkeyPatch) -> None:
-    och_os = _Endpoint(_Model(required_tx_optical_power=Decimal("5.00")))
-    _patch_g30_client(monkeypatch, _och_os_client(och_os))
-
-    diffs = g30_transponder.align_tx_power_to_target(SimpleNamespace(), "port-1/2/1", "20.0")
-
-    assert och_os.update_calls
-    assert och_os.model.required_tx_optical_power == Decimal("-10.00")
-    assert diffs["+++"]["root['required_tx_optical_power']"] == Decimal("-10.00")
-
-
-def test_g30_align_tx_power_to_target_raises_without_a_configured_power(monkeypatch: pytest.MonkeyPatch) -> None:
-    och_os = _Endpoint(_Model(required_tx_optical_power=None))
-    _patch_g30_client(monkeypatch, _och_os_client(och_os))
-
-    with pytest.raises(ValueError, match="No required transmit power configured"):
-        g30_transponder.align_tx_power_to_target(_node_block(), "port-1/2/1", "1.0")

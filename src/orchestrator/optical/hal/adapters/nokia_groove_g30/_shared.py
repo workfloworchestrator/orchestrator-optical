@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from orchestrator.optical.hal._common import _connect_first
 from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import CardTypeEnum, EquipmentTypeEnum_1, G30Client
@@ -312,37 +312,30 @@ def g30_shelf_serial_number(optical_node_block: AnyOpticalNodeBlockProvisioningU
     raise ValueError(msg)
 
 
-def g30_port_navigator_node_from_port_name(
-    g30_device_block: AnyOpticalNodeBlockProvisioningUnion,
-    port_name: str,
-) -> tuple[PortItemNode | SubportItemNode, int, int, int | None, int, int | None]:
-    """Return the NETCONF navigator node of a Groove G30 port, with its shelf, slot, subslot, port and subport ids.
+def g30_port_node(root: Any, port_name: str) -> PortItemNode | SubportItemNode:
+    """Return the navigator node of a Groove G30 port under the given SDK data root.
 
     Args:
-        g30_device_block: Optical Node block of the Groove G30 device.
-        port_name: The name of the port to obtain the endpoint from.
+        root: The data root navigator of a Groove G30 client (``client.data``).
+        port_name: The name of the port, e.g. ``"port-1/2/3"`` or ``"port-1/3.1/1.4"``.
 
     Returns:
-        A tuple with the navigator node, shelf id, slot id, subslot id (or None),
-        port id and subport id (or None).
+        The navigator node of the port or subport, on its card or subcard.
+    """
+    shelf_id, slot_id, subslot_id, port_id, subport_id = g30_ids_from_port_name(port_name)
+    card = root.ne_ne.shelf(shelf_id).slot(slot_id).card
+    port = (card.subslot(subslot_id).subcard if subslot_id is not None else card).port(port_id)
+    return port.subport(subport_id) if subport_id is not None else port
+
+
+def g30_och_os_node(root: Any, port_name: str) -> Any:
+    """Return the navigator node of the optical channel (``och-os``) of a Groove G30 line port.
 
     Raises:
-        ValueError: If a subport id is given without a subslot id.
+        ValueError: If the port is a subport, which carries no optical channel.
     """
-    g30 = get_g30_client(g30_device_block)
-    shelf_id, slot_id, subslot_id, port_id, subport_id = g30_ids_from_port_name(port_name)
-
-    if subslot_id is not None and subport_id is not None:
-        endpoint = (
-            g30.data.ne_ne.shelf(shelf_id)
-            .slot(slot_id)
-            .card.subslot(subslot_id)
-            .subcard.port(port_id)
-            .subport(subport_id)
-        )
-    elif subslot_id is not None:
-        endpoint = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.subslot(subslot_id).subcard.port(port_id)
-    else:
-        endpoint = g30.data.ne_ne.shelf(shelf_id).slot(slot_id).card.port(port_id)
-
-    return endpoint, shelf_id, slot_id, subslot_id, port_id, subport_id
+    port = g30_port_node(root, port_name)
+    if not hasattr(port, "och_os"):
+        msg = f"Groove G30 port {port_name} carries no optical channel"
+        raise ValueError(msg)
+    return port.och_os

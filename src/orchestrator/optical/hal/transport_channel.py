@@ -11,6 +11,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
+
+from pydantic_forms.types import UUIDstr
 
 from orchestrator.optical.hal._common import (
     LazyAdapter,
@@ -20,6 +23,7 @@ from orchestrator.optical.hal._common import (
     _as_g42_block,
     _vendor_platform,
 )
+from orchestrator.optical.hal.reconcile import forget_config
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
@@ -43,6 +47,7 @@ __all__ = [
     "delta_rx_power_vs_target",
     "factory_reset_transponder_client",
     "factory_reset_transponder_lines",
+    "forget_transponder_lines",
     "get_signal_bandwidth",
     "validate_trx_client",
     "validate_trx_crossconnect",
@@ -84,6 +89,8 @@ def configure_line_transceivers(
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
     descriptions: tuple[str, ...],
+    *,
+    owner_instance_id: UUID | UUIDstr,
 ) -> dict[str, Any]:
     """Configure the line transceivers on the given Optical Node.
 
@@ -93,6 +100,8 @@ def configure_line_transceivers(
         central_frequencies: The central frequencies of the transport channels.
         modes: The operating modes of the transport channels.
         descriptions: The channel descriptions.
+        owner_instance_id: ``subscription_instance_id`` of the product block the configuration
+            belongs to (the configuration is recorded under it, see :mod:`orchestrator.optical.hal.reconcile`).
 
     Returns:
         A dictionary of configuration diffs, keyed by port/facility name.
@@ -110,6 +119,7 @@ def configure_line_transceivers(
                 central_frequencies,
                 modes,
                 descriptions,
+                owner_instance_id=owner_instance_id,
             )
         case (Vendor.NOKIA, Platform.GX_G42):
             return gx_g42.configure_line_transceivers(
@@ -118,6 +128,7 @@ def configure_line_transceivers(
                 central_frequencies,
                 modes,
                 descriptions,
+                owner_instance_id=owner_instance_id,
             )
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "configure_line_transceivers is not implemented for Nokia FlexILS nodes"
@@ -132,6 +143,8 @@ def configure_transceiver_client(
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
+    *,
+    owner_instance_id: UUID | UUIDstr,
 ) -> dict[str, Any]:
     """Configure the client port of a transceiver on the given Optical Node.
 
@@ -140,6 +153,8 @@ def configure_transceiver_client(
         port_name: The client port name.
         description: The description of the client service.
         speed: The speed of the client service in Gbit/s.
+        owner_instance_id: ``subscription_instance_id`` of the product block the configuration
+            belongs to (the configuration is recorded under it, see :mod:`orchestrator.optical.hal.reconcile`).
 
     Returns:
         A dictionary of configuration diffs, keyed by facility name.
@@ -152,10 +167,12 @@ def configure_transceiver_client(
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             return groove_g30.configure_transceiver_client(
-                _as_g30_block(optical_node_block), port_name, description, speed
+                _as_g30_block(optical_node_block), port_name, description, speed, owner_instance_id=owner_instance_id
             )
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.configure_transceiver_client(_as_g42_block(optical_node_block), port_name, description, speed)
+            return gx_g42.configure_transceiver_client(
+                _as_g42_block(optical_node_block), port_name, description, speed, owner_instance_id=owner_instance_id
+            )
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "configure_transceiver_client is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -169,6 +186,8 @@ def configure_transponder_crossconnect(
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
+    *,
+    owner_instance_id: UUID | UUIDstr,
 ) -> dict[str, Any]:
     """Configure a cross-connect between client and line ports on the given Optical Node.
 
@@ -177,6 +196,8 @@ def configure_transponder_crossconnect(
         client_port_name: The client port name.
         line_port_names: List of line port names.
         xconn_description: Optional description for the cross-connect.
+        owner_instance_id: ``subscription_instance_id`` of the product block the configuration
+            belongs to (the configuration is recorded under it, see :mod:`orchestrator.optical.hal.reconcile`).
 
     Returns:
         The created cross-connect configuration.
@@ -193,6 +214,7 @@ def configure_transponder_crossconnect(
                 client_port_name,
                 line_port_names,
                 xconn_description,
+                owner_instance_id=owner_instance_id,
             )
         case (Vendor.NOKIA, Platform.GX_G42):
             return gx_g42.configure_transponder_crossconnect(
@@ -200,6 +222,7 @@ def configure_transponder_crossconnect(
                 client_port_name,
                 line_port_names,
                 xconn_description,
+                owner_instance_id=owner_instance_id,
             )
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "configure_transponder_crossconnect is not implemented for Nokia FlexILS nodes"
@@ -210,13 +233,18 @@ def configure_transponder_crossconnect(
 
 
 def delete_transponder_crossconnect(
-    optical_node_block: AnyOpticalNodeBlockProvisioningUnion, client_port_name: str
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
+    client_port_name: str,
+    *,
+    owner_instance_id: UUID | UUIDstr,
 ) -> dict[str, Any]:
     """Delete a cross-connect between client and line ports on the given Optical Node.
 
     Args:
         optical_node_block: The Optical Node (transponder) to configure.
         client_port_name: The client port name.
+        owner_instance_id: ``subscription_instance_id`` of the product block the configuration
+            belongs to (the configuration is recorded under it, see :mod:`orchestrator.optical.hal.reconcile`).
 
     Returns:
         A dictionary with a ``"message"`` and the list of deleted cross-connects.
@@ -228,9 +256,13 @@ def delete_transponder_crossconnect(
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.delete_transponder_crossconnect(_as_g30_block(optical_node_block), client_port_name)
+            return groove_g30.delete_transponder_crossconnect(
+                _as_g30_block(optical_node_block), client_port_name, owner_instance_id=owner_instance_id
+            )
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.delete_transponder_crossconnect(_as_g42_block(optical_node_block), client_port_name)
+            return gx_g42.delete_transponder_crossconnect(
+                _as_g42_block(optical_node_block), client_port_name, owner_instance_id=owner_instance_id
+            )
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "delete_transponder_crossconnect is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -240,13 +272,15 @@ def delete_transponder_crossconnect(
 
 
 def factory_reset_transponder_client(
-    optical_node_block: AnyOpticalNodeBlockProvisioningUnion, port_name: str
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion, port_name: str, *, owner_instance_id: UUID | UUIDstr
 ) -> dict[str, Any]:
     """Factory reset the client port configuration of the given Optical Node.
 
     Args:
         optical_node_block: The Optical Node to reset.
         port_name: The client port name.
+        owner_instance_id: ``subscription_instance_id`` of the product block the configuration
+            belongs to (the configuration is recorded under it, see :mod:`orchestrator.optical.hal.reconcile`).
 
     Returns:
         The reset configuration.
@@ -257,9 +291,13 @@ def factory_reset_transponder_client(
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.factory_reset_transponder_client(_as_g30_block(optical_node_block), port_name)
+            return groove_g30.factory_reset_transponder_client(
+                _as_g30_block(optical_node_block), port_name, owner_instance_id=owner_instance_id
+            )
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.factory_reset_transponder_client(_as_g42_block(optical_node_block), port_name)
+            return gx_g42.factory_reset_transponder_client(
+                _as_g42_block(optical_node_block), port_name, owner_instance_id=owner_instance_id
+            )
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "factory_reset_transponder_client is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -271,12 +309,16 @@ def factory_reset_transponder_client(
 def factory_reset_transponder_lines(
     optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     line_port_names: list[str],
-) -> dict[str, Any] | list[Any]:
+    *,
+    owner_instance_id: UUID | UUIDstr,
+) -> dict[str, Any]:
     """Factory reset the transponder line configuration of the given Optical Node.
 
     Args:
         optical_node_block: The Optical Node to reset.
         line_port_names: The line port names.
+        owner_instance_id: ``subscription_instance_id`` of the product block the configuration
+            belongs to (the configuration is recorded under it, see :mod:`orchestrator.optical.hal.reconcile`).
 
     Returns:
         The reset configuration.
@@ -287,9 +329,13 @@ def factory_reset_transponder_lines(
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.factory_reset_transponder_lines(_as_g30_block(optical_node_block), line_port_names)
+            return groove_g30.factory_reset_transponder_lines(
+                _as_g30_block(optical_node_block), line_port_names, owner_instance_id=owner_instance_id
+            )
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.factory_reset_transponder_lines(_as_g42_block(optical_node_block), line_port_names)
+            return gx_g42.factory_reset_transponder_lines(
+                _as_g42_block(optical_node_block), line_port_names, owner_instance_id=owner_instance_id
+            )
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "factory_reset_transponder_lines is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -304,6 +350,8 @@ def validate_trx_line(
     central_frequencies: tuple[Frequency, ...],
     modes: tuple[str, ...],
     descriptions: tuple[str, ...],
+    *,
+    owner_instance_id: UUID | UUIDstr,
 ) -> None:
     """Validate the transceiver line configuration on the given Optical Node.
 
@@ -313,6 +361,8 @@ def validate_trx_line(
         central_frequencies: The central frequencies of the transport channels.
         modes: The operating modes of the transport channels.
         descriptions: The channel descriptions.
+        owner_instance_id: ``subscription_instance_id`` of the product block the configuration
+            belongs to (the configuration is recorded under it, see :mod:`orchestrator.optical.hal.reconcile`).
 
     Raises:
         NotImplementedError: If the node vendor does not support this operation.
@@ -327,6 +377,7 @@ def validate_trx_line(
                 central_frequencies,
                 modes,
                 descriptions,
+                owner_instance_id=owner_instance_id,
             )
         case (Vendor.NOKIA, Platform.GX_G42):
             return gx_g42.validate_trx_line(
@@ -335,6 +386,7 @@ def validate_trx_line(
                 central_frequencies,
                 modes,
                 descriptions,
+                owner_instance_id=owner_instance_id,
             )
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "validate_trx_line is not implemented for Nokia FlexILS nodes"
@@ -349,6 +401,8 @@ def validate_trx_client(
     port_name: str,
     description: str,
     speed: OpticalDigitalServiceSpeed,
+    *,
+    owner_instance_id: UUID | UUIDstr,
 ) -> None:
     """Validate the transceiver client configuration on the given Optical Node.
 
@@ -357,6 +411,8 @@ def validate_trx_client(
         port_name: The client port name.
         description: The description of the client service.
         speed: The speed of the client service in Gbit/s.
+        owner_instance_id: ``subscription_instance_id`` of the product block the configuration
+            belongs to (the configuration is recorded under it, see :mod:`orchestrator.optical.hal.reconcile`).
 
     Raises:
         NotImplementedError: If the node vendor or the requested speed is not supported.
@@ -365,9 +421,13 @@ def validate_trx_client(
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.validate_trx_client(_as_g30_block(optical_node_block), port_name, description, speed)
+            return groove_g30.validate_trx_client(
+                _as_g30_block(optical_node_block), port_name, description, speed, owner_instance_id=owner_instance_id
+            )
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.validate_trx_client(_as_g42_block(optical_node_block), port_name, description, speed)
+            return gx_g42.validate_trx_client(
+                _as_g42_block(optical_node_block), port_name, description, speed, owner_instance_id=owner_instance_id
+            )
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "validate_trx_client is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
@@ -381,6 +441,8 @@ def validate_trx_crossconnect(
     client_port_name: str,
     line_port_names: list[str],
     xconn_description: str = "",
+    *,
+    owner_instance_id: UUID | UUIDstr,
 ) -> None:
     """Validate the transponder cross-connect configuration on the given Optical Node.
 
@@ -389,6 +451,8 @@ def validate_trx_crossconnect(
         client_port_name: The client port name.
         line_port_names: The line port names.
         xconn_description: The description of the cross-connect.
+        owner_instance_id: ``subscription_instance_id`` of the product block the configuration
+            belongs to (the configuration is recorded under it, see :mod:`orchestrator.optical.hal.reconcile`).
 
     Raises:
         NotImplementedError: If the node vendor does not support this operation.
@@ -402,6 +466,7 @@ def validate_trx_crossconnect(
                 client_port_name,
                 line_port_names,
                 xconn_description,
+                owner_instance_id=owner_instance_id,
             )
         case (Vendor.NOKIA, Platform.GX_G42):
             return gx_g42.validate_trx_crossconnect(
@@ -409,12 +474,44 @@ def validate_trx_crossconnect(
                 client_port_name,
                 line_port_names,
                 xconn_description,
+                owner_instance_id=owner_instance_id,
             )
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "validate_trx_crossconnect is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)
         case _:
             msg = f"validate_trx_crossconnect: {type(optical_node_block).__name__}"
+            raise UnsupportedPlatformError(msg)
+
+
+def forget_transponder_lines(
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
+    *,
+    owner_instance_id: UUID | UUIDstr,
+) -> None:
+    """Drop the record of the line configuration an owner applied on the given Optical Node.
+
+    The device is not touched: the line ports stay configured for the other product
+    blocks still using them.
+
+    Args:
+        optical_node_block: The Optical Node hosting the line ports.
+        owner_instance_id: ``subscription_instance_id`` of the product block that no longer uses the lines.
+
+    Raises:
+        NotImplementedError: If the node vendor does not support this operation.
+        UnsupportedPlatformError: If the vendor/platform combination is not supported.
+    """
+    match _vendor_platform(optical_node_block):
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
+            forget_config(optical_node_block, owner_instance_id, groove_g30.LINE_SCOPE)
+        case (Vendor.NOKIA, Platform.GX_G42):
+            forget_config(optical_node_block, owner_instance_id, gx_g42.LINE_SCOPE)
+        case (Vendor.NOKIA, Platform.FLEXILS):
+            msg = "forget_transponder_lines is not implemented for Nokia FlexILS nodes"
+            raise NotImplementedError(msg)
+        case _:
+            msg = f"forget_transponder_lines: {type(optical_node_block).__name__}"
             raise UnsupportedPlatformError(msg)
 
 
@@ -457,6 +554,8 @@ def align_tx_power_to_target(
     optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     line_port_name: str,
     db_from_target: Decimal | float | str,
+    *,
+    owner_instance_id: UUID | UUIDstr,
 ) -> dict[str, Any]:
     r"""Subtract db_from_target decibels (dB) to the transmitted optical power.
 
@@ -468,6 +567,8 @@ def align_tx_power_to_target(
         optical_node_block: The Optical Node to configure.
         line_port_name: The line port name.
         db_from_target: The difference between current and target transmit power in dB.
+        owner_instance_id: ``subscription_instance_id`` of the product block the configuration
+            belongs to (the configuration is recorded under it, see :mod:`orchestrator.optical.hal.reconcile`).
 
     Returns:
         A dictionary indicating the old and new required transmit power.
@@ -480,10 +581,12 @@ def align_tx_power_to_target(
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.GROOVE_G30):
             return groove_g30.align_tx_power_to_target(
-                _as_g30_block(optical_node_block), line_port_name, db_from_target
+                _as_g30_block(optical_node_block), line_port_name, db_from_target, owner_instance_id=owner_instance_id
             )
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.align_tx_power_to_target(_as_g42_block(optical_node_block), line_port_name, db_from_target)
+            return gx_g42.align_tx_power_to_target(
+                _as_g42_block(optical_node_block), line_port_name, db_from_target, owner_instance_id=owner_instance_id
+            )
         case (Vendor.NOKIA, Platform.FLEXILS):
             msg = "align_tx_power_to_target is not implemented for Nokia FlexILS nodes"
             raise NotImplementedError(msg)

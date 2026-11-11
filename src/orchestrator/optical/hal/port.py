@@ -333,9 +333,9 @@ def factory_reset_port_configuration(
         case (Vendor.NOKIA, Platform.FLEXILS):
             return flexils.factory_reset(optical_port_block, remote_port_block, pipe_type)
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.factory_reset(optical_port_block)
+            return groove_g30.factory_reset(optical_port_block, remote_port_block)
         case (Vendor.NOKIA, Platform.GX_G42):
-            return gx_g42.factory_reset(optical_port_block)
+            return gx_g42.factory_reset(optical_port_block, remote_port_block)
         case _:
             msg = f"factory_reset_port_configuration: {type(host_node).__name__}"
             raise UnsupportedPlatformError(msg)

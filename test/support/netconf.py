@@ -69,6 +69,22 @@ class FakeManager:
         self.calls.append(("commit", None))
         return FakeReply()
 
+    def lock(self, target: str) -> FakeReply:
+        self.calls.append(("lock", target))
+        return FakeReply()
+
+    def unlock(self, target: str) -> FakeReply:
+        self.calls.append(("unlock", target))
+        return FakeReply()
+
+    def validate(self, source: str = "candidate") -> FakeReply:
+        self.calls.append(("validate", source))
+        return FakeReply()
+
+    def discard_changes(self) -> FakeReply:
+        self.calls.append(("discard-changes", None))
+        return FakeReply()
+
     def close_session(self) -> None:
         self.calls.append(("close-session", None))
 

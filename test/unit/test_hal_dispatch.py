@@ -6,6 +6,8 @@ adapter. Device-bound branches are exercised by replacing the adapter seam with 
 recorder, so no network or SSH connection is ever made.
 """
 
+import inspect
+
 import pytest
 
 pytest.importorskip("flexils_tl1")
@@ -199,50 +201,66 @@ def test_spectrum_dispatchers_reject_unsupported_platform(call: Any) -> None:
         call(_unknown_node())
 
 
+#: The owner block passed to the dispatchers that record what they apply.
+_OWNER = uuid4()
+
+
+def _owner_kwargs(func: Any) -> dict[str, Any]:
+    """Return the owner keyword argument when the dispatcher takes one."""
+    return {"owner_instance_id": _OWNER} if "owner_instance_id" in inspect.signature(func).parameters else {}
+
+
+def _call(func: Any, node: Any, *args: Any) -> Any:
+    """Call a transport dispatcher, with the owner block when it takes one."""
+    return func(node, *args, **_owner_kwargs(func))
+
+
 _TRANSPORT_UNSUPPORTED_CALLS = [
-    pytest.param(lambda node: hal_transport.get_signal_bandwidth(node, "port-1"), id="get_signal_bandwidth"),
+    pytest.param(lambda node: _call(hal_transport.get_signal_bandwidth, node, "port-1"), id="get_signal_bandwidth"),
     pytest.param(
-        lambda node: hal_transport.configure_line_transceivers(node, ("port-1",), _FREQUENCIES, ("mode",), ("desc",)),
+        lambda node: _call(
+            hal_transport.configure_line_transceivers, node, ("port-1",), _FREQUENCIES, ("mode",), ("desc",)
+        ),
         id="configure_line_transceivers",
     ),
     pytest.param(
-        lambda node: hal_transport.configure_transceiver_client(node, "port-1", "desc", _SPEED),
+        lambda node: _call(hal_transport.configure_transceiver_client, node, "port-1", "desc", _SPEED),
         id="configure_transceiver_client",
     ),
     pytest.param(
-        lambda node: hal_transport.configure_transponder_crossconnect(node, "port-1", ["port-2"]),
+        lambda node: _call(hal_transport.configure_transponder_crossconnect, node, "port-1", ["port-2"]),
         id="configure_transponder_crossconnect",
     ),
     pytest.param(
-        lambda node: hal_transport.delete_transponder_crossconnect(node, "port-1"),
+        lambda node: _call(hal_transport.delete_transponder_crossconnect, node, "port-1"),
         id="delete_transponder_crossconnect",
     ),
     pytest.param(
-        lambda node: hal_transport.factory_reset_transponder_client(node, "port-1"),
+        lambda node: _call(hal_transport.factory_reset_transponder_client, node, "port-1"),
         id="factory_reset_transponder_client",
     ),
     pytest.param(
-        lambda node: hal_transport.factory_reset_transponder_lines(node, ["port-1"]),
+        lambda node: _call(hal_transport.factory_reset_transponder_lines, node, ["port-1"]),
         id="factory_reset_transponder_lines",
     ),
     pytest.param(
-        lambda node: hal_transport.validate_trx_line(node, ("port-1",), _FREQUENCIES, ("mode",), ("desc",)),
+        lambda node: _call(hal_transport.validate_trx_line, node, ("port-1",), _FREQUENCIES, ("mode",), ("desc",)),
         id="validate_trx_line",
     ),
     pytest.param(
-        lambda node: hal_transport.validate_trx_client(node, "port-1", "desc", _SPEED),
+        lambda node: _call(hal_transport.validate_trx_client, node, "port-1", "desc", _SPEED),
         id="validate_trx_client",
     ),
     pytest.param(
-        lambda node: hal_transport.validate_trx_crossconnect(node, "port-1", ["port-2"]),
+        lambda node: _call(hal_transport.validate_trx_crossconnect, node, "port-1", ["port-2"]),
         id="validate_trx_crossconnect",
     ),
     pytest.param(
-        lambda node: hal_transport.delta_rx_power_vs_target(node, "spec"),
+        lambda node: _call(hal_transport.delta_rx_power_vs_target, node, "spec"),
         id="delta_rx_power_vs_target",
     ),
     pytest.param(
-        lambda node: hal_transport.align_tx_power_to_target(node, "port-1", Decimal("0.5")),
+        lambda node: _call(hal_transport.align_tx_power_to_target, node, "port-1", Decimal("0.5")),
         id="align_tx_power_to_target",
     ),
 ]
@@ -506,8 +524,8 @@ def test_factory_reset_dispatches_per_vendor_and_forwards_pipe_type(monkeypatch:
     assert hal_port.factory_reset_port_configuration(g30_local, g30_remote, OpticalPipeType.SPAN) == {"g30": True}
     assert hal_port.factory_reset_port_configuration(g42_local, g42_remote, OpticalPipeType.SPAN) == {"g42": True}
     assert flex.calls == [((flex_local, flex_remote, OpticalPipeType.SPAN), {})]
-    assert g30.calls == [((g30_local,), {})]
-    assert g42.calls == [((g42_local,), {})]
+    assert g30.calls == [((g30_local, g30_remote), {})]
+    assert g42.calls == [((g42_local, g42_remote), {})]
 
 
 def test_check_fiber_dispatches_per_vendor_and_forwards_pipe_type(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -659,10 +677,11 @@ def test_transport_dispatches_to_g30_and_g42(
     g42 = _patch(monkeypatch, g42_transponder, adapter_name, "g42-result")
     g30_block, g42_block = _g30_node(), _g42_node()
 
-    assert hal_func(g30_block, *args) == "g30-result"
-    assert hal_func(g42_block, *args) == "g42-result"
-    assert g30.calls == [((g30_block, *args), {})]
-    assert g42.calls == [((g42_block, *args), {})]
+    owner = _owner_kwargs(hal_func)
+    assert hal_func(g30_block, *args, **owner) == "g30-result"
+    assert hal_func(g42_block, *args, **owner) == "g42-result"
+    assert g30.calls == [((g30_block, *args), owner)]
+    assert g42.calls == [((g42_block, *args), owner)]
 
 
 def test_delta_rx_power_dispatches_to_flexils(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -703,4 +722,4 @@ _TRANSPORT_FLEXILS_NOT_IMPLEMENTED = [
 @pytest.mark.parametrize(("hal_func", "args"), _TRANSPORT_FLEXILS_NOT_IMPLEMENTED)
 def test_transport_flexils_branches_are_not_implemented(hal_func: Any, args: tuple[Any, ...]) -> None:
     with pytest.raises(NotImplementedError):
-        hal_func(_flexils_node(), *args)
+        hal_func(_flexils_node(), *args, **_owner_kwargs(hal_func))

@@ -14,6 +14,9 @@ product block with ``match/case``:
   from an add/drop port to its reachable degrees, with their occupancy.
 - :mod:`orchestrator.optical.hal.spectrum` — the FlexILS optical circuit
   (OEL/OSNC/OCRS) engine and optical cross-connections.
+- :mod:`orchestrator.optical.hal.reconcile` — the declarative configuration of the
+  NETCONF devices (Groove G30, GX G42): render, diff, apply, release, and the golden
+  configuration recorded per node.
 
 Each area module routes to a per-device adapter under
 :mod:`orchestrator.optical.hal.adapters` (one subpackage per vendor platform).
@@ -45,6 +48,12 @@ from orchestrator.optical.hal.port import (
     set_port_admin_state,
     set_port_description,
 )
+from orchestrator.optical.hal.reconcile import (
+    ConfigApplyError,
+    ConfigConflictError,
+    ConfigDriftError,
+    golden_config,
+)
 from orchestrator.optical.hal.spectrum import (
     create_optical_cross_connection,
     delete_optical_circuit,
@@ -63,6 +72,7 @@ from orchestrator.optical.hal.transport_channel import (
     delta_rx_power_vs_target,
     factory_reset_transponder_client,
     factory_reset_transponder_lines,
+    forget_transponder_lines,
     get_signal_bandwidth,
     validate_trx_client,
     validate_trx_crossconnect,
@@ -70,6 +80,9 @@ from orchestrator.optical.hal.transport_channel import (
 )
 
 __all__ = [
+    "ConfigApplyError",
+    "ConfigConflictError",
+    "ConfigDriftError",
     "FlexilsGneProvider",
     "IntraNodeEdge",
     "align_tx_power_to_target",
@@ -89,6 +102,7 @@ __all__ = [
     "factory_reset_port_configuration",
     "factory_reset_transponder_client",
     "factory_reset_transponder_lines",
+    "forget_transponder_lines",
     "get_device_ports_by_role",
     "get_flex_client",
     "get_g30_client",
@@ -96,6 +110,7 @@ __all__ = [
     "get_optical_node_client",
     "get_signal_bandwidth",
     "get_transceiver_capacity_from_mode",
+    "golden_config",
     "is_transponder_line_port",
     "parse_port_identifiers",
     "retrieve_add_drop_connectivity",
