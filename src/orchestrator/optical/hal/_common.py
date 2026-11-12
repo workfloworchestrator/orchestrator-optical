@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+from orchestrator.optical.hal.sessions import shared_session
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import (
     NokiaGrooveG30BlockProvisioning,
@@ -106,10 +107,12 @@ def _connect_first[ClientT](
     optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     **client_kwargs: Any,
 ) -> ClientT:
-    """Open a device session on the first reachable management IP of a node.
+    """Return a device session on the first reachable management IP of a node.
 
     The DCN loopback IP is tried first, then the DCN interface IP: the NETCONF clients
-    take a single host and open the session in their constructor.
+    take a single host and open the session in their constructor. Within a
+    :func:`~orchestrator.optical.hal.sessions.device_sessions` scope the session opened
+    to the node is reused.
 
     Args:
         client_cls: The SDK client class (its constructor opens the session).
@@ -124,14 +127,24 @@ def _connect_first[ClientT](
         ExceptionGroup: If no management IP is reachable (one exception per attempt).
     """
     management = optical_node_block.management
-    hosts = [
+    hosts = tuple(
         str(ip)
         for ip in (management.optical_module_node_dcn_loopback_ip, management.optical_module_node_dcn_interface_ip)
         if ip is not None
-    ]
+    )
     if not hosts:
         msg = f"Node {management.optical_module_node_fqdn} has no management IP to connect to"
         raise ValueError(msg)
+    return shared_session(
+        (client_cls, hosts),
+        lambda: _open_first(client_cls, hosts, management.optical_module_node_fqdn, client_kwargs),
+    )
+
+
+def _open_first[ClientT](
+    client_cls: Callable[..., ClientT], hosts: tuple[str, ...], fqdn: str, client_kwargs: dict[str, Any]
+) -> ClientT:
+    """Open a new session on the first of ``hosts`` that accepts it (see :func:`_connect_first`)."""
     errors: list[Exception] = []
     for host in hosts:
         try:
@@ -141,7 +154,7 @@ def _connect_first[ClientT](
     # The causes go in the message: WFO stores a failed step's message and traceback,
     # neither of which shows the sub-exceptions of a group.
     causes = "; ".join(f"{host}: {type(exc).__name__}: {exc}" for host, exc in zip(hosts, errors, strict=True))
-    msg = f"Could not connect to node {management.optical_module_node_fqdn} ({causes})"
+    msg = f"Could not connect to node {fqdn} ({causes})"
     raise ExceptionGroup(msg, errors)
 
 

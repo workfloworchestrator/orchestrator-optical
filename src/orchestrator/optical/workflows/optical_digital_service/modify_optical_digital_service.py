@@ -40,6 +40,7 @@ from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status
 from orchestrator.core.workflows.utils import modify_workflow
+from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.products.product_blocks.optical_digital_service import (
     OpticalDigitalServiceBlock,
     OpticalDigitalServiceBlockInactive,
@@ -404,6 +405,7 @@ def modify_optical_digital_service_form_generator(
 
 
 @step("Updating Optical Digital Service block")
+@device_sessions()
 def update_optical_digital_service_block(
     optical_module_block: OpticalDigitalServiceBlockInactive,
     optical_transport_mode: str,

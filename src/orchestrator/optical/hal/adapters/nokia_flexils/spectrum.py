@@ -14,6 +14,7 @@ from orchestrator.optical.hal._common import (
 from orchestrator.optical.hal.adapters.nokia_flexils._sdk import TL1DeniedError
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
     FlexilsClient,
+    _all_records,
     _get_flex_client,
     _is_object_missing,
     _records,
@@ -1335,7 +1336,7 @@ def delete_cross_connection(
 
     flex = _get_flex_client(optical_node_block)
 
-    ocrs = _records(flex.rtrv_ocrs())
+    ocrs = _all_records(flex.rtrv_ocrs)
     for ocr in ocrs:
         ocr_from_port = "-".join(ocr.get("FROMAID", "").split("-")[:-1])
         ocr_to_port = "-".join(ocr.get("TOAID", "").split("-")[:-1])

@@ -269,12 +269,14 @@ def get_g30_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> 
 
     Every edit is applied immediately (``auto_commit``), as each HAL operation is one
     self-contained change; the G30 has no candidate datastore, so edits hit running.
+    Authentication is by password only: the SSH agent and the local keys are not offered
+    first, as each key the node rejects costs round trips on every login.
 
     Args:
         optical_node_block: The Nokia Groove G30 node block (any lifecycle variant).
 
     Returns:
-        A connected Groove G30 NETCONF client.
+        A connected Groove G30 NETCONF client (shared within a device-sessions scope).
     """
     settings = get_settings()
     return _connect_first(
@@ -284,6 +286,8 @@ def get_g30_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> 
         password=settings.g30_password,
         verify=settings.g30_verify,
         auto_commit=True,
+        allow_agent=False,
+        look_for_keys=False,
     )
 
 

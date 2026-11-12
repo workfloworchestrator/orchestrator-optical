@@ -43,6 +43,7 @@ from orchestrator.optical.db import pipe_blocks_all
 from orchestrator.optical.hal.connectivity import IntraNodeEdge, g30_shelf_of_port, retrieve_add_drop_connectivity
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import retrieve_transceiver_modes
+from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.hal.spectrum import (
     FLEXILS_SPECTRAL_GRID_MHZ,
     delete_optical_circuit,
@@ -323,6 +324,7 @@ def load_optical_spectrum_block(subscription: SubscriptionModel) -> State:
 
 
 @step("Provisioning optical spectrum sections")
+@device_sessions()
 def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
     """Ensure the optical circuit of every spectrum section on the devices.
 
@@ -375,6 +377,7 @@ def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlock
 
 
 @step("Updating the available passbands of any Open Line System port in the path")
+@device_sessions()
 def refresh_optical_spectrum_used_passbands(
     optical_module_block: OpticalSpectrumServiceBlockInactive,
     old_section_ids: list[UUIDstr] | None = None,
@@ -416,6 +419,7 @@ def refresh_optical_spectrum_used_passbands(
 
 
 @step("Verifying optical spectrum sections")
+@device_sessions()
 def verify_optical_spectrum_sections(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
     """Verify the optical circuit of every spectrum section against the devices.
 

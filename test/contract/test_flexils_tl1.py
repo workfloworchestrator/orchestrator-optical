@@ -28,6 +28,7 @@ from orchestrator.optical.hal.adapters.nokia_flexils import spectrum as flexils_
 from orchestrator.optical.hal.adapters.nokia_flexils import transponder as flexils_transponder
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
     FlexilsClient,
+    _all_records,
     _is_object_missing,
     _records,
     _tl1_list,
@@ -311,6 +312,19 @@ def test_missing_object_denial_is_recognised() -> None:
         client.rtrv_sch(aid=SCH)
 
     assert _is_object_missing(excinfo.value)
+
+
+def test_unfiltered_retrieve_of_no_objects_is_empty() -> None:
+    """A node with no OCRS denies the unfiltered RTRV-OCRS with IENE: that is an empty list, not an error."""
+    denial = reply(status="DENY", error="IENE Input, Specified Object Entity Does Not Exist")
+    with scripted_client([("RTRV-OCRS", denial)]) as client:
+        assert _all_records(client.rtrv_ocrs) == []
+
+
+def test_unfiltered_retrieve_raises_other_denials() -> None:
+    denial = reply(status="DENY", error="Input, Invalid Value, aid")
+    with scripted_client([("RTRV-OCRS", denial)]) as client, pytest.raises(TL1DeniedError):
+        _all_records(client.rtrv_ocrs)
 
 
 def test_denial_for_an_entity_already_in_the_requested_state_is_done() -> None:

@@ -7,6 +7,7 @@ from pydantic_forms.types import State
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.optical.hal.reconcile import golden_config
+from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
@@ -43,6 +44,7 @@ def load_initial_state_optical_node(subscription: SubscriptionModel) -> State:
 
 
 @step("Show applied configuration")
+@device_sessions()
 def show_optical_node_applied_configuration(
     optical_module_block: AnyOpticalNodeBlockProvisioningUnion | dict[str, Any] | None,
 ) -> State:

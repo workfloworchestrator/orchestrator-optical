@@ -44,6 +44,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_instance
+from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import (
     OpticalLeasedSpectrumBlockInactive,
@@ -217,6 +218,7 @@ def build_leased_spectrum_block(
 
 
 @step("Construct Leased Spectrum Subscription")
+@device_sessions()
 def construct_leased_spectrum_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,

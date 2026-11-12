@@ -44,6 +44,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.hal.port import set_port_description
+from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     LINE_SYSTEM_ROLES,
     OADM_ROLES,
@@ -580,6 +581,7 @@ def construct_optical_spectrum_subscription(
 
 
 @step("Adding a description to the add/drop ports")
+@device_sessions()
 def configure_add_drop_ports_description(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
     """Set the port description on the device for the source and destination add/drop ports.
 

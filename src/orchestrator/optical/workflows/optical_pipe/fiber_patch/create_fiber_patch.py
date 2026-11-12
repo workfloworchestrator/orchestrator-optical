@@ -37,6 +37,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_instance
+from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_patch import OpticalFiberPatchBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.unions import PatchPortBlockInactive
@@ -171,6 +172,7 @@ def build_fiber_patch_block(
 
 
 @step("Construct Fiber Patch Subscription")
+@device_sessions()
 def construct_fiber_patch_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,

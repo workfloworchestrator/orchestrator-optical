@@ -56,6 +56,7 @@ from orchestrator.optical.hal.port import (
     retrieve_common_transceiver_modes,
     retrieve_transceiver_modes,
 )
+from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.hal.spectrum import (
     FLEXILS_SPECTRAL_GRID_MHZ,
     ensure_optical_circuit,
@@ -1793,6 +1794,7 @@ def _channel_endpoints(
 
 
 @step("Configuring the line ports on the transponders")
+@device_sessions()
 def configure_optical_digital_line_ports(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Configure the line transceivers of the new transport channels on the devices.
 
@@ -1822,6 +1824,7 @@ def configure_optical_digital_line_ports(optical_module_block: OpticalDigitalSer
 
 
 @step("Configuring the client ports on the transponders")
+@device_sessions()
 def configure_optical_digital_client_ports(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Configure the client ports of the digital service on the devices.
 
@@ -1844,6 +1847,7 @@ def configure_optical_digital_client_ports(optical_module_block: OpticalDigitalS
 
 
 @step("Configuring the cross-connects in the transponders")
+@device_sessions()
 def configure_optical_digital_crossconnects(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Configure the transponder cross-connects between client and line ports.
 
@@ -1946,6 +1950,7 @@ def _ensure_channel_circuits(
 
 
 @step("Provisioning optical spectrum sections of the transport channels")
+@device_sessions()
 def provision_optical_digital_sections(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Ensure the optical circuit of every section of the new transport channels.
 
@@ -1969,6 +1974,7 @@ def provision_optical_digital_sections(optical_module_block: OpticalDigitalServi
 
 
 @step("Ensuring the optical circuits of all transport channels")
+@device_sessions()
 def ensure_optical_digital_sections(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Ensure the optical circuit of every section of every transport channel.
 
@@ -1992,6 +1998,7 @@ def ensure_optical_digital_sections(optical_module_block: OpticalDigitalServiceB
 
 
 @step("Updating the available passbands of the OLS ports in the paths")
+@device_sessions()
 def refresh_optical_digital_used_passbands(
     optical_module_block: OpticalDigitalServiceBlockInactive,
     old_channel_sections: dict[str, list[str]] | None = None,
@@ -2046,6 +2053,7 @@ def refresh_optical_digital_used_passbands(
 
 
 @step("Syncing the composite labels of the reused channels")
+@device_sessions()
 def sync_reused_channel_labels(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Ensure the circuits of the reused channels and converge their composite labels.
 
@@ -2076,6 +2084,7 @@ append_reused_channel_labels = sync_reused_channel_labels
 
 
 @step("Syncing the composite labels of all transport channels")
+@device_sessions()
 def sync_optical_digital_circuit_labels(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Ensure every channel circuit and converge its composite label.
 
@@ -2099,6 +2108,7 @@ def sync_optical_digital_circuit_labels(optical_module_block: OpticalDigitalServ
 
 
 @step("Pruning the departing service from the labels of shared channels")
+@device_sessions()
 def prune_departing_service_channel_labels(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Remove the terminating service name from the labels of its shared channels.
 
@@ -2142,6 +2152,7 @@ def prune_departing_service_channel_labels(optical_module_block: OpticalDigitalS
 
 
 @step("Setting the transmitted optical power to match the line system target")
+@device_sessions()
 def align_optical_digital_tx_power(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Align the transponder transmit power to the FlexILS receive target.
 
@@ -2207,6 +2218,7 @@ def align_optical_digital_tx_power(optical_module_block: OpticalDigitalServiceBl
 
 
 @step("Verifying the transponder line ports")
+@device_sessions()
 def verify_optical_digital_line_ports(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Verify the line transceiver configuration of the transport channels on the devices.
 
@@ -2234,6 +2246,7 @@ def verify_optical_digital_line_ports(optical_module_block: OpticalDigitalServic
 
 
 @step("Verifying the transponder client ports")
+@device_sessions()
 def verify_optical_digital_client_ports(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Verify the client port configuration of the digital service on the devices.
 
@@ -2253,6 +2266,7 @@ def verify_optical_digital_client_ports(optical_module_block: OpticalDigitalServ
 
 
 @step("Verifying the transponder cross-connects")
+@device_sessions()
 def verify_optical_digital_crossconnects(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Verify the transponder cross-connects between client and line ports on the devices.
 
@@ -2274,6 +2288,7 @@ def verify_optical_digital_crossconnects(optical_module_block: OpticalDigitalSer
 
 
 @step("Verifying the optical sections of the transport channels")
+@device_sessions()
 def verify_optical_digital_sections(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Verify the optical circuit of every section of the transport channels on the devices.
 
@@ -2387,6 +2402,7 @@ def update_optical_digital_sections_path(
 
 
 @step("Modifying the optical sections of the transport channels")
+@device_sessions()
 def modify_optical_digital_sections(
     optical_module_block: OpticalDigitalServiceBlockInactive,
     old_channel_sections: dict[str, list[str]] | None = None,
@@ -2451,6 +2467,7 @@ def modify_optical_digital_sections(
 
 
 @step("Factory resetting the transponder cross-connects")
+@device_sessions()
 def factory_reset_optical_digital_crossconnects(
     optical_module_block: OpticalDigitalServiceBlockInactive,
 ) -> State:
@@ -2475,6 +2492,7 @@ def factory_reset_optical_digital_crossconnects(
 
 
 @step("Factory resetting the transponder client ports")
+@device_sessions()
 def factory_reset_optical_digital_clients(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Factory reset the client ports of the digital service on the devices.
 
@@ -2497,6 +2515,7 @@ def factory_reset_optical_digital_clients(optical_module_block: OpticalDigitalSe
 
 
 @step("Factory resetting the transponder line ports")
+@device_sessions()
 def factory_reset_optical_digital_lines(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Factory reset the line ports of the transport channels on the devices.
 
@@ -2540,6 +2559,7 @@ def factory_reset_optical_digital_lines(optical_module_block: OpticalDigitalServ
 
 
 @step("Deleting the optical sections of the transport channels")
+@device_sessions()
 def delete_optical_digital_sections(optical_module_block: OpticalDigitalServiceBlockInactive) -> State:
     """Delete the optical circuit of every section of the transport channels.
 
@@ -2573,6 +2593,7 @@ def delete_optical_digital_sections(optical_module_block: OpticalDigitalServiceB
 
 
 @step("Updating the used passbands after teardown")
+@device_sessions()
 def refresh_optical_digital_passbands_after_teardown(
     optical_module_block: OpticalDigitalServiceBlockInactive,
 ) -> State:

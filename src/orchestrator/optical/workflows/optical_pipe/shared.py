@@ -34,6 +34,7 @@ from orchestrator.optical.hal.port import (
     configure_termination_when_attaching_new_fiber,
     get_device_ports_by_role,
 )
+from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
     LINE_SYSTEM_ROLES,
     OADM_ROLES,
@@ -316,6 +317,7 @@ def load_optical_pipe_block(subscription: AbstractOpticalPipeSubscriptionProvisi
 
 
 @step("Configure Optical Pipe Terminations")
+@device_sessions()
 def configure_pipe_terminations(
     optical_module_block: AbstractOpticalPipeBlockProvisioning,
 ) -> State:
@@ -368,6 +370,7 @@ def configure_pipe_terminations(
 
 
 @step("Check Optical Pipe Terminations")
+@device_sessions()
 def check_pipe_terminations(optical_module_block: AbstractOpticalPipeBlockProvisioning) -> State:
     """Verify that the terminating ports of an optical pipe are correctly configured.
 
@@ -446,6 +449,7 @@ def set_optical_pipe_subscription_description(
 
 
 @step("Retrieve Used Passbands")
+@device_sessions()
 def retrieve_optical_pipe_used_passbands(
     optical_module_block: AbstractOpticalPipeBlockProvisioning,
 ) -> State:

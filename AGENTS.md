@@ -43,6 +43,7 @@ src/orchestrator/optical/
 │   ├── transport_channel.py  #   transponder line/client/crossconnect config + validation + power alignment
 │   ├── reconcile.py          #   declarative config of the NETCONF devices (G30/G42): Fragment, diff/verify/apply/
 │   │                         #   release on the SDK primitives + the applied-config record (golden config per node)
+│   ├── sessions.py           #   device-sessions scope: one NETCONF session per node within a step / form submit
 │   └── adapters/             #   per-device implementations: nokia_flexils (TL1) / nokia_groove_g30, nokia_gx_g42 (NETCONF);
 │                             #   each imports its vendor SDK only in `_sdk.py` (the SDK contract); SDK-free helpers
 │                             #   live in naming.py / gne.py / constants.py; G30/G42 `config.py` = client + release rule
@@ -209,6 +210,14 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
   eagerly from `hal/<area>.py`, `hal/__init__.py` or `workflows/` (SDK-free values go in `naming.py`/`gne.py`/
   `constants.py`, re-exported by the area module). Cross-device adapter calls are local imports.
 - Tests needing an SDK (directly or through an adapter) start with `pytest.importorskip("<sdk>")`.
+- **Device sessions are scoped, never global**: every G30/G42 login is a full SSH + NETCONF hello, so within a
+  `hal.sessions.device_sessions()` scope `get_g30_client`/`get_g42_client` reuse the session open to the node
+  (keyed by client class + management IPs) and the scope closes them at its end. Every step reaching a device
+  (directly or through a helper) carries `@device_sessions()` right under `@step(...)`; every form submit gets its
+  own scope from `retryable_form` (generator sends + page validators, closed when the submit ends; core replays
+  the form from page 1 on each submit, so sessions cannot outlive one). Never cache sessions across steps,
+  requests or threads (NETCONF locks/commits are per session). A missing decorator is still correct, only slower.
+  The factories authenticate by password only (`allow_agent=False`, `look_for_keys=False`).
 
 ### Workflows
 
@@ -306,6 +315,9 @@ uv build                        # package build
   `<` instead of `<=`): unpatched, the empty quoted value `""` (used to clear `LABEL` / `PROVOWREMPTP`) is escaped
   and two literal quote characters are written on the node. To be fixed in the generator's kernel; the contract
   cases `ed-ots-clear-label` / `ed-scg-reset` fail on an unpatched SDK.
+- Seen on a node: an unfiltered retrieve of an object type the node has none of (e.g. `RTRV-OCRS` with no
+  cross-connection) is **denied** with `IENE` (object does not exist), not answered empty. Read such lists with
+  `_shared.py::_all_records(flex.rtrv_x)`; `RTRV-OEL`/`RTRV-OSNC` unfiltered reads may need the same if hit.
 - `RTRV-SCG` is sent without the card-type filter in `_find_fbm_port_if_fmm_port` (the previous client silently
   dropped it); `rtrv_scg(ctype="FBM")` would narrow the read but was never sent to a node.
 
@@ -324,6 +336,10 @@ uv build                        # package build
 - The recorded TX power (`tx-power:<port>` scope) is stored but not yet re-verified by the validate workflows.
 - G30 amplifier settings are applied with the termination but excluded from `check_fiber` and from the release
   (they are tuned on the device afterwards).
+- Session scoping (`hal/sessions.py`) not yet timed on a lab device. Left for later: a connect timeout separate
+  from the 60 s RPC timeout (SDK generator: an unreachable loopback IP stalls a full timeout before the interface
+  IP is tried); memoizing device reads across form submits; FlexILS clients are still cached process-wide by
+  the generated SDK (`get_instance`), with the staleness/concurrency exposure that implies.
 
 ### Current status (branch `porting/workflows`)
 

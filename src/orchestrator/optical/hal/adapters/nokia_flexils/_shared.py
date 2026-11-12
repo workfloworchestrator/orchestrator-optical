@@ -1,6 +1,6 @@
 """Device-level, cross-area shared helpers for the Nokia FlexILS adapter."""
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, cast
 
@@ -180,6 +180,20 @@ def _records(response: BaseResponse) -> list[dict[str, Any]]:
             record[_SLOT_NAMES.get(slot, slot)] = value
         records.append(record)
     return records
+
+
+def _all_records(retrieve: Callable[[], BaseResponse]) -> list[dict[str, Any]]:
+    """Return the :func:`_records` of an unfiltered retrieve, ``[]`` when the node has no such object.
+
+    A node with none of the requested objects (e.g. no OCRS yet) denies the unfiltered
+    ``RTRV-*`` with ``IENE`` (object does not exist) instead of an empty reply.
+    """
+    try:
+        return _records(retrieve())
+    except TL1DeniedError as exc:
+        if not _is_object_missing(exc):
+            raise
+        return []
 
 
 def _split_list(value: str) -> list[Any]:

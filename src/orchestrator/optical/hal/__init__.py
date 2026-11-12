@@ -17,6 +17,8 @@ product block with ``match/case``:
 - :mod:`orchestrator.optical.hal.reconcile` — the declarative configuration of the
   NETCONF devices (Groove G30, GX G42): render, diff, apply, release, and the golden
   configuration recorded per node.
+- :mod:`orchestrator.optical.hal.sessions` — the scope sharing one session per device
+  (``@device_sessions()`` under ``@step``; form submits get one from ``retryable_form``).
 
 Each area module routes to a per-device adapter under
 :mod:`orchestrator.optical.hal.adapters` (one subpackage per vendor platform).
@@ -54,6 +56,7 @@ from orchestrator.optical.hal.reconcile import (
     ConfigDriftError,
     golden_config,
 )
+from orchestrator.optical.hal.sessions import DeviceSessions, device_sessions
 from orchestrator.optical.hal.spectrum import (
     create_optical_cross_connection,
     delete_optical_circuit,
@@ -83,6 +86,7 @@ __all__ = [
     "ConfigApplyError",
     "ConfigConflictError",
     "ConfigDriftError",
+    "DeviceSessions",
     "FlexilsGneProvider",
     "IntraNodeEdge",
     "align_tx_power_to_target",
@@ -97,6 +101,7 @@ __all__ = [
     "delete_optical_cross_connection",
     "delete_transponder_crossconnect",
     "delta_rx_power_vs_target",
+    "device_sessions",
     "discover_flexils_node",
     "ensure_optical_circuit",
     "factory_reset_port_configuration",

@@ -40,7 +40,12 @@ from typing import Any, cast
 from structlog import get_logger
 
 from orchestrator.optical.hal._common import IntraNodeEdge
-from orchestrator.optical.hal.adapters.nokia_flexils._shared import _record_value, _records, get_flex_client
+from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
+    _all_records,
+    _record_value,
+    _records,
+    get_flex_client,
+)
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 from orchestrator.optical.utils.custom_types.frequencies import merge_intervals
 
@@ -312,5 +317,5 @@ def retrieve_add_drop_connectivity(
     scg_records = _records(flex.rtrv_scg())
     eqpt_records = _records(flex.rtrv_eqpt())
     ots_aids = [aid for record in _records(flex.rtrv_ots()) if (aid := _record_value(record, "AID"))]
-    ocrs_records = _records(flex.rtrv_ocrs())
+    ocrs_records = _all_records(flex.rtrv_ocrs)
     return add_drop_connectivity_from_records(add_drop_port, scg_records, eqpt_records, ots_aids, ocrs_records)

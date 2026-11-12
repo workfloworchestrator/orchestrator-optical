@@ -22,6 +22,7 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as g30_sh
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import _shared as g42_shared
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import node as g42_node
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import transponder as g42_transponder
+from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.settings import get_settings
 from test.support.netconf import CANDIDATE, WRITABLE_RUNNING, FakeManager, install_fake_netconf, rpc_error
 
@@ -72,6 +73,41 @@ def test_netconf_factory_falls_back_to_the_interface_ip(monkeypatch: pytest.Monk
     assert client.host == "10.0.0.2"
     assert attempts[-1]["username"] == "user"
     assert attempts[-1]["hostkey_verify"] is True
+
+
+def test_netconf_factory_authenticates_by_password_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The SSH agent and the local keys are not offered before the password."""
+    attempts = install_fake_netconf(monkeypatch, g42_8_0_2, FakeManager((CANDIDATE,)))
+
+    g42_shared.get_g42_client(_node_block())
+
+    assert attempts[-1]["allow_agent"] is False
+    assert attempts[-1]["look_for_keys"] is False
+
+
+def test_netconf_factory_shares_one_session_per_node_within_a_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Within a device-sessions scope a node is logged into once, and the session is closed when it ends."""
+    fake = FakeManager((WRITABLE_RUNNING,))
+    attempts = install_fake_netconf(monkeypatch, g30_4_8_0, fake)
+
+    with device_sessions():
+        first = g30_shared.get_g30_client(_node_block())
+        second = g30_shared.get_g30_client(_node_block())
+        other_node = g30_shared.get_g30_client(_node_block("10.0.1.1", "10.0.1.2"))
+        assert "close-session" not in fake.names()
+
+    assert first is second
+    assert other_node is not first
+    assert [a["host"] for a in attempts] == ["10.0.0.1", "10.0.1.1"]
+    assert fake.names().count("close-session") == 2
+
+
+def test_netconf_factory_opens_a_session_per_call_outside_a_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without a scope every call is its own session (the behaviour of code not opting in)."""
+    attempts = install_fake_netconf(monkeypatch, g30_4_8_0, FakeManager((WRITABLE_RUNNING,)))
+
+    assert g30_shared.get_g30_client(_node_block()) is not g30_shared.get_g30_client(_node_block())
+    assert len(attempts) == 2
 
 
 def test_netconf_factory_reports_every_failed_ip(monkeypatch: pytest.MonkeyPatch) -> None:

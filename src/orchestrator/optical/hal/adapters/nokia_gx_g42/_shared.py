@@ -13,12 +13,14 @@ def get_g42_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> 
 
     Every edit is committed immediately (``auto_commit``: the G42 stages edits in its
     candidate datastore), as each HAL operation is one self-contained change.
+    Authentication is by password only: the SSH agent and the local keys are not offered
+    first, as each key the node rejects costs round trips on every login.
 
     Args:
         optical_node_block: The Nokia GX G42 node block (any lifecycle variant).
 
     Returns:
-        A connected GX G42 NETCONF client.
+        A connected GX G42 NETCONF client (shared within a device-sessions scope).
     """
     settings = get_settings()
     return _connect_first(
@@ -28,6 +30,8 @@ def get_g42_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> 
         password=settings.g42_password,
         verify=settings.g42_verify,
         auto_commit=True,
+        allow_agent=False,
+        look_for_keys=False,
     )
 
 

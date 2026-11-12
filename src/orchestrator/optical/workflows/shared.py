@@ -32,6 +32,7 @@ from orchestrator.optical.db import (
     subscription_instances_by_block_types_and_resource_values,
 )
 from orchestrator.optical.hal.port import get_device_ports_by_role
+from orchestrator.optical.hal.sessions import DeviceSessions
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
@@ -44,11 +45,12 @@ def _form_error_message(exc: Exception) -> str:
     return f"{type(exc).__name__}: {exc}. Nothing was changed: fix the cause and submit this page again to retry."
 
 
-def _guarded_page(page: type[FormPage]) -> type[FormPage]:
+def _guarded_page(page: type[FormPage], sessions: DeviceSessions) -> type[FormPage]:
     """Return ``page`` with its validators guarded: any unexpected error becomes a validation error of the page.
 
     Pydantic only turns ``ValueError`` / ``AssertionError`` into a validation error; anything else raised by a
-    validator (e.g. a device or database error) would escape the form machinery as an HTTP 500.
+    validator (e.g. a device or database error) would escape the form machinery as an HTTP 500. The validators
+    use the device ``sessions`` of the submit.
     """
 
     class GuardedPage(page):  # ty: ignore[unsupported-base]
@@ -56,7 +58,8 @@ def _guarded_page(page: type[FormPage]) -> type[FormPage]:
         @classmethod
         def _guard_unexpected_errors(cls, data: Any, handler: Callable[[Any], Any]) -> Any:
             try:
-                return handler(data)
+                with sessions.active():
+                    return handler(data)
             except ValidationError:
                 raise
             except Exception as exc:
@@ -79,6 +82,10 @@ def retryable_form[**P](form_generator: Callable[P, FormGenerator]) -> Callable[
     that page, reads the message and can submit again (or go back) once the cause is fixed. The traceback is
     logged.
 
+    A submit also shares one session per device (:class:`~orchestrator.optical.hal.sessions.DeviceSessions`)
+    between its pages and validators, as the replay reads the same nodes again and again; the sessions are
+    closed when the submit ends.
+
     Apply it to the outermost generator handed to ``initial_input_form=`` (shipped generators are decorated;
     consumers composing their own generator from the shipped ``*_form_pages`` decorate theirs).
 
@@ -95,21 +102,28 @@ def retryable_form[**P](form_generator: Callable[P, FormGenerator]) -> Callable[
         form_name = getattr(form_generator, "__name__", "form")
         page_name = form_name
         user_input = None
-        while True:
-            try:
-                page = generator.send(user_input)
-            except StopIteration as stop:
-                return stop.value
-            except FormException:
-                raise
-            except Exception as exc:
-                logger.exception("Unexpected error in a form generator", form=form_name, page=page_name)
-                cause = ValueError(_form_error_message(exc))
-                details = InitErrorDetails(type="value_error", loc=(), input={}, ctx={"error": cause})
-                error = ValidationError.from_exception_data(page_name, [details])
-                raise FormValidationError(page_name, error, PydanticI18n(translations)) from exc
-            page_name = page.__name__
-            user_input = yield _guarded_page(page)
+        # Active only while the generator or a validator runs, never across a yield: the submit ends with the
+        # generator suspended on its next page, and closing it (GeneratorExit at the yield) closes the sessions.
+        sessions = DeviceSessions()
+        try:
+            while True:
+                try:
+                    with sessions.active():
+                        page = generator.send(user_input)
+                except StopIteration as stop:
+                    return stop.value
+                except FormException:
+                    raise
+                except Exception as exc:
+                    logger.exception("Unexpected error in a form generator", form=form_name, page=page_name)
+                    cause = ValueError(_form_error_message(exc))
+                    details = InitErrorDetails(type="value_error", loc=(), input={}, ctx={"error": cause})
+                    error = ValidationError.from_exception_data(page_name, [details])
+                    raise FormValidationError(page_name, error, PydanticI18n(translations)) from exc
+                page_name = page.__name__
+                user_input = yield _guarded_page(page, sessions)
+        finally:
+            sessions.close()
 
     return wrapper
 
