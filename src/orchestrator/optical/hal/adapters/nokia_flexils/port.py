@@ -1,19 +1,23 @@
 """Port-area operations for the Nokia FlexILS device adapter."""
 
 import json
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from orchestrator.optical.hal._common import (
     UnsupportedPortRoleError,
-    _as_flexils_block,
     _extract_remote_port_id,
     _node_id,
     _port_name,
     _ports_by_role,
 )
-from orchestrator.optical.hal.adapters.nokia_flexils._sdk import TL1CommandDeniedError
+from orchestrator.optical.hal.adapters.nokia_flexils._sdk import TL1DeniedError
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
+    FlexilsClient,
+    _get_flex_client,
     _get_remote_node_id,
+    _is_object_missing,
+    _records,
+    _tl1_quoted,
     get_flex_client,
 )
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
@@ -26,12 +30,12 @@ from orchestrator.optical.utils.datadiff import compare_jsons
 _FLEXILS_SUPPORTED_ROLES = frozenset({OpticalPortRole.OLS_LINE, OpticalPortRole.OLS_ADD_DROP})
 
 
-def _scg_aids(flex: Any) -> list[str]:
+def _scg_aids(flex: FlexilsClient) -> list[str]:
     """Return the SCG AIDs of a FlexILS node, tolerating nodes without SCGs."""
     try:
-        return [str(x["AID"]) for x in flex.rtrv_scg().parsed_data]
-    except TL1CommandDeniedError as e:
-        if "INPUT, SPECIFIED OBJECT ENTITY DOES NOT EXIST" not in e.response:
+        return [str(x["AID"]) for x in _records(flex.rtrv_scg())]
+    except TL1DeniedError as e:
+        if not _is_object_missing(e):
             raise
         return []
 
@@ -45,11 +49,11 @@ def get_device_ports_by_role(
     A FlexILS node exposes OLS line ports (OTS AIDs) and OLS add/drop tributary ports (SCG AIDs);
     it cannot enumerate transponder or coherent pluggable ports.
     """
-    flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
+    flex = get_flex_client(optical_node_block)
 
     def port_names_for_role(role: OpticalPortRole) -> list[str]:
         if role is OpticalPortRole.OLS_LINE:
-            return [str(x["AID"]) for x in flex.rtrv_ots().parsed_data]
+            return [str(x["AID"]) for x in _records(flex.rtrv_ots())]
         if role is OpticalPortRole.OLS_ADD_DROP:
             return _scg_aids(flex)
         msg = f"Nokia FlexILS does not support port role {role.value}"
@@ -76,15 +80,15 @@ def set_port_description(
     """
     host_node = port_block.optical_port_host_node
     port_name = _port_name(port_block)
-    flex = cast(Any, get_flex_client(_as_flexils_block(host_node)))  # TL1 methods are bound dynamically
+    flex = _get_flex_client(host_node)
     if "L" in port_name:
-        before = flex.rtrv_ots(aid=port_name).parsed_data
-        flex.ed_ots(aid=port_name, label=rf'"{port_description}"')
-        after = flex.rtrv_ots(aid=port_name).parsed_data
+        before = _records(flex.rtrv_ots(aid=port_name))
+        flex.ed_ots(aid=port_name, label=_tl1_quoted(port_description))
+        after = _records(flex.rtrv_ots(aid=port_name))
         return compare_jsons(before, after)
-    before = flex.rtrv_scg(aid=port_name).parsed_data
-    flex.ed_scg(aid=port_name, label=rf'"{port_description}"')
-    after = flex.rtrv_scg(aid=port_name).parsed_data
+    before = _records(flex.rtrv_scg(aid=port_name))
+    flex.ed_scg(aid=port_name, label=_tl1_quoted(port_description))
+    after = _records(flex.rtrv_scg(aid=port_name))
     return compare_jsons(before, after)
 
 
@@ -102,7 +106,7 @@ def set_port_admin_state(
     Returns:
         The difference between the port configuration before and after the update.
     """
-    flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
+    flex = _get_flex_client(optical_port_block.optical_port_host_node)
     port_name = _port_name(optical_port_block)
 
     # Line ports (OTS)
@@ -110,33 +114,33 @@ def set_port_admin_state(
         if admin_state == "down":
             msg = "Line ports (OTS) can only be in service (IS) or maintenance (MT) state"
             raise ValueError(msg)
-        before = flex.rtrv_ots(aid=port_name).parsed_data
+        before = _records(flex.rtrv_ots(aid=port_name))
         if admin_state == "maintenance":
-            flex.put_maintenance(aidtype="OTS", aid=port_name)
+            flex.rmv(aidtype="OTS", aid=port_name)
         elif admin_state == "up":
-            flex.rst_maintenance(aidtype="OTS", aid=port_name)
-        after = flex.rtrv_ots(aid=port_name).parsed_data
+            flex.rst(aidtype="OTS", aid=port_name)
+        after = _records(flex.rtrv_ots(aid=port_name))
         return compare_jsons(before, after)
 
     # Tributary ports (SCG)
     # from any state to in-service state (we must know the current state of the
     # finite state machine to move between states)
-    before = flex.rtrv_scg(aid=port_name).parsed_data
+    before = _records(flex.rtrv_scg(aid=port_name))
     try:
-        flex.ed_scg(aid=port_name, is_oos="IS")
-    except TL1CommandDeniedError as e:
-        if "use RST command" not in e.response:
+        flex.ed_scg(aid=port_name, pst="IS")
+    except TL1DeniedError as e:
+        if "use RST command" not in e.raw:
             raise
-        flex.rst_maintenance(aidtype="SCG", aid=port_name)
+        flex.rst(aidtype="SCG", aid=port_name)
     # from in-service state to desired state
     if admin_state == "up":
         pass
     elif admin_state == "down":
-        flex.ed_scg(aid=port_name, is_oos="OOS")
+        flex.ed_scg(aid=port_name, pst="OOS")
     elif admin_state == "maintenance":
-        flex.put_maintenance(aidtype="SCG", aid=port_name)
+        flex.rmv(aidtype="SCG", aid=port_name)
 
-    after = flex.rtrv_scg(aid=port_name).parsed_data
+    after = _records(flex.rtrv_scg(aid=port_name))
     return compare_jsons(before, after)
 
 
@@ -149,14 +153,14 @@ def _ensure_manualmode2(optical_port_block: AnyOpticalPortBlockProvisioning) -> 
     Raises:
         ValueError: In case the configuration failed.
     """
-    flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
+    flex = _get_flex_client(optical_port_block.optical_port_host_node)
     port_name = _port_name(optical_port_block)
-    scg = flex.rtrv_scg(aid=port_name).parsed_data[0]
+    scg = _records(flex.rtrv_scg(aid=port_name))[0]
 
     if scg["INTFTYP"] != "MANUALMODE-2":
         card_aid = port_name.split("-")[:-1]
         card_aid = "-".join(card_aid)
-        card = flex.rtrv_eqpt(aid=card_aid).parsed_data[0]
+        card = _records(flex.rtrv_eqpt(aid=card_aid))[0]
 
         if card["TYPE"] in ["FSM", "FRM"]:
             # tributary ports of FSM and system ports of FRM cards can only be unlocked or locked
@@ -182,19 +186,19 @@ def configure_termination(
     remote platform, as the legacy code did, misconfigured the cross-role cases
     (e.g. a FlexILS<->FlexILS client patch).
     """
-    flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
+    flex = _get_flex_client(optical_port_block.optical_port_host_node)
     port_name = _port_name(optical_port_block)
     description = optical_port_block.optical_port_description or ""
 
     match (optical_port_block.optical_port_role, pipe_type):
         case (OpticalPortRole.OLS_LINE, OpticalPipeType.SPAN):
-            before = flex.rtrv_ots(aid=port_name).parsed_data
-            flex.ed_ots(aid=port_name, label=rf'"{description}"')
-            flex.rst_maintenance(aidtype="OTS", aid=port_name)
-            after = flex.rtrv_ots(aid=port_name).parsed_data
+            before = _records(flex.rtrv_ots(aid=port_name))
+            flex.ed_ots(aid=port_name, label=_tl1_quoted(description), histstats="ENABLE")
+            flex.rst(aidtype="OTS", aid=port_name)
+            after = _records(flex.rtrv_ots(aid=port_name))
             return compare_jsons(before, after)
         case (OpticalPortRole.OLS_ADD_DROP, OpticalPipeType.PATCH | OpticalPipeType.LEASED_SPECTRUM):
-            before = flex.rtrv_scg(aid=port_name).parsed_data
+            before = _records(flex.rtrv_scg(aid=port_name))
             _ensure_manualmode2(optical_port_block)
             remote_node_id = _get_remote_node_id(remote_port_block)
             remote_port_id = _extract_remote_port_id(_port_name(remote_port_block))
@@ -202,9 +206,10 @@ def configure_termination(
             flex.ed_scg(
                 aid=port_name,
                 provowremptp=provowremptp,
-                label=rf'"{description}"',
+                label=_tl1_quoted(description),
+                histstats="ENABLE",
             )
-            after = flex.rtrv_scg(aid=port_name).parsed_data
+            after = _records(flex.rtrv_scg(aid=port_name))
             return compare_jsons(before, after)
         case _:
             msg = (
@@ -225,26 +230,26 @@ def factory_reset(
     in :func:`configure_termination`; the remote port is not needed to prune a
     port (the SCG remote-tributary reference is simply cleared).
     """
-    flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
+    flex = _get_flex_client(optical_port_block.optical_port_host_node)
     port_name = _port_name(optical_port_block)
 
     match (optical_port_block.optical_port_role, pipe_type):
         case (OpticalPortRole.OLS_LINE, OpticalPipeType.SPAN):
-            before = flex.rtrv_ots(aid=port_name).parsed_data
-            flex.ed_ots(aid=port_name, label=r'""')
-            after = flex.rtrv_ots(aid=port_name).parsed_data
+            before = _records(flex.rtrv_ots(aid=port_name))
+            flex.ed_ots(aid=port_name, label=_tl1_quoted(""))
+            after = _records(flex.rtrv_ots(aid=port_name))
             return compare_jsons(before, after)
         case (OpticalPortRole.OLS_ADD_DROP, OpticalPipeType.PATCH | OpticalPipeType.LEASED_SPECTRUM):
-            before = flex.rtrv_scg(aid=port_name).parsed_data
+            before = _records(flex.rtrv_scg(aid=port_name))
             set_port_admin_state(optical_port_block, "maintenance")
             flex.ed_scg(
                 aid=port_name,
                 intftyp="MANUALMODE-2",
-                provowremptp=r'""',
-                label=r'""',
+                provowremptp=_tl1_quoted(""),
+                label=_tl1_quoted(""),
             )
             set_port_admin_state(optical_port_block, "down")
-            after = flex.rtrv_scg(aid=port_name).parsed_data
+            after = _records(flex.rtrv_scg(aid=port_name))
             return compare_jsons(before, after)
         case _:
             msg = (
@@ -260,17 +265,17 @@ def check_fiber(
     pipe_type: OpticalPipeType,
 ) -> None:
     """Check if a Nokia FlexILS port attached to a fiber is correctly configured."""
-    flex = cast(Any, get_flex_client(_as_flexils_block(optical_port_block.optical_port_host_node)))
+    flex = _get_flex_client(optical_port_block.optical_port_host_node)
     port_name = _port_name(optical_port_block)
     remote_port_name = _port_name(remote_port_block)
     description = optical_port_block.optical_port_description or ""
 
     match (optical_port_block.optical_port_role, pipe_type):
         case (OpticalPortRole.OLS_LINE, OpticalPipeType.SPAN):
-            ots = flex.rtrv_ots(aid=port_name).parsed_data[0]
+            ots = _records(flex.rtrv_ots(aid=port_name))[0]
             checks = (
                 description in ots["LABEL"]
-                and not ots["OPERSTATE"].endswith("MA")
+                and not ots["PST"].endswith("MA")
                 and remote_port_name in ots["PROVNBROTS"]
                 and ots["PROVNBROTS"] == ots["DISCNBROTS"]
                 and ots["HISTSTATS"] == "ENABLED"
@@ -290,7 +295,7 @@ def check_fiber(
                             },
                             "actual": {
                                 "label": ots["LABEL"],
-                                "operstate": ots["OPERSTATE"],
+                                "operstate": ots["PST"],
                                 "provnbrots": ots["PROVNBROTS"],
                                 "discnbrots": ots["DISCNBROTS"],
                                 "histstats": ots["HISTSTATS"],
@@ -305,13 +310,13 @@ def check_fiber(
             remote_port_id = _extract_remote_port_id(remote_port_name)
             provowremptp = f"{remote_node_id}/{remote_port_id}"
 
-            scg = flex.rtrv_scg(aid=port_name).parsed_data[0]
+            scg = _records(flex.rtrv_scg(aid=port_name))[0]
 
             checks = (
                 scg["INTFTYP"] == "MANUALMODE-2"
                 and scg["PROVOWREMPTP"] == provowremptp
                 and description in scg["LABEL"]
-                and not scg["OPERSTATE"].endswith("MA")
+                and not scg["PST"].endswith("MA")
                 and scg["HISTSTATS"] == "ENABLED"
             )
             if not checks:
@@ -331,7 +336,7 @@ def check_fiber(
                                 "intftyp": scg["INTFTYP"],
                                 "provowremptp": scg["PROVOWREMPTP"],
                                 "label": scg["LABEL"],
-                                "operstate": scg["OPERSTATE"],
+                                "operstate": scg["PST"],
                                 "histstats": scg["HISTSTATS"],
                             },
                         },

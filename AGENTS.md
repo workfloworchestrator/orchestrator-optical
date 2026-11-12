@@ -143,6 +143,23 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
   cross-connects, whose keys only the device knows (G30 free ODU, G42 RPC-created `xcon`).
 - FlexILS (TL1) is not declarative: it keeps its hand-written engine.
 
+### FlexILS TL1 client (generated SDK)
+
+- `flexils_tl1` is the client **generated** by `nokia-flexils-tl1-codegen` (`flexils-tl1 generate`) from the vendor
+  command reference: typed per-command methods (`rtrv_scg`, `ed_osnc`, `rmv`/`rst`/`rtrv_pm` with the AID type as
+  first argument), every reply value a raw string. Method and parameter names are the reference's, quirks included
+  (the admin-state slot is `pst`, but `srcnodename` on `ED-OEL` and `applicable` on `ENT-OEL`).
+- `nokia_flexils/_shared.py` is the only place adapting it: `FlexilsClient` (generated surface + SDK runtime, plus
+  `tid`/`gne_ip` and the rule that a denial holding `ALREADY` is a success), `_flexils_client` (cached per
+  `(tid, gne_ip)`, credentials and host-key policy from the settings through an explicit `SshTransport`),
+  `_records(response)` (wire-keyed dicts the engine works on: `""` for an empty value, `_LIST_KEYS` split on
+  `&`/`&-`, slots the surface leaves unnamed as `TYPE`/`PST`/`SST`), `_tl1_quoted` / `_tl1_list` for request values.
+  Engine policy the old client hid in its models (ENT-OEL / ENT-OSNC defaults) is explicit in `spectrum.py`
+  (`_OEL_DEFAULTS`, `_OSNC_DEFAULTS`).
+- `test/contract/test_flexils_tl1.py` pins the exact bytes of every command the adapter sends (real SDK over its
+  `FakeTransport`, helpers in `test/support/tl1.py`): add the case when adding a command, and run it after
+  regenerating the SDK.
+
 ### Layering (hal and pages depend on blocks, never on workflows/subscriptions)
 
 - `hal/` implements device-facing logic (aka drivers) and depends only on public **blocks** — these are the shared
@@ -184,7 +201,8 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
   gitignored `sdks/` (installed editable by `just sync` / `just sdks`) and are never committed or re-added under
   `src/`. They never import `orchestrator.optical.*`: credentials and verify policy are explicit client arguments,
   passed from the settings by the `hal/` factories (`get_g30_client`, `get_g42_client`,
-  `nokia_flexils/_shared.py::_flexils_client`).
+  `nokia_flexils/_shared.py::_flexils_client`; the generated FlexILS SDK could fall back to its own
+  `FLEXILS_TL1_*` variables, so that factory refuses to build a client without the settings' credentials).
 - Only `hal/adapters/<device>/_sdk.py` imports an SDK (re-exporting the names used; missing SDK →
   `VendorSdkNotInstalledError`). The area dispatchers hold adapters through `_common.LazyAdapter` (real import under
   `TYPE_CHECKING`), so `import orchestrator.optical.*` works with no SDK installed: never import an adapter module
@@ -274,6 +292,18 @@ uv build                        # package build
 > Always leave the code of this module more usable, maintainabile, and evolvable than you found it (KISS, YANGI, SOLID).
 > If you find minor things that takes less than 5 seconds to fix, just fix them.
 > Otherwise, always report for future sessions.
+
+### Open points of the FlexILS generated client (report progress here)
+
+- **Not yet verified on a lab node.** Versus the previous client the wire differs only in: trailing empty blocks no
+  longer sent on 18 command shapes (`RTRV-OTS:tid:aid:ctag;` instead of `...:ctag::::;`), and `OELSOURCE=manual`
+  (the reference's case) instead of `MANUAL`.
+- The SDK copy under `sdks/flexils_tl1` carries **one local kernel patch** (`protocol/serializer.py::_is_quoted`,
+  `<` instead of `<=`): unpatched, the empty quoted value `""` (used to clear `LABEL` / `PROVOWREMPTP`) is escaped
+  and two literal quote characters are written on the node. To be fixed in the generator's kernel; the contract
+  cases `ed-ots-clear-label` / `ed-scg-reset` fail on an unpatched SDK.
+- `RTRV-SCG` is sent without the card-type filter in `_find_fbm_port_if_fmm_port` (the previous client silently
+  dropped it); `rtrv_scg(ctype="FBM")` would narrow the read but was never sent to a node.
 
 ### Known pre-existing noise (do NOT "fix" these as a side quest)
 

@@ -1,9 +1,10 @@
 """Node-area operations for the Nokia FlexILS device adapter."""
 
-from typing import Any, cast
+from typing import Any
 
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
     _record_value,
+    _records,
     _retrieve_node_properties,
     discover_flexils_node,
     get_flex_client,
@@ -52,7 +53,7 @@ def role(node: NokiaFlexIlsBlockProvisioning) -> OpticalNodeRole:
     Raises:
         ValueError: If the node has no Target ID or cannot be reached.
     """
-    flex = cast(Any, get_flex_client(node))
+    flex = get_flex_client(node)
     role, _ = _retrieve_node_properties(flex)
     return role
 
@@ -69,17 +70,16 @@ def software_version(node: NokiaFlexIlsBlockProvisioning) -> str:
     Raises:
         ValueError: If the node has no Target ID or cannot be reached.
     """
-    flex = cast(Any, get_flex_client(node))
+    flex = get_flex_client(node)
     _, version = _retrieve_node_properties(flex)
     return version
 
 
 def retrieve_omses(optical_node_block: NokiaFlexIlsBlockProvisioning) -> list[dict[str, Any]]:
     """Retrieve the Optical Muxed Sections terminating on a Nokia FlexILS node."""
-    flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
-    response = flex.rtrv_otelink()
+    flex = get_flex_client(optical_node_block)
     omses: list[dict[str, Any]] = []
-    for otelink in response.parsed_data:
+    for otelink in _records(flex.rtrv_otelink()):
         if _record_value(otelink, "REACHSCOPE") != "Local":
             continue
         aid = _record_value(otelink, "AID")
@@ -114,9 +114,8 @@ def retrieve_ports_spectral_occupations(
 ) -> dict[str, list[tuple[int, int]]]:
     """Retrieve the spectral occupations of the ports of a Nokia FlexILS node."""
     spectral_occupations: dict[str, list[tuple[int, int]]] = {}
-    flex = cast(Any, get_flex_client(optical_node_block))  # the TL1 command methods are bound dynamically
-    response = flex.rtrv_otelink()
-    for otelink in response.parsed_data:
+    flex = get_flex_client(optical_node_block)
+    for otelink in _records(flex.rtrv_otelink()):
         if otelink["REACHSCOPE"] == "Local":
             _, local_port = otelink["AID"].split("-", 1)
             if not isinstance(otelink["AVAILFREQRANGELIST"][0], list):

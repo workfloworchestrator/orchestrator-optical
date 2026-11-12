@@ -1,11 +1,11 @@
 """Unit tests for the TLS/SSH verification wiring of the Nokia device clients.
 
 Verification is secure by default. The G30/G42 NETCONF sessions verify the SSH host
-key unless ``OPTICAL_*_VERIFY=false`` (lab use only); the FlexILS SSH client rejects
-unknown host keys by default, ``false`` auto-accepts them, or it verifies against a
-known-hosts file path. The device clients take credentials and the verification
-policy as explicit arguments; the ``hal`` client factories read them from the
-settings. No device is contacted.
+key unless ``OPTICAL_*_VERIFY=false`` (lab use only); the FlexILS SSH transport rejects
+host keys unknown to the user's known-hosts file by default, ``false`` auto-accepts
+them, or it verifies against a known-hosts file path. The device clients take
+credentials and the verification policy as explicit arguments; the ``hal`` client
+factories read them from the settings. No device is contacted.
 """
 
 import pytest
@@ -14,14 +14,14 @@ pytest.importorskip("flexils_tl1")
 pytest.importorskip("g30_4_8_0")
 pytest.importorskip("g42_8_0_2")
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, ClassVar
 
 import g30_4_8_0
 import g42_8_0_2
-from flexils_tl1.client import FlexilsClient
 
-from orchestrator.optical.hal.adapters.nokia_flexils._shared import _flexils_client
+from orchestrator.optical.hal.adapters.nokia_flexils._shared import FlexilsClient, _flexils_client
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import get_g30_client
 from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
 from orchestrator.optical.settings import get_settings
@@ -87,38 +87,49 @@ def test_netconf_verify_rejects_a_trust_store_path(prefix: str, monkeypatch) -> 
         get_settings()
 
 
-def test_flexils_verifies_host_key_by_default() -> None:
-    client = FlexilsClient(tid="FLEXILS", gne_ip="10.0.0.1")
-
-    assert client._verify_host_key is True  # noqa: SLF001
-
-
-def test_flexils_explicit_verify() -> None:
-    assert FlexilsClient(tid="FLEXILS", gne_ip="10.0.0.1", verify_host_key=False)._verify_host_key is False  # noqa: SLF001
-    client = FlexilsClient(tid="FLEXILS", gne_ip="10.0.0.1", verify_host_key="/root/.ssh/known_hosts")
-    assert client._verify_host_key == "/root/.ssh/known_hosts"  # noqa: SLF001
+def _flexils_env(monkeypatch: pytest.MonkeyPatch, verify_host_key: str | None = None) -> None:
+    monkeypatch.setenv("OPTICAL_FLEXILS_USER", "alice")
+    monkeypatch.setenv("OPTICAL_FLEXILS_PASSWORD", _AUTH_VALUE)
+    if verify_host_key is None:
+        monkeypatch.delenv("OPTICAL_FLEXILS_VERIFY_HOST_KEY", raising=False)
+    else:
+        monkeypatch.setenv("OPTICAL_FLEXILS_VERIFY_HOST_KEY", verify_host_key)
+    get_settings.cache_clear()
 
 
 def test_flexils_factory_threads_settings(monkeypatch) -> None:
-    monkeypatch.setenv("OPTICAL_FLEXILS_USER", "alice")
-    monkeypatch.setenv("OPTICAL_FLEXILS_PASSWORD", _AUTH_VALUE)
-    monkeypatch.setenv("OPTICAL_FLEXILS_VERIFY_HOST_KEY", "/root/.ssh/known_hosts")
+    _flexils_env(monkeypatch, "/root/.ssh/known_hosts")
 
     client = _flexils_client("FLEXILS", "10.0.0.1")
 
+    assert (client.tid, client.gne_ip) == ("FLEXILS", "10.0.0.1")
     assert client._username == "alice"  # noqa: SLF001
     assert client._password == _AUTH_VALUE  # noqa: SLF001
-    assert client._verify_host_key == "/root/.ssh/known_hosts"  # noqa: SLF001
-    assert _flexils_client("FLEXILS", "10.0.0.1") is client
+    transport: Any = client._transport  # noqa: SLF001
+    assert (transport._host, transport._username, transport._password) == ("10.0.0.1", "alice", _AUTH_VALUE)  # noqa: SLF001
+    assert transport._known_hosts == Path("/root/.ssh/known_hosts")  # noqa: SLF001
 
 
-def test_flexils_cache_key_distinguishes_verify_policies() -> None:
-    default = FlexilsClient.get_instance(tid="FLEXILS", gne_ip="10.0.0.1")
-    assert FlexilsClient.get_instance(tid="FLEXILS", gne_ip="10.0.0.1") is default
+def test_flexils_factory_caches_one_client_per_node(monkeypatch) -> None:
+    _flexils_env(monkeypatch)
 
-    lab = FlexilsClient.get_instance(tid="FLEXILS", gne_ip="10.0.0.1", verify_host_key=False)
-    assert lab is not default
-    assert lab._verify_host_key is False  # noqa: SLF001
+    client = _flexils_client("FLEXILS", "10.0.0.1")
+
+    assert _flexils_client("flexils", "10.0.0.1") is client
+    assert _flexils_client("OTHER", "10.0.0.1") is not client
+    assert _flexils_client("FLEXILS", "10.0.0.2") is not client
+
+
+def test_flexils_factory_requires_credentials(monkeypatch) -> None:
+    """Missing settings are an error: the SDK must not fall back to its own environment variables."""
+    monkeypatch.delenv("OPTICAL_FLEXILS_USER", raising=False)
+    monkeypatch.delenv("OPTICAL_FLEXILS_PASSWORD", raising=False)
+    monkeypatch.setenv("FLEXILS_TL1_USER", "from-the-sdk-env")
+    monkeypatch.setenv("FLEXILS_TL1_PASSWORD", _AUTH_VALUE)
+    get_settings.cache_clear()
+
+    with pytest.raises(ValueError, match="OPTICAL_FLEXILS_USER"):
+        _flexils_client("FLEXILS", "10.0.0.1")
 
 
 class _FakeSSHClient:
@@ -128,33 +139,32 @@ class _FakeSSHClient:
 
     def __init__(self) -> None:
         self.policies: list = []
-        self.loaded_system = 0
         self.loaded_paths: list[str] = []
         _FakeSSHClient.instances.append(self)
 
     def set_missing_host_key_policy(self, policy) -> None:
         self.policies.append(policy)
 
-    def load_system_host_keys(self, _filename=None) -> None:
-        self.loaded_system += 1
-
     def load_host_keys(self, filename: str) -> None:
         self.loaded_paths.append(filename)
 
     def connect(self, **_kwargs) -> None:
-        raise RuntimeError
+        raise OSError
 
     def close(self) -> None:
         pass
 
 
-def _connect_policy(client: FlexilsClient, monkeypatch: pytest.MonkeyPatch):
+def _connect_policy(monkeypatch: pytest.MonkeyPatch, verify_host_key: str | None) -> _FakeSSHClient:
+    """Open the session of a factory-built client up to the SSH connect, and return the fake SSH client."""
     import paramiko
+    from flexils_tl1 import TL1TransportError
 
+    _flexils_env(monkeypatch, verify_host_key)
     _FakeSSHClient.instances.clear()
     monkeypatch.setattr(paramiko, "SSHClient", _FakeSSHClient)
-    with pytest.raises(RuntimeError):
-        client._connect()  # noqa: SLF001
+    with pytest.raises(TL1TransportError):
+        _flexils_client("FLEXILS", "10.0.0.1").rtrv_sys()
     assert len(_FakeSSHClient.instances) == 1
     return _FakeSSHClient.instances[0]
 
@@ -162,11 +172,9 @@ def _connect_policy(client: FlexilsClient, monkeypatch: pytest.MonkeyPatch):
 def test_flexils_rejects_unknown_host_keys_by_default(monkeypatch) -> None:
     import paramiko
 
-    client = FlexilsClient(tid="FLEXILS", gne_ip="10.0.0.1", username="user", password=_AUTH_VALUE)
-    fake = _connect_policy(client, monkeypatch)
+    fake = _connect_policy(monkeypatch, None)
 
-    assert fake.loaded_system == 1
-    assert fake.loaded_paths == []
+    assert fake.loaded_paths == [str(Path.home() / ".ssh" / "known_hosts")]
     assert len(fake.policies) == 1
     assert isinstance(fake.policies[0], paramiko.RejectPolicy)
 
@@ -174,12 +182,9 @@ def test_flexils_rejects_unknown_host_keys_by_default(monkeypatch) -> None:
 def test_flexils_lab_mode_auto_adds_host_keys(monkeypatch) -> None:
     import paramiko
 
-    fake = _connect_policy(
-        FlexilsClient(tid="FLEXILS", gne_ip="10.0.0.1", username="user", password=_AUTH_VALUE, verify_host_key=False),
-        monkeypatch,
-    )
+    fake = _connect_policy(monkeypatch, "false")
 
-    assert fake.loaded_system == 0
+    assert fake.loaded_paths == []
     assert len(fake.policies) == 1
     assert isinstance(fake.policies[0], paramiko.AutoAddPolicy)
 
@@ -187,18 +192,8 @@ def test_flexils_lab_mode_auto_adds_host_keys(monkeypatch) -> None:
 def test_flexils_loads_custom_known_hosts_file(monkeypatch) -> None:
     import paramiko
 
-    fake = _connect_policy(
-        FlexilsClient(
-            tid="FLEXILS",
-            gne_ip="10.0.0.1",
-            username="user",
-            password=_AUTH_VALUE,
-            verify_host_key="/root/.ssh/known_hosts",
-        ),
-        monkeypatch,
-    )
+    fake = _connect_policy(monkeypatch, "/root/.ssh/known_hosts")
 
-    assert fake.loaded_system == 1
     assert fake.loaded_paths == ["/root/.ssh/known_hosts"]
     assert len(fake.policies) == 1
     assert isinstance(fake.policies[0], paramiko.RejectPolicy)

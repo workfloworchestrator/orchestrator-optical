@@ -1,12 +1,21 @@
 """Device-level, cross-area shared helpers for the Nokia FlexILS adapter."""
 
-from collections.abc import Sequence
-from typing import Any, Protocol, cast
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any, cast
 
 from structlog import get_logger
 
 from orchestrator.optical.hal._common import _as_flexils_block, _node_id
-from orchestrator.optical.hal.adapters.nokia_flexils._sdk import FlexilsClient, TL1BaseResponse
+from orchestrator.optical.hal.adapters.nokia_flexils._sdk import (
+    BaseRequest,
+    BaseResponse,
+    FlexSdkClientBase,
+    GeneratedMethods,
+    SshTransport,
+    TL1DeniedError,
+    parse_reply,
+)
 from orchestrator.optical.hal.adapters.nokia_flexils.gne import FlexilsGneProvider
 from orchestrator.optical.products.product_blocks.optical_location import OpticalModuleLocationBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
@@ -21,6 +30,59 @@ from orchestrator.optical.utils.custom_types.ip_address import IPAddress
 
 logger = get_logger(__name__)
 
+#: Marker of a denial telling that the entity is already in the requested state.
+_ALREADY = "ALREADY"
+
+#: Marker of a denial telling that the requested object does not exist on the node.
+_OBJECT_DOES_NOT_EXIST = "SPECIFIED OBJECT ENTITY DOES NOT EXIST"
+
+#: Positional slots of the standard TL1 record (``<AID>:<TYPE>:<KEY=value,...>:<PST>,<SST>``) that the
+#: generated surface leaves unnamed for most commands, under the names the adapter reads them by. The
+#: slots the surface does name keep its names (``AID``, ``FROMAID``, ``TOAID``, ``PST``, ``MONVAL``, ...).
+_SLOT_NAMES = {"1.0": "TYPE", "3.0": "PST", "3.1": "SST"}
+
+#: Record values that are ``&``-separated lists (``&-`` between the groups of a nested list).
+_LIST_KEYS = frozenset({"PASSBANDLIST", "CARRIERLIST", "AVAILFREQRANGELIST"})
+
+
+class FlexilsClient(GeneratedMethods, FlexSdkClientBase):
+    """The generated TL1 client of the node ``tid``, reached through the network element at ``gne_ip``.
+
+    It is the generated command surface plus the SDK runtime (exactly what the SDK's
+    ``get_client`` assembles), with the two things the adapter adds: the identity of the
+    node it targets, and the rule that makes the adapter's state transitions idempotent.
+    """
+
+    def __init__(self, tid: str, gne_ip: str, **kwargs: Any) -> None:
+        """Bind the client to ``tid`` behind ``gne_ip``; no connection is opened here."""
+        super().__init__(tid, gne_ip, **kwargs)
+        self.tid = tid
+        self.gne_ip = gne_ip
+
+    def execute[R: BaseResponse](
+        self,
+        command: BaseRequest[R],
+        *,
+        raise_on_deny: bool = True,
+        timeout: float | None = None,
+    ) -> R:
+        """Execute ``command``, treating a denial for an entity ALREADY in the requested state as done.
+
+        The adapter drives admin states and creations as "bring it there from wherever it
+        is" (e.g. put in service, then lock), so the node answering that nothing had to
+        change is a success, not an error. Every other denial raises.
+
+        Returns:
+            The typed response; of the denial itself when the entity was already there.
+        """
+        try:
+            # The SDK runtime, named: the generated surface only declares ``execute`` for type checkers.
+            return FlexSdkClientBase.execute(self, command, raise_on_deny=raise_on_deny, timeout=timeout)
+        except TL1DeniedError as exc:
+            if _ALREADY not in exc.raw:
+                raise
+            return cast(R, command.response_class.from_reply(parse_reply(exc.raw)))
+
 
 def _flexils_client(tid: str, gne_ip: str) -> FlexilsClient:
     """Return the cached TL1 client for ``tid`` behind ``gne_ip``, configured from the settings.
@@ -30,148 +92,103 @@ def _flexils_client(tid: str, gne_ip: str) -> FlexilsClient:
         gne_ip: IP of the network element terminating the SSH session.
 
     Returns:
-        The cached FlexILS TL1 client.
+        The cached FlexILS TL1 client (one session per ``tid`` and ``gne_ip``).
+
+    Raises:
+        ValueError: If the FlexILS credentials are not configured.
     """
     settings = get_settings()
-    return FlexilsClient.get_instance(
-        tid=tid,
-        gne_ip=gne_ip,
+    if not settings.flexils_user or not settings.flexils_password:
+        msg = "FlexILS credentials are not configured: set OPTICAL_FLEXILS_USER and OPTICAL_FLEXILS_PASSWORD"
+        raise ValueError(msg)
+    # The transport is only used when the client is not cached yet (building one opens no connection).
+    transport = SshTransport(
+        gne_ip,
         username=settings.flexils_user,
         password=settings.flexils_password,
-        verify_host_key=settings.flexils_verify_host_key,
+        known_hosts=_known_hosts(settings.flexils_verify_host_key),
     )
+    client = FlexilsClient.get_instance(
+        tid,
+        gne_ip,
+        transport=transport,
+        username=settings.flexils_user,
+        password=settings.flexils_password,
+    )
+    return cast(FlexilsClient, client)
 
 
-class FlexilsClientProtocol(Protocol):
-    """Typing protocol for the dynamically-bound TL1 commands of :class:`FlexilsClient`.
+def _known_hosts(verify_host_key: bool | str) -> Path | None:  # noqa: FBT001
+    """Map the ``OPTICAL_FLEXILS_VERIFY_HOST_KEY`` setting to the known-hosts file of the SSH transport.
 
-    The FlexILS client binds its command methods (``rtrv_osnc``, ``ent_ocrs``, ...) to
-    the instance at runtime, so static type checkers cannot see them on the class.
-    This protocol documents the subset of the command surface used by the HAL.
+    Args:
+        verify_host_key: ``True`` (the user's known-hosts file), a path to a known-hosts
+            file, or ``False`` (no verification).
+
+    Returns:
+        The file unknown or changed host keys are rejected against, or ``None`` to accept any host key.
     """
+    if verify_host_key is False:
+        logger.warning("SSH host key verification is disabled for the FlexILS client. Do not use in production.")
+        return None
+    if verify_host_key is True:
+        return Path.home() / ".ssh" / "known_hosts"
+    return Path(verify_host_key).expanduser()
 
-    tid: str
-    gne_ip: str
 
-    def rtrv_oteintf(self) -> TL1BaseResponse:
-        """Retrieve the OTEINTF entries of the node."""
+def _is_object_missing(exc: TL1DeniedError) -> bool:
+    """Return whether a TL1 command was denied because the requested object does not exist."""
+    return _OBJECT_DOES_NOT_EXIST in exc.raw.upper()
 
-    def rtrv_eqpt(self, aid: str | None = None) -> TL1BaseResponse:
-        """Retrieve the equipment inventory entries of the node."""
 
-    def rtrv_scg(self, aid: str | None = None, type: str | None = None) -> TL1BaseResponse:  # noqa: A002
-        """Retrieve the SCG entries of the node, optionally filtered by type."""
+def _tl1_quoted(text: str) -> str:
+    r"""Return ``text`` as a TL1 quoted string (``"..."``, inner quotes and backslashes escaped).
 
-    def ent_oel(
-        self,
-        aid: str,
-        label: str,
-        srcnodename: str,
-        dstnodename: str,
-        explicitroute: list[tuple[str, str, str, str]],
-        validfrangelist: list[int],
-    ) -> TL1BaseResponse:
-        """Enter a new Optical Engineered Lightpath (OEL)."""
+    Free text (labels) is always sent quoted, the empty string included: ``""`` is the
+    value that clears a field. The SDK sends an already quoted value as it is.
+    """
+    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
 
-    def opr_valroute_oel(self, aid: str) -> TL1BaseResponse:
-        """Validate the route of the given OEL."""
 
-    def rtrv_oel(self, aid: str | None = None) -> TL1BaseResponse:
-        """Retrieve the OEL entries of the node."""
+def _tl1_list(values: Iterable[object]) -> str:
+    """Return ``values`` as a TL1 list: ``&`` between the items, ``&-`` between the groups of a nested list."""
+    items = list(values)
+    if items and all(isinstance(item, list | tuple) for item in items):
+        return "&-".join(_tl1_list(cast(Iterable[object], group)) for group in items)
+    return "&".join(str(item) for item in items)
 
-    def ed_oel(
-        self,
-        aid: str,
-        label: str | None = None,
-        oelsource: str | None = None,
-        compcardtypelist: Sequence[str] | None = None,
-        is_oos_ains: str | None = None,
-    ) -> TL1BaseResponse:
-        """Edit the configuration of the given OEL."""
 
-    def dlt_oel(self, aid: str) -> TL1BaseResponse:
-        """Delete the given OEL."""
+def _records(response: BaseResponse) -> list[dict[str, Any]]:
+    """Return the records of a TL1 response as wire-keyed dicts, the shape the adapter works on.
 
-    def rtrv_osnc(self, aid: str | None = None, oelaid: str | None = None) -> TL1BaseResponse:
-        """Retrieve the OSNC entries of the node."""
+    Every value the node sent is kept, under its wire key (``LABEL``, ``PROVNBRTP``, ...):
+    an empty value is ``""``, a key the node did not send is absent, and the values of
+    :data:`_LIST_KEYS` are split into (possibly nested) lists of strings. Positional
+    values are keyed by the generated field name (``AID``, ``FROMAID``, ...) or by
+    :data:`_SLOT_NAMES`; a slot neither names is kept under its ``<section>.<index>``.
+    """
+    records: list[dict[str, Any]] = []
+    for model in response.records:
+        values = model.model_dump(by_alias=True, exclude_unset=True)
+        slots: dict[str, str] = values.pop("UNMAPPED", {})
+        record: dict[str, Any] = {}
+        for key, value in values.items():
+            text = "" if value is None else value
+            record[key] = _split_list(text) if key in _LIST_KEYS else text
+        for slot, value in slots.items():
+            record[_SLOT_NAMES.get(slot, slot)] = value
+        records.append(record)
+    return records
 
-    def ent_osnc(
-        self,
-        aid: str,
-        label: str,
-        remnodetid: str,
-        remendpoint: str,
-        oelaid: str,
-        cktidsuffix: str,
-        passbandlist: Sequence[str | int],
-        carrierlist: Sequence[str | int],
-        **kwargs: Any,
-    ) -> TL1BaseResponse:
-        """Enter a new OSNC between a local and a remote endpoint."""
 
-    def ed_osnc(
-        self,
-        aid: str,
-        label: str | None = None,
-        oelaid: str | None = None,
-        cktidsuffix: str | None = None,
-        passbandlist: Sequence[str | int] | None = None,
-        carrierlist: Sequence[str | int] | None = None,
-        is_oos: str | None = None,
-        **kwargs: Any,
-    ) -> TL1BaseResponse:
-        """Edit the configuration of the given OSNC."""
-
-    def dlt_osnc(self, aid: str) -> TL1BaseResponse:
-        """Delete the given OSNC."""
-
-    def rtrv_sch(self, aid: str | None = None) -> TL1BaseResponse:
-        """Retrieve the superchannel entries of the node."""
-
-    def ed_sch(
-        self,
-        aid: str,
-        label: str | None = None,
-        shutterstate: str | None = None,
-        **kwargs: Any,
-    ) -> TL1BaseResponse:
-        """Edit the configuration of the given superchannel."""
-
-    def rtrv_ocrs(
-        self,
-        fromaid: str | None = None,
-        toaid: str | None = None,
-        sigtype: str | None = None,
-    ) -> TL1BaseResponse:
-        """Retrieve the optical cross-connection entries of the node."""
-
-    def ent_ocrs(
-        self,
-        fromaid: str,
-        toaid: str,
-        label: str | None = None,
-        cktidsuffix: str | None = None,
-        freqslotplantype: str | None = None,
-        schoffset: str | None = None,
-        passbandlist: Sequence[str | int] | None = None,
-        carrierlist: Sequence[str | int] | None = None,
-        autoretunelmsch: str | None = None,
-        intracarrspecshaping: str | None = None,
-        **kwargs: Any,
-    ) -> TL1BaseResponse:
-        """Enter a new optical cross-connection (OCRS)."""
-
-    def dlt_ocrs(self, fromaid: str, toaid: str) -> TL1BaseResponse:
-        """Delete the given optical cross-connection (OCRS)."""
-
-    def put_maintenance(self, aidtype: str, aid: str) -> TL1BaseResponse:
-        """Put the given entity into maintenance state."""
-
-    def rst_maintenance(self, aidtype: str, aid: str) -> TL1BaseResponse:
-        """Restore the given entity from maintenance state."""
-
-    def rtrv_pm_sch(self, aid: str, montype: str | None = None) -> TL1BaseResponse:
-        """Retrieve the performance monitoring data of the given superchannel."""
+def _split_list(value: str) -> list[Any]:
+    """Split a TL1 list value: nested (``a&b&-c&d``) into groups, flat (``a&b``) into items."""
+    if not value:
+        return []
+    if "&-" in value:
+        return [group.split("&") for group in value.split("&-")]
+    return value.split("&")
 
 
 def _record_value(record: dict[str, Any], key: str) -> str | None:
@@ -192,9 +209,7 @@ def _find_node_entry(
     optical_flexils_gmpls_id: IPAddress | None,
 ) -> dict[str, Any]:
     """Find the RTRV-TOPONODE entry of the node we are trying to create."""
-    flex = cast(Any, flex)  # the TL1 command methods are bound dynamically by the client
-    response = flex.rtrv_toponode()
-    records = response.parsed_data
+    records = _records(flex.rtrv_toponode())
 
     if optical_flexils_gmpls_id is not None:
         gmpls_id = str(optical_flexils_gmpls_id).strip()
@@ -221,7 +236,6 @@ def _find_node_entry(
 
 def _retrieve_node_properties(flex: FlexilsClient) -> tuple[OpticalNodeRole, str]:
     """Retrieve the node role and software version of the node the client targets."""
-    flex = cast(Any, flex)  # the TL1 command methods are bound dynamically by the client
     # NETYPE values reported by RTRV-SYS mapped to the OpticalNodeRole.
     netype_to_role: dict[str, OpticalNodeRole] = {
         "ROADM": OpticalNodeRole.ROADM,
@@ -229,8 +243,7 @@ def _retrieve_node_properties(flex: FlexilsClient) -> tuple[OpticalNodeRole, str
         "OA": OpticalNodeRole.AMPLIFIER,
     }
 
-    response = flex.rtrv_sys()
-    records = response.parsed_data
+    records = _records(flex.rtrv_sys())
     if not records:
         msg = f"RTRV-SYS returned no data for node {flex.tid}"
         raise ValueError(msg)
@@ -433,13 +446,9 @@ def get_flex_client(optical_node_block: NokiaFlexIlsBlockProvisioning) -> Flexil
     return _flexils_client(tid=tid, gne_ip=gne_ip)
 
 
-def _get_flex_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> FlexilsClientProtocol:
-    """Return a FlexILS TL1 client for the given Optical Node block.
-
-    Wraps :func:`get_flex_client`, returning the dynamically-bound TL1 command
-    surface as a protocol so that it type checks.
-    """
-    return cast(FlexilsClientProtocol, get_flex_client(_as_flexils_block(optical_node_block)))
+def _get_flex_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> FlexilsClient:
+    """Return a FlexILS TL1 client for the given Optical Node block, narrowed to a FlexILS node."""
+    return get_flex_client(_as_flexils_block(optical_node_block))
 
 
 def _get_remote_node_id(remote_port_block: AnyOpticalPortBlockProvisioning) -> str:

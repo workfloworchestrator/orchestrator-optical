@@ -1,15 +1,14 @@
 """Fault-injection contract tests for the device-facing layers.
 
-These tests pin down how the NETCONF (G30/G42) and TL1 (FlexILS) paths behave when a
-device misbehaves: unreachable management IPs, ``<rpc-error>`` replies, missing objects
-and denied TL1 commands. The NETCONF tests run the real SDK clients against a fake
-ncclient manager (see :mod:`test.support.netconf`), so the HAL factories, the SDK
-session handling and the adapters are exercised together.
+These tests pin down how the NETCONF (G30/G42) paths behave when a device misbehaves:
+unreachable management IPs, ``<rpc-error>`` replies and missing objects. They run the
+real SDK clients against a fake ncclient manager (see :mod:`test.support.netconf`), so
+the HAL factories, the SDK session handling and the adapters are exercised together.
+The TL1 (FlexILS) denials are covered in :mod:`test.contract.test_flexils_tl1`.
 """
 
 import pytest
 
-pytest.importorskip("flexils_tl1")
 pytest.importorskip("g30_4_8_0")
 pytest.importorskip("g42_8_0_2")
 
@@ -18,10 +17,6 @@ from typing import Any
 
 import g30_4_8_0
 import g42_8_0_2
-from flexils_tl1.commands.base import TL1BaseResponse
-from flexils_tl1.commands.eqpt import RetrieveEqpt
-from flexils_tl1.exceptions import TL1CommandDeniedError
-from flexils_tl1.utils import TL1CompletionStatus
 
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as g30_shared
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import _shared as g42_shared
@@ -57,17 +52,6 @@ def _node_block(loopback_ip: str | None = "10.0.0.1", interface_ip: str | None =
 
 def _port_block(port_name: str) -> Any:
     return SimpleNamespace(optical_port_name=port_name, optical_port_host_node=_node_block())
-
-
-class _FakeFlexilsClient:
-    """Minimal FlexILS client exposing only the raw-command seam used by TL1BaseCommand."""
-
-    def __init__(self, raw_response: str) -> None:
-        self.tid = "FLEXILS"
-        self._raw_response = raw_response
-
-    def execute_raw_command(self, _command: str, _correlation_tag: str) -> str:
-        return self._raw_response
 
 
 def test_netconf_factory_falls_back_to_the_interface_ip(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -153,43 +137,3 @@ def test_g42_missing_object_raises_value_error(monkeypatch: pytest.MonkeyPatch) 
 
     with pytest.raises(ValueError, match="returned no data"):
         g42_node.software_version(_node_block())
-
-
-def test_tl1_parse_missing_tag_raises_value_error() -> None:
-    """A response without the correlation tag is rejected with a ValueError."""
-    with pytest.raises(ValueError, match="Could not find tag WFOTAG"):
-        TL1BaseResponse.from_raw_text("M  OTHER COMPLD\n;\n", "WFOTAG")
-
-
-def test_tl1_parse_missing_status_leaks_attribute_error() -> None:
-    """A response whose tag is present but has no status word leaks AttributeError."""
-    with pytest.raises(AttributeError, match="NoneType"):
-        TL1BaseResponse.from_raw_text("WFOTAG", "WFOTAG")
-
-
-def test_tl1_parse_unknown_status_raises_value_error() -> None:
-    """An unrecognised completion status is rejected by the TL1CompletionStatus enum."""
-    raw = "   FLEXILS\nM  WFOTAG BOGUS\n;\nTL1>>"
-
-    with pytest.raises(ValueError, match="BOGUS"):
-        TL1BaseResponse.from_raw_text(raw, "WFOTAG")
-
-
-def test_tl1_denied_command_raises_typed_error() -> None:
-    """A DENY response raises TL1CommandDeniedError carrying the tid and the raw response."""
-    raw = '   FLEXILS\nM  WFOTAG DENY\n   "AID:TYPE::UP"\n;\nTL1>>'
-
-    with pytest.raises(TL1CommandDeniedError) as excinfo:
-        RetrieveEqpt(ctag="WFOTAG").execute(_FakeFlexilsClient(raw))
-
-    assert excinfo.value.tid == "FLEXILS"
-    assert "WFOTAG DENY" in excinfo.value.response
-
-
-def test_tl1_deny_with_already_marker_is_tolerated() -> None:
-    """A DENY that also carries ALREADY is parsed, not raised, keeping provisioning idempotent."""
-    raw = '   FLEXILS\nM  WFOTAG DENY\n   "AID:TYPE::UP"\n;\n/* ALREADY provisioned */\nTL1>>'
-
-    response = RetrieveEqpt(ctag="WFOTAG").execute(_FakeFlexilsClient(raw))
-
-    assert response.status == TL1CompletionStatus.DENY

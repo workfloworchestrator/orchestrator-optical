@@ -1,7 +1,7 @@
 """Nokia FlexILS transponder operations (received optical power)."""
 
 from orchestrator.optical.hal._common import _node_id
-from orchestrator.optical.hal.adapters.nokia_flexils._shared import _get_flex_client
+from orchestrator.optical.hal.adapters.nokia_flexils._shared import _get_flex_client, _records
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 
 
@@ -33,7 +33,7 @@ def delta_rx_power_vs_target(
     # >> RTRV-PM-SCH AID=INTERMEDIATESCHCTP
     cktidsuffix = circuit_identifier or optical_spectrum_name.replace(" ", "_")
 
-    ocrs = flex.rtrv_ocrs(sigtype="SIGNALED").parsed_data
+    ocrs = _records(flex.rtrv_ocrs(sigtype="SIGNALED"))
     ocr = next(
         (o for o in ocrs if cktidsuffix in o.get("CKTIDSUFFIX", "")),
         None,
@@ -52,17 +52,17 @@ def delta_rx_power_vs_target(
         raise ValueError(msg)
     tributary_port = str(tributary_port)
     card_aid = "-".join(tributary_port.split("-")[:-2])
-    card = flex.rtrv_eqpt(aid=card_aid).parsed_data[0]
+    card = _records(flex.rtrv_eqpt(aid=card_aid))[0]
     sch_aid = tributary_port if card["TYPE"] == "FSM" else ocr.get("INTERMEDIATESCHCTP")
     if sch_aid is None:
         msg = f"Optical channel with CKTIDSUFFIX={cktidsuffix} has no superchannel endpoint"
         raise ValueError(msg)
     sch_aid = str(sch_aid)
 
-    sch = flex.rtrv_sch(aid=sch_aid).parsed_data[0]
+    sch = _records(flex.rtrv_sch(aid=sch_aid))[0]
     target_opr = float(sch["TARGETOPR"])
 
-    pm_sch = flex.rtrv_pm_sch(aid=sch_aid, montype="OPR").parsed_data[0]
-    current_rx_power = float(pm_sch["positional_param_1_1"])
+    pm_sch = _records(flex.rtrv_pm("SCH", sch_aid, montype="OPR"))[0]
+    current_rx_power = float(pm_sch["MONVAL"])
 
     return round(current_rx_power - target_opr, 1)

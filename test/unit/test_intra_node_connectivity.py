@@ -12,8 +12,7 @@ import pytest
 pytest.importorskip("flexils_tl1")
 pytest.importorskip("g30_4_8_0")
 
-from flexils_tl1.commands.ocrs import OcrsResponse
-from flexils_tl1.commands.scg import ScgResponse
+from flexils_tl1.generated.responses import RtrvOcrsResponse, RtrvScgResponse
 from g30_4_8_0.data_models.ne import CardTypeEnum
 
 from orchestrator.optical.hal.adapters.nokia_flexils.connectivity import add_drop_connectivity_from_records
@@ -26,14 +25,7 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     merge_intervals,
     passband_within_any,
 )
-
-TAG = "ZZTAG"
-
-
-def _tl1(records: list[str]) -> str:
-    payload = "\n".join(f'   "{record}"' for record in records)
-    return f"flex.bo01 25-10-27 16:45:12\nM  {TAG} COMPLD\n{payload}\n;\n"
-
+from test.support.tl1 import parsed_records
 
 #: RTRV-SCG lines as returned by a FlexILS node (the first three verbatim from a device).
 SCG_LINES = [
@@ -71,11 +63,11 @@ OTS = ["1-A-1-L1", "7-A-1-L1"]
 
 
 def _scg() -> list[dict]:
-    return ScgResponse.from_raw_text(_tl1(SCG_LINES), TAG).parsed_data
+    return parsed_records(RtrvScgResponse, SCG_LINES)
 
 
 def _ocrs(lines: list[str]) -> list[dict]:
-    return OcrsResponse.from_raw_text(_tl1(lines), TAG).parsed_data if lines else []
+    return parsed_records(RtrvOcrsResponse, lines)
 
 
 def _connectivity(port: str, ocrs_lines: list[str] | None = None) -> list[IntraNodeEdge]:

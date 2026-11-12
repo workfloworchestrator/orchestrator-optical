@@ -75,9 +75,9 @@ class OpticalSettings(BaseSettings):
             (``OPTICAL_G42_VERIFY``), same semantics as ``g30_verify``.
         flexils_verify_host_key: SSH host-key verification for the FlexILS TL1
             client (``OPTICAL_FLEXILS_VERIFY_HOST_KEY``): ``True`` (default,
-            reject unknown host keys against the system known-hosts file),
+            reject host keys unknown to the user's ``~/.ssh/known_hosts``),
             ``False`` (lab use only, auto-accept unknown host keys), or a path
-            to a known-hosts file to verify against.
+            to the known-hosts file to verify against (instead of the user's).
         customer_choice: Import path of the user-defined customer choice function
             (``OPTICAL_CUSTOMER_CHOICE``), as ``module.path:function_name``. The
             function must return a ``type[Choice]`` whose option values are the

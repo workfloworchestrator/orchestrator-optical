@@ -26,7 +26,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 if TYPE_CHECKING:
     from orchestrator.optical.hal.adapters.nokia_flexils import _shared as flexils_shared
     from orchestrator.optical.hal.adapters.nokia_flexils import node as flexils
-    from orchestrator.optical.hal.adapters.nokia_flexils._sdk import FlexilsClient
+    from orchestrator.optical.hal.adapters.nokia_flexils._shared import FlexilsClient
     from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as groove_g30_shared
     from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as groove_g30
     from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import G30Client

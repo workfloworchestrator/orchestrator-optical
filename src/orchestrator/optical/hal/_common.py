@@ -138,7 +138,10 @@ def _connect_first[ClientT](
             return client_cls(management_ip=host, **client_kwargs)
         except Exception as exc:  # noqa: BLE001 - each attempt's failure is reported in the group
             errors.append(exc)
-    msg = f"Could not connect to node {management.optical_module_node_fqdn} on any of {hosts}"
+    # The causes go in the message: WFO stores a failed step's message and traceback,
+    # neither of which shows the sub-exceptions of a group.
+    causes = "; ".join(f"{host}: {type(exc).__name__}: {exc}" for host, exc in zip(hosts, errors, strict=True))
+    msg = f"Could not connect to node {management.optical_module_node_fqdn} ({causes})"
     raise ExceptionGroup(msg, errors)
 
 

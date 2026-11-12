@@ -14,10 +14,12 @@ from uuid import UUID
 
 import pytest
 from pydantic_forms.exceptions import FormValidationError
+from sqlalchemy import select
 
 import orchestrator.core.db as core_db
-from orchestrator.core.db import SubscriptionTable
+from orchestrator.core.db import ProcessStepTable, SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
+from orchestrator.optical import db as optical_db
 from orchestrator.optical.db import node_block_from_instance
 from orchestrator.optical.products import ProductName
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
@@ -424,6 +426,38 @@ def test_validate_refreshes_software_version_in_db(
 
     block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert block.management.optical_module_node_software_version == new_version
+
+
+def test_validate_shows_the_applied_configuration_of_the_node(
+    run_process,
+    seed_optical_node,
+    assert_process_completed,
+    stub_node_device,
+) -> None:
+    """The validate workflow puts the golden configuration of the node in the state of its own step."""
+    subscription_id = seed_optical_node(
+        GROOVE_G30_PRODUCT,
+        "g30-golden.optical.test",
+        "192.0.2.63",
+        dcn_loopback_ip="192.0.2.64",
+    )
+    node_id = node_instance_id_of_subscription(subscription_id)
+    applied = {"/ne/shelf[shelf-id='1']/admin-status": "up"}
+    optical_db.replace_applied_config(node_id, node_id, "admin-state", applied)
+    core_db.db.session.commit()
+
+    process_id = run_process(
+        "validate_optical_node_nokia_groove_g30",
+        [{"subscription_id": subscription_id}],
+    )
+    assert_process_completed(process_id)
+
+    shown = core_db.db.session.scalars(
+        select(ProcessStepTable)
+        .where(ProcessStepTable.process_id == UUID(process_id))
+        .where(ProcessStepTable.name == "Show applied configuration")
+    ).one()
+    assert shown.state["golden_config"] == applied
 
 
 def test_optical_node_selector_of_roles_offers_descriptions_filtered_by_role(

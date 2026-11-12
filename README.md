@@ -23,7 +23,8 @@ WFO. Please follow the steps below to install the WFO Optical module, including 
 ## Vendor SDKs
 
 The device clients are **not** distributed with this module: they are confidential vendor SDKs, generated from the
-device YANG models with yang2sdk (or received privately). The module imports without any of
+device YANG models with yang2sdk (G30, G42), from the vendor TL1 command reference with `nokia-flexils-tl1-codegen`
+(`flexils-tl1 generate`, FlexILS), or received privately. The module imports without any of
 them; a device adapter raises `VendorSdkNotInstalledError` (an `ImportError`) only when a node of that platform is
 driven. Install the SDK of each platform you use into the same environment:
 
@@ -42,13 +43,14 @@ dependencies = ["orchestrator-optical", "g30_4_8_0", "flexils_tl1"]
 
 [tool.uv.sources]
 g30_4_8_0 = { path = "vendor/g30_4_8_0" }                                         # generated with yang2sdk
-flexils_tl1 = { git = "https://git.example.org/nokia-sdks", subdirectory = "flexils_tl1", tag = "v0.1.0" }  # private git
+flexils_tl1 = { git = "https://git.example.org/nokia-sdks", subdirectory = "flexils_tl1", tag = "v0.1.0" }  # private git (flexils-tl1 generate)
 # or a private index: { index = "private" } with [[tool.uv.index]] name = "private", url = "...", explicit = true
 ```
 
 The `OPTICAL_*` settings (credentials, TLS/SSH verification) are read by this module and passed to the SDK clients;
-the SDKs never read the environment themselves. `OPTICAL_G30_VERIFY` / `OPTICAL_G42_VERIFY` control the SSH
-host-key verification of the NETCONF sessions (`true`/`false`). Every HAL write is committed immediately.
+the module never lets an SDK read the environment itself. `OPTICAL_G30_VERIFY` / `OPTICAL_G42_VERIFY` control the SSH
+host-key verification of the NETCONF sessions (`true`/`false`); `OPTICAL_FLEXILS_VERIFY_HOST_KEY` that of the TL1
+session (`true`: `~/.ssh/known_hosts`, a path to a known-hosts file, or `false`). Every HAL write is committed immediately.
 
 Each adapter imports its SDK in exactly one module, `hal/adapters/<device>/_sdk.py`, which re-exports the SDK names
 the adapter uses: it is the SDK contract, and the one place to change when moving to another SDK release.
