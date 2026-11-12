@@ -6,16 +6,22 @@ generators and the ``Choice`` selectors. Database queries live in the neutral
 """
 
 from collections.abc import Callable, Generator, Sequence
+from functools import wraps
 from typing import Any, cast
 
-from pydantic import ConfigDict
+import structlog
+from pydantic import ConfigDict, ValidationError, model_validator
+from pydantic_core import InitErrorDetails
 from pydantic_forms.core import FormPage
-from pydantic_forms.types import SummaryData
+from pydantic_forms.core.translations import translations
+from pydantic_forms.exceptions import FormException, FormValidationError
+from pydantic_forms.types import FormGenerator, SummaryData
 from pydantic_forms.validators import (
     Choice,
     choice_list,
     migration_summary,
 )
+from pydantic_i18n import PydanticI18n
 
 from orchestrator.core.db import SubscriptionInstanceTable, db
 from orchestrator.core.domain.base import ProductBlockModel
@@ -29,6 +35,83 @@ from orchestrator.optical.hal.port import get_device_ports_by_role
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
+
+logger = structlog.get_logger(__name__)
+
+
+def _form_error_message(exc: Exception) -> str:
+    """Return the message shown on the form page for an unexpected error."""
+    return f"{type(exc).__name__}: {exc}. Nothing was changed: fix the cause and submit this page again to retry."
+
+
+def _guarded_page(page: type[FormPage]) -> type[FormPage]:
+    """Return ``page`` with its validators guarded: any unexpected error becomes a validation error of the page.
+
+    Pydantic only turns ``ValueError`` / ``AssertionError`` into a validation error; anything else raised by a
+    validator (e.g. a device or database error) would escape the form machinery as an HTTP 500.
+    """
+
+    class GuardedPage(page):  # ty: ignore[unsupported-base]
+        @model_validator(mode="wrap")
+        @classmethod
+        def _guard_unexpected_errors(cls, data: Any, handler: Callable[[Any], Any]) -> Any:
+            try:
+                return handler(data)
+            except ValidationError:
+                raise
+            except Exception as exc:
+                logger.exception("Unexpected error while validating a form page", page=page.__name__)
+                raise ValueError(_form_error_message(exc)) from exc
+
+    GuardedPage.__name__ = page.__name__
+    GuardedPage.__qualname__ = page.__qualname__
+    GuardedPage.__doc__ = page.__doc__
+    return GuardedPage
+
+
+def retryable_form[**P](form_generator: Callable[P, FormGenerator]) -> Callable[P, FormGenerator]:
+    """Make the unexpected errors of a form generator retryable instead of fatal.
+
+    A form generator is replayed from the first page on every submit, so an error raised while it computes the
+    next page (device unreachable, query failing, no path found, ...) or inside a page validator used to surface
+    as an HTTP 500 ("Exception in ASGI application"), leaving the user no choice but to start over. With this
+    decorator the error is reported as a validation error of the page that was just submitted: the user stays on
+    that page, reads the message and can submit again (or go back) once the cause is fixed. The traceback is
+    logged.
+
+    Apply it to the outermost generator handed to ``initial_input_form=`` (shipped generators are decorated;
+    consumers composing their own generator from the shipped ``*_form_pages`` decorate theirs).
+
+    Args:
+        form_generator: The form generator function to guard.
+
+    Returns:
+        A generator function with the same signature (core's argument injection keeps working).
+    """
+
+    @wraps(form_generator)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> FormGenerator:
+        generator = form_generator(*args, **kwargs)
+        form_name = getattr(form_generator, "__name__", "form")
+        page_name = form_name
+        user_input = None
+        while True:
+            try:
+                page = generator.send(user_input)
+            except StopIteration as stop:
+                return stop.value
+            except FormException:
+                raise
+            except Exception as exc:
+                logger.exception("Unexpected error in a form generator", form=form_name, page=page_name)
+                cause = ValueError(_form_error_message(exc))
+                details = InitErrorDetails(type="value_error", loc=(), input={}, ctx={"error": cause})
+                error = ValidationError.from_exception_data(page_name, [details])
+                raise FormValidationError(page_name, error, PydanticI18n(translations)) from exc
+            page_name = page.__name__
+            user_input = yield _guarded_page(page)
+
+    return wrapper
 
 
 def merge_summary_fields(

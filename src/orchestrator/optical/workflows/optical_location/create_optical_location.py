@@ -51,7 +51,7 @@ from orchestrator.optical.workflows.optical_location.shared import (
     check_location_code_uniqueness,
     set_optical_module_location_subscription_description,
 )
-from orchestrator.optical.workflows.shared import create_summary_form
+from orchestrator.optical.workflows.shared import create_summary_form, retryable_form
 
 
 def create_optical_module_location_identity_form(product_name: str) -> type[FormPage]:
@@ -150,6 +150,7 @@ def create_optical_module_location_form_pages(product_name: str) -> FormGenerato
     return user_input_dict
 
 
+@retryable_form
 def create_optical_module_location_form_generator(product_name: str) -> FormGenerator:
     """Generate the initial input form for creating an Optical Module Location.
 

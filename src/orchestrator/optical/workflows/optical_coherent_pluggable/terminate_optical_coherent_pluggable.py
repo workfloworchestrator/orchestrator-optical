@@ -20,6 +20,7 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import DisplaySubscription
 from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
+from orchestrator.optical.workflows.shared import retryable_form
 
 
 def terminate_optical_coherent_pluggable_form(subscription_id: UUIDstr) -> type[FormPage]:
@@ -58,6 +59,7 @@ def terminate_optical_coherent_pluggable_form_pages(subscription_id: UUIDstr) ->
     return user_input.model_dump()
 
 
+@retryable_form
 def terminate_initial_input_form_generator(
     subscription_id: UUIDstr,
     customer_id: UUIDstr,  # noqa: ARG001

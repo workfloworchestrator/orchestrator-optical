@@ -23,6 +23,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.port import factory_reset_port_configuration
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
+from orchestrator.optical.workflows.shared import retryable_form
 
 WARNING_MSG = (
     "Terminating an Optical Fiber Span will disable line ports and remove path configurations. "
@@ -82,6 +83,7 @@ def terminate_fiber_span_form_pages(subscription_id: UUIDstr) -> FormGenerator:
     return user_input.model_dump()
 
 
+@retryable_form
 def terminate_initial_input_form_generator(
     subscription_id: UUIDstr,
     customer_id: UUIDstr,  # noqa: ARG001

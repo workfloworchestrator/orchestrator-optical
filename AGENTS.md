@@ -265,6 +265,10 @@ services), where each is a
   no `SHIPPED_WORKFLOW_NAMES`, no `LazyWorkflowInstance` calls at import). Consumers register the shipped workflows
   with the standard orchestrator-core mechanism — one `LazyWorkflowInstance(<module>, <name>)` line per workflow in
   their own workflows package — and persist them with `orchestrator db migrate-workflows`.
+- Every generator handed to `initial_input_form=` is decorated with `workflows/shared.py::retryable_form`: an
+  unexpected error raised between two pages or inside a page validator is reported as a validation error of the
+  page just submitted (HTTP 400, the user can submit again or go back) instead of an HTTP 500 that loses the form.
+  Decorate any new form generator; consumers composing their own generator from the `*_form_pages` decorate theirs.
 - Keep the display strings in `translations/en-GB.json` (keys are the shipped workflow function names); they apply
   when consumers keep the shipped workflow names, otherwise they are a reference for consumers' own translations.
 - `from_product_id` is unusable for pipes and digital services (required fields/validators) — those workflows

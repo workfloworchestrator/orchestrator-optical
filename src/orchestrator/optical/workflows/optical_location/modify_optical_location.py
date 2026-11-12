@@ -54,7 +54,7 @@ from orchestrator.optical.workflows.optical_location.shared import (
     optical_location_block_from_state,
     set_optical_module_location_subscription_description,
 )
-from orchestrator.optical.workflows.shared import modify_summary_form
+from orchestrator.optical.workflows.shared import modify_summary_form, retryable_form
 
 
 def modify_optical_module_location_form(
@@ -149,6 +149,7 @@ def modify_optical_module_location_form_pages(
     return user_input.model_dump()
 
 
+@retryable_form
 def modify_optical_module_location_form_generator(
     subscription_id: UUIDstr,
     subscription_model: type[SubscriptionModel] = OpticalModuleLocationSubscription,

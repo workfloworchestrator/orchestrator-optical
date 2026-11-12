@@ -38,6 +38,7 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     set_optical_pipe_subscription_description,
     update_optical_pipe_block,
 )
+from orchestrator.optical.workflows.shared import retryable_form
 
 
 def modify_fiber_patch_form_pages(pipe: OpticalFiberPatchBlock) -> FormGenerator:
@@ -61,6 +62,7 @@ def modify_fiber_patch_form_pages(pipe: OpticalFiberPatchBlock) -> FormGenerator
     return modify_optical_pipe_form_pages(pipe)
 
 
+@retryable_form
 def modify_fiber_patch_form_generator(
     subscription_id: UUIDstr,
     subscription_model: type[SubscriptionModel] = OpticalFiberPatchSubscription,

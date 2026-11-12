@@ -28,6 +28,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     optical_spectrum_block_from_state,
     refresh_optical_spectrum_used_passbands,
 )
+from orchestrator.optical.workflows.shared import retryable_form
 
 
 def terminate_optical_spectrum_form(subscription_id: UUIDstr) -> type[FormPage]:
@@ -66,6 +67,7 @@ def terminate_optical_spectrum_form_pages(subscription_id: UUIDstr) -> FormGener
     return user_input.model_dump()
 
 
+@retryable_form
 def terminate_initial_input_form_generator(
     subscription_id: UUIDstr,
     customer_id: UUIDstr,  # noqa: ARG001

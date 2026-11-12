@@ -58,6 +58,7 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     retrieve_optical_pipe_used_passbands,
     set_optical_pipe_subscription_description,
 )
+from orchestrator.optical.workflows.shared import retryable_form
 
 
 def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
@@ -86,6 +87,7 @@ def create_fiber_patch_form_pages(product_name: str) -> FormGenerator:
     )
 
 
+@retryable_form
 def create_fiber_patch_form_generator(product_name: str) -> FormGenerator:
     """Generate the initial input form for creating an Optical Fiber Patch.
 

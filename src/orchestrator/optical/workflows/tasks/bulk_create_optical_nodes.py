@@ -60,6 +60,7 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
     validate_optical_flexils_target_id_uniqueness,
     validate_optical_node_fqdn_uniqueness,
 )
+from orchestrator.optical.workflows.shared import retryable_form
 from orchestrator.optical.workflows.tasks.shared import read_csv_rows
 
 #: Column names of the optical node CSV payload, in order.
@@ -491,6 +492,7 @@ def _node_bulk_input(node: ResolvedNode, customer_id: str) -> BulkNodeInput:
     return BulkNodeInput(workflow_name=node["workflow_name"], user_inputs=user_inputs)
 
 
+@retryable_form
 def initial_input_form_generator() -> FormGenerator:
     """Collect the customer shared by the batch and the node CSV payload."""
     user_input_dict = yield from customer_choice_form_page(title="Bulk create optical nodes")

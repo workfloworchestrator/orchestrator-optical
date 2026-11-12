@@ -67,6 +67,7 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     retrieve_optical_pipe_used_passbands,
     set_optical_pipe_subscription_description,
 )
+from orchestrator.optical.workflows.shared import retryable_form
 
 
 def create_leased_spectrum_provider_form(product_name: str) -> type[FormPage]:
@@ -122,6 +123,7 @@ def create_leased_spectrum_form_pages(product_name: str) -> FormGenerator:
     return user_input_dict
 
 
+@retryable_form
 def create_leased_spectrum_form_generator(product_name: str) -> FormGenerator:
     """Generate the initial input form for creating an Optical Leased Spectrum pipe.
 

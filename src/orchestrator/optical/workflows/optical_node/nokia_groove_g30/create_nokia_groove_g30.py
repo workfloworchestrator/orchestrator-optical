@@ -57,7 +57,7 @@ from orchestrator.optical.workflows.optical_node.shared.forms import (
 from orchestrator.optical.workflows.optical_node.shared.retrieve import (
     retrieve_optical_node_role_and_software_version,
 )
-from orchestrator.optical.workflows.shared import create_summary_form
+from orchestrator.optical.workflows.shared import create_summary_form, retryable_form
 
 
 def create_optical_node_nokia_groove_g30_form_pages(product_name: str) -> FormGenerator:
@@ -85,6 +85,7 @@ def create_optical_node_nokia_groove_g30_form_pages(product_name: str) -> FormGe
     return user_input_dict
 
 
+@retryable_form
 def create_optical_node_nokia_groove_g30_form_generator(product_name: str) -> FormGenerator:
     """Generate the initial input form for creating a Nokia Groove G30 Optical Node.
 

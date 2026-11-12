@@ -62,7 +62,7 @@ from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import 
 from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import PIPE_NODE_ROLES, default_pipe_identifier
-from orchestrator.optical.workflows.shared import used_port_names_on_node
+from orchestrator.optical.workflows.shared import retryable_form, used_port_names_on_node
 from orchestrator.optical.workflows.tasks.shared import read_csv_rows
 
 #: Column names of the optical pipe CSV payload, in order.
@@ -457,6 +457,7 @@ def _pipe_bulk_input(pipe: ResolvedPipe, customer_id: str) -> BulkPipeInput:
     return BulkPipeInput(workflow_name=pipe["workflow_name"], user_inputs=user_inputs)
 
 
+@retryable_form
 def initial_input_form_generator() -> FormGenerator:
     """Collect the customer shared by the batch and the pipe CSV payload."""
     user_input_dict = yield from customer_choice_form_page(title="Bulk create optical pipes")

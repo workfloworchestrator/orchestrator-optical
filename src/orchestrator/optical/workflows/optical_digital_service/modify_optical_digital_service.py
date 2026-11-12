@@ -97,7 +97,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     OwnOccupancy,
     multiple_optical_node_selector,
 )
-from orchestrator.optical.workflows.shared import modify_summary_form
+from orchestrator.optical.workflows.shared import modify_summary_form, retryable_form
 
 logger = get_logger(__name__)
 
@@ -353,6 +353,7 @@ def modify_optical_digital_service_form_pages(
     return user_input_dict
 
 
+@retryable_form
 def modify_optical_digital_service_form_generator(
     subscription_id: UUIDstr,
     subscription_model: type[SubscriptionModel] = OpticalDigitalServiceSubscription,

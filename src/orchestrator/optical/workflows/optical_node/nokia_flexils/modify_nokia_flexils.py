@@ -58,7 +58,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     validate_optical_node_management_fields_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.retrieve import retrieve_optical_node_role_and_software_version
-from orchestrator.optical.workflows.shared import modify_summary_form
+from orchestrator.optical.workflows.shared import modify_summary_form, retryable_form
 
 
 def modify_optical_node_nokia_flexils_vendor_form(
@@ -150,6 +150,7 @@ def modify_optical_node_nokia_flexils_form_pages(
     return user_input_dict
 
 
+@retryable_form
 def modify_optical_node_nokia_flexils_form_generator(
     subscription_id: UUIDstr,
     subscription_model: type[SubscriptionModel] = OpticalNodeNokiaFlexIlsSubscription,

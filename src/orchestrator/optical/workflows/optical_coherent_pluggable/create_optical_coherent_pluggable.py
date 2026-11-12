@@ -58,7 +58,11 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     update_optical_coherent_pluggable_subscription_description,
 )
-from orchestrator.optical.workflows.shared import active_instance_selector_by_block_type, create_summary_form
+from orchestrator.optical.workflows.shared import (
+    active_instance_selector_by_block_type,
+    create_summary_form,
+    retryable_form,
+)
 
 
 def check_optical_coherent_pluggable_port_uniqueness(
@@ -208,6 +212,7 @@ def create_optical_coherent_pluggable_form_pages(product_name: str) -> FormGener
     return user_input_dict
 
 
+@retryable_form
 def create_optical_coherent_pluggable_form_generator(product_name: str) -> FormGenerator:
     """Generate the initial input form for creating an Optical Coherent Pluggable.
 

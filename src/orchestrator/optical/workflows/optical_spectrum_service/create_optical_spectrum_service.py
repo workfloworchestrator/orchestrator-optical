@@ -82,7 +82,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     store_loaded_sections_into_spectrum_block,
     validate_optical_spectrum_path,
 )
-from orchestrator.optical.workflows.shared import create_summary_form, optical_port_selector
+from orchestrator.optical.workflows.shared import create_summary_form, optical_port_selector, retryable_form
 
 logger = get_logger(__name__)
 
@@ -427,6 +427,7 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
     return user_input_dict
 
 
+@retryable_form
 def create_optical_spectrum_form_generator(product_name: str) -> FormGenerator:
     """Generate the initial input form for creating an Optical Spectrum service.
 

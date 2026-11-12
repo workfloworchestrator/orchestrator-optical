@@ -52,7 +52,7 @@ from orchestrator.optical.workflows.optical_node.shared import (
     validate_optical_node_management_fields_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.retrieve import retrieve_optical_node_role_and_software_version
-from orchestrator.optical.workflows.shared import modify_summary_form
+from orchestrator.optical.workflows.shared import modify_summary_form, retryable_form
 
 
 def modify_optical_node_nokia_gx_g42_form_pages(
@@ -85,6 +85,7 @@ def modify_optical_node_nokia_gx_g42_form_pages(
     return user_input.model_dump()
 
 
+@retryable_form
 def modify_optical_node_nokia_gx_g42_form_generator(
     subscription_id: UUIDstr,
     subscription_model: type[SubscriptionModel] = OpticalNodeNokiaGxG42Subscription,

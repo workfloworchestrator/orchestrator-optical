@@ -30,6 +30,7 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
     prune_departing_service_channel_labels,
     refresh_optical_digital_passbands_after_teardown,
 )
+from orchestrator.optical.workflows.shared import retryable_form
 
 
 def terminate_optical_digital_service_form(subscription_id: UUIDstr) -> type[FormPage]:
@@ -68,6 +69,7 @@ def terminate_optical_digital_service_form_pages(subscription_id: UUIDstr) -> Fo
     return user_input.model_dump()
 
 
+@retryable_form
 def terminate_initial_input_form_generator(
     subscription_id: UUIDstr,
     customer_id: UUIDstr,  # noqa: ARG001

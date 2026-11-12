@@ -23,6 +23,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.utils import terminate_workflow
 from orchestrator.optical.hal.port import factory_reset_port_configuration
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
+from orchestrator.optical.workflows.shared import retryable_form
 
 WARNING_MSG = "To confirm termination of this Optical Leased Spectrum pipe, replace with 'TERMINATE' this box."
 WarningField = Annotated[
@@ -80,6 +81,7 @@ def terminate_leased_spectrum_form_pages(subscription_id: UUIDstr) -> FormGenera
     return user_input.model_dump()
 
 
+@retryable_form
 def terminate_initial_input_form_generator(
     subscription_id: UUIDstr,
     customer_id: UUIDstr,  # noqa: ARG001

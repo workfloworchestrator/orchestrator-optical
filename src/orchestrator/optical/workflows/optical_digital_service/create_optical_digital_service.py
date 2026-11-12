@@ -111,7 +111,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     human_readable_transport_channel_path_selector,
     multiple_optical_node_selector,
 )
-from orchestrator.optical.workflows.shared import create_summary_form, optical_port_selector
+from orchestrator.optical.workflows.shared import create_summary_form, optical_port_selector, retryable_form
 
 logger = get_logger(__name__)
 
@@ -805,6 +805,7 @@ def _yield_new_channel_spec_pages(
     return collected
 
 
+@retryable_form
 def create_optical_digital_service_form_generator(product_name: str) -> FormGenerator:
     """Generate the initial input form for creating an Optical Digital Service.
 

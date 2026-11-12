@@ -46,7 +46,7 @@ from orchestrator.optical.workflows.optical_coherent_pluggable.shared import (
     optical_coherent_pluggable_block_from_state,
     update_optical_coherent_pluggable_subscription_description,
 )
-from orchestrator.optical.workflows.shared import modify_summary_form
+from orchestrator.optical.workflows.shared import modify_summary_form, retryable_form
 
 
 def modify_optical_coherent_pluggable_form(pluggable: OpticalCoherentPluggableBlock) -> type[FormPage]:
@@ -92,6 +92,7 @@ def modify_optical_coherent_pluggable_form_pages(pluggable: OpticalCoherentPlugg
     return user_input.model_dump()
 
 
+@retryable_form
 def modify_optical_coherent_pluggable_form_generator(
     subscription_id: UUIDstr,
     subscription_model: type[SubscriptionModel] = OpticalCoherentPluggableSubscription,
