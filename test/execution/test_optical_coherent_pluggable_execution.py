@@ -121,7 +121,7 @@ def test_create_coherent_pluggable_end_to_end(
     assert block.optical_coherent_pluggable_part_number == PART_NUMBER
     host_node = block.optical_port_host_node
     assert isinstance(host_node, OpticalModulePacketNodeBlock)
-    assert str(host_node.management.optical_module_node_fqdn) == HOST_NODE_FQDN
+    assert str(host_node.management.optical_module_node_name) == HOST_NODE_FQDN
     assert (
         host_node.subscription_instance_id
         == packet_node_block_from_instance(active_coherent_pluggable_host).subscription_instance_id

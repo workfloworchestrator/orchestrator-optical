@@ -15,18 +15,22 @@ def read_csv_rows(
     csv_data: str,
     delimiter: str,
     required_headers: set[str],
+    optional_headers: frozenset[str] = frozenset(),
 ) -> list[tuple[int, dict[str, str]]]:
     """Parse a CSV payload into normalized rows with their line numbers.
 
     Headers and values are stripped of surrounding whitespace; missing values
-    become empty strings. Fully empty lines are skipped. The returned line
+    become empty strings, and so do the values of an optional column the
+    payload leaves out. Columns are matched by header name, in any order.
+    Fully empty lines are skipped. The returned line
     numbers are the true CSV line numbers (the header is line 1), so validation
     errors point at the offending spreadsheet row.
 
     Args:
         csv_data: The raw CSV payload pasted into the form.
         delimiter: The single-character column delimiter.
-        required_headers: The exact set of column names the task expects.
+        required_headers: The column names the payload must have.
+        optional_headers: The column names the payload may leave out.
 
     Returns:
         A list of ``(line_number, row)`` pairs, one per non-empty data row.
@@ -52,7 +56,7 @@ def read_csv_rows(
     if len(set(headers)) != len(headers):
         msg = f"Duplicated CSV headers: {', '.join(sorted(headers))}"
         raise ValueError(msg)
-    unknown = [header for header in headers if header not in required_headers]
+    unknown = [header for header in headers if header not in required_headers | optional_headers]
     if unknown:
         msg = f"Unknown CSV headers: {', '.join(unknown)}"
         raise ValueError(msg)
@@ -67,7 +71,10 @@ def read_csv_rows(
         if None in record:
             msg = f"Row {line_number} has more values than the {len(headers)} headers"
             raise ValueError(msg)
-        row = {(key or "").strip(): (value.strip() if isinstance(value, str) else "") for key, value in record.items()}
+        row = dict.fromkeys(optional_headers, "")
+        row.update(
+            {(key or "").strip(): (value.strip() if isinstance(value, str) else "") for key, value in record.items()}
+        )
         if all(not value for value in row.values()):
             continue
         rows.append((line_number, row))

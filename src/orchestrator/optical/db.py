@@ -430,7 +430,7 @@ def node_block_from_instance(instance_id: UUIDstr) -> AnyOpticalNodeBlockUnion:
 def node_instance_id_of_subscription(subscription_id: UUIDstr) -> str:
     """Return the block instance id of the Optical Node block of a node subscription.
 
-    The FQDN lives on the node's management block, whose instance id differs from the
+    The node name lives on the node's management block, whose instance id differs from the
     node block's: callers holding a node subscription id (or one of its sub-block
     instances) resolve the node block instance through this helper before calling
     :func:`node_block_from_instance`.

@@ -22,7 +22,7 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as g30_sh
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import _shared as g42_shared
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import node as g42_node
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import transponder as g42_transponder
-from orchestrator.optical.hal.sessions import device_sessions
+from orchestrator.optical.hal.sessions import close_idle_device_sessions, device_sessions
 from orchestrator.optical.settings import get_settings
 from test.support.netconf import CANDIDATE, WRITABLE_RUNNING, FakeManager, install_fake_netconf, rpc_error
 
@@ -44,9 +44,9 @@ def _credentials(monkeypatch: pytest.MonkeyPatch):
 def _node_block(loopback_ip: str | None = "10.0.0.1", interface_ip: str | None = "10.0.0.2") -> Any:
     return SimpleNamespace(
         management=SimpleNamespace(
-            optical_module_node_fqdn="node.example.net",
-            optical_module_node_dcn_loopback_ip=loopback_ip,
-            optical_module_node_dcn_interface_ip=interface_ip,
+            optical_module_node_name="node.example.net",
+            optical_module_node_management_loopback_ip=loopback_ip,
+            optical_module_node_management_ip=interface_ip,
         )
     )
 
@@ -86,7 +86,7 @@ def test_netconf_factory_authenticates_by_password_only(monkeypatch: pytest.Monk
 
 
 def test_netconf_factory_shares_one_session_per_node_within_a_scope(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Within a device-sessions scope a node is logged into once, and the session is closed when it ends."""
+    """A node is logged into once: within a scope, and by the next scope, until the idle sessions are closed."""
     fake = FakeManager((WRITABLE_RUNNING,))
     attempts = install_fake_netconf(monkeypatch, g30_4_8_0, fake)
 
@@ -96,9 +96,14 @@ def test_netconf_factory_shares_one_session_per_node_within_a_scope(monkeypatch:
         other_node = g30_shared.get_g30_client(_node_block("10.0.1.1", "10.0.1.2"))
         assert "close-session" not in fake.names()
 
+    with device_sessions():
+        assert g30_shared.get_g30_client(_node_block()) is first
+
     assert first is second
     assert other_node is not first
     assert [a["host"] for a in attempts] == ["10.0.0.1", "10.0.1.1"]
+    assert "close-session" not in fake.names()
+    close_idle_device_sessions()
     assert fake.names().count("close-session") == 2
 
 
@@ -157,6 +162,7 @@ def test_g42_create_existing_xcon_is_tolerated(monkeypatch: pytest.MonkeyPatch) 
         direction="two-way",
         payload_type="100GBE",
         label="label",
+        circuit_identifier="cid",
         dst_time_slots="1..20",
     )
 
@@ -164,6 +170,7 @@ def test_g42_create_existing_xcon_is_tolerated(monkeypatch: pytest.MonkeyPatch) 
     assert "<source>/ioa-ne:ne/facilities/ethernet[name='1-4-T1']</source>" in rpc
     assert "<dst-parent-odu>x</dst-parent-odu>" in rpc
     assert "<payload-type>100GBE</payload-type>" in rpc
+    assert "<circuit-id-suffix>cid</circuit-id-suffix>" in rpc
     assert "destination" not in rpc.replace("dst-", "")
 
 

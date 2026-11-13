@@ -502,7 +502,7 @@ def update_optical_digital_service_block(
         channel.optical_transport_mode = optical_transport_mode
         if new_name != str(channel.optical_transport_channel_name):
             channel.optical_transport_channel_name = new_name
-            channel.optical_transport_spectrum.optical_spectrum_name = f"{new_name} spectrum"
+            channel.optical_transport_spectrum.optical_spectrum_name = new_name
         if is_new_channel(channel, block):
             hosts = [line.optical_port_host_node for line in channel.optical_transport_line_ports]
             channel.optical_transport_total_capacity = get_transceiver_capacity_from_mode(hosts, optical_transport_mode)

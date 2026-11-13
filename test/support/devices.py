@@ -6,6 +6,7 @@ requested workflow families (``node``, ``pipe``, ``spectrum``, ``ods``). The ``s
 fixtures apply the stubs of a single family per test.
 """
 
+import hashlib
 from collections.abc import Callable, Sequence
 from importlib import import_module
 from typing import Any
@@ -13,6 +14,8 @@ from typing import Any
 import pytest
 
 from orchestrator.optical.hal.connectivity import IntraNodeEdge
+from orchestrator.optical.hal.node import OpticalNodeDiscovery
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 
@@ -41,7 +44,7 @@ def _fake_retrieve_add_drop_connectivity(block: Any, add_drop_port_name: str) ->
     return [IntraNodeEdge(add_drop_port_name, line_port) for line_port in FAKE_LINE_PORTS]
 
 
-def _fake_configure_termination_when_attaching_new_fiber(*args: Any) -> dict[str, Any]:
+def _fake_configure_termination_when_attaching_new_fiber(*args: Any, **kwargs: Any) -> dict[str, Any]:
     """Configure the faked fiber terminating port, returning the configuration state."""
     return {}
 
@@ -51,7 +54,7 @@ def _fake_factory_reset_port_configuration(*args: Any) -> dict[str, Any]:
     return {}
 
 
-def _fake_check_fiber_terminating_port(*args: Any) -> None:
+def _fake_check_fiber_terminating_port(*args: Any, **kwargs: Any) -> None:
     """Accept the faked fiber terminating port as consistent."""
 
 
@@ -155,6 +158,39 @@ def _fake_retrieve_optical_node_role_and_software_version(block: Any, *args: Any
     return ("Transponder", FAKE_SOFTWARE_VERSION)
 
 
+def fake_flexils_gmpls_id(target_id: str) -> str:
+    """Return the GMPLS ID the faked FlexILS node with the given Target ID reports."""
+    digest = hashlib.sha256(target_id.encode("utf-8")).digest()
+    return f"10.255.{digest[0]}.{digest[1]}"
+
+
+def fake_node_name(management_ip: str) -> str:
+    """Return the name the faked NETCONF node reachable at the given IP reports."""
+    return f"ne-{management_ip}"
+
+
+def _fake_discover_optical_node(vendor: Any, platform: Any, **kwargs: Any) -> OpticalNodeDiscovery:
+    """Return what the faked device reports about itself (create form discovery).
+
+    A FlexILS node reports its Target ID as name and a GMPLS ID derived from it; a
+    Groove G30 / GX G42 reports a name derived from the first DCN IP it is reached at.
+    """
+    if platform == Platform.FLEXILS:
+        target_id = kwargs["flexils_target_id"]
+        return OpticalNodeDiscovery(
+            name=target_id,
+            role=OpticalNodeRole.ROADM,
+            software_version=FAKE_SOFTWARE_VERSION,
+            flexils_gmpls_id=fake_flexils_gmpls_id(target_id),
+        )
+    management_ip = kwargs.get("dcn_loopback_ip") or kwargs.get("dcn_interface_ip")
+    return OpticalNodeDiscovery(
+        name=fake_node_name(str(management_ip)),
+        role=OpticalNodeRole.TRANSPONDER,
+        software_version=FAKE_SOFTWARE_VERSION,
+    )
+
+
 def _fake_sleep(seconds: float) -> None:
     """Skip the faked power stabilization wait."""
 
@@ -211,6 +247,9 @@ def install_device_stubs(
 
     stubs: dict[str, dict[str, dict[str, Callable[..., Any]]]] = {
         "node": {
+            "orchestrator.optical.workflows.optical_node.shared.forms": {
+                "discover_optical_node": _fake_discover_optical_node,
+            },
             "orchestrator.optical.workflows.optical_node.shared.retrieve": {
                 "_retrieve_optical_node_role_and_software_version": (
                     _fake_retrieve_optical_node_role_and_software_version

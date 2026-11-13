@@ -39,6 +39,7 @@ from orchestrator.optical.hal.reconcile import (
     fragment,
 )
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.settings import get_settings
 from test.support.applied_config import AppliedConfigStore
@@ -97,18 +98,25 @@ def _node(platform: Platform, fqdn: str = "node.example.net") -> Any:
     return SimpleNamespace(
         subscription_instance_id=uuid4(),
         management=SimpleNamespace(
-            optical_module_node_fqdn=fqdn,
+            optical_module_node_name=fqdn,
             optical_module_node_vendor=Vendor.NOKIA,
             optical_module_node_platform=platform,
-            optical_module_node_dcn_loopback_ip="10.0.0.1",
-            optical_module_node_dcn_interface_ip=None,
+            optical_module_node_management_loopback_ip="10.0.0.1",
+            optical_module_node_management_ip=None,
         ),
     )
 
 
-def _port(port_name: str, host_node: Any) -> Any:
+def _port(
+    port_name: str,
+    host_node: Any,
+    role: OpticalPortRole = OpticalPortRole.TRANSPONDER_LINE,
+) -> Any:
     return SimpleNamespace(
-        subscription_instance_id=uuid4(), optical_port_name=port_name, optical_port_host_node=host_node
+        subscription_instance_id=uuid4(),
+        optical_port_name=port_name,
+        optical_port_host_node=host_node,
+        optical_port_role=role,
     )
 
 
@@ -184,13 +192,18 @@ def test_g30_client_rendering_follows_the_service_speed() -> None:
 
 def test_g42_line_rendering_covers_ports_groups_super_channel_and_carriers() -> None:
     fragments = g42_transponder.render_line_transceivers(
-        G42Data(None), ("1-4-L1", "1-4-L2"), (193_100_000, 193_200_000), ("mode", "mode"), ("a", "b")
+        G42Data(None),
+        ("1-4-L1", "1-4-L2"),
+        (193_100_000, 193_200_000),
+        ("mode", "mode"),
+        ("ch-01 > g30.a 1/1/L1", "ch-02 > g30.a 1/1/L2"),
     )
 
     leaves = {path: value for item in fragments for path, value in item.leaves.items()}
     super_channel = "/ioa-network-element:ne/facilities/super-channel[name='1-4-L1_1-4-L2']"
     assert leaves[f"{G42_PORT}/admin-state"] == "unlock"
-    assert leaves[f"{super_channel}/label"] == "a+b"
+    assert leaves[f"{G42_PORT}/label"] == "ch-01 > g30.a 1/1/L1"
+    assert leaves[f"{super_channel}/label"] == "ch-01 + ch-02"
     assert leaves[f"{super_channel}/carriers[.='1-4-L2-1']"] == "1-4-L2-1"
     assert [item.stage for item in fragments] == [0, 0, 0, 0, 0, 1, 1]
 
@@ -367,7 +380,25 @@ def test_g30_check_fiber_passes_when_the_port_runs_its_termination(
         ),
     )
 
-    g30_port.check_fiber(_port("port-1/2/1", node), remote)
+    g30_port.check_fiber(_port("port-1/2/1", node), remote, label="")
+
+
+def test_g30_termination_of_an_ols_port_carries_the_pipe_label(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    """An Open Line System port carries the pipe label; a transponder port leaves it to its service."""
+    node = _node(Platform.GROOVE_G30)
+    _g30(monkeypatch, _g30_port_xml(**{"admin-status": "up"}))
+    remote = _port("1-A-1-L1", _node(Platform.FLEXILS, "flex.example.net"))
+    ols = _port("port-1/2/1", node, OpticalPortRole.OLS_LINE)
+    transponder = _port("port-1/2/1", node, OpticalPortRole.TRANSPONDER_LINE)
+    label = "OF-1 > flex.example.net 1-A-1-L1"
+
+    (ols_fragment,) = g30_port.render_termination(ols, remote, label=label)
+    (transponder_fragment,) = g30_port.render_termination(transponder, remote, label=label)
+
+    assert ols_fragment.leaves[f"{G30_PORT}/service-label"] == "OF-1 > flex.example.net 1-A-1-L1"
+    assert f"{G30_PORT}/service-label" not in transponder_fragment.leaves
 
 
 def test_g30_check_fiber_reports_the_drift(
@@ -378,7 +409,7 @@ def test_g30_check_fiber_reports_the_drift(
     device = _g30(monkeypatch, _g30_port_xml(**{"admin-status": "down", "external-connectivity": "yes"}))
 
     with pytest.raises(ConfigDriftError) as excinfo:
-        g30_port.check_fiber(_port("port-1/2/1", node), remote)
+        g30_port.check_fiber(_port("port-1/2/1", node), remote, label="")
 
     assert "connected-to" in str(excinfo.value)
     assert "'running': 'down', 'desired': 'up'" in str(excinfo.value)
@@ -395,7 +426,7 @@ def test_g30_factory_reset_writes_the_factory_values_and_drops_the_record(
         **{"admin-status": "up", "external-connectivity": "yes", "connected-to": "flex.example.net 1-A-1-L1"}
     )
     device = _g30(monkeypatch, configured)
-    g30_port.configure_termination(port, remote)
+    g30_port.configure_termination(port, remote, label="")
     assert len(applied_config_store.rows) == 3
 
     result = g30_port.factory_reset(port, remote)

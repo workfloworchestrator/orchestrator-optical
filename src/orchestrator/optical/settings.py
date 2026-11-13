@@ -84,6 +84,9 @@ class OpticalSettings(BaseSettings):
             customer ids used as subscription ``customer_id``.
         path_k: Maximum number of candidate paths the path engine offers
             (``OPTICAL_PATH_K``, default 5): the K shortest loopless paths by hop count.
+        device_session_idle_seconds: How long a G30/G42 NETCONF session stays open after
+            the workflow step or form submit that used it, to be reused by the next one
+            (``OPTICAL_DEVICE_SESSION_IDLE_SECONDS``, default 120; 0 closes it at once).
     """
 
     model_config = SettingsConfigDict(env_prefix="OPTICAL_", env_file=".env", extra="ignore")
@@ -104,6 +107,8 @@ class OpticalSettings(BaseSettings):
     customer_choice: str | None = None
 
     path_k: Annotated[int, Field(ge=1)] = 5
+
+    device_session_idle_seconds: Annotated[float, Field(ge=0)] = 120
 
     @field_validator("flexils_verify_host_key", mode="before")
     @classmethod

@@ -26,6 +26,7 @@ adding their own pages::
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 """
 
+from typing import cast
 from uuid import UUID, uuid4
 
 from pydantic_forms.types import FormGenerator, State, UUIDstr
@@ -35,9 +36,10 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.core.workflows.steps import set_status, store_process_subscription
 from orchestrator.core.workflows.utils import create_workflow
 from orchestrator.optical.db import node_block_from_instance
+from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
-from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
+from orchestrator.optical.products.product_blocks.optical_port.unions import SpanPortBlockInactive
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import (
     OpticalFiberSpanSubscriptionInactive,
     OpticalFiberSpanSubscriptionProvisioning,
@@ -51,6 +53,8 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     create_pipe_form_pages,
     new_optical_pipe_subscription,
     new_pipe_port_block,
+    pipe_port_roles,
+    resolve_port_role,
     retrieve_optical_pipe_used_passbands,
     set_optical_pipe_subscription_description,
 )
@@ -124,7 +128,10 @@ def build_fiber_span_block(
     call it from their own construct step to build the shipped block with its
     two terminating line port blocks (each physically connected to the remote
     end), before their subscription model is transitioned to the PROVISIONING
-    lifecycle.
+    lifecycle. The role of each port is resolved from the device (an OLS line
+    port on an Open Line System node, the transceiver line port on a node without
+    OLS ports, such as a GX G42: see
+    :func:`orchestrator.optical.workflows.optical_pipe.shared.pipe_port_roles`).
 
     Args:
         subscription_id: Subscription id of the new pipe subscription.
@@ -140,31 +147,31 @@ def build_fiber_span_block(
     node_a_block = node_block_from_instance(node_a_instance_id)
     node_b_block = node_block_from_instance(node_b_instance_id)
 
-    port_block_class = PORT_BLOCK_CLASS_BY_ROLE[OpticalPortRole.OLS_LINE]
+    roles_a = pipe_port_roles(OpticalPipeType.SPAN, node_a_block)
+    roles_b = pipe_port_roles(OpticalPipeType.SPAN, node_b_block)
     port_a = new_pipe_port_block(
         subscription_id,
         node_a_block,
         port_a_name,
-        f"Physically connected to {node_b_block.management.optical_module_node_fqdn} {port_b_name}.",
-        port_block_class,
+        PORT_BLOCK_CLASS_BY_ROLE[resolve_port_role(node_a_block, port_a_name, roles_a)],
     )
     port_b = new_pipe_port_block(
         subscription_id,
         node_b_block,
         port_b_name,
-        f"Physically connected to {node_a_block.management.optical_module_node_fqdn} {port_a_name}.",
-        port_block_class,
+        PORT_BLOCK_CLASS_BY_ROLE[resolve_port_role(node_b_block, port_b_name, roles_b)],
     )
 
     pipe_block = OpticalFiberSpanBlockInactive.new(
         subscription_id=subscription_id,
-        optical_pipe_terminations=[port_a, port_b],
+        optical_pipe_terminations=cast(list[SpanPortBlockInactive], [port_a, port_b]),
     )
     pipe_block.optical_pipe_name = optical_pipe_name
     return pipe_block
 
 
 @step("Construct Fiber Span Subscription")
+@device_sessions()
 def construct_fiber_span_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
@@ -182,7 +189,9 @@ def construct_fiber_span_subscription(
     PROVISIONING in memory, so the block found in the state under
     ``OPTICAL_MODULE_BLOCK_STATE_KEY`` is the PROVISIONING variant with its
     terminations already set — the contract of the shipped block steps of
-    :data:`CREATE_FIBER_SPAN_BLOCK_STEPS`.
+    :data:`CREATE_FIBER_SPAN_BLOCK_STEPS`. The block builder resolves the role of
+    each termination from the device, so the step runs inside a device-sessions
+    scope.
 
     Consumers that define their own product type (composing the
     ``OpticalFiberSpanBlock`` under their own attribute name) write their own

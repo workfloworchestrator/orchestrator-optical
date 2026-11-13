@@ -42,9 +42,9 @@ from orchestrator.optical.products.product_types.optical_node.nokia_flexils impo
     OpticalNodeNokiaFlexIlsSubscriptionInactive,
     OpticalNodeNokiaFlexIlsSubscriptionProvisioning,
 )
-from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.flexils import FlexIlsTargetId
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.utils.custom_types.node_name import OpticalNodeName
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
@@ -56,8 +56,10 @@ from orchestrator.optical.workflows.optical_node.shared import (
     validate_optical_node_management_fields_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.forms import (
+    create_optical_node_identity_form,
     create_optical_node_location_form,
     create_optical_node_management_form,
+    discover_new_optical_node,
 )
 from orchestrator.optical.workflows.optical_node.shared.retrieve import (
     retrieve_optical_node_role_and_software_version,
@@ -68,13 +70,14 @@ from orchestrator.optical.workflows.shared import create_summary_form, retryable
 def create_optical_node_nokia_flexils_vendor_form(product_name: str) -> type[FormPage]:
     """Return the vendor FormPage of the Nokia FlexILS Optical Node create form.
 
-    This is the FlexILS-specific page of the shipped create form: the GMPLS ID
-    and the Target Identifier (TID) of the node. It is a building block for
-    consumers that compose their own create form generator: the shipped page
-    sequence (:func:`create_optical_node_nokia_flexils_form_pages`) yields it
-    after the shared location and management pages. The page validates that
-    the GMPLS ID and the Target Identifier are not already in use by another
-    Nokia FlexILS subscription.
+    This is the FlexILS-specific page of the shipped create form: the Target
+    Identifier (TID) of the node, which is what identifies it in the GMPLS
+    network and the only handle on a subtended node. The GMPLS ID is not
+    asked: it is read from the device. It is a building block for consumers
+    that compose their own create form generator: the shipped page sequence
+    (:func:`create_optical_node_nokia_flexils_form_pages`) yields it after the
+    shared location page. The page validates that the Target Identifier is not
+    already in use by another Nokia FlexILS subscription.
 
     Args:
         product_name: Name of the product being created, used as the page title.
@@ -86,10 +89,6 @@ def create_optical_node_nokia_flexils_vendor_form(product_name: str) -> type[For
     class CreateNokiaFlexIlsVendorForm(FormPage):
         model_config = ConfigDict(title=f"{product_name} - FlexILS")
 
-        optical_flexils_gmpls_id: Annotated[
-            IPAddress,
-            Field(title="GMPLS ID of the FlexILS node."),
-        ]
         optical_flexils_target_id: Annotated[
             FlexIlsTargetId,
             Field(title="Target Identifier (TID) of this FlexILS node (unique NENAME in the GMPLS network)."),
@@ -97,8 +96,7 @@ def create_optical_node_nokia_flexils_vendor_form(product_name: str) -> type[For
 
         @model_validator(mode="after")
         def validate_form(self) -> "CreateNokiaFlexIlsVendorForm":
-            """Raise if the GMPLS ID or the Target Identifier is already in use by another subscription."""
-            validate_gmpls_id_uniqueness(self.optical_flexils_gmpls_id)
+            """Raise if the Target Identifier is already in use by another subscription."""
             validate_optical_flexils_target_id_uniqueness(self.optical_flexils_target_id)
             return self
 
@@ -109,11 +107,16 @@ def create_optical_node_nokia_flexils_form_pages(product_name: str) -> FormGener
     """Yield the FormPages of the Nokia FlexILS Optical Node create form, in order.
 
     This is the shipped create form as a page sequence: it yields the shared
-    location page and management page, then the FlexILS vendor page, and
-    returns the collected user input as a flat dict of the ``optical_*`` state
-    keys plus ``location_instance_id``, consumed by the shipped construct step
-    (:func:`construct_optical_node_nokia_flexils_subscription`). Consumers
-    yield from it in one line inside their own create form generator,
+    location page, the FlexILS vendor page (the Target Identifier) and the
+    management page (the DCN IPs, optional: a node without one is reached
+    through the GNE closest to its location), connects to the node to read its
+    GMPLS ID, role and software version, and yields the identity page, where
+    the node name (by default the Target Identifier) is confirmed or changed.
+    It returns the collected user input as a flat dict of the ``optical_*``
+    state keys plus ``location_instance_id``, consumed by the shipped construct
+    step (:func:`construct_optical_node_nokia_flexils_subscription`); the
+    ``optical_flexils_gmpls_id`` key holds the value read from the device.
+    Consumers yield from it in one line inside their own create form generator,
     optionally interleaving their own pages. The customer of the subscription
     is collected separately by the consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
@@ -123,11 +126,30 @@ def create_optical_node_nokia_flexils_form_pages(product_name: str) -> FormGener
 
     Returns:
         The collected user input of the shipped pages.
+
+    Raises:
+        ValueError: If the node cannot be reached, reports no GMPLS ID, or its
+            GMPLS ID is already in use by another subscription.
     """
     user_input_dict: dict[str, str | None] = {}
     user_input_dict.update((yield create_optical_node_location_form(product_name)).model_dump())
-    user_input_dict.update((yield create_optical_node_management_form(product_name, require_dcn_ip=False)).model_dump())
     user_input_dict.update((yield create_optical_node_nokia_flexils_vendor_form(product_name)).model_dump())
+    user_input_dict.update((yield create_optical_node_management_form(product_name, require_dcn_ip=False)).model_dump())
+    discovery = discover_new_optical_node(
+        Vendor.NOKIA,
+        Platform.FLEXILS,
+        location_instance_id=user_input_dict["location_instance_id"],
+        optical_module_node_management_loopback_ip=user_input_dict["optical_module_node_management_loopback_ip"],
+        optical_module_node_management_ip=user_input_dict["optical_module_node_management_ip"],
+        optical_flexils_target_id=user_input_dict["optical_flexils_target_id"],
+    )
+    if not discovery.flexils_gmpls_id:
+        msg = f"FlexILS node {user_input_dict['optical_flexils_target_id']} reports no GMPLS ID (ROUTERID)"
+        raise ValueError(msg)
+    validate_gmpls_id_uniqueness(discovery.flexils_gmpls_id)
+    user_input_dict["optical_flexils_gmpls_id"] = discovery.flexils_gmpls_id
+    identity = yield create_optical_node_identity_form(product_name, discovery)
+    user_input_dict["optical_module_node_name"] = identity.optical_module_node_name
     return user_input_dict
 
 
@@ -149,10 +171,10 @@ def create_optical_node_nokia_flexils_form_generator(product_name: str) -> FormG
     summary_fields = [
         "customer_id",
         "location_instance_id",
-        "optical_module_node_fqdn",
+        "optical_module_node_name",
         "optical_flexils_target_id",
-        "optical_module_node_dcn_loopback_ip",
-        "optical_module_node_dcn_interface_ip",
+        "optical_module_node_management_loopback_ip",
+        "optical_module_node_management_ip",
         "optical_flexils_gmpls_id",
     ]
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
@@ -164,11 +186,11 @@ def populate_optical_node_nokia_flexils_block(
     optical_module_block: NokiaFlexIlsBlockInactive,
     *,
     location_instance_id: UUIDstr,
-    optical_module_node_fqdn: Fqdn,
+    optical_module_node_name: OpticalNodeName,
     optical_flexils_gmpls_id: IPAddress,
     optical_flexils_target_id: FlexIlsTargetId,
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
-    optical_module_node_dcn_interface_ip: IPAddress | None = None,
+    optical_module_node_management_loopback_ip: IPAddress | None = None,
+    optical_module_node_management_ip: IPAddress | None = None,
 ) -> None:
     """Populate a Nokia FlexILS node block from the create-form state keys.
 
@@ -178,28 +200,28 @@ def populate_optical_node_nokia_flexils_block(
     This is the anti-corruption point for consumers that keep their own model:
     call it from their own construct step on the shipped block they compose,
     before their subscription model is transitioned to the PROVISIONING
-    lifecycle. It re-checks the uniqueness of the FQDN, the DCN IPs, the GMPLS
+    lifecycle. It re-checks the uniqueness of the node name, the DCN IPs, the GMPLS
     ID and the Target Identifier at execution time, so consumers bypassing the
     create form are still guarded against duplicates.
 
     Args:
         optical_module_block: The Nokia FlexILS node block to populate (any lifecycle variant).
         location_instance_id: Subscription instance id of the Optical Location block hosting the node.
-        optical_module_node_fqdn: Fully qualified domain name of the node.
+        optical_module_node_name: Fully qualified domain name of the node.
         optical_flexils_gmpls_id: GMPLS ID of the node.
         optical_flexils_target_id: Target Identifier (TID) of the node.
-        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
-        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
+        optical_module_node_management_loopback_ip: Management loopback IP of the node.
+        optical_module_node_management_ip: Management (interface) IP of the node.
 
     Raises:
-        ValueError: If the FQDN, a DCN IP, the GMPLS ID or the Target Identifier
+        ValueError: If the node name, a DCN IP, the GMPLS ID or the Target Identifier
             is already in use by another subscription.
     """
     exclude_subscription_id = str(optical_module_block.owner_subscription_id)
     validate_optical_node_management_fields_uniqueness(
-        optical_module_node_fqdn,
-        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
-        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        optical_module_node_name,
+        optical_module_node_management_loopback_ip=optical_module_node_management_loopback_ip,
+        optical_module_node_management_ip=optical_module_node_management_ip,
         exclude_subscription_id=exclude_subscription_id,
     )
     validate_gmpls_id_uniqueness(optical_flexils_gmpls_id, exclude_subscription_id=exclude_subscription_id)
@@ -210,9 +232,9 @@ def populate_optical_node_nokia_flexils_block(
     populate_abstract_optical_node_fields(
         optical_module_block=optical_module_block,
         location_instance_id=location_instance_id,
-        optical_module_node_fqdn=optical_module_node_fqdn,
-        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
-        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        optical_module_node_name=optical_module_node_name,
+        optical_module_node_management_loopback_ip=optical_module_node_management_loopback_ip,
+        optical_module_node_management_ip=optical_module_node_management_ip,
         optical_module_node_vendor=Vendor.NOKIA,
         optical_module_node_platform=Platform.FLEXILS,
     )
@@ -225,11 +247,11 @@ def construct_optical_node_nokia_flexils_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
     location_instance_id: UUIDstr,
-    optical_module_node_fqdn: Fqdn,
+    optical_module_node_name: OpticalNodeName,
     optical_flexils_gmpls_id: IPAddress,
     optical_flexils_target_id: FlexIlsTargetId,
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
-    optical_module_node_dcn_interface_ip: IPAddress | None = None,
+    optical_module_node_management_loopback_ip: IPAddress | None = None,
+    optical_module_node_management_ip: IPAddress | None = None,
 ) -> State:
     """Construct the PROVISIONING domain subscription model for a Nokia FlexILS Optical Node.
 
@@ -260,9 +282,9 @@ def construct_optical_node_nokia_flexils_subscription(
     populate_optical_node_nokia_flexils_block(
         optical_module_block=subscription.optical_node,
         location_instance_id=location_instance_id,
-        optical_module_node_fqdn=optical_module_node_fqdn,
-        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
-        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        optical_module_node_name=optical_module_node_name,
+        optical_module_node_management_loopback_ip=optical_module_node_management_loopback_ip,
+        optical_module_node_management_ip=optical_module_node_management_ip,
         optical_flexils_gmpls_id=optical_flexils_gmpls_id,
         optical_flexils_target_id=optical_flexils_target_id,
     )

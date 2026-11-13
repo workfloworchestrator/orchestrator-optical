@@ -15,12 +15,15 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
     validate_gmpls_id_uniqueness,
     validate_management_ips_uniqueness,
     validate_optical_flexils_target_id_uniqueness,
-    validate_optical_node_fqdn_uniqueness,
     validate_optical_node_management_fields_uniqueness,
+    validate_optical_node_name_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.forms import (
+    create_optical_node_identity_form,
     create_optical_node_location_form,
     create_optical_node_management_form,
+    discover_new_optical_node,
+    modify_optical_node_identity_form,
     modify_optical_node_management_form,
 )
 from orchestrator.optical.workflows.optical_node.shared.modify import (
@@ -48,11 +51,14 @@ __all__ = [
     "OPTICAL_MODULE_BLOCK_STATE_KEY",
     "OPTICAL_NODE_TERMINATE_STEPS",
     "VALIDATE_OPTICAL_NODE_BLOCK_STEPS",
+    "create_optical_node_identity_form",
     "create_optical_node_location_form",
     "create_optical_node_management_form",
     "delete_optical_node_from_oss_bss",
+    "discover_new_optical_node",
     "load_initial_state_optical_node",
     "load_optical_node_block",
+    "modify_optical_node_identity_form",
     "modify_optical_node_management_form",
     "optical_node_block_from_state",
     "optical_node_subscription_description",
@@ -67,6 +73,6 @@ __all__ = [
     "validate_gmpls_id_uniqueness",
     "validate_management_ips_uniqueness",
     "validate_optical_flexils_target_id_uniqueness",
-    "validate_optical_node_fqdn_uniqueness",
     "validate_optical_node_management_fields_uniqueness",
+    "validate_optical_node_name_uniqueness",
 ]

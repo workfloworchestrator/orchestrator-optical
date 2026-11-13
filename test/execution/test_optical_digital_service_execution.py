@@ -156,7 +156,8 @@ def test_create_optical_digital_service_end_to_end(
     subscription = _subscription_table(subscription_id)
     assert SubscriptionLifecycle(subscription.status) == SubscriptionLifecycle.ACTIVE
     assert subscription.customer_id == CUSTOMER_ID
-    assert subscription.description == f"ods-svc-01 ({DIGITAL_100G_PRODUCT})"
+    assert str(subscription.description).startswith("ods-svc-01 100G ")
+    assert str(subscription.description).endswith(" via ods-ch-01")
 
     digital = OpticalDigitalServiceSubscription.from_subscription(subscription_id).optical_digital_service
     assert digital.optical_digital_service_name == "ods-svc-01"
@@ -212,7 +213,7 @@ def test_full_lifecycle_create_modify_validate_reconcile_terminate(
         ],
     )
     assert_process_completed(modify_process_id)
-    assert _subscription_table(subscription_id).description == f"ods-svc-02 ({DIGITAL_100G_PRODUCT})"
+    assert str(_subscription_table(subscription_id).description).startswith("ods-svc-02 100G ")
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
     digital = OpticalDigitalServiceSubscription.from_subscription(subscription_id).optical_digital_service
     assert digital.optical_digital_service_name == "ods-svc-02"

@@ -7,8 +7,8 @@ from pydantic_forms.types import State
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import step
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
-from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.utils.custom_types.node_name import OpticalNodeName
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.optical_node.shared.create import (
     _optical_node_block_of_subscription,
@@ -20,9 +20,9 @@ from orchestrator.optical.workflows.optical_node.shared.create import (
 def update_optical_node_block_fields(
     optical_module_block: Any,
     *,
-    optical_module_node_fqdn: Fqdn,
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
-    optical_module_node_dcn_interface_ip: IPAddress | None = None,
+    optical_module_node_name: OpticalNodeName,
+    optical_module_node_management_loopback_ip: IPAddress | None = None,
+    optical_module_node_management_ip: IPAddress | None = None,
 ) -> None:
     """Update the common Optical Node block fields.
 
@@ -32,13 +32,15 @@ def update_optical_node_block_fields(
 
     Args:
         optical_module_block: The Optical Node block to update (any lifecycle variant).
-        optical_module_node_fqdn: Fully qualified domain name of the node.
-        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
-        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
+        optical_module_node_name: Fully qualified domain name of the node.
+        optical_module_node_management_loopback_ip: Management loopback IP of the node.
+        optical_module_node_management_ip: Management (interface) IP of the node.
     """
-    optical_module_block.management.optical_module_node_fqdn = optical_module_node_fqdn
-    optical_module_block.management.optical_module_node_dcn_loopback_ip = optical_module_node_dcn_loopback_ip
-    optical_module_block.management.optical_module_node_dcn_interface_ip = optical_module_node_dcn_interface_ip
+    optical_module_block.management.optical_module_node_name = optical_module_node_name
+    optical_module_block.management.optical_module_node_management_loopback_ip = (
+        optical_module_node_management_loopback_ip
+    )
+    optical_module_block.management.optical_module_node_management_ip = optical_module_node_management_ip
 
 
 @step("Load optical node block")

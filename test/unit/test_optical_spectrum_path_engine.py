@@ -64,7 +64,7 @@ def _node(
         management=OpticalModuleNodeManagementBlockInactive.model_construct(
             optical_module_node_vendor=vendor,
             optical_module_node_platform=platform,
-            optical_module_node_fqdn=fqdn,
+            optical_module_node_name=fqdn,
         ),
     )
 

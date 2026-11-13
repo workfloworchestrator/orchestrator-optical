@@ -23,6 +23,8 @@ from flexils_tl1.generated.responses import (
     RtrvOtelinkResponse,
 )
 
+from orchestrator.optical.hal._common import OpticalNodeDiscovery
+from orchestrator.optical.hal.adapters.nokia_flexils import _shared as flexils_shared
 from orchestrator.optical.hal.adapters.nokia_flexils import port as flexils_port
 from orchestrator.optical.hal.adapters.nokia_flexils import spectrum as flexils_spectrum
 from orchestrator.optical.hal.adapters.nokia_flexils import transponder as flexils_transponder
@@ -35,6 +37,7 @@ from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
     _tl1_quoted,
 )
 from orchestrator.optical.hal.adapters.nokia_flexils.spectrum import _OEL_DEFAULTS, _OSNC_DEFAULTS
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from test.support.tl1 import CTAG, GNE_IP, TID, ScriptedClient, parsed_records, reply, scripted_client
@@ -60,7 +63,8 @@ _OSNC_TAIL = (
     "ROUTETYPE=OEL,INTRACARRSPECSHAPING=ENABLED,DIGITRIGGER=FALSE,RESTORATIONTRIGGER=OPTICALSF:IS"
 )
 _OEL_TAIL = (
-    "LABEL=flex.a-flex.b,SRCNODENAME=flex.a,DSTNODENAME=flex.b,MODULATION=PM-NONE,ENCODMOD=None,RATE=NA,"
+    'LABEL="MIL-BOL-OCH-01",SRCNODENAME=flex.a,'
+    "DSTNODENAME=flex.b,MODULATION=PM-NONE,ENCODMOD=None,RATE=NA,"
     "SPECTYPE=NA,CARDTYPE=UNKNOWN,FREQSLOTPLANTYPE=FREQ-SLOT-PLAN-NONE,COMPCARDTYPELIST=UNKNOWN,"
     "VALIDFRANGELIST=191325000&196125000,SRCPOWEROFFSET=0,DSTPOWEROFFSET=0,"
     "EXPLICITROUTE=flex.a&1-A-2-L1&flex.c&1-A-1-L1&-flex.c&1-A-2-L1&flex.b&1-A-1-L1,"
@@ -126,6 +130,10 @@ COMMANDS: dict[str, tuple[Callable[[FlexilsClient], Any], str]] = {
         _wire(f"ED-SCH:{SCH}", ":::SHUTTERSTATE=OPEN:"),
     ),
     "ed-oel-lock": (lambda c: c.ed_oel(aid="cid", srcnodename="OOS"), _wire("ED-OEL:cid", "::::OOS")),
+    "ed-oel-label": (
+        lambda c: c.ed_oel(aid="cid", label=_tl1_quoted("MIL-BOL-OCH-01")),
+        _wire("ED-OEL:cid", ':::LABEL="MIL-BOL-OCH-01":'),
+    ),
     "ent-osnc": (
         lambda c: c.ent_osnc(
             aid=SCH,
@@ -177,7 +185,7 @@ COMMANDS: dict[str, tuple[Callable[[FlexilsClient], Any], str]] = {
     "ent-oel": (
         lambda c: c.ent_oel(
             aid="cid",
-            label="flex.a-flex.b",
+            label=_tl1_quoted("MIL-BOL-OCH-01"),
             srcnodename="flex.a",
             dstnodename="flex.b",
             explicitroute=_tl1_list(ROUTE),
@@ -343,19 +351,14 @@ def test_denial_for_an_entity_already_in_the_requested_state_is_done() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _port(name: str, role: OpticalPortRole, description: str = "") -> Any:
-    node = SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn="flex.bo01.example.net"))
-    return SimpleNamespace(
-        optical_port_host_node=node,
-        optical_port_name=name,
-        optical_port_role=role,
-        optical_port_description=description,
-    )
+def _port(name: str, role: OpticalPortRole) -> Any:
+    node = SimpleNamespace(management=SimpleNamespace(optical_module_node_name="flex.bo01.example.net"))
+    return SimpleNamespace(optical_port_host_node=node, optical_port_name=name, optical_port_role=role)
 
 
 @pytest.fixture
 def node() -> Any:
-    return SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn="flex.bo01.example.net"))
+    return SimpleNamespace(management=SimpleNamespace(optical_module_node_name="flex.bo01.example.net"))
 
 
 def _drive(monkeypatch: pytest.MonkeyPatch, module: Any, client: ScriptedClient) -> None:
@@ -382,12 +385,12 @@ def test_locking_a_tributary_port_in_maintenance_restores_it_first(monkeypatch: 
 
 
 def test_span_termination_and_reset_of_a_line_port(monkeypatch: pytest.MonkeyPatch) -> None:
-    port = _port(LINE, OpticalPortRole.OLS_LINE, 'to "flex.ba01", span 1')
+    port = _port(LINE, OpticalPortRole.OLS_LINE)
     before, after = [f"{LINE}:OTS:LABEL=,HISTSTATS=DISABLED:OOS-MA"], [f"{LINE}:OTS:LABEL=x,HISTSTATS=ENABLED:IS-NR"]
     with scripted_client([("RTRV-OTS", reply(before)), ("RTRV-OTS", reply(after))]) as client:
         _drive(monkeypatch, flexils_port, client)
 
-        diff = flexils_port.configure_termination(port, port, OpticalPipeType.SPAN)
+        diff = flexils_port.configure_termination(port, port, OpticalPipeType.SPAN, label='to "flex.ba01", span 1')
         flexils_port.factory_reset(port, port, OpticalPipeType.SPAN)
 
         assert client.sent[1:3] == [
@@ -400,26 +403,26 @@ def test_span_termination_and_reset_of_a_line_port(monkeypatch: pytest.MonkeyPat
 
 
 def test_fiber_check_reads_the_line_port_state(monkeypatch: pytest.MonkeyPatch) -> None:
-    port = _port(LINE, OpticalPortRole.OLS_LINE, "span 1")
+    port = _port(LINE, OpticalPortRole.OLS_LINE)
     remote = _port("1-A-2-L1", OpticalPortRole.OLS_LINE)
     ots = f'{LINE}:OTS:LABEL=\\"span 1\\",PROVNBROTS=1-A-2-L1,DISCNBROTS=1-A-2-L1,HISTSTATS=ENABLED'
     with scripted_client([("RTRV-OTS", reply([f"{ots}:IS-NR"])), ("RTRV-OTS", reply([f"{ots}:OOS-MA"]))]) as client:
         _drive(monkeypatch, flexils_port, client)
 
-        flexils_port.check_fiber(port, remote, OpticalPipeType.SPAN)
+        flexils_port.check_fiber(port, remote, OpticalPipeType.SPAN, label="span 1")
         with pytest.raises(ValueError, match="OOS-MA"):
-            flexils_port.check_fiber(port, remote, OpticalPipeType.SPAN)
+            flexils_port.check_fiber(port, remote, OpticalPipeType.SPAN, label="span 1")
 
 
 def test_entering_an_oel_validates_its_route(monkeypatch: pytest.MonkeyPatch, node: Any) -> None:
     missing = reply(status="DENY", error="Input, Specified Object Entity Does Not Exist")
-    created = reply(["cid:OEL:LABEL=flex.a-flex.b,SRCNODENAME=flex.a:IS-NR"])
+    created = reply(["cid:OEL:LABEL=MIL-BOL-OCH-01,SRCNODENAME=flex.a:IS-NR"])
     with scripted_client([("RTRV-OEL", missing), ("RTRV-OEL", created)]) as client:
         _drive(monkeypatch, flexils_spectrum, client)
         monkeypatch.setattr(flexils_spectrum, "_node_id", lambda n: "flex.a" if n is node else "flex.b")
         monkeypatch.setattr(flexils_spectrum, "_explicit_route_from_omses", lambda _omses: ROUTE)
 
-        oel = flexils_spectrum._find_or_create_oel("cid", node, object(), [])  # noqa: SLF001
+        oel = flexils_spectrum._find_or_create_oel("cid", "MIL-BOL-OCH-01", node, object(), [])  # noqa: SLF001
 
         assert client.sent == [
             _wire("RTRV-OEL:cid"),
@@ -427,7 +430,7 @@ def test_entering_an_oel_validates_its_route(monkeypatch: pytest.MonkeyPatch, no
             _wire("OPR-VALROUTE-OEL:cid"),
             _wire("RTRV-OEL:cid"),
         ]
-    assert oel == {"AID": "cid", "TYPE": "OEL", "PST": "IS-NR", "LABEL": "flex.a-flex.b", "SRCNODENAME": "flex.a"}
+    assert oel == {"AID": "cid", "TYPE": "OEL", "PST": "IS-NR", "LABEL": "MIL-BOL-OCH-01", "SRCNODENAME": "flex.a"}
 
 
 def test_rx_power_delta_reads_the_superchannel_power(monkeypatch: pytest.MonkeyPatch, node: Any) -> None:
@@ -449,3 +452,92 @@ def test_rx_power_delta_reads_the_superchannel_power(monkeypatch: pytest.MonkeyP
             _wire(f"RTRV-PM-SCH:{SYSTEM}-1", "::OPR::"),
         ]
     assert delta == 1.3
+
+
+# --- SDK kernel: completion of a paged reply (LOCAL PATCH of protocol/parser.py) ---------------
+
+_PAGE = '\n\n   {tid} 26-11-12 18:34:39\nM  {ctag} {status}\n   "{aid}:SCG:LABEL=:IS-NR"\n'
+_IP_THEN_PROMPT = ">IP {ctag}\n<\nTL1>>"
+
+
+def _page(aid: str, status: str = "RTRV") -> str:
+    return _PAGE.format(tid=TID, ctag=CTAG, status=status, aid=aid)
+
+
+def test_prompt_after_an_in_progress_ack_does_not_complete_a_paged_reply() -> None:
+    """A GNE bridge may print the prompt after ``IP <ctag>`` between pages (seen on a node).
+
+    The pages so far are intermediate (``M <ctag> RTRV``): the reply is not complete
+    until the ``COMPLD`` page and its ``;``. Unpatched, RTRV-SCG was cut to its first
+    pages and the add/drop connectivity lost a degree.
+    """
+    from flexils_tl1.protocol.parser import find_matching_reply, find_unterminated_reply
+
+    partial = _page("1-A-1-S1") + ">" + _page("1-A-1-S9") + _IP_THEN_PROMPT.format(ctag=CTAG)
+    assert find_unterminated_reply(partial, CTAG, "TL1>>") is None
+
+    complete = partial + _page("1-A-2-S1", "COMPLD") + ";\n"
+    matched = find_matching_reply(complete, CTAG)
+    assert matched is not None
+    assert "1-A-2-S1" in matched
+    assert "1-A-1-S1" in matched
+
+
+def test_prompt_still_completes_an_unterminated_final_reply() -> None:
+    """A reply whose last page is final and that ends at the prompt without ``;`` stays complete."""
+    from flexils_tl1.protocol.parser import find_unterminated_reply
+
+    buffer = _page("1-A-1-S1", "COMPLD") + "TL1>>"
+    assert find_unterminated_reply(buffer, CTAG, "TL1>>") is not None
+
+
+# ---------------------------------------------------------------------------
+# Discovery of a node that has no block yet (create form)
+# ---------------------------------------------------------------------------
+
+
+def _discovery_client(monkeypatch: pytest.MonkeyPatch, toponode: list[dict[str, str]], sys: dict[str, str]) -> Any:
+    """Return a fake client whose RTRV-TOPONODE / RTRV-SYS answer with the given records."""
+    monkeypatch.setattr(flexils_shared, "_records", lambda response: response)
+    node_client = SimpleNamespace(tid="node", gne_ip=GNE_IP, rtrv_sys=lambda: [sys])
+    monkeypatch.setattr(flexils_shared, "_flexils_client", lambda **_: node_client)
+    return SimpleNamespace(tid="gne", gne_ip=GNE_IP, rtrv_toponode=lambda: toponode)
+
+
+def test_discovery_by_target_id_reads_the_gmpls_id_from_the_node(monkeypatch: pytest.MonkeyPatch) -> None:
+    flex = _discovery_client(
+        monkeypatch,
+        toponode=[{"NENAME": "flex.bo01", "ROUTERID": "10.0.0.9"}, {"NENAME": "flex.ba01", "ROUTERID": "10.0.0.3"}],
+        sys={"NETYPE": "ROADM", "SWVERSION": "R21.0", "ROUTERID": "10.0.0.3"},
+    )
+
+    discovery = flexils_shared._discover_via_client(flex, "flex.ba01", None)  # noqa: SLF001
+
+    assert discovery == OpticalNodeDiscovery(
+        name="flex.ba01", role=OpticalNodeRole.ROADM, software_version="R21.0", flexils_gmpls_id="10.0.0.3"
+    )
+
+
+def test_discovery_falls_back_to_the_topology_router_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    flex = _discovery_client(
+        monkeypatch,
+        toponode=[{"NENAME": "flex.ba01", "ROUTERID": "10.0.0.3"}],
+        sys={"NETYPE": "OLA", "SWVERSION": "R21.0", "ROUTERID": ""},
+    )
+
+    discovery = flexils_shared._discover_via_client(flex, "flex.ba01", None)  # noqa: SLF001
+
+    assert discovery.flexils_gmpls_id == "10.0.0.3"
+    assert discovery.role is OpticalNodeRole.AMPLIFIER
+
+
+def test_discovery_by_target_id_refuses_a_partial_name_match(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without a GMPLS ID the Target ID is the only identification: a look-alike node is not the node."""
+    flex = _discovery_client(
+        monkeypatch,
+        toponode=[{"NENAME": "flex.ba01-bis", "ROUTERID": "10.0.0.4"}],
+        sys={"NETYPE": "ROADM", "SWVERSION": "R21.0", "ROUTERID": "10.0.0.4"},
+    )
+
+    with pytest.raises(ValueError, match=r"Node flex.ba01 not found .* \(closest: flex.ba01-bis\)"):
+        flexils_shared._discover_via_client(flex, "flex.ba01", None)  # noqa: SLF001

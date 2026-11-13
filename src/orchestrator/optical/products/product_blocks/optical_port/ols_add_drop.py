@@ -22,7 +22,6 @@ class OlsAddDropPortBlockInactive(AbstractOpticalOlsPortBlockInactive, product_b
 
     optical_port_role: OpticalPortRole = OpticalPortRole.OLS_ADD_DROP
     optical_port_name: str | None = None
-    optical_port_description: str | None = None
     optical_passbands: OpticalPassbandList = Field(default_factory=list)
     optical_port_host_node: OlsBlockInactiveUnion
 
@@ -36,7 +35,6 @@ class OlsAddDropPortBlockProvisioning(
 
     optical_port_role: OpticalPortRole = OpticalPortRole.OLS_ADD_DROP
     optical_port_name: str
-    optical_port_description: str | None
     optical_passbands: OpticalPassbandList
     optical_port_host_node: OlsBlockProvisioningUnion
 
@@ -48,6 +46,5 @@ class OlsAddDropPortBlock(
 
     optical_port_role: OpticalPortRole = OpticalPortRole.OLS_ADD_DROP
     optical_port_name: str
-    optical_port_description: str | None
     optical_passbands: OpticalPassbandList
     optical_port_host_node: OlsBlockUnion

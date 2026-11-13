@@ -177,9 +177,9 @@ def _make_flexils_block_provisioning() -> NokiaFlexIlsBlockProvisioning:
             optical_module_node_vendor=Vendor.NOKIA,
             optical_module_node_platform=Platform.FLEXILS,
             optical_module_node_software_version=None,
-            optical_module_node_fqdn="flex.ba01.example.com",
-            optical_module_node_dcn_loopback_ip=None,
-            optical_module_node_dcn_interface_ip=None,
+            optical_module_node_name="flex.ba01.example.com",
+            optical_module_node_management_loopback_ip=None,
+            optical_module_node_management_ip=None,
         ),
         location=OpticalModuleLocationBlockProvisioning(
             name="OpticalModuleLocationBlock",
@@ -209,16 +209,16 @@ def test_populate_optical_node_nokia_flexils_block(monkeypatch) -> None:
     populate_optical_node_nokia_flexils_block(
         optical_module_block=block,
         location_instance_id=str(uuid.uuid4()),
-        optical_module_node_fqdn="flex.ba01.example.com",
-        optical_module_node_dcn_interface_ip="10.0.0.1",
-        optical_module_node_dcn_loopback_ip="10.0.0.2",
+        optical_module_node_name="flex.ba01.example.com",
+        optical_module_node_management_ip="10.0.0.1",
+        optical_module_node_management_loopback_ip="10.0.0.2",
         optical_flexils_gmpls_id="10.0.0.3",
         optical_flexils_target_id="TID-1",
     )
 
-    assert str(block.management.optical_module_node_fqdn) == "flex.ba01.example.com"
-    assert str(block.management.optical_module_node_dcn_interface_ip) == "10.0.0.1"
-    assert str(block.management.optical_module_node_dcn_loopback_ip) == "10.0.0.2"
+    assert str(block.management.optical_module_node_name) == "flex.ba01.example.com"
+    assert str(block.management.optical_module_node_management_ip) == "10.0.0.1"
+    assert str(block.management.optical_module_node_management_loopback_ip) == "10.0.0.2"
     assert block.management.optical_module_node_vendor == Vendor.NOKIA
     assert block.management.optical_module_node_platform == Platform.FLEXILS
     assert str(block.optical_flexils_gmpls_id) == "10.0.0.3"
@@ -287,7 +287,7 @@ def test_optical_node_subscription_description_fails_fast_without_block() -> Non
 
 
 def test_optical_node_subscription_description_takes_the_explicit_block() -> None:
-    block = cast(Any, SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn="flex.ba01.example.com")))
+    block = cast(Any, SimpleNamespace(management=SimpleNamespace(optical_module_node_name="flex.ba01.example.com")))
     subscription = cast(Any, SimpleNamespace(product=SimpleNamespace(name="Nokia FlexILS")))
 
     expected = "flex.ba01.example.com (Nokia FlexILS)"
@@ -295,7 +295,7 @@ def test_optical_node_subscription_description_takes_the_explicit_block() -> Non
 
 
 def test_optical_node_subscription_description_falls_back_to_the_attribute() -> None:
-    block = SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn="flex.ba01.example.com"))
+    block = SimpleNamespace(management=SimpleNamespace(optical_module_node_name="flex.ba01.example.com"))
     subscription = cast(Any, SimpleNamespace(product=SimpleNamespace(name="Nokia FlexILS"), optical_node=block))
 
     assert shared_create.optical_node_subscription_description(subscription) == "flex.ba01.example.com (Nokia FlexILS)"

@@ -63,6 +63,7 @@ def _guarded_page(page: type[FormPage], sessions: DeviceSessions) -> type[FormPa
             except ValidationError:
                 raise
             except Exception as exc:
+                sessions.failed = True
                 logger.exception("Unexpected error while validating a form page", page=page.__name__)
                 raise ValueError(_form_error_message(exc)) from exc
 
@@ -83,8 +84,9 @@ def retryable_form[**P](form_generator: Callable[P, FormGenerator]) -> Callable[
     logged.
 
     A submit also shares one session per device (:class:`~orchestrator.optical.hal.sessions.DeviceSessions`)
-    between its pages and validators, as the replay reads the same nodes again and again; the sessions are
-    closed when the submit ends.
+    between its pages and validators, as the replay reads the same nodes again and again. When the submit ends
+    the sessions are left open for the next one (of any form: forms only read from the devices, never write),
+    unless it hit an unexpected error.
 
     Apply it to the outermost generator handed to ``initial_input_form=`` (shipped generators are decorated;
     consumers composing their own generator from the shipped ``*_form_pages`` decorate theirs).
@@ -103,7 +105,7 @@ def retryable_form[**P](form_generator: Callable[P, FormGenerator]) -> Callable[
         page_name = form_name
         user_input = None
         # Active only while the generator or a validator runs, never across a yield: the submit ends with the
-        # generator suspended on its next page, and closing it (GeneratorExit at the yield) closes the sessions.
+        # generator suspended on its next page, and closing it (GeneratorExit at the yield) releases the sessions.
         sessions = DeviceSessions()
         try:
             while True:
@@ -115,6 +117,7 @@ def retryable_form[**P](form_generator: Callable[P, FormGenerator]) -> Callable[
                 except FormException:
                     raise
                 except Exception as exc:
+                    sessions.failed = True
                     logger.exception("Unexpected error in a form generator", form=form_name, page=page_name)
                     cause = ValueError(_form_error_message(exc))
                     details = InitErrorDetails(type="value_error", loc=(), input={}, ctx={"error": cause})
@@ -123,7 +126,7 @@ def retryable_form[**P](form_generator: Callable[P, FormGenerator]) -> Callable[
                 page_name = page.__name__
                 user_input = yield _guarded_page(page, sessions)
         finally:
-            sessions.close()
+            sessions.release()
 
     return wrapper
 
@@ -429,5 +432,5 @@ def optical_port_selector(
         used_ports = used_port_names_on_node(optical_node_block)
         ports = [port for port in ports if port not in used_ports]
     if not prompt:
-        prompt = f"Select a port on {optical_node_block.management.optical_module_node_fqdn}"
+        prompt = f"Select a port on {optical_node_block.management.optical_module_node_name}"
     return cast(type[Choice], Choice(prompt, zip(ports, ports, strict=False)))

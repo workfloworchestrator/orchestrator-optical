@@ -26,8 +26,8 @@ def release_rule(path: str) -> Reset | DeleteEntry | None:
 
     - A cross-connect is a list entry created by the orchestrator: it is deleted.
     - The leaves of a port or subport go back to their factory value. On a port of an
-      ``OCC2`` subcard only the ``connected-to`` note is cleared: the Open Line System
-      ports stay in service.
+      ``OCC2`` subcard only the ``connected-to`` and ``service-label`` notes are cleared:
+      the Open Line System ports stay in service.
     - Everything else is left alone: the optical channel and the ethernet facility of a
       port are removed by the device when the port mode is reset, and the amplifiers
       keep their settings.
@@ -39,6 +39,6 @@ def release_rule(path: str) -> Reset | DeleteEntry | None:
     if parent_name(path) not in {"port", "subport"}:
         return None
     leaf = leaf_name(path)
-    if any(segment.startswith("subslot[") for segment in segments) and leaf != "connected-to":
+    if any(segment.startswith("subslot[") for segment in segments) and leaf not in {"connected-to", "service-label"}:
         return None
     return Reset(_PORT_RESETS[leaf]) if leaf in _PORT_RESETS else None

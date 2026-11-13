@@ -36,7 +36,6 @@ class AbstractOpticalPortBlockInactive(ProductBlockModel):
 
     optical_port_role: OpticalPortRole | None = None
     optical_port_name: str | None = None
-    optical_port_description: str | None = None
     optical_port_host_node: AnyOpticalNodeBlockInactiveUnion
 
 
@@ -47,7 +46,6 @@ class AbstractOpticalPortBlockProvisioning(
 
     optical_port_role: OpticalPortRole
     optical_port_name: str
-    optical_port_description: str | None
     optical_port_host_node: AnyOpticalNodeBlockProvisioningUnion
 
 
@@ -56,7 +54,6 @@ class AbstractOpticalPortBlock(AbstractOpticalPortBlockProvisioning, lifecycle=[
 
     optical_port_role: OpticalPortRole
     optical_port_name: str
-    optical_port_description: str | None
     optical_port_host_node: AnyOpticalNodeBlockUnion
 
 
@@ -65,7 +62,6 @@ class AbstractOpticalOlsPortBlockInactive(AbstractOpticalPortBlockInactive):
 
     optical_port_role: OpticalPortRole | None = None
     optical_port_name: str | None = None
-    optical_port_description: str | None = None
     optical_passbands: OpticalPassbandList = Field(default_factory=list)
     optical_port_host_node: OlsBlockInactiveUnion
 
@@ -79,7 +75,6 @@ class AbstractOpticalOlsPortBlockProvisioning(
 
     optical_port_role: OpticalPortRole
     optical_port_name: str
-    optical_port_description: str | None
     optical_passbands: OpticalPassbandList
     optical_port_host_node: OlsBlockProvisioningUnion
 
@@ -91,6 +86,5 @@ class AbstractOpticalOlsPortBlock(
 
     optical_port_role: OpticalPortRole
     optical_port_name: str
-    optical_port_description: str | None
     optical_passbands: OpticalPassbandList
     optical_port_host_node: OlsBlockUnion

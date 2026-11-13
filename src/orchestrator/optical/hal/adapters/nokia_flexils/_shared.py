@@ -6,7 +6,7 @@ from typing import Any, cast
 
 from structlog import get_logger
 
-from orchestrator.optical.hal._common import _as_flexils_block, _node_id
+from orchestrator.optical.hal._common import OpticalNodeDiscovery, _as_flexils_block, _node_id
 from orchestrator.optical.hal.adapters.nokia_flexils._sdk import (
     BaseRequest,
     BaseResponse,
@@ -250,6 +250,12 @@ def _find_node_entry(
 
 def _retrieve_node_properties(flex: FlexilsClient) -> tuple[OpticalNodeRole, str]:
     """Retrieve the node role and software version of the node the client targets."""
+    role, software_version, _ = _retrieve_system_properties(flex)
+    return role, software_version
+
+
+def _retrieve_system_properties(flex: FlexilsClient) -> tuple[OpticalNodeRole, str, str | None]:
+    """Retrieve the node role, the software version and the GMPLS router id of the node the client targets."""
     # NETYPE values reported by RTRV-SYS mapped to the OpticalNodeRole.
     netype_to_role: dict[str, OpticalNodeRole] = {
         "ROADM": OpticalNodeRole.ROADM,
@@ -275,14 +281,14 @@ def _retrieve_node_properties(flex: FlexilsClient) -> tuple[OpticalNodeRole, str
         msg = f"RTRV-SYS did not report a software version for node {flex.tid}"
         raise ValueError(msg)
 
-    return role, software_version
+    return role, software_version, _record_value(sys_record, "ROUTERID")
 
 
 def _discover_via_client(
     flex: FlexilsClient,
     optical_flexils_target_id: str | None,
     optical_flexils_gmpls_id: IPAddress | None,
-) -> tuple[OpticalNodeRole, str]:
+) -> OpticalNodeDiscovery:
     """Run the discovery against a single FlexILS client connection."""
     node_entry = _find_node_entry(flex, optical_flexils_target_id, optical_flexils_gmpls_id)
 
@@ -290,22 +296,29 @@ def _discover_via_client(
     if target_id is None:
         msg = f"RTRV-TOPONODE entry for node {optical_flexils_target_id} is missing the 'NENAME' field"
         raise ValueError(msg)
+    if optical_flexils_gmpls_id is None and target_id != optical_flexils_target_id:
+        # Looked up by name only: the lenient match of the topology entry is not an identification.
+        msg = f"Node {optical_flexils_target_id} not found in RTRV-TOPONODE on {flex.gne_ip} (closest: {target_id})"
+        raise ValueError(msg)
 
     # The probe client may be keyed on the GNE's tid (so RTRV-TOPONODE returns the
     # GNE's topology). RTRV-SYS must target the node itself, so rebind to a client
     # whose tid is the node's NENAME over the same session endpoint.
     node_flex = _flexils_client(tid=target_id, gne_ip=flex.gne_ip)
-    role, software_version = _retrieve_node_properties(node_flex)
+    role, software_version, router_id = _retrieve_system_properties(node_flex)
+    # The node's own answer wins; the topology entry of the probed element is the fallback.
+    gmpls_id = router_id or _record_value(node_entry, "ROUTERID")
 
     logger.info(
         "Discovered FlexILS node properties",
         tid=flex.tid,
         gne_ip=flex.gne_ip,
         target_id=target_id,
+        gmpls_id=gmpls_id,
         role=role.value,
         software_version=software_version,
     )
-    return (role, software_version)
+    return OpticalNodeDiscovery(name=target_id, role=role, software_version=software_version, flexils_gmpls_id=gmpls_id)
 
 
 def discover_flexils_node(
@@ -315,18 +328,37 @@ def discover_flexils_node(
     optical_flexils_gmpls_id: IPAddress | None = None,
     location: OpticalModuleLocationBlockProvisioning | None = None,
 ) -> tuple[OpticalNodeRole, str]:
-    """Discover the properties of a Nokia FlexILS node.
+    """Discover the role and software version of a Nokia FlexILS node (see :func:`discover`)."""
+    discovery = discover(
+        optical_flexils_target_id,
+        optical_management_ip=optical_management_ip,
+        optical_loopback_ip=optical_loopback_ip,
+        optical_flexils_gmpls_id=optical_flexils_gmpls_id,
+        location=location,
+    )
+    return discovery.role, discovery.software_version
+
+
+def discover(
+    optical_flexils_target_id: str,
+    optical_management_ip: IPAddress | None = None,
+    optical_loopback_ip: IPAddress | None = None,
+    optical_flexils_gmpls_id: IPAddress | None = None,
+    location: OpticalModuleLocationBlockProvisioning | None = None,
+) -> OpticalNodeDiscovery:
+    """Discover the properties of a Nokia FlexILS node: name (TID), GMPLS ID, role and software version.
 
     If one or more management IPs are provided the node is contacted directly
     (each IP is tried in order). Otherwise the node is assumed to be a
     subtended network element (SNE): the closest GNE nodes to the location of
-    the node are contacted and the node is looked up by its GMPLS ID.
+    the node are contacted and the node is looked up in their topology, by its
+    GMPLS ID when given, else by its Target ID.
 
     Args:
         optical_flexils_target_id: Target ID of the node.
         optical_management_ip: Management IP through which the node can be reached directly.
         optical_loopback_ip: Loopback IP through which the node can be reached directly.
-        optical_flexils_gmpls_id: GMPLS ID of the node (mandatory for SNEs).
+        optical_flexils_gmpls_id: GMPLS ID of the node, when already known (it is discovered otherwise).
         location: The Optical Location block hosting the node, used to find a GNE.
 
     Returns:
@@ -340,10 +372,6 @@ def discover_flexils_node(
     if management_ips:
         candidates = [(optical_flexils_target_id, [ip]) for ip in management_ips]
     else:
-        if optical_flexils_gmpls_id is None:
-            msg = "At least one of management IP or GMPLS ID must be provided to discover the node"
-            raise ValueError(msg)
-
         if location is None or location.latitude is None or location.longitude is None:
             msg = f"Location {location} has no coordinates, cannot find a GNE for node {optical_flexils_target_id}"
             raise ValueError(msg)
@@ -430,8 +458,8 @@ def get_flex_client(optical_node_block: NokiaFlexIlsBlockProvisioning) -> Flexil
     gne_ips = [
         ip
         for ip in [
-            optical_node_block.management.optical_module_node_dcn_interface_ip,
-            optical_node_block.management.optical_module_node_dcn_loopback_ip,
+            optical_node_block.management.optical_module_node_management_ip,
+            optical_node_block.management.optical_module_node_management_loopback_ip,
         ]
         if ip is not None
     ]
@@ -473,7 +501,7 @@ def _get_remote_node_id(remote_port_block: AnyOpticalPortBlockProvisioning) -> s
 
     Returns:
         The Groove G30 shelf serial number, the Target Identifier (TID) for FlexILS,
-        or the fqdn for the other vendors.
+        or the name for the other vendors.
 
     Raises:
         ValueError: If the node id cannot be determined.

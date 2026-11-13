@@ -4,8 +4,8 @@ from pydantic_forms.types import strEnum
 
 from orchestrator.core.domain.base import ProductBlockModel
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.utils.custom_types.node_name import OpticalNodeName
 
 
 class Vendor(strEnum):
@@ -37,9 +37,9 @@ class OpticalModuleNodeManagementBlockInactive(
     optical_module_node_vendor: Vendor | None = None
     optical_module_node_platform: Platform | None = None
     optical_module_node_software_version: str | None = None
-    optical_module_node_fqdn: Fqdn | None = None
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None
-    optical_module_node_dcn_interface_ip: IPAddress | None = None
+    optical_module_node_name: OpticalNodeName | None = None
+    optical_module_node_management_loopback_ip: IPAddress | None = None
+    optical_module_node_management_ip: IPAddress | None = None
 
 
 class OpticalModuleNodeManagementBlockProvisioning(
@@ -50,9 +50,9 @@ class OpticalModuleNodeManagementBlockProvisioning(
     optical_module_node_vendor: Vendor
     optical_module_node_platform: Platform
     optical_module_node_software_version: str | None
-    optical_module_node_fqdn: Fqdn
-    optical_module_node_dcn_loopback_ip: IPAddress | None
-    optical_module_node_dcn_interface_ip: IPAddress | None
+    optical_module_node_name: OpticalNodeName
+    optical_module_node_management_loopback_ip: IPAddress | None
+    optical_module_node_management_ip: IPAddress | None
 
 
 class OpticalModuleNodeManagementBlock(
@@ -63,6 +63,6 @@ class OpticalModuleNodeManagementBlock(
     optical_module_node_vendor: Vendor
     optical_module_node_platform: Platform
     optical_module_node_software_version: str
-    optical_module_node_fqdn: Fqdn
-    optical_module_node_dcn_loopback_ip: IPAddress | None
-    optical_module_node_dcn_interface_ip: IPAddress | None
+    optical_module_node_name: OpticalNodeName
+    optical_module_node_management_loopback_ip: IPAddress | None
+    optical_module_node_management_ip: IPAddress | None

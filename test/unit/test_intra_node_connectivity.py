@@ -134,6 +134,41 @@ def test_fmm_tributary_reaches_the_degree_through_the_fbm() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("serial", "expected"),
+    [
+        pytest.param("MA4621081160", ["1-A-1-L1", "1-A-2-L1"], id="chassis-serial-is-internal"),
+        pytest.param("MA9999999999", [], id="serial-of-another-node-is-external"),
+    ],
+)
+def test_fmm_l_patched_to_fbm_t_through_provowremptp(serial: str, expected: list[str]) -> None:
+    """The FMM L -> FBM T patch is only on the FBM T: ``PROVOWREMPTP=<chassis SERNO>/<FMM>-L1`` (seen on a node).
+
+    The FMM L has no ``PROVNBRTP``; a ``PROVOWREMPTP`` to a transponder (``CQ.../1-1-1``) is ignored.
+    """
+    lines = [
+        "1-E1-1-L1:SCG:LABEL=,PROVNBRTP=1-A-1-S4,HISTSTATS=ENABLED,DISCNBRTP=1-A-1-S4,MPO=1-E1-1-1:OOS-AU,FAF",
+        "1-E1-1-L5:SCG:LABEL=,PROVNBRTP=1-A-2-S4,HISTSTATS=ENABLED,DISCNBRTP=1-A-2-S4,MPO=1-E1-1-2:OOS-AU,FAF",
+        "1-E1-1-T1A:SCG:LABEL=,PROVNBRTP=,INTFTYP=MANUALMODE-2,HISTSTATS=ENABLED,"
+        f"PROVOWREMPTP={serial}/1-A-3-L1,DISCNBRTP=:OOS-AU,FAF",
+        "1-A-3-L1:SCG:LABEL=,HISTSTATS=ENABLED,DISCNBRTP=,LINEOPMODE=PASSIVE:OOS-AU,FAF",
+        "1-A-3-T12:SCG:LABEL=,PROVNBRTP=,INTFTYP=MANUALMODE-2,HISTSTATS=ENABLED,"
+        "PROVOWREMPTP=CQ2842491/1-1-1:OOS-AU,FAF",
+        "1-A-1-S4:SCG:LABEL=,PROVNBRTP=,INTFTYP=INFWAVE:OOS-AU,FAF",
+        "1-A-2-S4:SCG:LABEL=,PROVNBRTP=,INTFTYP=INFWAVE:OOS-AU,FAF",
+    ]
+    eqpt = [
+        {"AID": "1", "TYPE": "CHASSIS", "SERNO": "MA4621081160"},
+        {"AID": "1-A-1", "TYPE": "FRM"},
+        {"AID": "1-A-2", "TYPE": "FRM"},
+        {"AID": "1-E1-1", "TYPE": "FBM"},
+        {"AID": "1-A-3", "TYPE": "FMMC12"},
+    ]
+    scg = parsed_records(RtrvScgResponse, lines)
+    edges = add_drop_connectivity_from_records("1-A-3-T12", scg, eqpt, ["1-A-1-L1", "1-A-2-L1"], [])
+    assert [edge.line_port for edge in edges] == expected
+
+
 def test_express_patches_between_degrees_are_not_traversed() -> None:
     """A degree is terminal: an express S-S patch never leads an add/drop port to another degree."""
     assert [edge.line_port for edge in _connectivity("1-E1-1-T2A")] == ["1-A-1-L1"]

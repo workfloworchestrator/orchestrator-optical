@@ -29,7 +29,7 @@ def retrieve_optical_node_role_and_software_version(
     platform of the node through
     :func:`orchestrator.optical.hal.node.retrieve_optical_node_role_and_software_version`.
     It runs after the construct step, which has written the connection data
-    (management FQDN, DCN IPs, vendor, platform and location) onto the block
+    (management name, DCN IPs, vendor, platform and location) onto the block
     and transitioned the subscription to PROVISIONING: the HAL dispatches on
     the vendor and platform that the construct step has already written. The
     node role it discovers is mandatory for the ACTIVE lifecycle, so this step

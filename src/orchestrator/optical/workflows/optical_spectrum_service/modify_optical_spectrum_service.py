@@ -62,6 +62,9 @@ from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
+from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
+    configure_add_drop_ports_description,
+)
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     NO_OPTICAL_PATH_FOUND_MSG,
     NoOpticalPathFoundError,
@@ -550,7 +553,7 @@ def modify_optical_sections(
     if _sections_signature(old_sections) == _sections_signature(new_sections):
         for section in new_sections:
             src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-            results[src_node.management.optical_module_node_fqdn] = ensure_optical_circuit(
+            results[src_node.management.optical_module_node_name] = ensure_optical_circuit(
                 src_node,
                 section,
                 optical_spectrum_name=spectrum_name,
@@ -578,7 +581,7 @@ def modify_optical_sections(
 
     for section in new_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[src_node.management.optical_module_node_fqdn] = ensure_optical_circuit(
+        results[src_node.management.optical_module_node_name] = ensure_optical_circuit(
             src_node,
             section,
             spectrum_name,
@@ -602,6 +605,7 @@ MODIFY_OPTICAL_SPECTRUM_BLOCK_STEPS: StepList = (
     >> update_optical_spectrum_block
     >> divide_path_into_sections
     >> modify_optical_sections
+    >> configure_add_drop_ports_description
     >> refresh_optical_spectrum_used_passbands
     >> save_optical_module_block
 )

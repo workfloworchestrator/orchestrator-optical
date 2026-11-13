@@ -117,6 +117,7 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     passband_from,
     snap_passband_to_grid,
 )
+from orchestrator.optical.utils.labels import device_label, endpoint, via_label
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
@@ -313,16 +314,30 @@ def optical_digital_service_subscription_description(
             attribute of the shipped subscription models.
 
     Returns:
-        The subscription description, e.g. ``"my-service (Optical Digital Service)"``.
+        The subscription description: the service name, speed, client ends and channels
+        (the product name is already a column of the subscription list), e.g.
+        ``"svc-01 100G g30.a 1/1/C3 <-> g42.b 1/2/C1 via ch-01 + ch-02"``.
 
     Raises:
         ValueError: If the subscription has no Optical Digital Service block under the
             ``optical_digital_service`` attribute and no block was passed.
     """
     digital_service = optical_module_block or _optical_digital_service_block_of_subscription(subscription)
-    if digital_service.optical_digital_service_name:
-        return f"{digital_service.optical_digital_service_name} ({subscription.product.name})"
-    return subscription.product.name
+    if not digital_service.optical_digital_service_name:
+        return subscription.product.name
+    parts = [digital_service.optical_digital_service_name]
+    if digital_service.optical_digital_service_speed:
+        parts.append(f"{int(digital_service.optical_digital_service_speed)}G")
+    clients = digital_service.optical_digital_service_client_ports
+    if clients:
+        parts.append(" <-> ".join(endpoint(port.optical_port_host_node, port.optical_port_name) for port in clients))
+    channels = [
+        str(channel.optical_transport_channel_name)
+        for channel in digital_service.optical_digital_service_transport_channels
+        if channel.optical_transport_channel_name
+    ]
+    head = " ".join(parts)
+    return via_label(head, channels, max_length=10_000) if channels else head
 
 
 @step("Load optical digital service block")
@@ -1268,8 +1283,8 @@ def channel_name_in_use(name: str) -> bool:
 
 def _host_label(host_block: AnyOpticalNodeBlockProvisioningUnion) -> str:
     """Return the display name of an endpoint host block, tolerating unset values."""
-    fqdn = host_block.management.optical_module_node_fqdn
-    return str(fqdn) if fqdn is not None else "<unknown>"
+    name = host_block.management.optical_module_node_name
+    return str(name) if name is not None else "<unknown>"
 
 
 def _ensure_transponder_ports(
@@ -1572,9 +1587,6 @@ def build_optical_digital_service_block(
         ensure_circuit_label_token_valid(channel_name, "transport channel")
     src_host = node_block_from_instance(src_host_id)
     dst_host = node_block_from_instance(dst_host_id)
-    src_fqdn = _host_label(cast(AnyOpticalNodeBlockProvisioningUnion, src_host))
-    dst_fqdn = _host_label(cast(AnyOpticalNodeBlockProvisioningUnion, dst_host))
-
     for host, client_ref, line_ids, side in (
         (src_host, src_client_port, line_port_ids_a, "source"),
         (dst_host, dst_client_port, line_port_ids_b, "destination"),
@@ -1588,12 +1600,7 @@ def build_optical_digital_service_block(
             )
             raise ValueError(msg)
 
-    def _client_port(
-        host: Any,
-        port_ref: UUIDstr,
-        remote_fqdn: str,
-        remote_ref: UUIDstr,
-    ) -> Any:
+    def _client_port(host: Any, port_ref: UUIDstr) -> Any:
         if isinstance(host, OpticalModulePacketNodeBlock):
             pluggable_id = str(port_ref)
             if pluggable_id in port_ids_used_by_digital_services():
@@ -1609,11 +1616,10 @@ def build_optical_digital_service_block(
             subscription_id=subscription_id,
             optical_port_name=str(port_ref),
             optical_port_host_node=cast(Any, host),
-            optical_port_description=f"{optical_digital_service_name} remote {remote_fqdn} {remote_ref}",
         )
 
-    client_a = _client_port(src_host, src_client_port, dst_fqdn, dst_client_port)
-    client_b = _client_port(dst_host, dst_client_port, src_fqdn, src_client_port)
+    client_a = _client_port(src_host, src_client_port)
+    client_b = _client_port(dst_host, dst_client_port)
 
     channels: list[OpticalTransportChannelBlockInactive] = []
     if reuse_channel_ids:
@@ -1634,7 +1640,7 @@ def build_optical_digital_service_block(
             )
         ]
         for index, spec in enumerate(specs):
-            spectrum_name = f"{spec.name} spectrum"
+            spectrum_name = spec.name
             passband: Passband = passband_from(spec.frequency, spec.bandwidth)
             spectrum = OpticalSpectrumServiceBlockInactive.new(
                 subscription_id=subscription_id,
@@ -1734,34 +1740,47 @@ def _channel_endpoints(
     new_channels = [ch for ch in block.optical_digital_service_transport_channels if is_new_channel(ch, block)]
     line_channels = new_channels or list(block.optical_digital_service_transport_channels)
 
+    # Line-side labels depend on the channel only (never on the services it carries): the
+    # line ports of a shared channel are rendered with the same value by every service.
     line_sides: dict[str, list[Any]] = {}
     for channel in line_channels:
-        spectrum_name = channel.optical_transport_spectrum.optical_spectrum_name or service_name
-        for line_port in channel.optical_transport_line_ports:
+        channel_name = str(channel.optical_transport_channel_name or service_name)
+        line_ports = channel.optical_transport_line_ports
+        for index, line_port in enumerate(line_ports):
             host = cast(AnyOpticalNodeBlockProvisioningUnion, line_port.optical_port_host_node)
+            far_port = line_ports[1 - index] if len(line_ports) == 2 else None  # noqa: PLR2004
+            far_end = endpoint(far_port.optical_port_host_node, far_port.optical_port_name) if far_port else None
             key = str(host.subscription_instance_id)
             entry = line_sides.setdefault(key, [host, [], [], [], []])
             entry[1].append(line_port.optical_port_name)
             entry[2].append(channel.optical_transport_central_frequency)
             entry[3].append(channel.optical_transport_mode)
-            entry[4].append(spectrum_name)
+            entry[4].append(device_label(channel_name, far_end))
 
-    clients = [
-        (
-            cast(AnyOpticalNodeBlockProvisioningUnion, port.optical_port_host_node),
-            port.optical_port_name,
-            port.optical_port_description or service_name,
-            speed,
+    client_ports = block.optical_digital_service_client_ports
+    clients = []
+    for index, port in enumerate(client_ports):
+        far_client = client_ports[1 - index] if len(client_ports) == 2 else None  # noqa: PLR2004
+        far_end = endpoint(far_client.optical_port_host_node, far_client.optical_port_name) if far_client else None
+        clients.append(
+            (
+                cast(AnyOpticalNodeBlockProvisioningUnion, port.optical_port_host_node),
+                port.optical_port_name,
+                device_label(service_name, far_end),
+                speed,
+            )
         )
-        for port in block.optical_digital_service_client_ports
-    ]
 
+    xconn_label = via_label(
+        str(service_name),
+        (str(channel.optical_transport_channel_name) for channel in block.optical_digital_service_transport_channels),
+    )
     xconns: dict[str, list[Any]] = {}
     for channel in block.optical_digital_service_transport_channels:
         for index, client_port in enumerate(block.optical_digital_service_client_ports):
             host = cast(AnyOpticalNodeBlockProvisioningUnion, client_port.optical_port_host_node)
             key = str(host.subscription_instance_id)
-            entry = xconns.setdefault(key, [host, client_port.optical_port_name, [], service_name])
+            entry = xconns.setdefault(key, [host, client_port.optical_port_name, [], xconn_label])
             entry[2].append(channel.optical_transport_line_ports[index].optical_port_name)
     line_side_list: list[
         tuple[
@@ -1912,7 +1931,7 @@ def _ensure_channel_circuits(
             in-flight service name for the composite circuit labels).
 
     Returns:
-        The per-section ensure results keyed by ``"<spectrum> <fqdn>"`` and
+        The per-section ensure results keyed by ``"<spectrum> <node>"`` and
         whether any channel passband was snapped to the grid.
     """
     service_name = block.optical_digital_service_name
@@ -1936,7 +1955,7 @@ def _ensure_channel_circuits(
         label = expected_optical_circuit_label(channel, block)
         for section in spectrum.optical_spectrum_sections:
             src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-            key = f"{spectrum_name} {src_node.management.optical_module_node_fqdn}"
+            key = f"{spectrum_name} {src_node.management.optical_module_node_name}"
             results[key] = ensure_optical_circuit(
                 cast(AnyOpticalNodeBlockProvisioningUnion, src_node),
                 section,
@@ -2139,7 +2158,7 @@ def prune_departing_service_channel_labels(optical_module_block: OpticalDigitalS
         label = build_optical_circuit_label(str(channel.optical_transport_channel_name), remaining)
         for section in spectrum.optical_spectrum_sections:
             src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-            key = f"{spectrum_name} {src_node.management.optical_module_node_fqdn}"
+            key = f"{spectrum_name} {src_node.management.optical_module_node_name}"
             results[key] = set_optical_circuit_label(
                 cast(AnyOpticalNodeBlockProvisioningUnion, src_node),
                 section,

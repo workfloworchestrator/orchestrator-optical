@@ -150,9 +150,9 @@ WRITERS = [
         AbstractOpticalNodeBlockInactive,
         (
             "location",
-            "management.optical_module_node_fqdn",
-            "management.optical_module_node_dcn_loopback_ip",
-            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_name",
+            "management.optical_module_node_management_loopback_ip",
+            "management.optical_module_node_management_ip",
             "management.optical_module_node_vendor",
             "management.optical_module_node_platform",
         ),
@@ -171,9 +171,9 @@ WRITERS = [
         update_optical_node_block_fields,
         AbstractOpticalNodeBlockInactive,
         (
-            "management.optical_module_node_fqdn",
-            "management.optical_module_node_dcn_loopback_ip",
-            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_name",
+            "management.optical_module_node_management_loopback_ip",
+            "management.optical_module_node_management_ip",
         ),
     ),
     _entry(
@@ -181,9 +181,9 @@ WRITERS = [
         NokiaFlexIlsBlockInactive,
         (
             "location",
-            "management.optical_module_node_fqdn",
-            "management.optical_module_node_dcn_loopback_ip",
-            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_name",
+            "management.optical_module_node_management_loopback_ip",
+            "management.optical_module_node_management_ip",
             "management.optical_module_node_vendor",
             "management.optical_module_node_platform",
             "optical_flexils_gmpls_id",
@@ -195,9 +195,9 @@ WRITERS = [
         NokiaGrooveG30BlockInactive,
         (
             "location",
-            "management.optical_module_node_fqdn",
-            "management.optical_module_node_dcn_loopback_ip",
-            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_name",
+            "management.optical_module_node_management_loopback_ip",
+            "management.optical_module_node_management_ip",
             "management.optical_module_node_vendor",
             "management.optical_module_node_platform",
         ),
@@ -207,9 +207,9 @@ WRITERS = [
         NokiaGxG42BlockInactive,
         (
             "location",
-            "management.optical_module_node_fqdn",
-            "management.optical_module_node_dcn_loopback_ip",
-            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_name",
+            "management.optical_module_node_management_loopback_ip",
+            "management.optical_module_node_management_ip",
             "management.optical_module_node_vendor",
             "management.optical_module_node_platform",
         ),
@@ -218,9 +218,9 @@ WRITERS = [
         update_optical_node_nokia_flexils_block,
         NokiaFlexIlsBlockProvisioning,
         (
-            "management.optical_module_node_fqdn",
-            "management.optical_module_node_dcn_loopback_ip",
-            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_name",
+            "management.optical_module_node_management_loopback_ip",
+            "management.optical_module_node_management_ip",
             "optical_flexils_gmpls_id",
             "optical_flexils_target_id",
         ),
@@ -229,18 +229,18 @@ WRITERS = [
         update_optical_node_nokia_groove_g30_block,
         NokiaGrooveG30BlockProvisioning,
         (
-            "management.optical_module_node_fqdn",
-            "management.optical_module_node_dcn_loopback_ip",
-            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_name",
+            "management.optical_module_node_management_loopback_ip",
+            "management.optical_module_node_management_ip",
         ),
     ),
     _entry(
         update_optical_node_nokia_gx_g42_block,
         NokiaGxG42BlockProvisioning,
         (
-            "management.optical_module_node_fqdn",
-            "management.optical_module_node_dcn_loopback_ip",
-            "management.optical_module_node_dcn_interface_ip",
+            "management.optical_module_node_name",
+            "management.optical_module_node_management_loopback_ip",
+            "management.optical_module_node_management_ip",
         ),
     ),
     # --- Optical Module Location family ---
@@ -278,7 +278,7 @@ WRITERS = [
     _entry(
         new_pipe_port_block,
         AbstractOpticalPortBlockInactive,
-        ("optical_port_name", "optical_port_host_node", "optical_port_description"),
+        ("optical_port_name", "optical_port_host_node"),
     ),
     # --- Optical Spectrum Service family ---
     _entry(
@@ -323,7 +323,7 @@ WRITERS = [
     _entry(
         build_optical_digital_service_block,
         OpticalTransponderClientPortBlockInactive,
-        ("optical_port_name", "optical_port_host_node", "optical_port_description"),
+        ("optical_port_name", "optical_port_host_node"),
     ),
     _entry(
         build_optical_digital_service_block,
@@ -459,21 +459,21 @@ def test_written_block_fields_are_declared(writer, block_class, field_paths) -> 
 #: Flat ``optical_*``/FQDN fields the shipped node create forms declare, per vendor.
 NODE_FORM_OPTICAL_FIELDS: dict[str, set[str]] = {
     "flexils": {
-        "optical_module_node_fqdn",
+        "optical_module_node_name",
         "optical_flexils_target_id",
-        "optical_module_node_dcn_loopback_ip",
-        "optical_module_node_dcn_interface_ip",
+        "optical_module_node_management_loopback_ip",
+        "optical_module_node_management_ip",
         "optical_flexils_gmpls_id",
     },
     "groove_g30": {
-        "optical_module_node_fqdn",
-        "optical_module_node_dcn_loopback_ip",
-        "optical_module_node_dcn_interface_ip",
+        "optical_module_node_name",
+        "optical_module_node_management_loopback_ip",
+        "optical_module_node_management_ip",
     },
     "gx_g42": {
-        "optical_module_node_fqdn",
-        "optical_module_node_dcn_loopback_ip",
-        "optical_module_node_dcn_interface_ip",
+        "optical_module_node_name",
+        "optical_module_node_management_loopback_ip",
+        "optical_module_node_management_ip",
     },
 }
 

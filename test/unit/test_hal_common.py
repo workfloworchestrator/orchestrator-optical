@@ -46,7 +46,7 @@ def _management(
     return SimpleNamespace(
         optical_module_node_vendor=vendor,
         optical_module_node_platform=platform,
-        optical_module_node_fqdn=fqdn,
+        optical_module_node_name=fqdn,
     )
 
 
@@ -114,7 +114,7 @@ def test_node_id_returns_fqdn() -> None:
 def test_node_id_falls_back_when_fqdn_missing() -> None:
     block = SimpleNamespace(management=_management(fqdn=None))
 
-    assert _node_id(block) == "<no fqdn>"
+    assert _node_id(block) == "<no name>"
 
 
 def test_node_id_returns_flexils_target_id() -> None:

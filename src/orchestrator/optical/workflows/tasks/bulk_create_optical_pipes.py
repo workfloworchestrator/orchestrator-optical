@@ -9,14 +9,14 @@ any other workflow.
 
 The CSV has one row per pipe with exactly these headers::
 
-    pipe_type,node_a_fqdn,port_a_name,node_b_fqdn,port_b_name,optical_pipe_name,provider_name
+    pipe_type,node_a_name,port_a_name,node_b_name,port_b_name,optical_pipe_name,provider_name
 
 * ``pipe_type``: ``Span``, ``Patch`` or ``Leased Spectrum``; selects the
   sub-workflow.
-* ``node_a_fqdn``/``node_b_fqdn``: FQDNs of the ACTIVE nodes hosting the ends.
+* ``node_a_name``/``node_b_name``: names of the ACTIVE nodes hosting the ends.
 * ``port_a_name``/``port_b_name``: device-native port names on the nodes.
 * ``optical_pipe_name``: pipe identifier (may be empty: it defaults to
-  ``"<fqdn A> <port A> --- <fqdn B> <port B>"``).
+  ``"<node A> <port A> --- <node B> <port B>"``).
 * ``provider_name``: third-party provider name; mandatory on leased spectrum
   rows (it is prefixed to the pipe name by the sub-workflow), forbidden
   otherwise.
@@ -59,7 +59,7 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
     OpticalModuleNodeManagementBlock,
 )
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
-from orchestrator.optical.utils.custom_types.dns import Fqdn
+from orchestrator.optical.utils.custom_types.node_name import OpticalNodeName
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_pipe.shared import PIPE_NODE_ROLES, default_pipe_identifier
 from orchestrator.optical.workflows.shared import retryable_form, used_port_names_on_node
@@ -68,9 +68,9 @@ from orchestrator.optical.workflows.tasks.shared import read_csv_rows
 #: Column names of the optical pipe CSV payload, in order.
 PIPE_CSV_HEADERS = (
     "pipe_type",
-    "node_a_fqdn",
+    "node_a_name",
     "port_a_name",
-    "node_b_fqdn",
+    "node_b_name",
     "port_b_name",
     "optical_pipe_name",
     "provider_name",
@@ -83,7 +83,7 @@ _PIPE_TARGETS: dict[OpticalPipeType, tuple[str, str]] = {
     OpticalPipeType.LEASED_SPECTRUM: ("create_leased_spectrum", ProductName.OPTICAL_LEASED_SPECTRUM.value),
 }
 
-_FQDN_ADAPTER = TypeAdapter(Fqdn)
+_NODE_NAME_ADAPTER = TypeAdapter(OpticalNodeName)
 
 Achtung = Annotated[
     str,
@@ -117,9 +117,9 @@ class PipeCsvRow(TypedDict):
 
     line_number: int
     pipe_type: str
-    node_a_fqdn: str
+    node_a_name: str
     port_a_name: str
-    node_b_fqdn: str
+    node_b_name: str
     port_b_name: str
     optical_pipe_name: str | None
     provider_name: str | None
@@ -177,16 +177,16 @@ def _parse_pipe_endpoints(raw: dict[str, str], pipe_type: str, line_number: int)
         line_number: The CSV line number, used in error messages.
 
     Returns:
-        The ``(node_a_fqdn, port_a_name, node_b_fqdn, port_b_name)`` values.
+        The ``(node_a_name, port_a_name, node_b_name, port_b_name)`` values.
 
     Raises:
-        ValueError: If an FQDN is malformed, a port name is empty, or a
+        ValueError: If a node name is malformed, a port name is empty, or a
             non-patch pipe has both ends on the same node.
     """
     endpoints = {}
-    for key in ("node_a_fqdn", "node_b_fqdn"):
+    for key in ("node_a_name", "node_b_name"):
         try:
-            endpoints[key] = _FQDN_ADAPTER.validate_python(raw[key])
+            endpoints[key] = _NODE_NAME_ADAPTER.validate_python(raw[key])
         except ValueError as exc:
             msg = f"Invalid {key} {raw[key]!r} at row {line_number}: {exc}"
             raise ValueError(msg) from None
@@ -195,11 +195,11 @@ def _parse_pipe_endpoints(raw: dict[str, str], pipe_type: str, line_number: int)
             msg = f"Missing required {key} at row {line_number}"
             raise ValueError(msg)
         endpoints[key] = raw[key]
-    same_node = endpoints["node_a_fqdn"].lower() == endpoints["node_b_fqdn"].lower()
+    same_node = endpoints["node_a_name"] == endpoints["node_b_name"]
     if pipe_type != OpticalPipeType.PATCH.value and same_node:
         msg = f"The two ends of the pipe must be on different nodes at row {line_number}"
         raise ValueError(msg)
-    return endpoints["node_a_fqdn"], endpoints["port_a_name"], endpoints["node_b_fqdn"], endpoints["port_b_name"]
+    return endpoints["node_a_name"], endpoints["port_a_name"], endpoints["node_b_name"], endpoints["port_b_name"]
 
 
 def _parse_pipe_provider(raw: dict[str, str], pipe_type: str, line_number: int) -> tuple[str | None, str | None]:
@@ -244,14 +244,14 @@ def _parse_pipe_row(raw: dict[str, str], line_number: int) -> PipeCsvRow:
             the row's pipe type.
     """
     pipe_type = _parse_pipe_type(raw, line_number)
-    node_a_fqdn, port_a_name, node_b_fqdn, port_b_name = _parse_pipe_endpoints(raw, pipe_type, line_number)
+    node_a_name, port_a_name, node_b_name, port_b_name = _parse_pipe_endpoints(raw, pipe_type, line_number)
     optical_pipe_name, provider_name = _parse_pipe_provider(raw, pipe_type, line_number)
     return PipeCsvRow(
         line_number=line_number,
         pipe_type=pipe_type,
-        node_a_fqdn=node_a_fqdn,
+        node_a_name=node_a_name,
         port_a_name=port_a_name,
-        node_b_fqdn=node_b_fqdn,
+        node_b_name=node_b_name,
         port_b_name=port_b_name,
         optical_pipe_name=optical_pipe_name,
         provider_name=provider_name,
@@ -269,10 +269,10 @@ def _check_pipe_endpoint_reuse(rows: list[PipeCsvRow]) -> None:
     """
     claimed: dict[tuple[str, str], int] = {}
     for row in rows:
-        for fqdn, port in ((row["node_a_fqdn"], row["port_a_name"]), (row["node_b_fqdn"], row["port_b_name"])):
-            endpoint = (fqdn.lower(), port)
+        for name, port in ((row["node_a_name"], row["port_a_name"]), (row["node_b_name"], row["port_b_name"])):
+            endpoint = (name, port)
             if endpoint in claimed:
-                msg = f"Port {port!r} on {fqdn!r} is claimed at rows {claimed[endpoint]} and {row['line_number']}"
+                msg = f"Port {port!r} on {name!r} is claimed at rows {claimed[endpoint]} and {row['line_number']}"
                 raise ValueError(msg)
             claimed[endpoint] = row["line_number"]
 
@@ -297,31 +297,31 @@ def parse_pipes_csv(csv_data: str, delimiter: str) -> list[PipeCsvRow]:
     return rows
 
 
-def _node_instance_id_by_fqdn(fqdn: str, line_number: int) -> str:
-    """Resolve a node FQDN to its ACTIVE node block instance id.
+def _node_instance_id_by_name(name: str, line_number: int) -> str:
+    """Resolve a node name to its ACTIVE node block instance id.
 
-    The FQDN is a resource value of the node's management block, so the lookup
+    The node name is a resource value of the node's management block, so the lookup
     first finds the management instance and then resolves the node block instance
     of the owning subscription.
 
     Args:
-        fqdn: The node FQDN from the CSV row.
+        name: The node name from the CSV row.
         line_number: The CSV line number, used in error messages.
 
     Returns:
         The subscription instance id of the matching node block.
 
     Raises:
-        ValueError: If the FQDN matches zero or more than one ACTIVE node.
+        ValueError: If the node name matches zero or more than one ACTIVE node.
     """
     instances = subscription_instances_by_block_type_and_resource_value(
         cast(str, OpticalModuleNodeManagementBlock.name),
-        "optical_module_node_fqdn",
-        fqdn,
+        "optical_module_node_name",
+        name,
         [SubscriptionLifecycle.ACTIVE],
     )
     if len(instances) != 1:
-        msg = f"Node FQDN {fqdn!r} at row {line_number} matches {len(instances)} ACTIVE nodes"
+        msg = f"Node name {name!r} at row {line_number} matches {len(instances)} ACTIVE nodes"
         raise ValueError(msg)
     return node_instance_id_of_subscription(str(instances[0].subscription_id))
 
@@ -347,9 +347,9 @@ def _check_span_nodes(node_a_instance_id: str, node_b_instance_id: str, line_num
     node_b_block = node_block_from_instance(node_b_instance_id)
     for node_block in (node_a_block, node_b_block):
         if node_block.optical_node_role not in PIPE_NODE_ROLES:
-            fqdn = node_block.management.optical_module_node_fqdn
+            name = node_block.management.optical_module_node_name
             role = node_block.optical_node_role
-            msg = f"Node {fqdn!r} at row {line_number} has role {role!r} and cannot terminate a fiber span"
+            msg = f"Node {name!r} at row {line_number} has role {role!r} and cannot terminate a fiber span"
             raise ValueError(msg)
     vendor_platform_a = (
         node_a_block.management.optical_module_node_vendor,
@@ -378,8 +378,8 @@ def _check_pipe_ports_free(node_instance_id: str, port_name: str, line_number: i
     """
     node_block = node_block_from_instance(node_instance_id)
     if port_name in used_port_names_on_node(node_block):
-        fqdn = node_block.management.optical_module_node_fqdn
-        msg = f"Port {port_name!r} on {fqdn!r} at row {line_number} is already in use"
+        name = node_block.management.optical_module_node_name
+        msg = f"Port {port_name!r} on {name!r} at row {line_number} is already in use"
         raise ValueError(msg)
 
 
@@ -397,8 +397,8 @@ def _resolve_pipe_row(row: PipeCsvRow) -> ResolvedPipe:
             already in use.
     """
     line_number = row["line_number"]
-    node_a_instance_id = _node_instance_id_by_fqdn(row["node_a_fqdn"], line_number)
-    node_b_instance_id = _node_instance_id_by_fqdn(row["node_b_fqdn"], line_number)
+    node_a_instance_id = _node_instance_id_by_name(row["node_a_name"], line_number)
+    node_b_instance_id = _node_instance_id_by_name(row["node_b_name"], line_number)
     if row["pipe_type"] == OpticalPipeType.SPAN.value:
         _check_span_nodes(node_a_instance_id, node_b_instance_id, line_number)
     _check_pipe_ports_free(node_a_instance_id, row["port_a_name"], line_number)

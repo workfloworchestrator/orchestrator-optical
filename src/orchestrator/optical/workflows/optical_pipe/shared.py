@@ -65,6 +65,7 @@ from orchestrator.optical.products.product_blocks.optical_port.transponder_line 
 from orchestrator.optical.products.product_types.optical_pipe.abstracts import (
     AbstractOpticalPipeSubscriptionProvisioning,
 )
+from orchestrator.optical.utils.labels import device_label, endpoint
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
@@ -93,20 +94,57 @@ PORT_BLOCK_CLASS_BY_ROLE: dict[OpticalPortRole, type[AbstractOpticalPortBlockIna
 PIPE_NODE_ROLES = [*LINE_SYSTEM_ROLES, OpticalNodeRole.TRANSPONDER]
 
 
+#: Optical Port roles a pipe type terminates on, per node vendor/platform. A Nokia
+#: FlexILS node terminates spans on its OLS line ports and patches / leased spectrum on
+#: its OLS add/drop (SCG) ports; a Groove G30 node can terminate a pipe on both its OLS
+#: ports (OCC2 cards) and its transponder ports. A GX G42 node exposes transceiver ports
+#: only (see :func:`orchestrator.optical.hal.port.get_device_ports_by_role`), so every pipe
+#: lands on one of those: a DCI span runs straight between two transceiver line ports.
+_PIPE_PORT_ROLES: dict[tuple[Vendor, Platform], dict[OpticalPipeType, list[OpticalPortRole]]] = {
+    (Vendor.NOKIA, Platform.FLEXILS): {
+        OpticalPipeType.SPAN: [OpticalPortRole.OLS_LINE],
+        OpticalPipeType.PATCH: [OpticalPortRole.OLS_ADD_DROP],
+        OpticalPipeType.LEASED_SPECTRUM: [OpticalPortRole.OLS_ADD_DROP, OpticalPortRole.OLS_LINE],
+    },
+    (Vendor.NOKIA, Platform.GROOVE_G30): {
+        OpticalPipeType.SPAN: [OpticalPortRole.OLS_LINE, OpticalPortRole.TRANSPONDER_LINE],
+        OpticalPipeType.PATCH: [
+            OpticalPortRole.OLS_ADD_DROP,
+            OpticalPortRole.TRANSPONDER_CLIENT,
+            OpticalPortRole.TRANSPONDER_LINE,
+        ],
+        OpticalPipeType.LEASED_SPECTRUM: [
+            OpticalPortRole.OLS_ADD_DROP,
+            OpticalPortRole.OLS_LINE,
+            OpticalPortRole.TRANSPONDER_LINE,
+        ],
+    },
+    (Vendor.NOKIA, Platform.GX_G42): {
+        OpticalPipeType.SPAN: [OpticalPortRole.TRANSPONDER_LINE],
+        OpticalPipeType.PATCH: [OpticalPortRole.TRANSPONDER_CLIENT, OpticalPortRole.TRANSPONDER_LINE],
+        OpticalPipeType.LEASED_SPECTRUM: [OpticalPortRole.TRANSPONDER_LINE],
+    },
+}
+
+#: Fallback for a vendor/platform without an entry above: a transponder-like node, whose
+#: line port is where a span or a leased spectrum lands and whose client ports take patches.
+_DEFAULT_PIPE_PORT_ROLES: dict[OpticalPipeType, list[OpticalPortRole]] = {
+    OpticalPipeType.SPAN: [OpticalPortRole.OLS_LINE, OpticalPortRole.TRANSPONDER_LINE],
+    OpticalPipeType.PATCH: [OpticalPortRole.TRANSPONDER_CLIENT, OpticalPortRole.TRANSPONDER_LINE],
+    OpticalPipeType.LEASED_SPECTRUM: [OpticalPortRole.TRANSPONDER_LINE],
+}
+
+
 def pipe_port_roles(
     pipe_type: OpticalPipeType,
     node_block: AnyOpticalNodeBlockProvisioningUnion,
 ) -> list[OpticalPortRole]:
     """Return the Optical Port roles a pipe type can terminate on the given node.
 
-    The roles depend on both the pipe type and the node's vendor/platform: a span
-    lands on an OLS line port, or on a transponder's line port when the node has no OLS
-    of its own (a GX G42, or a transponder-only Groove G30), which is how a DCI span
-    reaches the far side. A Nokia FlexILS node terminates spans on its OLS line ports and
-    patches / leased spectrum on its OLS add/drop (SCG) ports; a Groove G30 node can
-    terminate a pipe on both its OLS ports (OCC2 cards) and its transponder ports. The
-    returned roles are the subset of the pipe block union (see ``optical_port/unions.py``)
-    that the node can expose.
+    The roles depend on both the pipe type and the node's vendor/platform (see
+    :data:`_PIPE_PORT_ROLES`). The returned roles are the subset of the pipe block union
+    (see ``optical_port/unions.py``) that the node can expose, so they can be requested as
+    they are from :func:`orchestrator.optical.hal.port.get_device_ports_by_role`.
 
     Args:
         pipe_type: The type of the Optical Pipe.
@@ -122,40 +160,11 @@ def pipe_port_roles(
         node_block.management.optical_module_node_vendor,
         node_block.management.optical_module_node_platform,
     )
-    is_flexils = vendor_platform == (Vendor.NOKIA, Platform.FLEXILS)
-    is_g30 = vendor_platform == (Vendor.NOKIA, Platform.GROOVE_G30)
-    match pipe_type:
-        case OpticalPipeType.SPAN:
-            if is_flexils:
-                roles = [OpticalPortRole.OLS_LINE]
-            else:
-                roles = [OpticalPortRole.OLS_LINE, OpticalPortRole.TRANSPONDER_LINE]
-        case OpticalPipeType.PATCH:
-            if is_flexils:
-                roles = [OpticalPortRole.OLS_ADD_DROP]
-            elif is_g30:
-                roles = [
-                    OpticalPortRole.OLS_ADD_DROP,
-                    OpticalPortRole.TRANSPONDER_CLIENT,
-                    OpticalPortRole.TRANSPONDER_LINE,
-                ]
-            else:
-                roles = [OpticalPortRole.TRANSPONDER_CLIENT, OpticalPortRole.TRANSPONDER_LINE]
-        case OpticalPipeType.LEASED_SPECTRUM:
-            if is_flexils:
-                roles = [OpticalPortRole.OLS_ADD_DROP, OpticalPortRole.OLS_LINE]
-            elif is_g30:
-                roles = [
-                    OpticalPortRole.OLS_ADD_DROP,
-                    OpticalPortRole.OLS_LINE,
-                    OpticalPortRole.TRANSPONDER_LINE,
-                ]
-            else:
-                roles = [OpticalPortRole.TRANSPONDER_LINE]
-        case _:
-            msg = f"Unsupported optical pipe type: {pipe_type.value}"
-            raise ValueError(msg)
-    return roles
+    roles = _PIPE_PORT_ROLES.get(vendor_platform, _DEFAULT_PIPE_PORT_ROLES).get(pipe_type)
+    if roles is None:
+        msg = f"Unsupported optical pipe type: {pipe_type.value}"
+        raise ValueError(msg)
+    return list(roles)
 
 
 def get_pipe_ports(
@@ -196,12 +205,12 @@ def resolve_port_role(
     if len(matching_roles) > 1:
         msg = (
             f"Port {port_name} matches multiple roles {[r.value for r in matching_roles]} on "
-            f"{node_block.management.optical_module_node_fqdn}"
+            f"{node_block.management.optical_module_node_name}"
         )
         raise ValueError(msg)
     msg = (
         f"Port {port_name} is not one of the roles {[r.value for r in roles]} on "
-        f"{node_block.management.optical_module_node_fqdn}"
+        f"{node_block.management.optical_module_node_name}"
     )
     raise ValueError(msg)
 
@@ -225,17 +234,23 @@ def optical_pipe_subscription_description(
             shipped subscription models.
 
     Returns:
-        The subscription description, e.g. ``"nodeA portA --- nodeB portB (Fiber Span)"``
-        or the product name when the pipe has no name yet.
+        The subscription description, e.g. ``"OF-778812 flex.a 1-3-L1 <-> flex.b 1-4-L1"``: the
+        name when the user gave one, then the two ends (the product name is already a column
+        of the subscription list). The product name when the pipe has no name yet.
 
     Raises:
         ValueError: If the subscription has no Optical Pipe block under the
             ``optical_pipe`` attribute and no block was passed.
     """
     pipe = optical_module_block or subscription.optical_pipe
-    if pipe.optical_pipe_name:
-        return f"{pipe.optical_pipe_name} ({subscription.product.name})"
-    return subscription.product.name
+    if not pipe.optical_pipe_name:
+        return subscription.product.name
+    port_a, port_b, name = _pipe_ends_and_user_name(pipe)
+    ends = (
+        f"{endpoint(port_a.optical_port_host_node, port_a.optical_port_name)}"
+        f" <-> {endpoint(port_b.optical_port_host_node, port_b.optical_port_name)}"
+    )
+    return f"{name} {ends}" if name else ends
 
 
 def optical_pipe_block_from_state(
@@ -358,12 +373,17 @@ def configure_pipe_terminations(
         # Configure the FlexILS side first: its configuration references the remote node.
         port_a, port_b = port_b, port_a
 
+    pipe_type = pipe_block.optical_pipe_type
     configuration_results = {
-        f"{port_a.optical_port_host_node.management.optical_module_node_fqdn} {port_a.optical_port_name}": (
-            configure_termination_when_attaching_new_fiber(port_a, port_b, pipe_block.optical_pipe_type)
+        f"{port_a.optical_port_host_node.management.optical_module_node_name} {port_a.optical_port_name}": (
+            configure_termination_when_attaching_new_fiber(
+                port_a, port_b, pipe_type, label=pipe_termination_label(pipe_block, port_b)
+            )
         ),
-        f"{port_b.optical_port_host_node.management.optical_module_node_fqdn} {port_b.optical_port_name}": (
-            configure_termination_when_attaching_new_fiber(port_b, port_a, pipe_block.optical_pipe_type)
+        f"{port_b.optical_port_host_node.management.optical_module_node_name} {port_b.optical_port_name}": (
+            configure_termination_when_attaching_new_fiber(
+                port_b, port_a, pipe_type, label=pipe_termination_label(pipe_block, port_a)
+            )
         ),
     }
     return {"configuration_results": configuration_results, OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
@@ -392,8 +412,8 @@ def check_pipe_terminations(optical_module_block: AbstractOpticalPipeBlockProvis
     pipe_block = optical_pipe_block_from_state(optical_module_block)
     port_a, port_b = pipe_block.optical_pipe_terminations
     pipe_type = pipe_block.optical_pipe_type
-    check_fiber_terminating_port(port_a, port_b, pipe_type)
-    check_fiber_terminating_port(port_b, port_a, pipe_type)
+    check_fiber_terminating_port(port_a, port_b, pipe_type, label=pipe_termination_label(pipe_block, port_b))
+    check_fiber_terminating_port(port_b, port_a, pipe_type, label=pipe_termination_label(pipe_block, port_a))
     return {}
 
 
@@ -473,7 +493,7 @@ def retrieve_optical_pipe_used_passbands(
         if host_node.optical_node_role not in OADM_ROLES:
             continue
         if port.optical_port_name is None:
-            msg = f"Optical port block of {host_node.management.optical_module_node_fqdn} has no port name"
+            msg = f"Optical port block of {host_node.management.optical_module_node_name} has no port name"
             raise ValueError(msg)
         port.optical_passbands = retrieve_ports_spectral_occupations(host_node).get(port.optical_port_name, [])
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: pipe_block}
@@ -562,7 +582,6 @@ def new_pipe_port_block[T: AbstractOpticalPortBlockInactive](
     subscription_id: UUID,
     host_node_block: AbstractOpticalNodeBlockInactive,
     port_name: str,
-    port_description: str,
     port_block_class: type[T],
 ) -> T:
     """Create a new Optical Port product block for a pipe termination.
@@ -575,7 +594,6 @@ def new_pipe_port_block[T: AbstractOpticalPortBlockInactive](
         subscription_id: Subscription id of the pipe subscription owning the port block.
         host_node_block: Optical Node block hosting the port.
         port_name: The name of the port on the device.
-        port_description: Description of the port.
         port_block_class: The inactive port block class to instantiate.
 
     Returns:
@@ -584,7 +602,6 @@ def new_pipe_port_block[T: AbstractOpticalPortBlockInactive](
     kwargs: dict[str, Any] = {
         "optical_port_name": port_name,
         "optical_port_host_node": host_node_block,
-        "optical_port_description": port_description,
     }
     return port_block_class.new(subscription_id=subscription_id, **kwargs)
 
@@ -659,6 +676,33 @@ def new_optical_pipe_subscription(
     return model
 
 
+def _pipe_ends_and_user_name(pipe_block: Any) -> tuple[Any, Any, str]:
+    """Return the two terminations of a pipe and its name without the default identifier."""
+    port_a, port_b = pipe_block.optical_pipe_terminations
+    default = default_pipe_identifier(
+        port_a.optical_port_host_node,
+        str(port_a.optical_port_name),
+        port_b.optical_port_host_node,
+        str(port_b.optical_port_name),
+    )
+    return port_a, port_b, (pipe_block.optical_pipe_name or "").replace(default, "").strip()
+
+
+def pipe_termination_label(pipe_block: Any, far_port: Any) -> str:
+    """Return the label of the pipe termination facing ``far_port``: ``"[<pipe>] > <far node> <far port>"``.
+
+    The pipe name is part of the label only when the user gave one (a circuit id, a
+    provider reference): the default identifier only repeats the two ends. The label is
+    computed when it is written or checked, so it follows a rename of the pipe or of a node.
+
+    Args:
+        pipe_block: The Optical Pipe block, with its two terminations and its name set.
+        far_port: The termination at the other end of the pipe.
+    """
+    _, _, name = _pipe_ends_and_user_name(pipe_block)
+    return device_label(name, endpoint(far_port.optical_port_host_node, far_port.optical_port_name))
+
+
 def default_pipe_identifier(
     node_a_block: AbstractOpticalNodeBlockInactive,
     port_a_name: str,
@@ -667,8 +711,8 @@ def default_pipe_identifier(
 ) -> str:
     """Return the default identifier of a pipe, e.g. ``"nodeA portA --- nodeB portB"``."""
     return (
-        f"{node_a_block.management.optical_module_node_fqdn} {port_a_name}"
-        f" --- {node_b_block.management.optical_module_node_fqdn} {port_b_name}"
+        f"{node_a_block.management.optical_module_node_name} {port_a_name}"
+        f" --- {node_b_block.management.optical_module_node_name} {port_b_name}"
     )
 
 
@@ -816,16 +860,16 @@ def create_pipe_form_pages(
     node_a_block = node_block_from_instance(user_input_dict["node_a_instance_id"])
     node_b_block = node_block_from_instance(user_input_dict["node_b_instance_id"])
 
-    port_prompt = "Select an unused port on {fqdn}"
+    port_prompt = "Select an unused port on {name}"
     port_a_choice = optical_port_selector(
         node_a_block,
         pipe_port_roles(pipe_type, node_a_block),
-        prompt=port_prompt.format(fqdn=node_a_block.management.optical_module_node_fqdn),
+        prompt=port_prompt.format(name=node_a_block.management.optical_module_node_name),
     )
     port_b_choice = optical_port_selector(
         node_b_block,
         pipe_port_roles(pipe_type, node_b_block),
-        prompt=port_prompt.format(fqdn=node_b_block.management.optical_module_node_fqdn),
+        prompt=port_prompt.format(name=node_b_block.management.optical_module_node_name),
     )
     user_input_dict.update((yield pipe_terminations_form(product_name, port_a_choice, port_b_choice)).model_dump())
 
@@ -953,6 +997,7 @@ __all__ = [
     "optical_pipe_subscription_description",
     "pipe_nodes_form",
     "pipe_port_roles",
+    "pipe_termination_label",
     "pipe_terminations_form",
     "resolve_port_role",
     "set_optical_pipe_subscription_description",

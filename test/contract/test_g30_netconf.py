@@ -19,8 +19,10 @@ from typing import Any
 
 from g30_4_8_0.data_models.ne import (
     CardTypeEnum,
+    OduTypeEnum,
 )
 
+from orchestrator.optical.hal._common import OpticalNodeDiscovery
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as g30_shared
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as g30_node
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import port as g30_port
@@ -28,9 +30,12 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30 import transponder as g3
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import g30_ids_from_port_name
 from orchestrator.optical.hal.adapters.nokia_groove_g30.port import _g30_port_role
 from orchestrator.optical.hal.adapters.nokia_groove_g30.transponder import (
+    _CLIENT_ODU_KEYS,
     _client_speed_config,
     _extract_shelf_slot_port_ids_from_odu_string,
     _get_modulation_and_rate_from_mode,
+    _odu_path,
+    _same_odu,
 )
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
@@ -82,7 +87,7 @@ def _patch_g30_client(monkeypatch: pytest.MonkeyPatch, client: Any) -> None:
 def _node_block(fqdn: str | None = None, vendor: Vendor | None = None, platform: Platform | None = None) -> Any:
     return SimpleNamespace(
         management=SimpleNamespace(
-            optical_module_node_fqdn=fqdn,
+            optical_module_node_name=fqdn,
             optical_module_node_vendor=vendor,
             optical_module_node_platform=platform,
         )
@@ -277,6 +282,37 @@ def test_extract_shelf_slot_port_ids_from_odu_string() -> None:
     assert _extract_shelf_slot_port_ids_from_odu_string(odu) == (1, 4, 3)
 
 
+#: A cross-connect as a lab Groove G30 stores it (``services/CRS`` read back with get-config).
+_DEVICE_LINE_ODU = (
+    "/ne:ne/ne:shelf[ne:shelf-id='1']/ne:slot[ne:slot-id='1']/ne:card/ne:port[ne:port-id='1']/ne:och-os/ne:otuc2"
+    "/ne:odu[ne:odutype-L1='oduc2'][ne:oduid-L1='1'][ne:odutype-L2='odu4'][ne:oduid-L2='1']"
+    "[ne:odutype-L3='unused'][ne:oduid-L3='0'][ne:odutype-L4='unused'][ne:oduid-L4='0']"
+)
+_DEVICE_CLIENT_ODU = (
+    "/ne:ne/ne:shelf[ne:shelf-id='1']/ne:slot[ne:slot-id='1']/ne:card/ne:port[ne:port-id='3']/ne:eth100g"
+    "/ne:odu[ne:odutype-L1='odu4'][ne:oduid-L1='1'][ne:odutype-L2='unused'][ne:oduid-L2='0']"
+    "[ne:odutype-L3='unused'][ne:oduid-L3='0'][ne:odutype-L4='unused'][ne:oduid-L4='0']"
+)
+
+
+def test_odu_paths_are_spelled_as_the_device_stores_them() -> None:
+    # A path qualified on its first step only is refused by the device (bad-element on src-tp).
+    assert _odu_path(1, 1, 3, "eth100g", _CLIENT_ODU_KEYS) == _DEVICE_CLIENT_ODU
+    line_keys = {
+        "odutype-L1": OduTypeEnum.ODUC2.value,
+        "oduid-L1": 1,
+        "odutype-L2": "odu4",
+        "oduid-L2": 1,
+        "odutype-L3": "unused",
+        "oduid-L3": 0,
+        "odutype-L4": "unused",
+        "oduid-L4": 0,
+    }
+    assert _odu_path(1, 1, 1, "och-os/otuc2", line_keys) == _DEVICE_LINE_ODU
+    assert _extract_shelf_slot_port_ids_from_odu_string(_DEVICE_LINE_ODU) == (1, 1, 1)
+    assert _same_odu(_DEVICE_CLIENT_ODU) == _same_odu(_DEVICE_CLIENT_ODU.replace("ne:", "", 3))
+
+
 def test_extract_shelf_slot_port_ids_from_odu_string_rejects_garbage() -> None:
     with pytest.raises(ValueError, match="Could not extract the shelf, slot and port ids"):
         _extract_shelf_slot_port_ids_from_odu_string("not-an-odu-string")
@@ -333,7 +369,7 @@ def _shelf_client(
     management: Any = None,
 ) -> Any:
     """Return a fake G30 client exposing the given slots and no OTS."""
-    management = management or SimpleNamespace(optical_module_node_fqdn=fqdn)
+    management = management or SimpleNamespace(optical_module_node_name=fqdn)
     optical_interfaces = SimpleNamespace(ots=[])
     return SimpleNamespace(
         url=f"https://{fqdn}",
@@ -372,7 +408,7 @@ _ROLE_CASES: list[tuple[list[Any], OpticalNodeRole]] = [
 
 def _node(fqdn: str = "g30.example.net") -> Any:
     """Return a fake G30 node block."""
-    return SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn=fqdn))
+    return SimpleNamespace(management=SimpleNamespace(optical_module_node_name=fqdn))
 
 
 @pytest.mark.parametrize(
@@ -469,3 +505,35 @@ def test_g30_get_signal_bandwidth_maps_the_fec_type(
 ) -> None:
     _patch_g30_client(monkeypatch, _och_os_client(_Endpoint(_Model(fec_type=fec_type))))
     assert g30_transponder.get_signal_bandwidth(SimpleNamespace(), "port-1/2/1") == expected
+
+
+def _discoverable_client(ne_name: str | None) -> Any:
+    """Return a fake G30 client of a transponder shelf reporting ``ne_name`` and software 22.1."""
+    client = _shelf_client([_slot(1, CardTypeEnum.CHM2)])
+    client.host = "192.0.2.1"
+    client.data.ne_ne.retrieve = lambda **_: SimpleNamespace(ne_name=ne_name)
+    client.data.ne_ne.system = _software_client(
+        [SimpleNamespace(swload_state="Active", swload_version="22.1")]
+    ).data.ne_ne.system
+    return client
+
+
+def test_g30_discover_reads_the_name_role_and_version_of_an_unmodelled_node(monkeypatch: pytest.MonkeyPatch) -> None:
+    hosts_seen: list[tuple[str, ...]] = []
+    client = _discoverable_client(" g30-lab-01 ")
+    monkeypatch.setattr(g30_node, "g30_client_for_hosts", lambda hosts: hosts_seen.append(hosts) or client)
+
+    discovery = g30_node.discover(("192.0.2.1", "192.0.2.2"))
+
+    assert discovery == OpticalNodeDiscovery(
+        name="g30-lab-01", role=OpticalNodeRole.TRANSPONDER, software_version="22.1"
+    )
+    assert hosts_seen == [("192.0.2.1", "192.0.2.2")]
+
+
+@pytest.mark.parametrize("ne_name", [None, "", "  "])
+def test_g30_discover_reports_no_name_when_the_device_has_none(
+    ne_name: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(g30_node, "g30_client_for_hosts", lambda _hosts: _discoverable_client(ne_name))
+    assert g30_node.discover(("192.0.2.1",)).name is None

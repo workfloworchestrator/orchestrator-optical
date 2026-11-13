@@ -21,7 +21,6 @@ class OpticalTransponderClientPortBlockInactive(
 
     optical_port_role: OpticalPortRole = OpticalPortRole.TRANSPONDER_CLIENT
     optical_port_name: str | None = None
-    optical_port_description: str | None = None
     optical_port_host_node: TransponderBlockInactiveUnion
 
 
@@ -34,7 +33,6 @@ class OpticalTransponderClientPortBlockProvisioning(
 
     optical_port_role: OpticalPortRole = OpticalPortRole.TRANSPONDER_CLIENT
     optical_port_name: str
-    optical_port_description: str | None
     optical_port_host_node: TransponderBlockProvisioningUnion
 
 
@@ -45,5 +43,4 @@ class OpticalTransponderClientPortBlock(
 
     optical_port_role: OpticalPortRole = OpticalPortRole.TRANSPONDER_CLIENT
     optical_port_name: str
-    optical_port_description: str | None
     optical_port_host_node: TransponderBlockUnion

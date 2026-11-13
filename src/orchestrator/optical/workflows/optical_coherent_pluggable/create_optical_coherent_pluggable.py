@@ -118,7 +118,7 @@ def check_optical_coherent_pluggable_port_uniqueness(
         if host_node is not None and host_node.subscription_instance_id == host_node_block.subscription_instance_id:
             msg = (
                 f"Port {optical_port_name} on node "
-                f"{host_node_block.management.optical_module_node_fqdn} "
+                f"{host_node_block.management.optical_module_node_name} "
                 f"is already occupied by subscription {instance.subscription_id}"
             )
             raise ValueError(msg)

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from orchestrator.optical.hal._common import _connect_first
+from orchestrator.optical.hal._common import _connect_first, _connect_hosts
 from orchestrator.optical.hal.adapters.nokia_gx_g42._sdk import G42Client
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.settings import get_settings
@@ -22,17 +22,28 @@ def get_g42_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> 
     Returns:
         A connected GX G42 NETCONF client (shared within a device-sessions scope).
     """
+    return _connect_first(G42Client, optical_node_block, **_g42_client_kwargs())
+
+
+def g42_client_for_hosts(hosts: tuple[str, ...]) -> G42Client:
+    """Return a NETCONF client connected to the GX G42 reachable at one of ``hosts``.
+
+    For a node that has no block yet (discovery from a create form); see :func:`get_g42_client`.
+    """
+    return _connect_hosts(G42Client, hosts, **_g42_client_kwargs())
+
+
+def _g42_client_kwargs() -> dict[str, Any]:
+    """Return the credentials and session options of a GX G42 client, from the settings."""
     settings = get_settings()
-    return _connect_first(
-        G42Client,
-        optical_node_block,
-        username=settings.g42_user,
-        password=settings.g42_password,
-        verify=settings.g42_verify,
-        auto_commit=True,
-        allow_agent=False,
-        look_for_keys=False,
-    )
+    return {
+        "username": settings.g42_user,
+        "password": settings.g42_password,
+        "verify": settings.g42_verify,
+        "auto_commit": True,
+        "allow_agent": False,
+        "look_for_keys": False,
+    }
 
 
 def g42_port_node(root: Any, port_name: str) -> Any:

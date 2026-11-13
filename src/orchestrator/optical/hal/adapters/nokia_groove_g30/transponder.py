@@ -7,6 +7,7 @@ released. The rendering units (scopes) of an owner block on a node are ``line``,
 ``client:<port>``, ``crossconnect:<client port>`` and ``tx-power:<line port>``.
 """
 
+from collections.abc import Mapping
 from decimal import Decimal
 from re import search
 from typing import Any
@@ -39,12 +40,17 @@ CLIENT_SCOPE = "client:{}"
 CROSSCONNECT_SCOPE = "crossconnect:{}"
 TX_POWER_SCOPE = "tx-power:{}"
 
-#: The ODU of a Groove G30 client port cross-connected to a line.
-_CLIENT_ODU = (
-    "/ne:ne/shelf[shelf-id='{shelf}']/slot[slot-id='{slot}']/card/port[port-id='{port}']"
-    "/{eth}/odu[odutype-L1='odu4'][oduid-L1='1'][odutype-L2='unused'][oduid-L2='0']"
-    "[odutype-L3='unused'][oduid-L3='0'][odutype-L4='unused'][oduid-L4='0']"
-)
+#: The ODU keys of a Groove G30 client port cross-connected to a line.
+_CLIENT_ODU_KEYS = {
+    "odutype-L1": "odu4",
+    "oduid-L1": "1",
+    "odutype-L2": "unused",
+    "oduid-L2": "0",
+    "odutype-L3": "unused",
+    "oduid-L3": "0",
+    "odutype-L4": "unused",
+    "oduid-L4": "0",
+}
 #: Resolution of ``required-tx-optical-power`` (one fraction digit in the device model).
 _TX_POWER_STEP = Decimal("0.1")
 _OTU_KEYS = ("otuc2", "otuc3", "otuc4", "otuc5", "otuc6", "otuc7", "otuc9", "otuc11", "otu4", "otu2", "otu2e")
@@ -127,13 +133,33 @@ def _get_modulation_and_rate_from_mode(port_mode: str) -> tuple[str, str]:
     return port_mode_map.get(port_mode, ("not-applicable", "not-applicable"))
 
 
+def _odu_path(shelf: int, slot: int, port: int, container: str, keys: Mapping[str, object]) -> str:
+    """Return the instance-identifier of a G30 ODU, as the device stores it.
+
+    Every step and key is qualified with the ``ne`` module (``/ne:ne/ne:shelf[ne:shelf-id='1']/...``,
+    RFC 7950 Sec 9.13): the device answers ``bad-element`` to a path qualified on its first step only.
+    ``container`` is the path from the port to the ODU list (``och-os/otuc2``, ``eth100g``).
+    """
+    steps = "/".join(f"ne:{step}" for step in container.split("/"))
+    predicates = "".join(f"[ne:{key}='{value}']" for key, value in keys.items())
+    return (
+        f"/ne:ne/ne:shelf[ne:shelf-id='{shelf}']/ne:slot[ne:slot-id='{slot}']/ne:card"
+        f"/ne:port[ne:port-id='{port}']/{steps}/ne:odu{predicates}"
+    )
+
+
+def _same_odu(path: str) -> str:
+    """Return a comparison key of an ODU instance-identifier, whatever its prefixes."""
+    return path.replace("ne:", "")
+
+
 def _extract_shelf_slot_port_ids_from_odu_string(
     odu_string: str,
 ) -> tuple[int, int, int]:
-    """Extract the shelf, slot and port ids from a G30 ODU string."""
-    shelf_match = search(r"shelf\[shelf-id='(\d+)'\]", odu_string)
-    slot_match = search(r"slot\[slot-id='(\d+)'\]", odu_string)
-    port_match = search(r"port\[port-id='(\d+)'\]", odu_string)
+    """Extract the shelf, slot and port ids from a G30 ODU string (``ne:``-qualified or not)."""
+    shelf_match = search(r"shelf\[(?:ne:)?shelf-id='(\d+)'\]", odu_string)
+    slot_match = search(r"slot\[(?:ne:)?slot-id='(\d+)'\]", odu_string)
+    port_match = search(r"port\[(?:ne:)?port-id='(\d+)'\]", odu_string)
 
     if shelf_match is None or slot_match is None or port_match is None:
         msg = f"Could not extract the shelf, slot and port ids from ODU string: {odu_string}"
@@ -281,17 +307,17 @@ def _free_line_odu(
                 continue
             if all(getattr(odu, key, None) != "odu4" for key in _ODU_KEYS):
                 continue
-            odu_string = (
-                f"/ne:ne/shelf[shelf-id='{shelf_id}']/slot[slot-id='{slot_id}']/card/port"
-                f"[port-id='{line_port_id}']/och-os/{otu_key}/odu[odutype-L1='{odu.odutype_L1}']"
-                f"[oduid-L1='{odu.oduid_L1}'][odutype-L2='{odu.odutype_L2}'][oduid-L2='{odu.oduid_L2}']"
-                f"[odutype-L3='{odu.odutype_L3}'][oduid-L3='{odu.oduid_L3}']"
-                f"[odutype-L4='{odu.odutype_L4}'][oduid-L4='{odu.oduid_L4}']"
-            )
+            # The SDK reads the ODU types as ``(str, Enum)`` members, which an f-string renders as
+            # ``OduTypeEnum.ODUC2`` (Python >= 3.12): the device expects the YANG value (``oduc2``).
+            keys: dict[str, object] = {
+                key.replace("_", "-"): getattr(getattr(odu, key), "value", getattr(odu, key)) for key in _ODU_KEYS
+            }
+            odu_string = _odu_path(shelf_id, slot_id, line_port_id, f"och-os/{otu_key}", keys)
             odu_index = int(line_port_id) * 10_000 + int(odu.oduid_L1) * 100 + int(odu.oduid_L2)
             possible_odus.append((odu_index, odu_string))
 
-    available_odus = sorted(odu for odu in possible_odus if odu[1] not in used_odus)
+    used = {_same_odu(odu) for odu in used_odus}
+    available_odus = sorted(odu for odu in possible_odus if _same_odu(odu[1]) not in used)
     if not available_odus:
         msg = f"No available ODU for crossconnect on {_node_id(optical_node_block)}"
         raise ValueError(msg)
@@ -346,14 +372,15 @@ def render_transponder_crossconnect(
     if not eth_key:
         msg = f"No eth service found on {_node_id(optical_node_block)} {client_port_name}"
         raise ValueError(msg)
-    client_odu = _CLIENT_ODU.format(shelf=shelf_id, slot=slot_id, port=c_port_id, eth=eth_key)
+    client_odu = _odu_path(shelf_id, slot_id, c_port_id, eth_key, _CLIENT_ODU_KEYS)
 
-    # An empty list reads as no data over NETCONF.
+    # An empty list reads as no data over NETCONF. An existing cross-connect is
+    # re-rendered with the device's own spelling of its keys.
     crs = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config") or []
     for c in crs:
-        if client_odu not in {c.src_tp, c.dst_tp}:
+        if _same_odu(client_odu) not in {_same_odu(c.src_tp), _same_odu(c.dst_tp)}:
             continue
-        line_odu = c.dst_tp if c.src_tp == client_odu else c.src_tp
+        line_odu = c.dst_tp if _same_odu(c.src_tp) == _same_odu(client_odu) else c.src_tp
         if _extract_shelf_slot_port_ids_from_odu_string(line_odu) in {(shelf_id, slot_id, i) for i in line_port_ids}:
             return [fragment(g30.data.ne_ne.services.CRS(c.src_tp, c.dst_tp), service_label=xconn_description)]
 
@@ -549,14 +576,14 @@ def delete_transponder_crossconnect(
             " This port does not have an ethernet service, it must have been deleted manually."
         )
         raise ValueError(msg)
-    client_odu = _CLIENT_ODU.format(shelf=shelf_id, slot=slot_id, port=port_id, eth=eth_key)
+    client_odu = _same_odu(_odu_path(shelf_id, slot_id, port_id, eth_key, _CLIENT_ODU_KEYS))
 
     # An empty list reads as no data over NETCONF.
     crs = g30.data.ne_ne.services.CRS.retrieve(depth=2, content="config") or []
     found = [
         fragment(g30.data.ne_ne.services.CRS(c.src_tp, c.dst_tp), service_label=c.service_label or "")
         for c in crs
-        if client_odu in {c.src_tp, c.dst_tp}
+        if client_odu in {_same_odu(c.src_tp), _same_odu(c.dst_tp)}
     ]
     return release_config(optical_node_block, owner_instance_id, scope, found)
 

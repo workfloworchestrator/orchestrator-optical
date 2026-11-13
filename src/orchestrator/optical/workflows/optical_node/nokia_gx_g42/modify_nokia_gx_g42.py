@@ -37,20 +37,23 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
     NokiaGxG42Block,
     NokiaGxG42BlockProvisioning,
 )
+from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_types.optical_node.nokia_gx_g42 import OpticalNodeNokiaGxG42Subscription
-from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.utils.custom_types.node_name import OpticalNodeName
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
     load_optical_node_block,
+    modify_optical_node_identity_form,
     modify_optical_node_management_form,
     optical_node_block_from_state,
     update_optical_node_block_fields,
     update_optical_node_subscription_description,
     validate_optical_node_management_fields_uniqueness,
 )
+from orchestrator.optical.workflows.optical_node.shared.forms import discover_new_optical_node
 from orchestrator.optical.workflows.optical_node.shared.retrieve import retrieve_optical_node_role_and_software_version
 from orchestrator.optical.workflows.shared import modify_summary_form, retryable_form
 
@@ -63,9 +66,11 @@ def modify_optical_node_nokia_gx_g42_form_pages(
     """Yield the FormPage of the Nokia GX G42 modify form.
 
     This is the shipped modify form as a page sequence: it yields the shared
-    management page (prefilled with the current block values) and
-    returns the collected user input as a flat dict of the ``optical_*`` state
-    keys, consumed by the shipped steps of
+    management page (the management IPs, prefilled with the current block
+    values), connects to the node at the submitted IPs to read its name, role
+    and software version, and yields the identity page, where the name read
+    from the device is confirmed or changed. It returns the collected user
+    input as a flat dict of the ``optical_*`` state keys, consumed by the shipped steps of
     :data:`MODIFY_NOKIA_GX_G42_BLOCK_STEPS`. Consumers yield from it in one
     line inside their own modify form generator, optionally interleaving their
     own pages. The customer of the subscription is collected separately by the
@@ -81,8 +86,17 @@ def modify_optical_node_nokia_gx_g42_form_pages(
     Returns:
         The collected user input of the shipped pages.
     """
-    user_input = yield modify_optical_node_management_form(node, exclude_subscription_id=exclude_subscription_id)
-    return user_input.model_dump()
+    management = yield modify_optical_node_management_form(node, exclude_subscription_id=exclude_subscription_id)
+    user_input_dict = management.model_dump()
+    discovery = discover_new_optical_node(
+        Vendor.NOKIA,
+        Platform.GX_G42,
+        optical_module_node_management_loopback_ip=management.optical_module_node_management_loopback_ip,
+        optical_module_node_management_ip=management.optical_module_node_management_ip,
+    )
+    identity = yield modify_optical_node_identity_form(node, discovery, exclude_subscription_id=exclude_subscription_id)
+    user_input_dict["optical_module_node_name"] = identity.optical_module_node_name
+    return user_input_dict
 
 
 @retryable_form
@@ -120,9 +134,9 @@ def modify_optical_node_nokia_gx_g42_form_generator(
 
     summary_fields = [
         "customer_id",
-        "optical_module_node_fqdn",
-        "optical_module_node_dcn_loopback_ip",
-        "optical_module_node_dcn_interface_ip",
+        "optical_module_node_name",
+        "optical_module_node_management_loopback_ip",
+        "optical_module_node_management_ip",
     ]
     yield from modify_summary_form(
         user_input_dict,
@@ -137,15 +151,15 @@ def modify_optical_node_nokia_gx_g42_form_generator(
 @step("Updating Nokia GX G42 node block")
 def update_optical_node_nokia_gx_g42_block(
     optical_module_block: NokiaGxG42BlockProvisioning | dict[str, Any] | None,
-    optical_module_node_fqdn: Fqdn,
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
-    optical_module_node_dcn_interface_ip: IPAddress | None = None,
+    optical_module_node_name: OpticalNodeName,
+    optical_module_node_management_loopback_ip: IPAddress | None = None,
+    optical_module_node_management_ip: IPAddress | None = None,
 ) -> State:
     """Update the Nokia GX G42 node block in the state from the modify-form keys.
 
     Workflow steps execute with the state serialized between steps, so the
     block is re-hydrated from its serialized form before it is updated. It
-    re-checks the uniqueness of the FQDN and the DCN IPs at execution time,
+    re-checks the uniqueness of the node name and the DCN IPs at execution time,
     excluding the subscription being modified, so consumers bypassing the form
     validation are still guarded against duplicates.
 
@@ -153,27 +167,27 @@ def update_optical_node_nokia_gx_g42_block(
         optical_module_block: The Nokia GX G42 node block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY`` (the provisioning variant, while
             the subscription is being modified).
-        optical_module_node_fqdn: Fully qualified domain name of the node.
-        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
-        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
+        optical_module_node_name: Fully qualified domain name of the node.
+        optical_module_node_management_loopback_ip: Management loopback IP of the node.
+        optical_module_node_management_ip: Management (interface) IP of the node.
 
     Raises:
         ValueError: If there is no Nokia GX G42 node block in the state, or if
-            the FQDN or a DCN IP is already in use by another subscription.
+            the node name or a DCN IP is already in use by another subscription.
     """
     node_block = optical_node_block_from_state(optical_module_block)
     exclude_subscription_id = str(node_block.owner_subscription_id)
     validate_optical_node_management_fields_uniqueness(
-        optical_module_node_fqdn,
-        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
-        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        optical_module_node_name,
+        optical_module_node_management_loopback_ip=optical_module_node_management_loopback_ip,
+        optical_module_node_management_ip=optical_module_node_management_ip,
         exclude_subscription_id=exclude_subscription_id,
     )
     update_optical_node_block_fields(
         optical_module_block=node_block,
-        optical_module_node_fqdn=optical_module_node_fqdn,
-        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
-        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        optical_module_node_name=optical_module_node_name,
+        optical_module_node_management_loopback_ip=optical_module_node_management_loopback_ip,
+        optical_module_node_management_ip=optical_module_node_management_ip,
     )
 
     return {OPTICAL_MODULE_BLOCK_STATE_KEY: node_block}
@@ -197,7 +211,7 @@ def modify_optical_node_nokia_gx_g42() -> StepList:
     The workflow is valid for the shipped :class:`OpticalNodeNokiaGxG42`
     product type only: it loads the block from the ``optical_node`` attribute
     of the shipped subscription models. The shipped description step refreshes
-    the subscription description from the updated node FQDN. Consumers with
+    the subscription description from the updated node name. Consumers with
     their own product type compose their own modify workflow with the shipped
     parts.
     """

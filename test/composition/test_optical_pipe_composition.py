@@ -26,6 +26,10 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
+from orchestrator.optical.products.product_blocks.optical_port.ols_line import OlsLinePortBlockInactive
+from orchestrator.optical.products.product_blocks.optical_port.transponder_line import (
+    OpticalTransponderLinePortBlockInactive,
+)
 from orchestrator.optical.workflows import customer as customer_parts
 from orchestrator.optical.workflows.optical_pipe import shared as pipe_shared
 from orchestrator.optical.workflows.optical_pipe.fiber_patch.create_fiber_patch import (
@@ -98,7 +102,7 @@ def _fake_port_choice(
 def _fake_node_block_from_instance(node_instance_id: str) -> SimpleNamespace:
     return SimpleNamespace(
         management=SimpleNamespace(
-            optical_module_node_fqdn=f"{node_instance_id}.example.com",
+            optical_module_node_name=f"{node_instance_id}.example.com",
             optical_module_node_vendor=Vendor.NOKIA,
             optical_module_node_platform=Platform.FLEXILS,
         )
@@ -119,7 +123,7 @@ def _monkeypatch_create_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
 def _node_block_with(fqdn: str, vendor: Vendor, platform: Platform) -> Any:
     return SimpleNamespace(
         management=SimpleNamespace(
-            optical_module_node_fqdn=fqdn,
+            optical_module_node_name=fqdn,
             optical_module_node_vendor=vendor,
             optical_module_node_platform=platform,
         )
@@ -347,9 +351,15 @@ def test_fiber_patch_and_leased_spectrum_step_lists_compose() -> None:
     assert names.index("Updating Optical Pipe block") < names.index("Persist optical module block")
 
 
-def test_update_optical_pipe_block_writes_only_optical_pipe_name(monkeypatch) -> None:
-    """The shared update step writes only ``optical_pipe_name`` and returns the block in the state."""
-    block = SimpleNamespace(optical_pipe_name="old-name")
+def _labelled_end(fqdn: str, port_name: str) -> SimpleNamespace:
+    host = SimpleNamespace(management=SimpleNamespace(optical_module_node_name=fqdn))
+    return SimpleNamespace(optical_port_host_node=host, optical_port_name=port_name)
+
+
+def test_update_optical_pipe_block_writes_the_name_and_the_termination_labels_follow(monkeypatch) -> None:
+    """The shared update step writes ``optical_pipe_name``; the termination labels are computed from it."""
+    port_a, port_b = _labelled_end("a.example", "1-1-L1"), _labelled_end("b.example", "1-2-L1")
+    block = SimpleNamespace(optical_pipe_name="old-name", optical_pipe_terminations=[port_a, port_b])
     monkeypatch.setattr(pipe_shared, "optical_pipe_block_from_state", Mock(return_value=block))
 
     state = cast(Any, pipe_shared.update_optical_pipe_block).__wrapped__(
@@ -357,20 +367,44 @@ def test_update_optical_pipe_block_writes_only_optical_pipe_name(monkeypatch) ->
     )
 
     assert block.optical_pipe_name == "new-name"
+    assert pipe_shared.pipe_termination_label(block, port_b) == "new-name > b.example 1-2-L1"
+    assert pipe_shared.pipe_termination_label(block, port_a) == "new-name > a.example 1-1-L1"
     assert state == {OPTICAL_MODULE_BLOCK_STATE_KEY: block}
+
+
+def test_default_pipe_name_is_not_repeated_in_labels_and_description() -> None:
+    """A default pipe name only repeats the two ends: labels keep the far end, the description the ends."""
+    port_a, port_b = _labelled_end("a.example", "1-1-L1"), _labelled_end("b.example", "1-2-L1")
+    name = pipe_shared.default_pipe_identifier(
+        port_a.optical_port_host_node, "1-1-L1", port_b.optical_port_host_node, "1-2-L1"
+    )
+    block = SimpleNamespace(optical_pipe_name=f"ACME {name}", optical_pipe_terminations=[port_a, port_b])
+
+    assert pipe_shared.pipe_termination_label(block, port_b) == "ACME > b.example 1-2-L1"
+    subscription = SimpleNamespace(product=SimpleNamespace(name="Leased Spectrum"))
+    assert (
+        pipe_shared.optical_pipe_subscription_description(cast(Any, subscription), cast(Any, block))
+        == "ACME a.example 1-1-L1 <-> b.example 1-2-L1"
+    )
 
 
 def test_build_fiber_span_block(monkeypatch) -> None:
     """The anti-corruption block builder wires the two terminations without a database."""
-    node_a = SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn="node-a.example.com"))
-    node_b = SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn="node-b.example.com"))
+    node_a = _node_block_with("node-a.example.com", Vendor.NOKIA, Platform.FLEXILS)
+    node_b = _node_block_with("node-b.example.com", Vendor.NOKIA, Platform.FLEXILS)
     monkeypatch.setattr(fiber_span_create, "node_block_from_instance", Mock(side_effect=[node_a, node_b]))
+    # The role of a terminating port is resolved from the device: pin the OLS role of these
+    # FlexILS line ports, so the test exercises the block wiring without a device.
+    monkeypatch.setattr(
+        fiber_span_create,
+        "resolve_port_role",
+        Mock(return_value=OpticalPortRole.OLS_LINE),
+    )
 
-    def fake_new_pipe_port_block(subscription_id, host_node_block, port_name, port_description, port_block_class):
+    def fake_new_pipe_port_block(subscription_id, host_node_block, port_name, port_block_class):
         return port_block_class.model_construct(
             optical_port_name=port_name,
             optical_port_host_node=host_node_block,
-            optical_port_description=port_description,
             subscription_instance_id=uuid.uuid4(),
             owner_subscription_id=subscription_id,
         )
@@ -392,6 +426,45 @@ def test_build_fiber_span_block(monkeypatch) -> None:
     assert block.optical_pipe_name == "span-01"
     assert len(block.optical_pipe_terminations) == 2
     assert {t.optical_port_name for t in block.optical_pipe_terminations} == {"p1", "p2"}
+    # The port block class follows the resolved role, not a hard-wired OLS one.
+    assert {type(t) for t in block.optical_pipe_terminations} == {OlsLinePortBlockInactive}
+
+
+def test_build_fiber_span_block_uses_the_transponder_line_port_block_on_a_g42(monkeypatch) -> None:
+    """A span terminating on a transceiver line port (a GX G42) builds a transponder line port block."""
+    node_a = _node_block_with("node-a.example.com", Vendor.NOKIA, Platform.GX_G42)
+    node_b = _node_block_with("node-b.example.com", Vendor.NOKIA, Platform.GX_G42)
+    monkeypatch.setattr(fiber_span_create, "node_block_from_instance", Mock(side_effect=[node_a, node_b]))
+    monkeypatch.setattr(
+        fiber_span_create,
+        "resolve_port_role",
+        Mock(return_value=OpticalPortRole.TRANSPONDER_LINE),
+    )
+    monkeypatch.setattr(
+        fiber_span_create,
+        "new_pipe_port_block",
+        lambda subscription_id, host_node_block, port_name, port_block_class: port_block_class.model_construct(
+            optical_port_name=port_name,
+            optical_port_host_node=host_node_block,
+            subscription_instance_id=uuid.uuid4(),
+            owner_subscription_id=subscription_id,
+        ),
+    )
+    monkeypatch.setattr(
+        fiber_span_create.OpticalFiberSpanBlockInactive,
+        "new",
+        classmethod(
+            lambda cls, subscription_id, optical_pipe_terminations: cls.model_construct(
+                optical_pipe_terminations=optical_pipe_terminations,
+                subscription_instance_id=uuid.uuid4(),
+                owner_subscription_id=subscription_id,
+            )
+        ),
+    )
+
+    block = fiber_span_create.build_fiber_span_block(uuid.uuid4(), "node-a", "node-b", "1-4-L1", "1-4-L1", "dci")
+
+    assert {type(t) for t in block.optical_pipe_terminations} == {OpticalTransponderLinePortBlockInactive}
 
 
 def test_pipe_port_roles_by_pipe_type_and_vendor() -> None:
@@ -409,9 +482,11 @@ def test_pipe_port_roles_by_pipe_type_and_vendor() -> None:
     assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, g30) == [ols_line, tp_line]
     assert pipe_shared.pipe_port_roles(OpticalPipeType.PATCH, g30) == [ols_add_drop, tp_client, tp_line]
     assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, g30) == [ols_add_drop, ols_line, tp_line]
+
+    # A GX G42 enumerates transceiver ports only: a DCI span lands on a transponder's line port.
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, g42) == [tp_line]
+    assert pipe_shared.pipe_port_roles(OpticalPipeType.PATCH, g42) == [tp_client, tp_line]
     assert pipe_shared.pipe_port_roles(OpticalPipeType.LEASED_SPECTRUM, g42) == [tp_line]
-    # A DCI span lands on a transponder's line port: a G42 offers no OLS port of its own.
-    assert pipe_shared.pipe_port_roles(OpticalPipeType.SPAN, g42) == [ols_line, tp_line]
 
 
 def test_pipe_nodes_form_enforces_span_same_vendor_and_patch_same_node(monkeypatch) -> None:

@@ -34,7 +34,7 @@ _OPTICAL_ENV_VARS = [f"OPTICAL_{name.upper()}" for name in _EXPECTED_FIELDS]
 
 
 #: Settings with a non-None default value (checked by their own test).
-_DEFAULTED_FIELDS = {"path_k"}
+_DEFAULTED_FIELDS = {"path_k", "device_session_idle_seconds"}
 
 
 def test_settings_exposes_expected_optional_fields() -> None:

@@ -7,7 +7,6 @@ workflows (or, where no shipped workflow exists, through the domain models direc
 stubbing the device calls as needed.
 """
 
-import hashlib
 from collections.abc import Callable
 from typing import Any
 from uuid import UUID
@@ -29,13 +28,12 @@ from test.support.db import (
     _subscription_id_of_process,
     packet_node_instance_id_of_subscription,
 )
-from test.support.devices import FAKE_SOFTWARE_VERSION, install_device_stubs
+from test.support.devices import FAKE_SOFTWARE_VERSION, fake_flexils_gmpls_id, install_device_stubs
 
 
 def _flexils_gmpls_id(fqdn: str) -> str:
-    """Derive a deterministic GMPLS ID from a node FQDN (the shipped FlexILS create form requires one)."""
-    digest = hashlib.sha256(fqdn.encode("utf-8")).digest()
-    return f"10.255.{digest[0]}.{digest[1]}"
+    """Return the GMPLS ID the faked device reports for the FlexILS node seeded with the given name."""
+    return fake_flexils_gmpls_id(fqdn[:20])
 
 
 @pytest.fixture
@@ -85,51 +83,32 @@ def seed_optical_node(
         install_device_stubs(monkeypatch, families=("node",))
         location: dict[str, Any] = {"location_instance_id": active_location}
         management: dict[str, Any] = {
-            "optical_module_node_fqdn": fqdn,
-            "optical_module_node_dcn_interface_ip": dcn_interface_ip,
-            "optical_module_node_dcn_loopback_ip": dcn_loopback_ip,
+            "optical_module_node_management_ip": dcn_interface_ip,
+            "optical_module_node_management_loopback_ip": dcn_loopback_ip,
         }
+        identity: dict[str, Any] = {"optical_module_node_name": fqdn}
+        user_inputs: list[dict[str, Any]] = [
+            {"product": _product_id_of(product_name)},
+            {"customer_id": CUSTOMER_ID},
+            location,
+        ]
         match product_name:
             case "Nokia FlexILS Optical Node":
                 workflow_name = "create_optical_node_nokia_flexils"
-                # The FlexILS TID (GMPLS NENAME) is distinct from the FQDN and is capped at 20
-                # chars.
-                vendor: dict[str, Any] = {
-                    "optical_flexils_target_id": fqdn[:20],
-                    "optical_flexils_gmpls_id": _flexils_gmpls_id(fqdn),
-                }
-                user_inputs: list[dict[str, Any]] = [
-                    {"product": _product_id_of(product_name)},
-                    {"customer_id": CUSTOMER_ID},
-                    location,
-                    management,
-                    vendor,
-                    {},
-                ]
+                # The FlexILS TID (GMPLS NENAME) is distinct from the node name and is capped at
+                # 20 chars; the GMPLS ID is read from the (stubbed) device.
+                user_inputs.append({"optical_flexils_target_id": fqdn[:20]})
             case "Nokia Groove G30 Optical Node":
                 workflow_name = "create_optical_node_nokia_groove_g30"
-                user_inputs = [
-                    {"product": _product_id_of(product_name)},
-                    {"customer_id": CUSTOMER_ID},
-                    location,
-                    management,
-                    {},
-                ]
             case "Nokia GX G42 Optical Node":
                 workflow_name = "create_optical_node_nokia_gx_g42"
-                user_inputs = [
-                    {"product": _product_id_of(product_name)},
-                    {"customer_id": CUSTOMER_ID},
-                    location,
-                    management,
-                    {},
-                ]
             case _:
                 msg = (
                     f"Unknown optical node product {product_name!r}; supported products are "
                     "'Nokia FlexILS Optical Node', 'Nokia Groove G30 Optical Node' and 'Nokia GX G42 Optical Node'"
                 )
                 raise ValueError(msg)
+        user_inputs += [management, identity, {}]
         process_id = run_process(workflow_name, user_inputs)
         _assert_process_completed(process_id)
         return _subscription_id_of_process(process_id)
@@ -157,7 +136,7 @@ def active_coherent_pluggable_host(
             status=SubscriptionLifecycle.INITIAL,
         )
         management = subscription.optical_packet_node.management
-        management.optical_module_node_fqdn = "pluggable-host-01.test.local"
+        management.optical_module_node_name = "pluggable-host-01.test.local"
         management.optical_module_node_vendor = "Nokia"
         management.optical_module_node_platform = "NCS"
         management.optical_module_node_software_version = FAKE_SOFTWARE_VERSION

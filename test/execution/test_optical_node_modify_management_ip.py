@@ -1,11 +1,11 @@
-"""Execution-level tests for deleting DCN IPs in the shipped Optical Node modify workflows.
+"""Execution-level tests for deleting management IPs in the shipped Optical Node modify workflows.
 
 These tests are database-backed: they seed an ACTIVE optical node of the shipped
 products and run the shipped modify workflow end to end through the real
-orchestrator-core process engine, asserting on the persisted DCN loopback/interface
-IPs. They cover the ``delete_*`` checkboxes of the shared management modify form:
-deleting a single DCN IP, deleting both IPs for FlexILS (``require_dcn_ip=False``,
-mirroring its create form), and the rejection of removing the last DCN IP for the
+orchestrator-core process engine, asserting on the persisted management
+loopback/interface IPs. They cover the ``delete_*`` checkboxes of the shared management modify form:
+deleting a single IP, deleting both IPs for FlexILS (``require_dcn_ip=False``,
+mirroring its create form), and the rejection of removing the last management IP for the
 products that require one (Groove G30, ``require_dcn_ip=True``).
 
 They live in their own module so the deletion coverage is self-contained. The node
@@ -26,8 +26,7 @@ from orchestrator.optical.db import node_block_from_instance
 from orchestrator.optical.products import ProductName
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlock
 from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
-from test.support.devices import _fake_retrieve_optical_node_role_and_software_version
-from test.support.topology import _flexils_gmpls_id
+from test.support.devices import install_device_stubs
 
 pytestmark = pytest.mark.db
 
@@ -44,11 +43,8 @@ def _subscription_table(subscription_id: str) -> SubscriptionTable:
 
 
 def _stub_node_retrieve(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stub only the node role/software-version retrieval step that the create/modify workflows invoke."""
-    monkeypatch.setattr(
-        "orchestrator.optical.workflows.optical_node.shared.retrieve._retrieve_optical_node_role_and_software_version",
-        _fake_retrieve_optical_node_role_and_software_version,
-    )
+    """Stub the device calls of the node create/modify workflows (form discovery and retrieval step)."""
+    install_device_stubs(monkeypatch, families=("node",))
 
 
 def _management_page(
@@ -61,20 +57,16 @@ def _management_page(
 ) -> dict:
     """Return the management page input of an optical node modify form, with the delete checkboxes set."""
     return {
-        "optical_module_node_fqdn": fqdn,
-        "optical_module_node_dcn_interface_ip": interface_ip,
-        "optical_module_node_dcn_loopback_ip": loopback_ip,
-        "delete_optical_module_node_dcn_loopback_ip": delete_loopback,
-        "delete_optical_module_node_dcn_interface_ip": delete_interface,
+        "optical_module_node_management_ip": interface_ip,
+        "optical_module_node_management_loopback_ip": loopback_ip,
+        "delete_optical_module_node_management_loopback_ip": delete_loopback,
+        "delete_optical_module_node_management_ip": delete_interface,
     }
 
 
 def _flexils_vendor_page(fqdn: str) -> dict:
-    """Return the FlexILS vendor page input (GMPLS ID + TID), keeping the seeded values."""
-    return {
-        "optical_flexils_gmpls_id": _flexils_gmpls_id(fqdn),
-        "optical_flexils_target_id": fqdn.split(".")[0],
-    }
+    """Return the FlexILS vendor page input (the TID), keeping the seeded value."""
+    return {"optical_flexils_target_id": fqdn.split(".")[0]}
 
 
 def _seed_node(
@@ -96,15 +88,18 @@ def _seed_node(
         {"product": product_id_for(product_name)},
         {"customer_id": CUSTOMER_ID},
         {"location_instance_id": active_location},
-        {
-            "optical_module_node_fqdn": fqdn,
-            "optical_module_node_dcn_interface_ip": interface_ip,
-            "optical_module_node_dcn_loopback_ip": loopback_ip,
-        },
     ]
     if vendor_page is not None:
-        pages.append(vendor_page)
-    pages.append({})
+        # The create form only asks the TID: the GMPLS ID is read from the (stubbed) device.
+        pages.append({"optical_flexils_target_id": vendor_page["optical_flexils_target_id"]})
+    pages += [
+        {
+            "optical_module_node_management_ip": interface_ip,
+            "optical_module_node_management_loopback_ip": loopback_ip,
+        },
+        {"optical_module_node_name": fqdn},
+        {},
+    ]
     process_id = run_process(workflow_name, pages)
     assert_process_completed(process_id)
     return subscription_id_of_process(process_id)
@@ -118,7 +113,7 @@ def test_modify_flexils_deletes_loopback_ip(
     active_location,
     monkeypatch,
 ) -> None:
-    """Checking the 'delete DCN loopback IP' box persists a None loopback IP, keeping the interface IP."""
+    """Checking the 'delete management loopback IP' box persists a None loopback IP, keeping the interface IP."""
     _stub_node_retrieve(monkeypatch)
     fqdn = "flex-mod-lo.optical.test"
     subscription_id = _seed_node(
@@ -140,8 +135,9 @@ def test_modify_flexils_deletes_loopback_ip(
         [
             {"subscription_id": subscription_id},
             {"customer_id": CUSTOMER_ID},
-            _management_page(fqdn, "192.0.2.71", "192.0.2.72", delete_loopback=True, delete_interface=False),
             _flexils_vendor_page(fqdn),
+            _management_page(fqdn, "192.0.2.71", "192.0.2.72", delete_loopback=True, delete_interface=False),
+            {"optical_module_node_name": fqdn},
             {},
         ],
     )
@@ -149,12 +145,12 @@ def test_modify_flexils_deletes_loopback_ip(
 
     block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaFlexIlsBlock)
-    assert block.management.optical_module_node_dcn_loopback_ip is None
-    assert block.management.optical_module_node_dcn_interface_ip == "192.0.2.71"
+    assert block.management.optical_module_node_management_loopback_ip is None
+    assert block.management.optical_module_node_management_ip == "192.0.2.71"
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
 
 
-def test_modify_flexils_deletes_both_dcn_ips(
+def test_modify_flexils_deletes_both_management_ips(
     run_process,
     product_id_for,
     assert_process_completed,
@@ -162,7 +158,7 @@ def test_modify_flexils_deletes_both_dcn_ips(
     active_location,
     monkeypatch,
 ) -> None:
-    """FlexILS modify allows removing both DCN IPs (``require_dcn_ip=False``, mirroring its create form)."""
+    """FlexILS modify allows removing both management IPs (``require_dcn_ip=False``, mirroring its create form)."""
     _stub_node_retrieve(monkeypatch)
     fqdn = "flex-mod-both.optical.test"
     subscription_id = _seed_node(
@@ -184,8 +180,9 @@ def test_modify_flexils_deletes_both_dcn_ips(
         [
             {"subscription_id": subscription_id},
             {"customer_id": CUSTOMER_ID},
-            _management_page(fqdn, "192.0.2.75", "192.0.2.76", delete_loopback=True, delete_interface=True),
             _flexils_vendor_page(fqdn),
+            _management_page(fqdn, "192.0.2.75", "192.0.2.76", delete_loopback=True, delete_interface=True),
+            {"optical_module_node_name": fqdn},
             {},
         ],
     )
@@ -193,11 +190,11 @@ def test_modify_flexils_deletes_both_dcn_ips(
 
     block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaFlexIlsBlock)
-    assert block.management.optical_module_node_dcn_loopback_ip is None
-    assert block.management.optical_module_node_dcn_interface_ip is None
+    assert block.management.optical_module_node_management_loopback_ip is None
+    assert block.management.optical_module_node_management_ip is None
 
 
-def test_modify_g30_cannot_delete_last_dcn_ip(
+def test_modify_g30_cannot_delete_last_management_ip(
     run_process,
     product_id_for,
     assert_process_completed,
@@ -205,7 +202,7 @@ def test_modify_g30_cannot_delete_last_dcn_ip(
     active_location,
     monkeypatch,
 ) -> None:
-    """Removing the last DCN IP is rejected for Groove G30 (``require_dcn_ip=True``)."""
+    """Removing the last management IP is rejected for Groove G30 (``require_dcn_ip=True``)."""
     _stub_node_retrieve(monkeypatch)
     fqdn = "g30-mod-both.optical.test"
     subscription_id = _seed_node(
@@ -222,7 +219,7 @@ def test_modify_g30_cannot_delete_last_dcn_ip(
         vendor_page=None,
     )
 
-    with pytest.raises(FormValidationError, match="At least one of DCN loopback IP or DCN interface IP"):
+    with pytest.raises(FormValidationError, match="At least one of the management loopback IP or the management IP"):
         run_process(
             "modify_optical_node_nokia_groove_g30",
             [

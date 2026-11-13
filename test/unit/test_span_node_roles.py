@@ -23,7 +23,7 @@ def _node_block(role: OpticalNodeRole, fqdn: str = "node.optical.test") -> Simpl
     return SimpleNamespace(
         optical_node_role=role,
         management=SimpleNamespace(
-            optical_module_node_fqdn=fqdn,
+            optical_module_node_name=fqdn,
             optical_module_node_vendor=Vendor.NOKIA,
             optical_module_node_platform=Platform.FLEXILS,
         ),
@@ -69,7 +69,7 @@ def test_check_span_nodes_rejects_vendor_mismatch(monkeypatch: pytest.MonkeyPatc
         "node-b": SimpleNamespace(
             optical_node_role=OpticalNodeRole.AMPLIFIER,
             management=SimpleNamespace(
-                optical_module_node_fqdn="b.optical.test",
+                optical_module_node_name="b.optical.test",
                 optical_module_node_vendor=Vendor.NOKIA,
                 optical_module_node_platform=Platform.GROOVE_G30,
             ),

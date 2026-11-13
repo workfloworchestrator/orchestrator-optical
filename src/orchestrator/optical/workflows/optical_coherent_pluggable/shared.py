@@ -48,8 +48,8 @@ def optical_coherent_pluggable_subscription_description(
     pluggable = optical_module_block or _optical_coherent_pluggable_block_of_subscription(subscription)
     host_node = pluggable.optical_port_host_node
     if host_node is not None:
-        fqdn = host_node.management.optical_module_node_fqdn
-        host_name = str(fqdn) if fqdn is not None else "Unattached Host"
+        name = host_node.management.optical_module_node_name
+        host_name = str(name) if name is not None else "Unattached Host"
     else:
         host_name = "Unattached Host"
     part_number = subscription.optical_coherent_pluggable_part_number

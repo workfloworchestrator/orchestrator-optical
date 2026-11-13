@@ -70,7 +70,7 @@ def validate_optical_coherent_pluggable_state(
     logger.info(
         "Validating Optical Coherent Pluggable",
         port_name=pluggable.optical_port_name,
-        host_node=pluggable.optical_port_host_node.management.optical_module_node_fqdn,
+        host_node=pluggable.optical_port_host_node.management.optical_module_node_name,
         firmware=pluggable.optical_coherent_pluggable_firmware_version,
     )
     return {}

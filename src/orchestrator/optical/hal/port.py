@@ -276,6 +276,8 @@ def configure_termination_when_attaching_new_fiber(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
     pipe_type: OpticalPipeType,
+    *,
+    label: str,
 ) -> dict[str, Any]:
     """Configure an optical port when attaching a fiber to it.
 
@@ -287,6 +289,8 @@ def configure_termination_when_attaching_new_fiber(
         optical_port_block: Optical Port to configure.
         remote_port_block: The remote Optical Port to connect to.
         pipe_type: The type of the Optical Pipe being terminated on the port.
+        label: The label of the termination (``utils/labels.py``), written where the
+            device has a field for it (FlexILS OTS/SCG, Groove G30 OLS ports).
 
     Returns:
         The port configuration after the update.
@@ -298,9 +302,9 @@ def configure_termination_when_attaching_new_fiber(
     host_node = optical_port_block.optical_port_host_node
     match _vendor_platform(host_node):
         case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.configure_termination(optical_port_block, remote_port_block, pipe_type)
+            return flexils.configure_termination(optical_port_block, remote_port_block, pipe_type, label=label)
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.configure_termination(optical_port_block, remote_port_block)
+            return groove_g30.configure_termination(optical_port_block, remote_port_block, label=label)
         case (Vendor.NOKIA, Platform.GX_G42):
             return gx_g42.configure_termination(optical_port_block, remote_port_block)
         case _:
@@ -345,6 +349,8 @@ def check_fiber_terminating_port(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
     pipe_type: OpticalPipeType,
+    *,
+    label: str,
 ) -> None:
     """Check if an optical port attached to a fiber is correctly configured.
 
@@ -353,6 +359,8 @@ def check_fiber_terminating_port(
         remote_port_block: The remote Optical Port to verify the connection against.
         pipe_type: The type of the Optical Pipe terminated on the port; forwarded to
             the adapters that key their check path on it (Nokia FlexILS).
+        label: The expected label of the termination, see
+            :func:`configure_termination_when_attaching_new_fiber`.
 
     Raises:
         ValueError: If the port configuration does not match the expected one.
@@ -361,9 +369,9 @@ def check_fiber_terminating_port(
     host_node = optical_port_block.optical_port_host_node
     match _vendor_platform(host_node):
         case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.check_fiber(optical_port_block, remote_port_block, pipe_type)
+            return flexils.check_fiber(optical_port_block, remote_port_block, pipe_type, label=label)
         case (Vendor.NOKIA, Platform.GROOVE_G30):
-            return groove_g30.check_fiber(optical_port_block, remote_port_block)
+            return groove_g30.check_fiber(optical_port_block, remote_port_block, label=label)
         case (Vendor.NOKIA, Platform.GX_G42):
             return gx_g42.check_fiber(optical_port_block, remote_port_block)
         case _:

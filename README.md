@@ -52,6 +52,10 @@ the module never lets an SDK read the environment itself. `OPTICAL_G30_VERIFY` /
 host-key verification of the NETCONF sessions (`true`/`false`); `OPTICAL_FLEXILS_VERIFY_HOST_KEY` that of the TL1
 session (`true`: `~/.ssh/known_hosts`, a path to a known-hosts file, or `false`). Every HAL write is committed immediately.
 
+A NETCONF session to a G30/G42 node is kept open after the workflow step or form submit that used it and reused by
+the next one (never by two at the same time); it is closed after `OPTICAL_DEVICE_SESSION_IDLE_SECONDS` without use
+(default 120; `0` closes it at once).
+
 Each adapter imports its SDK in exactly one module, `hal/adapters/<device>/_sdk.py`, which re-exports the SDK names
 the adapter uses: it is the SDK contract, and the one place to change when moving to another SDK release.
 
@@ -264,20 +268,30 @@ The task form collects the customer shared by the whole batch (see [Configuring 
 plus the CSV payload and its delimiter. The node CSV has one row per node:
 
 ```
-location_code,vendor,platform,fqdn,dcn_loopback_ip,dcn_interface_ip,gmpls_id,target_id
+location_code,vendor,platform,name,dcn_loopback_ip,dcn_interface_ip,target_id
 ```
 
-`vendor`/`platform` selects the sub-workflow (`Nokia` + `FlexILS`/`Groove G30`/`GX G42`); `gmpls_id`/`target_id`
-are the FlexILS GMPLS ID and Target Identifier, mandatory on FlexILS rows and forbidden otherwise. The pipe CSV
-has one row per pipe:
+| Column                                 | Required                                      | Value                                                                          |
+|----------------------------------------|-----------------------------------------------|--------------------------------------------------------------------------------|
+| `location_code`                        | always                                        | code of an ACTIVE Optical Location                                             |
+| `vendor`                               | always                                        | `Nokia`                                                                        |
+| `platform`                             | always                                        | `FlexILS`, `Groove G30` or `GX G42` (with `vendor`, selects the sub-workflow)  |
+| `name`                                 | never                                         | name shown for the node; empty keeps the name read from the device             |
+| `dcn_loopback_ip` / `dcn_interface_ip` | at least one on Groove G30 / GX G42           | IPv4/IPv6 management addresses; both optional on FlexILS                       |
+| `target_id`                            | on FlexILS; must be empty on Groove G30 / G42 | FlexILS Target Identifier (the GMPLS ID is always read from the device)        |
+
+Columns are matched by header name, in any order, and a column that is not always required may be left out of
+the payload when no row needs it. The form page shows the same rules, with one example row per platform. One
+task serves the three node families: their rows differ by `target_id` only. The pipe CSV has one row per pipe:
 
 ```
-pipe_type,node_a_fqdn,port_a_name,node_b_fqdn,port_b_name,optical_pipe_name,provider_name
+pipe_type,node_a_name,port_a_name,node_b_name,port_b_name,optical_pipe_name,provider_name
 ```
 
 `pipe_type` is `Span`, `Patch` or `Leased Spectrum` and selects the sub-workflow; `provider_name` is mandatory
 on leased spectrum rows (it is prefixed to the pipe name) and forbidden otherwise. An empty `optical_pipe_name`
-defaults to `"<fqdn A> <port A> --- <fqdn B> <port B>"`.
+defaults to `"<node A> <port A> --- <node B> <port B>"`; `node_a_name`/`node_b_name` are the node names as stored
+(`optical_module_node_name`, matched exactly).
 
 ### 2. Define your own product type that has-a the shipped block (composition + optional anti-corruption layer)
 
@@ -381,7 +395,7 @@ Phase 2 — routers to packet nodes (requires the Phase 1 map; idempotent on rou
 for router_sub in consumer_router_subscriptions(ACTIVE):
     consumer_sub = ConsumerRouterSub.from_subscription(router_sub.subscription_id)
     loc_id = consumer_sub.router.site.field_for_the_optical_module.subscription_instance_id
-    fqdn = consumer_sub.router.hostname + "example.com"
+    name = consumer_sub.router.hostname
     if consumer_sub.router.ip_address.startswith("10.42."):
         loopback_ip = consumer_sub.router.ip_address
         intf_ip = None
@@ -393,16 +407,16 @@ for router_sub in consumer_router_subscriptions(ACTIVE):
 
     populate_abstract_optical_node_fields(                    # shipped function
         consumer_sub.router.for_the_optical_module, location_instance_id=loc_id,
-        optical_module_node_fqdn=fqdn,
-        optical_module_node_dcn_loopback_ip=loopback_ip,
-        optical_module_node_dcn_interface_ip=intf_ip,
+        optical_module_node_name=name,
+        optical_module_node_management_loopback_ip=loopback_ip,
+        optical_module_node_management_ip=intf_ip,
         optical_module_node_vendor=vendor,
         optical_module_node_platform=platform
     )
     validate_optical_node_management_fields_uniqueness(
-        optical_module_node_fqdn=fqdn,
-        optical_module_node_dcn_loopback_ip=loopback_ip,
-        optical_module_node_dcn_interface_ip=intf_ip,
+        optical_module_node_name=name,
+        optical_module_node_management_loopback_ip=loopback_ip,
+        optical_module_node_management_ip=intf_ip,
         exclude_subscription_id=own_id
     )
 

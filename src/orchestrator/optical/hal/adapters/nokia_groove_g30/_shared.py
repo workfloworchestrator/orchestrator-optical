@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final
 
-from orchestrator.optical.hal._common import _connect_first
+from orchestrator.optical.hal._common import _connect_first, _connect_hosts
 from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import CardTypeEnum, EquipmentTypeEnum_1, G30Client
 from orchestrator.optical.hal.adapters.nokia_groove_g30.naming import g30_ids_from_port_name
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
@@ -160,7 +160,11 @@ def g30_modules(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> lis
     Returns:
         One module per installed card and subcard.
     """
-    g30 = get_g30_client(optical_node_block)
+    return g30_modules_of_client(get_g30_client(optical_node_block))
+
+
+def g30_modules_of_client(g30: G30Client) -> list[G30Module]:
+    """Read the installed cards and subcards over an open session (see :func:`g30_modules`)."""
     shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
     optical_interfaces = g30.data.ne_ne.services.optical_interfaces.retrieve(content="config", depth=4)
     ots_ids = frozenset(
@@ -214,7 +218,7 @@ def g30_node_functions(modules: list[G30Module]) -> frozenset[G30Function]:
     return frozenset().union(*(module.functions for module in modules)) if modules else frozenset()
 
 
-def g30_role(functions: frozenset[G30Function], fqdn: str | None = None) -> OpticalNodeRole:
+def g30_role(functions: frozenset[G30Function], name: str | None = None) -> OpticalNodeRole:
     """Return the role of a Groove G30 node from the optical functions its cards provide.
 
     A wavelength selector dominates: a shelf with a WSS is a ROADM whatever else it
@@ -227,7 +231,7 @@ def g30_role(functions: frozenset[G30Function], fqdn: str | None = None) -> Opti
 
     Args:
         functions: The node's optical functions, see :func:`g30_node_functions`.
-        fqdn: The node FQDN, used in the error message only.
+        name: The node name, used in the error message only.
 
     Returns:
         The OpticalNodeRole of the node.
@@ -237,7 +241,7 @@ def g30_role(functions: frozenset[G30Function], fqdn: str | None = None) -> Opti
             no optical cards installed at all, or if it provides a function that this
             mapping does not translate into a role.
     """
-    where = f" on {fqdn}" if fqdn else ""
+    where = f" on {name}" if name else ""
     if not functions:
         msg = f"No optical function found on the Groove G30 node{where}"
         raise ValueError(msg)
@@ -278,17 +282,28 @@ def get_g30_client(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> 
     Returns:
         A connected Groove G30 NETCONF client (shared within a device-sessions scope).
     """
+    return _connect_first(G30Client, optical_node_block, **_g30_client_kwargs())
+
+
+def g30_client_for_hosts(hosts: tuple[str, ...]) -> G30Client:
+    """Return a NETCONF client connected to the Groove G30 reachable at one of ``hosts``.
+
+    For a node that has no block yet (discovery from a create form); see :func:`get_g30_client`.
+    """
+    return _connect_hosts(G30Client, hosts, **_g30_client_kwargs())
+
+
+def _g30_client_kwargs() -> dict[str, Any]:
+    """Return the credentials and session options of a Groove G30 client, from the settings."""
     settings = get_settings()
-    return _connect_first(
-        G30Client,
-        optical_node_block,
-        username=settings.g30_user,
-        password=settings.g30_password,
-        verify=settings.g30_verify,
-        auto_commit=True,
-        allow_agent=False,
-        look_for_keys=False,
-    )
+    return {
+        "username": settings.g30_user,
+        "password": settings.g30_password,
+        "verify": settings.g30_verify,
+        "auto_commit": True,
+        "allow_agent": False,
+        "look_for_keys": False,
+    }
 
 
 def g30_shelf_serial_number(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> str:
@@ -303,16 +318,16 @@ def g30_shelf_serial_number(optical_node_block: AnyOpticalNodeBlockProvisioningU
     Raises:
         ValueError: If shelf 1 is missing from the inventory or has no serial number.
     """
-    fqdn = optical_node_block.management.optical_module_node_fqdn
+    name = optical_node_block.management.optical_module_node_name
     inventory = get_g30_client(optical_node_block).data.ne_ne.inventory_data.inventory.retrieve(depth=2)
     for item in inventory:
         if item.equipment_type == EquipmentTypeEnum_1.SHELF and item.shelf_id == 1:
             if item.serial_number is None:
-                msg = f"Shelf 1 of G30 device {fqdn} has no serial number"
+                msg = f"Shelf 1 of G30 device {name} has no serial number"
                 raise ValueError(msg)
             return item.serial_number
 
-    msg = f"Could not find shelf serial number for G30 device {fqdn}"
+    msg = f"Could not find shelf serial number for G30 device {name}"
     raise ValueError(msg)
 
 

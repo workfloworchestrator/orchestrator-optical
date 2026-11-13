@@ -46,8 +46,8 @@ class FlexilsGneProvider:
             management_ips = [
                 ip
                 for ip in (
-                    block.management.optical_module_node_dcn_interface_ip,
-                    block.management.optical_module_node_dcn_loopback_ip,
+                    block.management.optical_module_node_management_ip,
+                    block.management.optical_module_node_management_loopback_ip,
                 )
                 if ip is not None
             ]

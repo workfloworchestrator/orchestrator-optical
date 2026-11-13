@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 from orchestrator.optical.hal.sessions import shared_session
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_node.nokia_groove_g30 import (
     NokiaGrooveG30BlockProvisioning,
@@ -55,6 +56,24 @@ class IntraNodeEdge:
     add_drop_port: str
     line_port: str
     used_passbands: tuple[tuple[int, int], ...] = ()
+
+
+@dataclass(frozen=True)
+class OpticalNodeDiscovery:
+    """What an Optical Node reports about itself, read before the node is modelled.
+
+    Attributes:
+        name: The name configured on the device (``ne-name`` on the NETCONF devices, the
+            Target Identifier on FlexILS); ``None`` when the device has none.
+        role: The node role derived from the installed hardware.
+        software_version: The active software version.
+        flexils_gmpls_id: The GMPLS router id of a FlexILS node; ``None`` on the other platforms.
+    """
+
+    name: str | None
+    role: OpticalNodeRole
+    software_version: str
+    flexils_gmpls_id: str | None = None
 
 
 class UnsupportedPlatformError(NotImplementedError):
@@ -109,10 +128,7 @@ def _connect_first[ClientT](
 ) -> ClientT:
     """Return a device session on the first reachable management IP of a node.
 
-    The DCN loopback IP is tried first, then the DCN interface IP: the NETCONF clients
-    take a single host and open the session in their constructor. Within a
-    :func:`~orchestrator.optical.hal.sessions.device_sessions` scope the session opened
-    to the node is reused.
+    The DCN loopback IP is tried first, then the DCN interface IP (see :func:`_connect_hosts`).
 
     Args:
         client_cls: The SDK client class (its constructor opens the session).
@@ -127,22 +143,65 @@ def _connect_first[ClientT](
         ExceptionGroup: If no management IP is reachable (one exception per attempt).
     """
     management = optical_node_block.management
-    hosts = tuple(
-        str(ip)
-        for ip in (management.optical_module_node_dcn_loopback_ip, management.optical_module_node_dcn_interface_ip)
-        if ip is not None
+    hosts = _management_hosts(
+        management.optical_module_node_management_loopback_ip, management.optical_module_node_management_ip
     )
+    return _connect_hosts(client_cls, hosts, management.optical_module_node_name, **client_kwargs)
+
+
+def _management_hosts(*management_ips: object) -> tuple[str, ...]:
+    """Return the given management IPs as connection hosts, in order, without the unset ones."""
+    return tuple(str(ip) for ip in management_ips if ip is not None)
+
+
+def _connect_hosts[ClientT](
+    client_cls: Callable[..., ClientT],
+    hosts: tuple[str, ...],
+    name: str | None = None,
+    **client_kwargs: Any,
+) -> ClientT:
+    """Return a device session on the first of ``hosts`` that accepts it.
+
+    The NETCONF clients take a single host and open the session in their constructor.
+    Within a :func:`~orchestrator.optical.hal.sessions.device_sessions` scope the session
+    to the node is reused (one left open by an earlier scope, when there is one). This is
+    the entry point for a node that has no block yet (discovery from a create form); a
+    modelled node goes through :func:`_connect_first`.
+
+    Args:
+        client_cls: The SDK client class (its constructor opens the session).
+        hosts: The management IPs to try, in order.
+        name: The node name, used in the error messages only (the hosts when not known).
+        **client_kwargs: Credentials and options passed to every connection attempt.
+
+    Returns:
+        The connected client.
+
+    Raises:
+        ValueError: If there is no host to connect to.
+        ExceptionGroup: If no host is reachable (one exception per attempt).
+    """
     if not hosts:
-        msg = f"Node {management.optical_module_node_fqdn} has no management IP to connect to"
+        msg = f"Node {name} has no management IP to connect to" if name else "No management IP to connect to"
         raise ValueError(msg)
     return shared_session(
         (client_cls, hosts),
-        lambda: _open_first(client_cls, hosts, management.optical_module_node_fqdn, client_kwargs),
+        lambda: _open_first(client_cls, hosts, name or "/".join(hosts), client_kwargs),
+        _netconf_session_alive,
     )
 
 
+def _netconf_session_alive(client: Any) -> bool:
+    """Tell whether an idle NETCONF session is still open (the device may have dropped it meanwhile).
+
+    The SDK clients expose no liveness check: this reads the ncclient manager they hold.
+    """
+    manager = getattr(client, "_manager", None)
+    return manager is not None and bool(getattr(manager, "connected", True))
+
+
 def _open_first[ClientT](
-    client_cls: Callable[..., ClientT], hosts: tuple[str, ...], fqdn: str, client_kwargs: dict[str, Any]
+    client_cls: Callable[..., ClientT], hosts: tuple[str, ...], name: str, client_kwargs: dict[str, Any]
 ) -> ClientT:
     """Open a new session on the first of ``hosts`` that accepts it (see :func:`_connect_first`)."""
     errors: list[Exception] = []
@@ -154,7 +213,7 @@ def _open_first[ClientT](
     # The causes go in the message: WFO stores a failed step's message and traceback,
     # neither of which shows the sub-exceptions of a group.
     causes = "; ".join(f"{host}: {type(exc).__name__}: {exc}" for host, exc in zip(hosts, errors, strict=True))
-    msg = f"Could not connect to node {fqdn} ({causes})"
+    msg = f"Could not connect to node {name} ({causes})"
     raise ExceptionGroup(msg, errors)
 
 
@@ -221,8 +280,8 @@ def _node_id(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> str:
     """Return the device-side node name of the given Optical Node block.
 
     A Nokia FlexILS node is identified on the device by its GMPLS NENAME, i.e. its
-    Target Identifier (TID), which is *not* its fqdn (e.g. ``flex.ba01`` vs
-    ``flex.ba01.exa.it``). Every other platform uses the management fqdn. This is
+    Target Identifier (TID), which may differ from its name (e.g. ``flex.ba01`` vs
+    ``flex.ba01.exa.it``). Every other platform uses the node name of the management block. This is
     the name to use in device identifiers (OEL ``SRCNODENAME``/``DSTNODENAME``,
     OSNC ``REMNODETID``, SCG ``PROVOWREMPTP``, ...) and in messages.
     """
@@ -230,8 +289,8 @@ def _node_id(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> str:
         target_id := getattr(optical_node_block, "optical_flexils_target_id", None)
     ):
         return target_id
-    fqdn = optical_node_block.management.optical_module_node_fqdn
-    return fqdn if fqdn is not None else "<no fqdn>"
+    name = optical_node_block.management.optical_module_node_name
+    return name if name is not None else "<no name>"
 
 
 def _same_node(
@@ -241,9 +300,9 @@ def _same_node(
     """Return whether two Optical Node blocks refer to the same device."""
     if node_a is node_b:
         return True
-    fqdn_a = node_a.management.optical_module_node_fqdn
-    fqdn_b = node_b.management.optical_module_node_fqdn
-    return fqdn_a is not None and fqdn_a == fqdn_b
+    name_a = node_a.management.optical_module_node_name
+    name_b = node_b.management.optical_module_node_name
+    return name_a is not None and name_a == name_b
 
 
 def _as_flexils_block(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> NokiaFlexIlsBlockProvisioning:

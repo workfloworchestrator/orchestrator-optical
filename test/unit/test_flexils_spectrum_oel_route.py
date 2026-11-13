@@ -67,7 +67,7 @@ def _node(role: OpticalNodeRole, name: str = "flex.a") -> Any:
     """
     return NokiaFlexIlsBlockProvisioning.model_construct(
         optical_node_role=role,
-        management=SimpleNamespace(optical_module_node_fqdn=f"{name}.example.com"),
+        management=SimpleNamespace(optical_module_node_name=f"{name}.example.com"),
         optical_flexils_target_id=name,
     )
 
@@ -246,7 +246,7 @@ def test_ensure_builds_omses_from_express_ports_only(monkeypatch: pytest.MonkeyP
 
 def test_find_or_create_oel_returns_existing_without_entering(monkeypatch: pytest.MonkeyPatch) -> None:
     """An existing OEL is reused: reconcile must not re-enter it."""
-    existing = {"AID": "cid", "PST": "IS"}
+    existing = {"AID": "cid", "PST": "IS", "LABEL": "spec"}
     entered: list[str] = []
     flex = SimpleNamespace(
         rtrv_oel=lambda **_kwargs: records_response([existing]),
@@ -255,11 +255,28 @@ def test_find_or_create_oel_returns_existing_without_entering(monkeypatch: pytes
     monkeypatch.setattr(flexils_spectrum, "_get_flex_client", lambda _device: flex)
 
     result = flexils_spectrum._find_or_create_oel(  # noqa: SLF001
-        "cid", _node(OpticalNodeRole.ROADM, "flex.a"), _node(OpticalNodeRole.ROADM, "flex.b"), []
+        "cid", "spec", _node(OpticalNodeRole.ROADM, "flex.a"), _node(OpticalNodeRole.ROADM, "flex.b"), []
     )
 
     assert result == existing
     assert entered == []
+
+
+def test_find_or_create_oel_converges_a_stale_label() -> None:
+    """An existing OEL with another label is relabelled in place (quoted), never re-entered."""
+    records = [{"AID": "cid", "LABEL": "flex.a-flex.b"}]
+    edited: list[dict[str, Any]] = []
+
+    def _ed_oel(**kwargs: Any) -> None:
+        edited.append(kwargs)
+        records[0] = {"AID": "cid", "LABEL": "MIL-BOL-OCH-01"}
+
+    flex = SimpleNamespace(rtrv_oel=lambda **_kwargs: records_response(list(records)), ed_oel=_ed_oel)
+
+    result = flexils_spectrum._converge_oel_label(flex, "cid", dict(records[0]), "MIL-BOL-OCH-01")  # noqa: SLF001
+
+    assert edited == [{"aid": "cid", "label": '"MIL-BOL-OCH-01"'}]
+    assert result["LABEL"] == "MIL-BOL-OCH-01"
 
 
 def test_ensure_recreates_missing_osnc_without_duplicating(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -294,7 +311,7 @@ def test_ensure_recreates_missing_osnc_without_duplicating(monkeypatch: pytest.M
         deny("RTRV-SCH", "INPUT, SPECIFIED OBJECT ENTITY DOES NOT EXIST")
 
     flex = SimpleNamespace(ent_osnc=_ent_osnc, rtrv_osnc=_rtrv_osnc, rtrv_sch=_rtrv_sch_missing)
-    monkeypatch.setattr(flexils_spectrum, "_rtrv_oel_or_none", lambda _flex, _aid: {"AID": "cid"})
+    monkeypatch.setattr(flexils_spectrum, "_rtrv_oel_or_none", lambda _flex, _aid: {"AID": "cid", "LABEL": "spec"})
     monkeypatch.setattr(flexils_spectrum, "_ensure_manualmode2", lambda _port: None)
     monkeypatch.setattr(
         flexils_spectrum,
@@ -452,7 +469,7 @@ def test_ensure_converges_stale_label_without_entering(monkeypatch: pytest.Monke
         rmv=lambda *_args: None,
         rst=lambda *_args: None,
     )
-    monkeypatch.setattr(flexils_spectrum, "_rtrv_oel_or_none", lambda _flex, _aid: {"AID": "cid"})
+    monkeypatch.setattr(flexils_spectrum, "_rtrv_oel_or_none", lambda _flex, _aid: {"AID": "cid", "LABEL": "spec"})
     monkeypatch.setattr(flexils_spectrum, "_ensure_manualmode2", lambda _port: None)
     monkeypatch.setattr(flexils_spectrum, "_find_flexils_osnc", lambda *_a, **_k: (flex, dict(osnc_before)))
     monkeypatch.setattr(flexils_spectrum, "_remote_flex_for_section", lambda *_a, **_k: flex)
@@ -493,7 +510,7 @@ def test_ensure_is_noop_when_already_converged(monkeypatch: pytest.MonkeyPatch) 
         ed_osnc=lambda **kwargs: edited.append(kwargs),
         rtrv_sch=lambda **_kwargs: records_response([{"SHUTTERSTATE": "OPEN"}]),
     )
-    monkeypatch.setattr(flexils_spectrum, "_rtrv_oel_or_none", lambda _flex, _aid: {"AID": "cid"})
+    monkeypatch.setattr(flexils_spectrum, "_rtrv_oel_or_none", lambda _flex, _aid: {"AID": "cid", "LABEL": "spec"})
     monkeypatch.setattr(flexils_spectrum, "_ensure_manualmode2", lambda _port: None)
     monkeypatch.setattr(flexils_spectrum, "_find_flexils_osnc", lambda *_a, **_k: (flex, dict(osnc)))
     monkeypatch.setattr(flexils_spectrum, "_remote_flex_for_section", lambda *_a, **_k: flex)
@@ -686,7 +703,7 @@ def _converge_setup(
     remote_flex = SimpleNamespace(
         rtrv_sch=lambda **_kwargs: records_response([{"SHUTTERSTATE": "OPEN"}]),
     )
-    monkeypatch.setattr(flexils_spectrum, "_rtrv_oel_or_none", lambda _flex, _aid: {"AID": "cid"})
+    monkeypatch.setattr(flexils_spectrum, "_rtrv_oel_or_none", lambda _flex, _aid: {"AID": "cid", "LABEL": "spec"})
     monkeypatch.setattr(flexils_spectrum, "_ensure_manualmode2", lambda _port: None)
     monkeypatch.setattr(flexils_spectrum, "_find_flexils_osnc", lambda *_a, **_k: (flex, dict(osnc_before)))
     monkeypatch.setattr(flexils_spectrum, "_remote_flex_for_section", lambda *_a, **_k: remote_flex)
@@ -811,7 +828,7 @@ def test_ensure_restores_in_service_when_oos_edit_fails(monkeypatch: pytest.Monk
         ed_osnc=_ed_osnc,
         rtrv_sch=lambda **_kwargs: records_response([{"SHUTTERSTATE": "OPEN"}]),
     )
-    monkeypatch.setattr(flexils_spectrum, "_rtrv_oel_or_none", lambda _flex, _aid: {"AID": "cid"})
+    monkeypatch.setattr(flexils_spectrum, "_rtrv_oel_or_none", lambda _flex, _aid: {"AID": "cid", "LABEL": "spec"})
     monkeypatch.setattr(flexils_spectrum, "_ensure_manualmode2", lambda _port: None)
     monkeypatch.setattr(flexils_spectrum, "_find_flexils_osnc", lambda *_a, **_k: (flex, dict(osnc_before)))
     monkeypatch.setattr(flexils_spectrum, "_remote_flex_for_section", lambda *_a, **_k: flex)

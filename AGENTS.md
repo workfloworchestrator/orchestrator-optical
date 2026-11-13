@@ -43,7 +43,8 @@ src/orchestrator/optical/
 │   ├── transport_channel.py  #   transponder line/client/crossconnect config + validation + power alignment
 │   ├── reconcile.py          #   declarative config of the NETCONF devices (G30/G42): Fragment, diff/verify/apply/
 │   │                         #   release on the SDK primitives + the applied-config record (golden config per node)
-│   ├── sessions.py           #   device-sessions scope: one NETCONF session per node within a step / form submit
+│   ├── sessions.py           #   device sessions: one NETCONF session per node within a step / form submit,
+│   │                         #   kept open (idle timeout) and reused by the next step / submit
 │   └── adapters/             #   per-device implementations: nokia_flexils (TL1) / nokia_groove_g30, nokia_gx_g42 (NETCONF);
 │                             #   each imports its vendor SDK only in `_sdk.py` (the SDK contract); SDK-free helpers
 │                             #   live in naming.py / gne.py / constants.py; G30/G42 `config.py` = client + release rule
@@ -63,7 +64,7 @@ src/orchestrator/optical/
 ├── db.py                     # neutral DB query helpers + block resolution shared by hal/ and workflows/ (blocks as contracts)
 │                             # + the `optical_applied_config` table (model and helpers)
 ├── translations/en-GB.json   # workflow display strings (1:1 with registered workflows)
-└── utils/                    # custom_types (dns Pqdn/Fqdn, coordinates, frequencies, ip_address), datadiff (FlexILS),
+└── utils/                    # custom_types (dns Pqdn/Fqdn, node_name, coordinates, frequencies, ip_address), datadiff (FlexILS),
                               # singledispatch (legacy helpers only — dispatch uses match/case, never reintroduce it)
 ```
 
@@ -190,6 +191,14 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
 - **No** `.garr.net`, pop codes, `fXXXcYY` naming, `garrxdb_id`/`netbox_id`/`nms_uuid` — anywhere.
 - Device-side identifiers (OEL/OSNC/OCRS AIDs, CKTIDSUFFIX, `optical_transport_channel_name`) are
   `subscription_instance_id` **UUID strings**; user-provided free-form names go to the device **label** fields.
+- Device labels and subscription descriptions are built only with `utils/labels.py`: `"<name> > <far node> <far
+  port>"` on ports/facilities, `"<svc> via <ch1> + <ch2>"` on cross-connects, `"<ch1> + <ch2>"` on bundles (the OSNC
+  keeps the composite `"<ch>: <svcA> + <svcB>"`); node names are the device-side ones (FlexILS TID, else `optical_module_node_name`).
+  A line-side label depends on its channel only (never on the services carried): shared channels render one value.
+  Descriptions never repeat the product name (a column of the subscription list). Labels are capped at 64 characters
+  (`DEVICE_LABEL_MAX_LENGTH`, not yet checked against every vendor reference). Labels are **never stored on blocks**:
+  they are computed from the owner when written or checked (e.g. `pipe_termination_label`, passed to the termination
+  dispatchers as `label=`), so renames of the owner or of a node are picked up on the next write/reconcile.
 - Customer (`customer_id`) of a subscription is obtained using a choice selection where the function returning 
   the type[Choice] is defined in the user code-space and passed to this module via the `OpticalSettings`.
 
@@ -210,14 +219,37 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
   eagerly from `hal/<area>.py`, `hal/__init__.py` or `workflows/` (SDK-free values go in `naming.py`/`gne.py`/
   `constants.py`, re-exported by the area module). Cross-device adapter calls are local imports.
 - Tests needing an SDK (directly or through an adapter) start with `pytest.importorskip("<sdk>")`.
-- **Device sessions are scoped, never global**: every G30/G42 login is a full SSH + NETCONF hello, so within a
-  `hal.sessions.device_sessions()` scope `get_g30_client`/`get_g42_client` reuse the session open to the node
-  (keyed by client class + management IPs) and the scope closes them at its end. Every step reaching a device
-  (directly or through a helper) carries `@device_sessions()` right under `@step(...)`; every form submit gets its
-  own scope from `retryable_form` (generator sends + page validators, closed when the submit ends; core replays
-  the form from page 1 on each submit, so sessions cannot outlive one). Never cache sessions across steps,
-  requests or threads (NETCONF locks/commits are per session). A missing decorator is still correct, only slower.
+- **Device sessions are kept per OS process and borrowed by one scope at a time** (`hal/sessions.py`): every
+  G30/G42 login is a full SSH + NETCONF hello, so `get_g30_client`/`get_g42_client` reuse the session open to the
+  node (keyed by client class + management IPs). A scope — a step (`@device_sessions()` right under `@step(...)`
+  on every step reaching a device, directly or through a helper) or a form submit (`retryable_form`: generator
+  sends + page validators) — borrows a node's session on first use and gives it back at its end; it then stays
+  open, idle, for `OPTICAL_DEVICE_SESSION_IDLE_SECONDS` (default 120, 0 = close at once) for the next scope: the
+  next step of the workflow, the next submit of any form. A borrowed session is never handed to a second scope
+  (a concurrent workflow or submit on the same node opens its own), so no session is used by two threads at once
+  and NETCONF locks/commits never mix. A scope ending with an error closes its sessions instead of giving them
+  back. Never hold a client outside a scope or cache one elsewhere. A missing decorator is still correct, only
+  slower (a login per call, closed by garbage collection).
+- **Input forms never write to a device** (read-only: discovery, connectivity, validation reads). That is what
+  makes a session used by a form reusable by anyone; all device writes belong to workflow steps.
   The factories authenticate by password only (`allow_agent=False`, `look_for_keys=False`).
+
+### Node identity and create-time discovery
+
+- A node is reached at its management IPs (its DCN addresses; FlexILS without one: through the GNE closest to its
+  location) and never by name. They are the `optical_module_node_management_ip` and
+  `optical_module_node_management_loopback_ip` resource types (revision `c2a94f6d81b3` renames the `..._dcn_...` ones
+  in place). `optical_module_node_name` (`OpticalNodeName`: free-form, case-preserving, unique) is only how the node
+  is shown (descriptions, messages, far-end labels on G30/G42) and matched (`_same_node`, bulk pipe CSV). It replaced
+  `optical_module_node_fqdn` (revision `8e2f4a6c1d93` renames the resource type in place); never require an FQDN.
+- The create forms ask only what the device cannot tell: location, DCN IP(s), the FlexILS Target ID. Between the
+  management page and the identity page the form generator calls `discover_new_optical_node` →
+  `hal.discover_optical_node(vendor, platform, ...)` (scalar inputs, no block yet; returns `OpticalNodeDiscovery`:
+  `ne-name` / TID, role, software version, FlexILS GMPLS ID = `ROUTERID`). The identity page prefills the name; the
+  FlexILS GMPLS ID is put in the form state, never asked. Never add a create-form field for something the device
+  reports. The create steps still re-read role and version (`retrieve_optical_node_role_and_software_version`).
+- A FlexILS node looked up by Target ID only must match its `NENAME` exactly (the lenient substring match of
+  `_find_node_entry` is refused by `_discover_via_client` when no GMPLS ID is given).
 
 ### Workflows
 
@@ -311,19 +343,42 @@ uv build                        # package build
 - **Not yet verified on a lab node.** Versus the previous client the wire differs only in: trailing empty blocks no
   longer sent on 18 command shapes (`RTRV-OTS:tid:aid:ctag;` instead of `...:ctag::::;`), and `OELSOURCE=manual`
   (the reference's case) instead of `MANUAL`.
-- The SDK copy under `sdks/flexils_tl1` carries **one local kernel patch** (`protocol/serializer.py::_is_quoted`,
-  `<` instead of `<=`): unpatched, the empty quoted value `""` (used to clear `LABEL` / `PROVOWREMPTP`) is escaped
-  and two literal quote characters are written on the node. To be fixed in the generator's kernel; the contract
-  cases `ed-ots-clear-label` / `ed-scg-reset` fail on an unpatched SDK.
+- The SDK copy under `sdks/flexils_tl1` carries **two local kernel patches**, both to be fixed in the generator's
+  kernel:
+  - `protocol/serializer.py::_is_quoted` (`<` instead of `<=`): unpatched, the empty quoted value `""` (used to
+    clear `LABEL` / `PROVOWREMPTP`) is escaped and two literal quote characters are written on the node; the
+    contract cases `ed-ots-clear-label` / `ed-scg-reset` fail on an unpatched SDK.
+  - `protocol/parser.py::find_unterminated_reply` (`_last_status(...) == "RTRV"` → not complete): a GNE bridge
+    prints the `TL1>>` prompt after an `IP <ctag>` acknowledgment between the pages of a long reply; unpatched,
+    the prompt is taken as completion and e.g. `RTRV-SCG` is cut to its first pages (seen on a node: an add/drop
+    port lost a degree). `test_prompt_after_an_in_progress_ack_does_not_complete_a_paged_reply` fails unpatched.
 - Seen on a node: an unfiltered retrieve of an object type the node has none of (e.g. `RTRV-OCRS` with no
   cross-connection) is **denied** with `IENE` (object does not exist), not answered empty. Read such lists with
   `_shared.py::_all_records(flex.rtrv_x)`; `RTRV-OEL`/`RTRV-OSNC` unfiltered reads may need the same if hit.
+- The OEL label (the conduit name) is converged with `ED-OEL:...:::LABEL=...` while the OEL is in service: not yet
+  checked on a node that this edit needs no lock.
 - `RTRV-SCG` is sent without the card-type filter in `_find_fbm_port_if_fmm_port` (the previous client silently
   dropped it); `rtrv_scg(ctype="FBM")` would narrow the read but was never sent to a node.
 
 ### Known pre-existing noise (do NOT "fix" these as a side quest)
 
 - `ARG001` on terminate-form `customer_id`/`subscription` params in stub steps.
+
+### Open points of the create-time discovery (report progress here)
+
+- **Not yet verified on a lab device**: that `ne.retrieve(depth=2, content="config")` returns `ne-name` on G30 and
+  G42, and that `RTRV-SYS` reports `ROUTERID` on FlexILS (the `RTRV-TOPONODE` entry is the fallback).
+- The form is replayed on every submit, so the node is read again on the identity and summary submits (see
+  "memoizing device reads across form submits" below).
+- The modify forms read the node again like the create forms (identity page prefilled with the device name, the
+  stored name shown when it differs; FlexILS GMPLS ID taken from the device). A name typed by hand at creation
+  must therefore be typed again on modify. The validate workflows do not compare name / GMPLS ID with the device.
+- `bulk_create_optical_nodes`: the `gmpls_id` CSV column is gone and `name` may be empty (device name kept).
+  Its form explains every column in `Label`s (one per column + one example row per platform, checked by
+  `test_bulk_node_form_examples_are_valid_rows`) and optional columns may be left out of the payload
+  (`read_csv_rows(..., optional_headers)`). It stays one task for the three families (rows differ by `target_id`
+  only). **To do**: `bulk_create_optical_pipes` still shows the bare header line and requires every header; give
+  it the same labels and optional columns (`optical_pipe_name`, `provider_name`).
 
 ### Open points of the declarative configuration (report progress here)
 
@@ -336,7 +391,8 @@ uv build                        # package build
 - The recorded TX power (`tx-power:<port>` scope) is stored but not yet re-verified by the validate workflows.
 - G30 amplifier settings are applied with the termination but excluded from `check_fiber` and from the release
   (they are tuned on the device afterwards).
-- Session scoping (`hal/sessions.py`) not yet timed on a lab device. Left for later: a connect timeout separate
+- Session reuse (`hal/sessions.py`) not yet timed on a lab device, nor checked against the devices' own idle
+  timeout and session limit (an idle session the device dropped is detected only through ncclient's `connected`). Left for later: a connect timeout separate
   from the 60 s RPC timeout (SDK generator: an unreachable loopback IP stalls a full timeout before the interface
   IP is tried); memoizing device reads across form submits; FlexILS clients are still cached process-wide by
   the generated SDK (`get_instance`), with the staleness/concurrency exposure that implies.

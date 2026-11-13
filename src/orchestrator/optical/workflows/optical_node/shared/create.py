@@ -20,8 +20,8 @@ from orchestrator.optical.products.product_blocks.optical_node_management import
     Platform,
     Vendor,
 )
-from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.utils.custom_types.node_name import OpticalNodeName
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 
 
@@ -57,7 +57,7 @@ def optical_node_subscription_description(
 ) -> str:
     """Generate human-readable subscription description for an Optical Node.
 
-    The description is derived from the node FQDN of the composed management
+    The description is derived from the node name of the composed management
     block, so the same function can be reused by consumers that compose the
     shipped block under their own attribute: pass the shipped block explicitly,
     otherwise it falls back to the ``optical_node`` attribute of the shipped
@@ -72,41 +72,41 @@ def optical_node_subscription_description(
 
     Returns:
         The subscription description, e.g. ``"node.example.com (Nokia FlexILS)"``
-        or the product name when the node has no FQDN yet.
+        or the product name when the node has no name yet.
 
     Raises:
         ValueError: If the subscription has no Optical Node block under the
             ``optical_node`` attribute and no block was passed.
     """
     node = optical_module_block or _optical_node_block_of_subscription(subscription)
-    fqdn = node.management.optical_module_node_fqdn
-    if fqdn:
-        return f"{fqdn} ({subscription.product.name})"
+    name = node.management.optical_module_node_name
+    if name:
+        return f"{name} ({subscription.product.name})"
     return subscription.product.name
 
 
-def validate_optical_node_fqdn_uniqueness(fqdn: str, exclude_subscription_id: UUIDstr | None = None) -> None:
-    """Ensure the FQDN is not already in use by another node subscription.
+def validate_optical_node_name_uniqueness(name: str, exclude_subscription_id: UUIDstr | None = None) -> None:
+    """Ensure the node name is not already in use by another node subscription.
 
     The check is block-based: it queries the subscription instances of the
     shipped ``OpticalModuleNodeManagementBlock`` block type whose
-    ``optical_module_node_fqdn`` resource value equals the given FQDN and whose
+    ``optical_module_node_name`` resource value equals the given name and whose
     owner subscription is INITIAL, PROVISIONING or ACTIVE. Because every
     consumer that composes the shipped block persists it under the shipped
     block name, the check also covers composed product types without hardcoding
     a product type.
 
     Args:
-        fqdn: The FQDN to check for uniqueness.
+        name: The node name to check for uniqueness.
         exclude_subscription_id: Subscription ID to exclude from the check, when modifying.
 
     Raises:
-        ValueError: If another subscription already uses the FQDN.
+        ValueError: If another subscription already uses the node name.
     """
     instances = subscription_instances_by_block_type_and_resource_value(
         cast(str, OpticalModuleNodeManagementBlock.name),
-        "optical_module_node_fqdn",
-        fqdn,
+        "optical_module_node_name",
+        name,
         [
             SubscriptionLifecycle.INITIAL,
             SubscriptionLifecycle.PROVISIONING,
@@ -115,7 +115,7 @@ def validate_optical_node_fqdn_uniqueness(fqdn: str, exclude_subscription_id: UU
     )
     conflicting = [inst for inst in instances if str(inst.subscription_id) != exclude_subscription_id]
     if conflicting:
-        msg = f"FQDN '{fqdn}' is already in use by subscription {conflicting[0].subscription_id}"
+        msg = f"Node name '{name}' is already in use by subscription {conflicting[0].subscription_id}"
         raise ValueError(msg)
 
 
@@ -138,7 +138,7 @@ def validate_management_ips_uniqueness(ips: list[IPAddress], exclude_subscriptio
         ValueError: If another subscription already uses one of the IPs.
     """
     for ip in ips:
-        for resource_type in ("optical_module_node_dcn_loopback_ip", "optical_module_node_dcn_interface_ip"):
+        for resource_type in ("optical_module_node_management_loopback_ip", "optical_module_node_management_ip"):
             instances = subscription_instances_by_block_type_and_resource_value(
                 cast(str, OpticalModuleNodeManagementBlock.name),
                 resource_type,
@@ -156,15 +156,15 @@ def validate_management_ips_uniqueness(ips: list[IPAddress], exclude_subscriptio
 
 
 def validate_optical_node_management_fields_uniqueness(
-    optical_module_node_fqdn: Fqdn,
+    optical_module_node_name: OpticalNodeName,
     *,
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
-    optical_module_node_dcn_interface_ip: IPAddress | None = None,
+    optical_module_node_management_loopback_ip: IPAddress | None = None,
+    optical_module_node_management_ip: IPAddress | None = None,
     exclude_subscription_id: UUIDstr | None = None,
 ) -> None:
-    """Re-check the uniqueness of the node FQDN and DCN IPs at execution time.
+    """Re-check the uniqueness of the node name and DCN IPs at execution time.
 
-    Composes :func:`validate_optical_node_fqdn_uniqueness` and
+    Composes :func:`validate_optical_node_name_uniqueness` and
     :func:`validate_management_ips_uniqueness`. The node create populates call
     it before setting the block fields, mirroring the location family's
     populate-time guard, so a consumer that composes its own construct step and
@@ -172,20 +172,24 @@ def validate_optical_node_management_fields_uniqueness(
     check-to-save window is shrunk.
 
     Args:
-        optical_module_node_fqdn: Fully qualified domain name of the node.
-        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
-        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
+        optical_module_node_name: Fully qualified domain name of the node.
+        optical_module_node_management_loopback_ip: Management loopback IP of the node.
+        optical_module_node_management_ip: Management (interface) IP of the node.
         exclude_subscription_id: Subscription ID to exclude (the owning subscription).
 
     Raises:
-        ValueError: If another subscription already uses the FQDN or one of the IPs.
+        ValueError: If another subscription already uses the node name or one of the IPs.
     """
-    validate_optical_node_fqdn_uniqueness(
-        optical_module_node_fqdn,
+    validate_optical_node_name_uniqueness(
+        optical_module_node_name,
         exclude_subscription_id=exclude_subscription_id,
     )
     validate_management_ips_uniqueness(
-        [ip for ip in (optical_module_node_dcn_loopback_ip, optical_module_node_dcn_interface_ip) if ip is not None],
+        [
+            ip
+            for ip in (optical_module_node_management_loopback_ip, optical_module_node_management_ip)
+            if ip is not None
+        ],
         exclude_subscription_id=exclude_subscription_id,
     )
 
@@ -264,9 +268,9 @@ def populate_abstract_optical_node_fields(
     optical_module_block: Any,
     *,
     location_instance_id: UUIDstr,
-    optical_module_node_fqdn: Fqdn,
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
-    optical_module_node_dcn_interface_ip: IPAddress | None = None,
+    optical_module_node_name: OpticalNodeName,
+    optical_module_node_management_loopback_ip: IPAddress | None = None,
+    optical_module_node_management_ip: IPAddress | None = None,
     optical_module_node_vendor: Vendor | None = None,
     optical_module_node_platform: Platform | None = None,
 ) -> None:
@@ -281,16 +285,18 @@ def populate_abstract_optical_node_fields(
     Args:
         optical_module_block: The Optical Node block to populate (any lifecycle variant).
         location_instance_id: Subscription instance id of the Optical Location block hosting the node.
-        optical_module_node_fqdn: Fully qualified domain name of the node.
-        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
-        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
+        optical_module_node_name: Fully qualified domain name of the node.
+        optical_module_node_management_loopback_ip: Management loopback IP of the node.
+        optical_module_node_management_ip: Management (interface) IP of the node.
         optical_module_node_vendor: Vendor of the node.
         optical_module_node_platform: Platform of the node.
     """
     optical_module_block.location = location_block_from_instance(location_instance_id)
-    optical_module_block.management.optical_module_node_fqdn = optical_module_node_fqdn
-    optical_module_block.management.optical_module_node_dcn_loopback_ip = optical_module_node_dcn_loopback_ip
-    optical_module_block.management.optical_module_node_dcn_interface_ip = optical_module_node_dcn_interface_ip
+    optical_module_block.management.optical_module_node_name = optical_module_node_name
+    optical_module_block.management.optical_module_node_management_loopback_ip = (
+        optical_module_node_management_loopback_ip
+    )
+    optical_module_block.management.optical_module_node_management_ip = optical_module_node_management_ip
     optical_module_block.management.optical_module_node_vendor = optical_module_node_vendor
     optical_module_block.management.optical_module_node_platform = optical_module_node_platform
 

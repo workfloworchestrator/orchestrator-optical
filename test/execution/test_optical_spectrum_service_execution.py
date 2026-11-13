@@ -242,7 +242,9 @@ def test_create_optical_spectrum_service_end_to_end(
     table = _subscription_table(subscription_id)
     assert SubscriptionLifecycle(table.status) == SubscriptionLifecycle.ACTIVE
     assert table.customer_id == CUSTOMER_ID
-    assert table.description == f"{SPECTRUM_NAME} ({SPECTRUM_PRODUCT_NAME})"
+    assert table.description is not None
+    assert table.description.startswith(f"{SPECTRUM_NAME} ")
+    assert table.description.endswith(" THz (100 GHz)")
     assert _subscription_id_of_process(process_id) == subscription_id
 
     spectrum = OpticalSpectrumServiceSubscription.from_subscription(subscription_id).optical_spectrum_service
@@ -343,7 +345,7 @@ def test_full_lifecycle_create_modify_validate_terminate(
         ],
     )
     _assert_process_completed(modify_process_id)
-    assert _subscription_table(subscription_id).description == f"{MODIFIED_SPECTRUM_NAME} ({SPECTRUM_PRODUCT_NAME})"
+    assert str(_subscription_table(subscription_id).description).startswith(f"{MODIFIED_SPECTRUM_NAME} ")
     spectrum = OpticalSpectrumServiceSubscription.from_subscription(subscription_id).optical_spectrum_service
     assert spectrum.optical_spectrum_name == MODIFIED_SPECTRUM_NAME
     assert tuple(spectrum.optical_spectrum_passband) == MODIFIED_PASSBAND

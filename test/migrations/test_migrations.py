@@ -214,3 +214,76 @@ def test_provisioned_catalog_contains_the_shipped_tasks(postgres_database) -> No
         assert row.target == "SYSTEM"
         assert row.is_task is True
         assert row.description == task.description
+
+
+def _load_shipped_revision(filename_suffix: str):
+    """Load the shipped revision whose filename ends with ``filename_suffix``."""
+    from importlib.util import module_from_spec, spec_from_file_location
+
+    (revision_path,) = version_schema_path().glob(f"*_{filename_suffix}.py")
+    spec = spec_from_file_location(filename_suffix, revision_path)
+    assert spec is not None
+    assert spec.loader is not None
+    revision = module_from_spec(spec)
+    spec.loader.exec_module(revision)
+    return revision
+
+
+def _optical_node_resource_type_ids(connection) -> dict[str, str]:
+    """Return the id of every ``optical_module_node_*`` resource type, keyed by resource type."""
+    from sqlalchemy import text
+
+    rows = connection.execute(
+        text("SELECT resource_type, resource_type_id FROM resource_types WHERE resource_type LIKE :pattern"),
+        {"pattern": "optical_module_node_%"},
+    )
+    return {name: str(resource_type_id) for name, resource_type_id in rows}
+
+
+@pytest.mark.db
+def test_node_name_revision_renames_the_resource_type_in_place(postgres_database) -> None:
+    """The shipped revision renames ``optical_module_node_fqdn`` keeping the row (and so its links and values)."""
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    revision = _load_shipped_revision("rename_optical_module_node_fqdn")
+
+    # The catalog under test is generated from the models, so it starts at the new name.
+    with postgres_database.engine.begin() as connection, Operations.context(MigrationContext.configure(connection)):
+        current = _optical_node_resource_type_ids(connection)
+        assert "optical_module_node_fqdn" not in current
+        try:
+            revision.downgrade()
+            downgraded = _optical_node_resource_type_ids(connection)
+            assert "optical_module_node_name" not in downgraded
+            assert downgraded["optical_module_node_fqdn"] == current["optical_module_node_name"]
+        finally:
+            revision.upgrade()
+        assert _optical_node_resource_type_ids(connection) == current
+
+
+@pytest.mark.db
+def test_dcn_ip_revision_renames_the_resource_types_in_place(postgres_database) -> None:
+    """The shipped revision renames the two DCN IP resource types keeping their rows (and so their links and values)."""
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    revision = _load_shipped_revision("rename_optical_module_node_dcn_ips")
+    renamed = {
+        "optical_module_node_dcn_loopback_ip": "optical_module_node_management_loopback_ip",
+        "optical_module_node_dcn_interface_ip": "optical_module_node_management_ip",
+    }
+
+    # The catalog under test is generated from the models, so it starts at the new names.
+    with postgres_database.engine.begin() as connection, Operations.context(MigrationContext.configure(connection)):
+        current = _optical_node_resource_type_ids(connection)
+        assert not renamed.keys() & current.keys()
+        try:
+            revision.downgrade()
+            downgraded = _optical_node_resource_type_ids(connection)
+            assert not renamed.values() & downgraded.keys()
+            for old_name, new_name in renamed.items():
+                assert downgraded[old_name] == current[new_name]
+        finally:
+            revision.upgrade()
+        assert _optical_node_resource_type_ids(connection) == current

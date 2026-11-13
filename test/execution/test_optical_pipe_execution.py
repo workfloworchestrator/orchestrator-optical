@@ -29,9 +29,11 @@ from orchestrator.optical.products.product_blocks.optical_port.ols_line import O
 from orchestrator.optical.products.product_types.optical_pipe.fiber_patch import OpticalFiberPatchSubscription
 from orchestrator.optical.products.product_types.optical_pipe.fiber_span import OpticalFiberSpanSubscription
 from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum import OpticalLeasedSpectrumSubscription
+from orchestrator.optical.utils.labels import endpoint
 from orchestrator.optical.workflows.optical_pipe.shared import (
     multiple_optical_pipe_selector,
     optical_pipe_selector,
+    pipe_termination_label,
 )
 from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
 from test.support.devices import FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
@@ -104,10 +106,19 @@ def _assert_pipe_terminations(pipe: Any, name_a: str, name_b: str, port_name: st
     assert isinstance(port_b, port_block_class)
     assert port_a.optical_port_name == port_name
     assert port_b.optical_port_name == port_name
-    assert port_a.optical_port_host_node.management.optical_module_node_fqdn == name_a
-    assert port_b.optical_port_host_node.management.optical_module_node_fqdn == name_b
-    assert port_a.optical_port_description == f"Physically connected to {name_b} {port_name}."
-    assert port_b.optical_port_description == f"Physically connected to {name_a} {port_name}."
+    assert port_a.optical_port_host_node.management.optical_module_node_name == name_a
+    assert port_b.optical_port_host_node.management.optical_module_node_name == name_b
+    assert pipe_termination_label(pipe, port_b).endswith(f"> {endpoint(port_b.optical_port_host_node, port_name)}")
+    assert pipe_termination_label(pipe, port_a).endswith(f"> {endpoint(port_a.optical_port_host_node, port_name)}")
+
+
+def _assert_description(description: str | None, name: str | None) -> None:
+    """Assert a pipe description: the user name (none for a default one), then the two ends."""
+    assert description is not None
+    assert " <-> " in description
+    assert " --- " not in description
+    if name:
+        assert description.startswith(f"{name} ")
 
 
 def test_fiber_span_full_lifecycle(
@@ -132,7 +143,7 @@ def test_fiber_span_full_lifecycle(
     subscription = _subscription_table(subscription_id)
     assert SubscriptionLifecycle(subscription.status) == SubscriptionLifecycle.ACTIVE
     assert subscription.customer_id == CUSTOMER_ID
-    assert subscription.description == f"span-01 ({FIBER_SPAN_PRODUCT})"
+    _assert_description(subscription.description, "span-01")
     assert subscription.insync is True
 
     # The span terminates on OLS line ports, one per end, each hosted on its node.
@@ -152,7 +163,7 @@ def test_fiber_span_full_lifecycle(
         ],
     )
     assert_process_completed(modify_process_id)
-    assert _subscription_table(subscription_id).description == f"span-02 ({FIBER_SPAN_PRODUCT})"
+    _assert_description(_subscription_table(subscription_id).description, "span-02")
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
     assert OpticalFiberSpanSubscription.from_subscription(subscription_id).optical_pipe.optical_pipe_name == "span-02"
 
@@ -192,7 +203,7 @@ def test_fiber_span_create_default_pipe_name(
     assert (
         OpticalFiberSpanSubscription.from_subscription(subscription_id).optical_pipe.optical_pipe_name == expected_name
     )
-    assert _subscription_table(subscription_id).description == f"{expected_name} ({FIBER_SPAN_PRODUCT})"
+    _assert_description(_subscription_table(subscription_id).description, None)
 
 
 def test_fiber_span_create_rejects_same_node(
@@ -239,7 +250,7 @@ def test_fiber_patch_create_validate_terminate(
     subscription = _subscription_table(subscription_id)
     assert SubscriptionLifecycle(subscription.status) == SubscriptionLifecycle.ACTIVE
     assert subscription.customer_id == CUSTOMER_ID
-    assert subscription.description == f"patch-01 ({FIBER_PATCH_PRODUCT})"
+    _assert_description(subscription.description, "patch-01")
 
     # On a FlexILS node the client (SCG) ports map to OLS add/drop port blocks.
     patch = OpticalFiberPatchSubscription.from_subscription(subscription_id)
@@ -292,7 +303,7 @@ def test_leased_spectrum_create_validate_terminate(
     assert SubscriptionLifecycle(subscription.status) == SubscriptionLifecycle.ACTIVE
     assert subscription.customer_id == CUSTOMER_ID
     # The provider name has no dedicated block field: it is persisted by prefixing the pipe name.
-    assert subscription.description == f"Acme Telecom circuit-77 ({LEASED_SPECTRUM_PRODUCT})"
+    _assert_description(subscription.description, "Acme Telecom circuit-77")
 
     leased_spectrum = OpticalLeasedSpectrumSubscription.from_subscription(subscription_id)
     assert leased_spectrum.optical_pipe.optical_pipe_name == "Acme Telecom circuit-77"
@@ -344,7 +355,7 @@ def test_fiber_patch_modify(
         ],
     )
     assert_process_completed(modify_process_id)
-    assert _subscription_table(subscription_id).description == f"patch-mod-02 ({FIBER_PATCH_PRODUCT})"
+    _assert_description(_subscription_table(subscription_id).description, "patch-mod-02")
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
     assert (
         OpticalFiberPatchSubscription.from_subscription(subscription_id).optical_pipe.optical_pipe_name
@@ -389,8 +400,7 @@ def test_leased_spectrum_modify(
         ],
     )
     assert_process_completed(modify_process_id)
-    expected_description = f"Acme Telecom circuit-mod-02 ({LEASED_SPECTRUM_PRODUCT})"
-    assert _subscription_table(subscription_id).description == expected_description
+    _assert_description(_subscription_table(subscription_id).description, "Acme Telecom circuit-mod-02")
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
     assert (
         OpticalLeasedSpectrumSubscription.from_subscription(subscription_id).optical_pipe.optical_pipe_name

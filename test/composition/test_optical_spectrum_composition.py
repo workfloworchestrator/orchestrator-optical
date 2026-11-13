@@ -127,7 +127,7 @@ class _FakeNode:
 
     def __init__(self, subscription_instance_id: str) -> None:
         self.subscription_instance_id = subscription_instance_id
-        self.management = SimpleNamespace(optical_module_node_fqdn=f"{subscription_instance_id}.example.com")
+        self.management = SimpleNamespace(optical_module_node_name=f"{subscription_instance_id}.example.com")
 
 
 class _FakeProductBlockModel:
@@ -271,6 +271,7 @@ def test_modify_block_steps_have_the_expected_order() -> None:
         "Updating Optical Spectrum block",
         "Dividing the optical path into single-platform sections",
         "Modifying optical spectrum sections",
+        "Adding a description to the add/drop ports",
         "Updating the available passbands of any Open Line System port in the path",
         "Persist optical module block",
     ]
@@ -444,7 +445,7 @@ def _make_section(add_drop_ids: list[str], express_ids: list[str]) -> SimpleName
     def port(port_id: str) -> SimpleNamespace:
         node = SimpleNamespace(
             subscription_instance_id=f"node-{port_id}",
-            management=SimpleNamespace(optical_module_node_fqdn=f"{port_id}.example.com"),
+            management=SimpleNamespace(optical_module_node_name=f"{port_id}.example.com"),
         )
         return SimpleNamespace(subscription_instance_id=port_id, optical_port_host_node=node)
 
@@ -580,9 +581,15 @@ def test_terminate_delete_optical_sections_uses_the_shared_teardown(
     assert state == {"configuration_results": {"node": {}}}
 
 
-def test_update_optical_spectrum_block_writes_only_name_and_passband() -> None:
-    """The modify step overwrites only the name and the passband and returns the old passband."""
-    section = SimpleNamespace(subscription_instance_id=uuid.uuid4())
+def _spectrum_end(fqdn: str, port_name: str) -> SimpleNamespace:
+    host = SimpleNamespace(management=SimpleNamespace(optical_module_node_name=fqdn))
+    return SimpleNamespace(optical_port_host_node=host, optical_port_name=port_name)
+
+
+def test_update_optical_spectrum_block_writes_name_and_passband() -> None:
+    """The modify step overwrites the name and the passband; returns the old passband."""
+    src, dst = _spectrum_end("a.example", "1-5-3"), _spectrum_end("b.example", "1-7-2")
+    section = SimpleNamespace(subscription_instance_id=uuid.uuid4(), optical_spectrum_section_add_drop_ports=[src, dst])
     block = OpticalSpectrumServiceBlockProvisioning.model_construct(
         name="OpticalSpectrumServiceBlock",
         subscription_instance_id=uuid.uuid4(),
@@ -607,6 +614,22 @@ def test_update_optical_spectrum_block_writes_only_name_and_passband() -> None:
         "old_passband": (FREQUENCY_MIN, FREQUENCY_MAX),
         "old_section_ids": [str(section.subscription_instance_id)],
     }
+
+
+def test_add_drop_port_labels_are_computed_from_the_current_spectrum_name(monkeypatch) -> None:
+    """Each end is labelled ``"<spec> > <far node> <far port>"`` from the block as it is now."""
+    src, dst = _spectrum_end("a.example", "1-5-3"), _spectrum_end("b.example", "1-7-2")
+    block = SimpleNamespace(
+        optical_spectrum_name="spec-02",
+        optical_spectrum_sections=[SimpleNamespace(optical_spectrum_section_add_drop_ports=[src, dst])],
+    )
+    written: list[tuple[Any, str]] = []
+    monkeypatch.setattr(spectrum_create, "optical_spectrum_block_from_state", lambda _block: block)
+    monkeypatch.setattr(spectrum_create, "set_port_description", lambda port, label: written.append((port, label)))
+
+    unwrap_step(spectrum_create.configure_add_drop_ports_description)(optical_module_block=block)
+
+    assert written == [(src, "spec-02 > b.example 1-7-2"), (dst, "spec-02 > a.example 1-5-3")]
 
 
 @pytest.mark.parametrize(

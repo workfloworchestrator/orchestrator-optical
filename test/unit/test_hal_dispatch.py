@@ -76,7 +76,7 @@ def _management(
     return SimpleNamespace(
         optical_module_node_vendor=vendor,
         optical_module_node_platform=platform,
-        optical_module_node_fqdn=fqdn,
+        optical_module_node_name=fqdn,
     )
 
 
@@ -146,7 +146,7 @@ _PORT_UNSUPPORTED_CALLS = [
     pytest.param(lambda node: hal_port.set_port_admin_state(_port(node), "up"), id="set_port_admin_state"),
     pytest.param(
         lambda node: hal_port.configure_termination_when_attaching_new_fiber(
-            _port(node), _port(node), OpticalPipeType.SPAN
+            _port(node), _port(node), OpticalPipeType.SPAN, label="x"
         ),
         id="configure_termination_when_attaching_new_fiber",
     ),
@@ -155,7 +155,7 @@ _PORT_UNSUPPORTED_CALLS = [
         id="factory_reset_port_configuration",
     ),
     pytest.param(
-        lambda node: hal_port.check_fiber_terminating_port(_port(node), _port(node), OpticalPipeType.SPAN),
+        lambda node: hal_port.check_fiber_terminating_port(_port(node), _port(node), OpticalPipeType.SPAN, label="x"),
         id="check_fiber_terminating_port",
     ),
 ]
@@ -498,17 +498,17 @@ def test_configure_termination_dispatches_per_vendor_and_forwards_pipe_type(monk
     g30_local, g30_remote = _port(_g30_node()), _port(_g30_node())
     g42_local, g42_remote = _port(_g42_node()), _port(_g42_node())
 
-    assert hal_port.configure_termination_when_attaching_new_fiber(flex_local, flex_remote, OpticalPipeType.SPAN) == {
-        "flex": True
-    }
-    assert hal_port.configure_termination_when_attaching_new_fiber(g30_local, g30_remote, OpticalPipeType.SPAN) == {
-        "g30": True
-    }
-    assert hal_port.configure_termination_when_attaching_new_fiber(g42_local, g42_remote, OpticalPipeType.SPAN) == {
-        "g42": True
-    }
-    assert flex.calls == [((flex_local, flex_remote, OpticalPipeType.SPAN), {})]
-    assert g30.calls == [((g30_local, g30_remote), {})]
+    assert hal_port.configure_termination_when_attaching_new_fiber(
+        flex_local, flex_remote, OpticalPipeType.SPAN, label="x"
+    ) == {"flex": True}
+    assert hal_port.configure_termination_when_attaching_new_fiber(
+        g30_local, g30_remote, OpticalPipeType.SPAN, label="x"
+    ) == {"g30": True}
+    assert hal_port.configure_termination_when_attaching_new_fiber(
+        g42_local, g42_remote, OpticalPipeType.SPAN, label="x"
+    ) == {"g42": True}
+    assert flex.calls == [((flex_local, flex_remote, OpticalPipeType.SPAN), {"label": "x"})]
+    assert g30.calls == [((g30_local, g30_remote), {"label": "x"})]
     assert g42.calls == [((g42_local, g42_remote), {})]
 
 
@@ -536,11 +536,11 @@ def test_check_fiber_dispatches_per_vendor_and_forwards_pipe_type(monkeypatch: p
     g30_local, g30_remote = _port(_g30_node()), _port(_g30_node())
     g42_local, g42_remote = _port(_g42_node()), _port(_g42_node())
 
-    assert hal_port.check_fiber_terminating_port(flex_local, flex_remote, OpticalPipeType.SPAN) is None
-    assert hal_port.check_fiber_terminating_port(g30_local, g30_remote, OpticalPipeType.SPAN) is None
-    assert hal_port.check_fiber_terminating_port(g42_local, g42_remote, OpticalPipeType.SPAN) is None
-    assert flex.calls == [((flex_local, flex_remote, OpticalPipeType.SPAN), {})]
-    assert g30.calls == [((g30_local, g30_remote), {})]
+    assert hal_port.check_fiber_terminating_port(flex_local, flex_remote, OpticalPipeType.SPAN, label="x") is None
+    assert hal_port.check_fiber_terminating_port(g30_local, g30_remote, OpticalPipeType.SPAN, label="x") is None
+    assert hal_port.check_fiber_terminating_port(g42_local, g42_remote, OpticalPipeType.SPAN, label="x") is None
+    assert flex.calls == [((flex_local, flex_remote, OpticalPipeType.SPAN), {"label": "x"})]
+    assert g30.calls == [((g30_local, g30_remote), {"label": "x"})]
     assert g42.calls == [((g42_local, g42_remote), {})]
 
 
@@ -723,3 +723,52 @@ _TRANSPORT_FLEXILS_NOT_IMPLEMENTED = [
 def test_transport_flexils_branches_are_not_implemented(hal_func: Any, args: tuple[Any, ...]) -> None:
     with pytest.raises(NotImplementedError):
         hal_func(_flexils_node(), *args, **_owner_kwargs(hal_func))
+
+
+# ---------------------------------------------------------------------------
+# Discovery of a node that has no block yet (create forms)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("platform", "adapter"),
+    [(Platform.GROOVE_G30, g30_node), (Platform.GX_G42, g42_node)],
+    ids=["g30", "g42"],
+)
+def test_discover_optical_node_reaches_netconf_devices_at_the_loopback_first(
+    platform: Platform, adapter: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    discover = _patch(monkeypatch, adapter, "discover", result="discovery")
+
+    result = hal_node.discover_optical_node(
+        Vendor.NOKIA, platform, dcn_interface_ip="192.0.2.2", dcn_loopback_ip="192.0.2.1"
+    )
+
+    assert result == "discovery"
+    assert discover.calls == [((("192.0.2.1", "192.0.2.2"),), {})]
+
+
+def test_discover_optical_node_identifies_a_flexils_node_by_its_target_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    from orchestrator.optical.hal.adapters.nokia_flexils import _shared as flexils_shared
+
+    discover = _patch(monkeypatch, flexils_shared, "discover", result="discovery")
+    location = SimpleNamespace()
+
+    result = hal_node.discover_optical_node(
+        Vendor.NOKIA, Platform.FLEXILS, flexils_target_id="flex.ba01", location=location
+    )
+
+    assert result == "discovery"
+    assert discover.calls == [
+        (("flex.ba01",), {"optical_management_ip": None, "optical_loopback_ip": None, "location": location})
+    ]
+
+
+def test_discover_optical_node_requires_the_flexils_target_id() -> None:
+    with pytest.raises(ValueError, match="Target ID is required"):
+        hal_node.discover_optical_node(Vendor.NOKIA, Platform.FLEXILS, dcn_loopback_ip="192.0.2.1")
+
+
+def test_discover_optical_node_rejects_unsupported_platform() -> None:
+    with pytest.raises(UnsupportedPlatformError):
+        hal_node.discover_optical_node(Vendor.JUNIPER, Platform.MX204, dcn_loopback_ip="192.0.2.1")

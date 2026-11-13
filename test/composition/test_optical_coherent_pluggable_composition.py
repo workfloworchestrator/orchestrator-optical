@@ -92,7 +92,7 @@ def _make_packet_node_block() -> OpticalModulePacketNodeBlockInactive:
             name="OpticalModuleNodeManagementBlock",
             subscription_instance_id=uuid.uuid4(),
             owner_subscription_id=subscription_id,
-            optical_module_node_fqdn="node.example.com",
+            optical_module_node_name="node.example.com",
         ),
         location=OpticalModuleLocationBlockInactive(
             name="OpticalModuleLocationBlock",
@@ -133,9 +133,9 @@ def _make_pluggable_block_provisioning() -> OpticalCoherentPluggableBlockProvisi
                 optical_module_node_vendor=Vendor.NOKIA,
                 optical_module_node_platform=Platform.GX_G42,
                 optical_module_node_software_version=None,
-                optical_module_node_fqdn="node.example.com",
-                optical_module_node_dcn_loopback_ip=None,
-                optical_module_node_dcn_interface_ip=None,
+                optical_module_node_name="node.example.com",
+                optical_module_node_management_loopback_ip=None,
+                optical_module_node_management_ip=None,
             ),
             location=OpticalModuleLocationBlockProvisioning(
                 name="OpticalModuleLocationBlock",

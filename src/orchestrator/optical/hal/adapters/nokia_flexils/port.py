@@ -177,6 +177,8 @@ def configure_termination(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
     pipe_type: OpticalPipeType,
+    *,
+    label: str,
 ) -> dict[str, Any]:
     """Configure a Nokia FlexILS port when attaching a fiber to it.
 
@@ -188,12 +190,11 @@ def configure_termination(
     """
     flex = _get_flex_client(optical_port_block.optical_port_host_node)
     port_name = _port_name(optical_port_block)
-    description = optical_port_block.optical_port_description or ""
 
     match (optical_port_block.optical_port_role, pipe_type):
         case (OpticalPortRole.OLS_LINE, OpticalPipeType.SPAN):
             before = _records(flex.rtrv_ots(aid=port_name))
-            flex.ed_ots(aid=port_name, label=_tl1_quoted(description), histstats="ENABLE")
+            flex.ed_ots(aid=port_name, label=_tl1_quoted(label), histstats="ENABLE")
             flex.rst(aidtype="OTS", aid=port_name)
             after = _records(flex.rtrv_ots(aid=port_name))
             return compare_jsons(before, after)
@@ -206,7 +207,7 @@ def configure_termination(
             flex.ed_scg(
                 aid=port_name,
                 provowremptp=provowremptp,
-                label=_tl1_quoted(description),
+                label=_tl1_quoted(label),
                 histstats="ENABLE",
             )
             after = _records(flex.rtrv_scg(aid=port_name))
@@ -263,18 +264,19 @@ def check_fiber(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
     pipe_type: OpticalPipeType,
+    *,
+    label: str,
 ) -> None:
     """Check if a Nokia FlexILS port attached to a fiber is correctly configured."""
     flex = _get_flex_client(optical_port_block.optical_port_host_node)
     port_name = _port_name(optical_port_block)
     remote_port_name = _port_name(remote_port_block)
-    description = optical_port_block.optical_port_description or ""
 
     match (optical_port_block.optical_port_role, pipe_type):
         case (OpticalPortRole.OLS_LINE, OpticalPipeType.SPAN):
             ots = _records(flex.rtrv_ots(aid=port_name))[0]
             checks = (
-                description in ots["LABEL"]
+                label in ots["LABEL"]
                 and not ots["PST"].endswith("MA")
                 and remote_port_name in ots["PROVNBROTS"]
                 and ots["PROVNBROTS"] == ots["DISCNBROTS"]
@@ -287,7 +289,7 @@ def check_fiber(
                             "optical_device": _node_id(optical_port_block.optical_port_host_node),
                             "port_name": port_name,
                             "expected": {
-                                "label": description,
+                                "label": label,
                                 "operstate": "IS",
                                 "provnbrots": remote_port_name,
                                 "discnbrots": remote_port_name,
@@ -315,7 +317,7 @@ def check_fiber(
             checks = (
                 scg["INTFTYP"] == "MANUALMODE-2"
                 and scg["PROVOWREMPTP"] == provowremptp
-                and description in scg["LABEL"]
+                and label in scg["LABEL"]
                 and not scg["PST"].endswith("MA")
                 and scg["HISTSTATS"] == "ENABLED"
             )
@@ -328,7 +330,7 @@ def check_fiber(
                             "expected": {
                                 "intftyp": "MANUALMODE-2",
                                 "provowremptp": provowremptp,
-                                "label": description,
+                                "label": label,
                                 "operstate": "IS",
                                 "histstats": "ENABLED",
                             },

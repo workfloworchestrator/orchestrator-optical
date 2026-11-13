@@ -152,14 +152,12 @@ def build_fiber_patch_block(
         subscription_id,
         node_a_block,
         port_a_name,
-        f"Physically connected to {node_b_block.management.optical_module_node_fqdn} {port_b_name}.",
         PORT_BLOCK_CLASS_BY_ROLE[resolve_port_role(node_a_block, port_a_name, roles_a)],
     )
     port_b = new_pipe_port_block(
         subscription_id,
         node_b_block,
         port_b_name,
-        f"Physically connected to {node_a_block.management.optical_module_node_fqdn} {port_a_name}.",
         PORT_BLOCK_CLASS_BY_ROLE[resolve_port_role(node_b_block, port_b_name, roles_b)],
     )
 

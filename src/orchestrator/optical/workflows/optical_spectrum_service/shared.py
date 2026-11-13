@@ -84,6 +84,7 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     subtract_intervals,
 )
 from orchestrator.optical.utils.datadiff import DiffResult
+from orchestrator.optical.utils.labels import endpoint
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.shared import active_instance_selector_by_block_type, used_port_names_on_node
@@ -134,11 +135,11 @@ class NoOpticalPathFoundError(RuntimeError):
         super().__init__(msg)
 
 
-def _node_fqdn(node: AbstractOpticalNodeBlockInactive) -> str:
-    """Return the fqdn of an Optical Node block, tolerating unset values."""
+def _node_name(node: AbstractOpticalNodeBlockInactive) -> str:
+    """Return the name of an Optical Node block, tolerating unset values."""
     return (
-        str(node.management.optical_module_node_fqdn)
-        if node.management.optical_module_node_fqdn is not None
+        str(node.management.optical_module_node_name)
+        if node.management.optical_module_node_name is not None
         else "<unknown>"
     )
 
@@ -251,9 +252,10 @@ def optical_spectrum_subscription_description(
 ) -> str:
     """Generate the human-readable description of an Optical Spectrum subscription.
 
-    The description is derived from the spectrum name and the product name, so
-    the same function can be reused by consumers that compose the shipped block
-    under their own attribute: pass the shipped block explicitly, otherwise it
+    The description is the spectrum name, its two add/drop ends and its passband
+    (the product name is already a column of the subscription list). The same
+    function can be reused by consumers that compose the shipped block under their
+    own attribute: pass the shipped block explicitly, otherwise it
     falls back to the ``optical_spectrum_service`` attribute of the shipped
     subscription models.
 
@@ -264,7 +266,8 @@ def optical_spectrum_subscription_description(
             attribute of the shipped subscription models.
 
     Returns:
-        The subscription description, e.g. ``"spec-01 (Optical Spectrum)"`` or
+        The subscription description, e.g.
+        ``"spec-01 flex.a 1-5-3 <-> flex.b 1-7-2 193.1000-193.1750 THz (75 GHz)"``, or
         the product name when the spectrum has no name yet.
 
     Raises:
@@ -272,9 +275,21 @@ def optical_spectrum_subscription_description(
             ``optical_spectrum_service`` attribute and no block was passed.
     """
     spectrum = optical_module_block or _optical_spectrum_block_of_subscription(subscription)
-    if spectrum.optical_spectrum_name:
-        return f"{spectrum.optical_spectrum_name} ({subscription.product.name})"
-    return subscription.product.name
+    if not spectrum.optical_spectrum_name:
+        return subscription.product.name
+    parts = [spectrum.optical_spectrum_name]
+    sections = spectrum.optical_spectrum_sections
+    if sections:
+        src = sections[0].optical_spectrum_section_add_drop_ports[0]
+        dst = sections[-1].optical_spectrum_section_add_drop_ports[-1]
+        parts.append(
+            f"{endpoint(src.optical_port_host_node, src.optical_port_name)}"
+            f" <-> {endpoint(dst.optical_port_host_node, dst.optical_port_name)}"
+        )
+    if spectrum.optical_spectrum_passband:
+        start, end = spectrum.optical_spectrum_passband
+        parts.append(f"{start / 1e6:.4f}-{end / 1e6:.4f} THz ({(end - start) / 1e3:g} GHz)")
+    return " ".join(parts)
 
 
 @step("Set Optical Spectrum subscription description")
@@ -360,7 +375,7 @@ def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlock
     results = {}
     for section in block.optical_spectrum_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[src_node.management.optical_module_node_fqdn] = ensure_optical_circuit(
+        results[src_node.management.optical_module_node_name] = ensure_optical_circuit(
             src_node,
             section,
             spectrum_name,
@@ -490,13 +505,13 @@ def delete_optical_spectrum_sections(
             OSNC CKTIDSUFFIX and as the OEL AID.
 
     Returns:
-        The diff of each source node's OSNC keyed by its FQDN and the diff of the OEL
-        keyed by ``"<FQDN>:OEL"``.
+        The diff of each source node's OSNC keyed by its node name and the diff of the OEL
+        keyed by ``"<node>:OEL"``.
     """
     results: dict[str, DiffResult] = {}
     for section in sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        results[src_node.management.optical_module_node_fqdn] = delete_optical_circuit(
+        results[src_node.management.optical_module_node_name] = delete_optical_circuit(
             src_node,
             section,
             spectrum_name,
@@ -511,7 +526,7 @@ def delete_optical_spectrum_sections(
         if node_id in seen_oel_nodes:
             continue
         seen_oel_nodes.add(node_id)
-        results[f"{src_node.management.optical_module_node_fqdn}:OEL"] = delete_optical_circuit_oel(
+        results[f"{src_node.management.optical_module_node_name}:OEL"] = delete_optical_circuit_oel(
             src_node,
             circuit_identifier,
         )
@@ -546,7 +561,7 @@ def check_optical_spectrum_add_drop_port_availability(
     used_ports = used_port_names_on_node(node_block, exclude_subscription_id=exclude_subscription_id)
     if port_name in used_ports:
         msg = (
-            f"Port {port_name} on node {node_block.management.optical_module_node_fqdn} "
+            f"Port {port_name} on node {node_block.management.optical_module_node_name} "
             "is already in use by another subscription"
         )
         raise ValueError(msg)
@@ -900,7 +915,7 @@ def _endpoint_edges(endpoint: PathEndpoint) -> dict[str, IntraNodeEdge]:
     )
     logger.debug(
         "Internal routes of add/drop port",
-        node=_node_fqdn(endpoint.node),
+        node=_node_name(endpoint.node),
         add_drop_port=endpoint.add_drop_port_name,
         line_ports=[edge.line_port for edge in edges],
     )
@@ -1032,7 +1047,7 @@ def compute_optical_path_candidates(
     try:
         paths = k_shortest_paths_through_waypoints(graph, src_vertex, dst_vertex, waypoint_node_instance_ids, k)
     except NoOpticalPathFoundError as exc:
-        raise NoOpticalPathFoundError(src=_node_fqdn(src.node), dst=_node_fqdn(dst.node)) from exc
+        raise NoOpticalPathFoundError(src=_node_name(src.node), dst=_node_name(dst.node)) from exc
     return OpticalPathCandidates(paths=paths, src_edges=src_edges, dst_edges=dst_edges)
 
 
@@ -1310,7 +1325,7 @@ def human_readable_optical_spectrum_path_selector(
     for path in paths:
         human_readable_path = ""
         first_port = _load_ols_port(path[0])
-        ne_name = _node_fqdn(first_port.optical_port_host_node)
+        ne_name = _node_name(first_port.optical_port_host_node)
         human_readable_path += f"{ne_name} ({first_port.optical_port_name}) ⇋ "
 
         for i in range(1, len(path) - 1):
@@ -1319,11 +1334,11 @@ def human_readable_optical_spectrum_path_selector(
 
             port_i = _load_ols_port(path[i])
             port_ii = _load_ols_port(path[i + 1])
-            ne_name = _node_fqdn(port_i.optical_port_host_node)
+            ne_name = _node_name(port_i.optical_port_host_node)
             human_readable_path += f"{ne_name} ({port_i.optical_port_name} × {port_ii.optical_port_name}) ⇋ "  # noqa: RUF001
 
         last_port = _load_ols_port(path[-1])
-        ne_name = _node_fqdn(last_port.optical_port_host_node)
+        ne_name = _node_name(last_port.optical_port_host_node)
         human_readable_path += f"{ne_name} ({last_port.optical_port_name})"
 
         path_subscription_ids = ";".join(str(port_id) for port_id in path)
@@ -1350,7 +1365,7 @@ def human_readable_transport_channel_path_selector(
 
             port_i = _load_ols_port(path[i])
             port_ii = _load_ols_port(path[i + 1])
-            ne_name = _node_fqdn(port_i.optical_port_host_node)
+            ne_name = _node_name(port_i.optical_port_host_node)
             human_readable_path += f"{ne_name} ({port_i.optical_port_name} × {port_ii.optical_port_name}) ⇋ "  # noqa: RUF001
             # g30.na01 (port-1/3.1/1 x port-1/3.3/1.1) <-> flex.na01 (1-E1-1-T2A x 1-A-1-L1) <-> ...
 
@@ -1643,13 +1658,13 @@ def refresh_sections_used_passbands(
             node = port.optical_port_host_node
             if node.optical_node_role not in OADM_ROLES:
                 continue
-            if node.management.optical_module_node_fqdn is None or port.optical_port_name is None:
+            if node.management.optical_module_node_name is None or port.optical_port_name is None:
                 continue
-            if node.management.optical_module_node_fqdn not in passbands_by_device:
-                passbands_by_device[node.management.optical_module_node_fqdn] = retrieve_ports_spectral_occupations(
+            if node.management.optical_module_node_name not in passbands_by_device:
+                passbands_by_device[node.management.optical_module_node_name] = retrieve_ports_spectral_occupations(
                     node
                 )
-            port.optical_passbands = passbands_by_device[node.management.optical_module_node_fqdn].get(
+            port.optical_passbands = passbands_by_device[node.management.optical_module_node_name].get(
                 port.optical_port_name, []
             )
             if (

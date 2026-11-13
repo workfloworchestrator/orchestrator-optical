@@ -21,7 +21,7 @@ from g42_8_0_2.data_models.ioa_network_element import (
     ServiceTypeEnum,
 )
 
-from orchestrator.optical.hal._common import UnsupportedPortRoleError
+from orchestrator.optical.hal._common import OpticalNodeDiscovery, UnsupportedPortRoleError
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import _shared as g42_shared
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import node as g42_node
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import port as g42_port
@@ -90,7 +90,7 @@ def _patch_g42_client(monkeypatch: pytest.MonkeyPatch, client: Any) -> None:
 
 
 def _node_block(fqdn: str | None = None) -> Any:
-    return SimpleNamespace(management=SimpleNamespace(optical_module_node_fqdn=fqdn))
+    return SimpleNamespace(management=SimpleNamespace(optical_module_node_name=fqdn))
 
 
 def _port_block(port_name: str, host_node: Any | None = None) -> Any:
@@ -349,3 +349,21 @@ def test_g42_get_signal_bandwidth_raises_when_the_channel_is_missing(monkeypatch
 
 def _optical_carrier_client(endpoint: _Endpoint) -> Any:
     return _facilities_client(optical_carrier=_Nav(child=endpoint))
+
+
+def test_g42_discover_reads_the_name_role_and_version_of_an_unmodelled_node(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _software_client(SimpleNamespace(swload_version="22.1"))
+    client.data.ioa_network_element_ne.retrieve = lambda **_: SimpleNamespace(ne_name="g42-lab-01")
+    monkeypatch.setattr(g42_node, "g42_client_for_hosts", lambda _hosts: client)
+
+    assert g42_node.discover(("192.0.2.1",)) == OpticalNodeDiscovery(
+        name="g42-lab-01", role=OpticalNodeRole.TRANSPONDER, software_version="22.1"
+    )
+
+
+def test_g42_discover_reports_no_name_when_the_device_has_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _software_client(SimpleNamespace(swload_version="22.1"))
+    client.data.ioa_network_element_ne.retrieve = lambda **_: SimpleNamespace(ne_name=None)
+    monkeypatch.setattr(g42_node, "g42_client_for_hosts", lambda _hosts: client)
+
+    assert g42_node.discover(("192.0.2.1",)).name is None

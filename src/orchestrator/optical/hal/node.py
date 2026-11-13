@@ -12,10 +12,12 @@ from typing import TYPE_CHECKING, Any
 
 from orchestrator.optical.hal._common import (
     LazyAdapter,
+    OpticalNodeDiscovery,
     UnsupportedPlatformError,
     _as_flexils_block,
     _as_g30_block,
     _as_g42_block,
+    _management_hosts,
     _vendor_platform,
 )
 from orchestrator.optical.hal.adapters.nokia_flexils.gne import FlexilsGneProvider
@@ -46,7 +48,9 @@ else:
 
 __all__ = [
     "FlexilsGneProvider",
+    "OpticalNodeDiscovery",
     "discover_flexils_node",
+    "discover_optical_node",
     "get_flex_client",
     "get_g30_client",
     "get_g42_client",
@@ -88,6 +92,59 @@ def discover_flexils_node(
         optical_flexils_gmpls_id=optical_flexils_gmpls_id,
         location=location,
     )
+
+
+def discover_optical_node(
+    vendor: Vendor,
+    platform: Platform,
+    *,
+    dcn_loopback_ip: IPAddress | None = None,
+    dcn_interface_ip: IPAddress | None = None,
+    flexils_target_id: str | None = None,
+    location: OpticalModuleLocationBlockProvisioning | None = None,
+) -> OpticalNodeDiscovery:
+    """Read what a node reports about itself, before it is modelled: name, role, software version.
+
+    This is the discovery behind the create forms: the user gives how to reach the node
+    and the rest is read from it. The NETCONF devices (Groove G30, GX G42) are reached
+    at their DCN IPs (loopback first) and report their ``ne-name``. A FlexILS node is
+    identified by its Target ID, which is also its name; it is reached at its DCN IPs
+    or, without any, through the GNE closest to its location, and it reports its GMPLS ID.
+
+    Args:
+        vendor: Vendor of the node.
+        platform: Platform of the node.
+        dcn_loopback_ip: Loopback IP of the node's DCN interface.
+        dcn_interface_ip: Interface IP of the node's DCN interface.
+        flexils_target_id: Target ID of a FlexILS node (required for FlexILS).
+        location: The Optical Location block hosting the node (FlexILS without a DCN IP).
+
+    Returns:
+        The discovered node properties.
+
+    Raises:
+        ValueError: If the node cannot be reached, identified or queried.
+        ExceptionGroup: If no DCN IP of a NETCONF device is reachable.
+        UnsupportedPlatformError: If the vendor/platform combination is not supported.
+    """
+    match (vendor, platform):
+        case (Vendor.NOKIA, Platform.FLEXILS):
+            if not flexils_target_id:
+                msg = "The Target ID is required to discover a FlexILS node"
+                raise ValueError(msg)
+            return flexils_shared.discover(
+                flexils_target_id,
+                optical_management_ip=dcn_interface_ip,
+                optical_loopback_ip=dcn_loopback_ip,
+                location=location,
+            )
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
+            return groove_g30.discover(_management_hosts(dcn_loopback_ip, dcn_interface_ip))
+        case (Vendor.NOKIA, Platform.GX_G42):
+            return gx_g42.discover(_management_hosts(dcn_loopback_ip, dcn_interface_ip))
+        case _:
+            msg = f"discover_optical_node: {vendor} {platform}"
+            raise UnsupportedPlatformError(msg)
 
 
 def get_optical_node_client(

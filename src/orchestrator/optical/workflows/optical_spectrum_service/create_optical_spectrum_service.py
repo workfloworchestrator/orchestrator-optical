@@ -58,6 +58,7 @@ from orchestrator.optical.products.product_types.optical_spectrum_service import
     OpticalSpectrumServiceSubscriptionProvisioning,
 )
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
+from orchestrator.optical.utils.labels import device_label, endpoint
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
@@ -350,7 +351,7 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
         node_a,
         roles=[OpticalPortRole.OLS_ADD_DROP],
         prompt=(
-            f"Select the Add/Drop Port on {node_a.management.optical_module_node_fqdn}."
+            f"Select the Add/Drop Port on {node_a.management.optical_module_node_name}."
             " Please be careful to select the correct port."
         ),
     )
@@ -358,7 +359,7 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
         node_b,
         roles=[OpticalPortRole.OLS_ADD_DROP],
         prompt=(
-            f"Select the Add/Drop Port on {node_b.management.optical_module_node_fqdn}."
+            f"Select the Add/Drop Port on {node_b.management.optical_module_node_name}."
             " Please be careful to select the correct port."
         ),
     )
@@ -550,19 +551,11 @@ def construct_optical_spectrum_subscription(
         subscription_id=subscription.subscription_id,
         optical_port_name=src_optical_port_name,
         optical_port_host_node=src_device,
-        optical_port_description=(
-            f"Remotely connected to {dst_device.management.optical_module_node_fqdn}"
-            f" {dst_optical_port_name} via {optical_spectrum_name}. "
-        ),
     )
     dst_port = OlsAddDropPortBlockInactive.new(
         subscription_id=subscription.subscription_id,
         optical_port_name=dst_optical_port_name,
         optical_port_host_node=dst_device,
-        optical_port_description=(
-            f"Remotely connected to {src_device.management.optical_module_node_fqdn}"
-            f" {src_optical_port_name} via {optical_spectrum_name}. "
-        ),
     )
 
     interior = [load_ols_port(port_id) for port_id in optical_path]
@@ -583,14 +576,15 @@ def construct_optical_spectrum_subscription(
 @step("Adding a description to the add/drop ports")
 @device_sessions()
 def configure_add_drop_ports_description(optical_module_block: OpticalSpectrumServiceBlockInactive) -> State:
-    """Set the port description on the device for the source and destination add/drop ports.
+    """Label the source and destination add/drop ports on the devices: ``"<spec> > <far node> <far port>"``.
 
     Operates only on the Optical Spectrum block found in the state under
     ``OPTICAL_MODULE_BLOCK_STATE_KEY``: the block is re-hydrated from its
     serialized form (see
     :func:`orchestrator.optical.workflows.optical_spectrum_service.shared.optical_spectrum_block_from_state`)
-    and the descriptions are set on the first add/drop port of the first section
-    and the last add/drop port of the last section.
+    and the labels are set on the first add/drop port of the first section
+    and the last add/drop port of the last section. They are computed from the
+    current spectrum name, so the modify workflow reruns this step after a rename.
 
     Args:
         optical_module_block: The Optical Spectrum block in the state under
@@ -602,9 +596,11 @@ def configure_add_drop_ports_description(optical_module_block: OpticalSpectrumSe
     dst_port = sections[-1].optical_spectrum_section_add_drop_ports[-1]
 
     outputs = []
-    for port in (src_port, dst_port):
-        command_output = set_port_description(port, port.optical_port_description or "")
-        outputs.append(command_output)
+    for port, far_port in ((src_port, dst_port), (dst_port, src_port)):
+        label = device_label(
+            block.optical_spectrum_name, endpoint(far_port.optical_port_host_node, far_port.optical_port_name)
+        )
+        outputs.append(set_port_description(port, label))
 
     return {"configuration_results": outputs}
 

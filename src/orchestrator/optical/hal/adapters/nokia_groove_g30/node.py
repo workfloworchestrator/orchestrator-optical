@@ -2,8 +2,12 @@
 
 from structlog import get_logger
 
+from orchestrator.optical.hal._common import OpticalNodeDiscovery, _retrieve_required
+from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import G30Client
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
+    g30_client_for_hosts,
     g30_modules,
+    g30_modules_of_client,
     g30_node_functions,
     g30_role,
     get_g30_client,
@@ -26,7 +30,11 @@ def software_version(node: NokiaGrooveG30BlockProvisioning) -> str:
     Raises:
         ValueError: If no firmware version can be found on the node.
     """
-    g30 = get_g30_client(node)
+    return _software_version(get_g30_client(node))
+
+
+def _software_version(g30: G30Client) -> str:
+    """Read the active software version over an open session (see :func:`software_version`)."""
     current_fw = g30.data.ne_ne.system.sw_management.softwareload.retrieve(content="all", depth=2)
 
     version = next(
@@ -61,4 +69,31 @@ def role(node: NokiaGrooveG30BlockProvisioning) -> OpticalNodeRole:
         ValueError: If the node has no role-relevant optical card installed.
     """
     functions = g30_node_functions(g30_modules(node))
-    return g30_role(functions, node.management.optical_module_node_fqdn)
+    return g30_role(functions, node.management.optical_module_node_name)
+
+
+def discover(hosts: tuple[str, ...]) -> OpticalNodeDiscovery:
+    """Read the name, role and software version of the Groove G30 reachable at one of ``hosts``.
+
+    This is the discovery of a node that has no block yet (create form): the name is the
+    ``ne-name`` configured on the device, the role and the version are read as for a
+    modelled node (see :func:`role` and :func:`software_version`).
+
+    Args:
+        hosts: The management IPs to try, in order.
+
+    Returns:
+        The discovered node properties; the name is ``None`` when the device has none.
+
+    Raises:
+        ValueError: If the node reports no data, no optical card or no active software load.
+        ExceptionGroup: If no host is reachable.
+    """
+    g30 = g30_client_for_hosts(hosts)
+    ne = _retrieve_required(g30.data.ne_ne.retrieve, depth=2, content="config")
+    name = (ne.ne_name or "").strip() or None
+    return OpticalNodeDiscovery(
+        name=name,
+        role=g30_role(g30_node_functions(g30_modules_of_client(g30)), name or g30.host),
+        software_version=_software_version(g30),
+    )

@@ -36,6 +36,7 @@ from orchestrator.optical.hal.reconcile import (
 from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 import NokiaGxG42BlockProvisioning
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
 from orchestrator.optical.utils.custom_types.frequencies import Frequency
+from orchestrator.optical.utils.labels import conduits_label, label_name
 
 #: Rendering units of the transponder configuration of an owner block on a node.
 LINE_SCOPE = "line"
@@ -110,6 +111,7 @@ def _create_xcon(
     direction: str,
     payload_type: str,
     label: str,
+    circuit_identifier: str,
     dst_time_slots: str,
 ) -> None:
     """Helper function to create a cross-connect on the G42 platform.
@@ -121,6 +123,7 @@ def _create_xcon(
         direction: Direction of the cross-connect.
         payload_type: Payload type for the cross-connect.
         label: Label for the cross-connect.
+        circuit_identifier: Circuit id suffix of the cross-connect (the owner block id).
         dst_time_slots: Time slots for the cross-connect.
 
     Raises:
@@ -133,7 +136,7 @@ def _create_xcon(
         payload_type=PayloadTypeEnum(payload_type),
         direction=direction,
         label=label,
-        circuit_id_suffix=label,
+        circuit_id_suffix=circuit_identifier,
         source=client,
         dst_parent_odu=dst_parent_odu,
         dst_time_slots=dst_time_slots,
@@ -283,7 +286,7 @@ def render_line_transceivers(
     fragments.append(
         fragment(
             facilities.super_channel("_".join(port_names)),
-            label="+".join(descriptions),
+            label=conduits_label(label_name(description) for description in descriptions),
             carrier_mode=modes[0],
             carriers=[f"{port_name}-1" for port_name in port_names],
             **_IN_SERVICE,
@@ -371,6 +374,7 @@ def render_transponder_crossconnect(
     line_port_names: list[str],
     xconn_description: str = "",
     *,
+    circuit_identifier: str,
     allocate: bool,
 ) -> list[Fragment]:
     """Render the cross-connect between a client port and the line ports of a GX G42.
@@ -384,6 +388,7 @@ def render_transponder_crossconnect(
         client_port_name: The client port name.
         line_port_names: List of line port names.
         xconn_description: Optional description for the cross-connect.
+        circuit_identifier: Circuit id suffix of the cross-connect: the id of the owner block.
         allocate: Whether to create the cross-connect when it does not exist yet.
 
     Returns:
@@ -409,6 +414,7 @@ def render_transponder_crossconnect(
             direction=direction,
             payload_type=payload_type,
             label=xconn_description,
+            circuit_identifier=circuit_identifier,
             dst_time_slots=_retrieve_time_slots(g42, dst_parent_odu, payload_type),
         )
         xcon = _find_xcon(g42, client, och_key, direction, payload_type)
@@ -418,7 +424,7 @@ def render_transponder_crossconnect(
     if xcon is None:
         return []
     node = g42.data.ioa_network_element_ne.services.xcon(xcon.name)
-    return [fragment(node, label=xconn_description, circuit_id_suffix=xconn_description)]
+    return [fragment(node, label=xconn_description, circuit_id_suffix=circuit_identifier)]
 
 
 def configure_line_transceivers(
@@ -541,7 +547,12 @@ def configure_transponder_crossconnect(
         ValueError: If the cross-connect cannot be created.
     """
     fragments = render_transponder_crossconnect(
-        optical_node_block, client_port_name, line_port_names, xconn_description, allocate=True
+        optical_node_block,
+        client_port_name,
+        line_port_names,
+        xconn_description,
+        circuit_identifier=str(owner_instance_id),
+        allocate=True,
     )
     return apply_config(optical_node_block, owner_instance_id, CROSSCONNECT_SCOPE.format(client_port_name), fragments)
 
@@ -560,7 +571,12 @@ def validate_trx_crossconnect(
         ValueError: If the cross-connect is missing or its configuration differs.
     """
     fragments = render_transponder_crossconnect(
-        optical_node_block, client_port_name, line_port_names, xconn_description, allocate=False
+        optical_node_block,
+        client_port_name,
+        line_port_names,
+        xconn_description,
+        circuit_identifier=str(owner_instance_id),
+        allocate=False,
     )
     if not fragments:
         msg = (

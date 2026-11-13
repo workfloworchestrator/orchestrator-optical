@@ -29,7 +29,7 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.workflows.optical_spectrum_service.shared import optical_node_selector_of_roles
 from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
-from test.support.devices import FAKE_SOFTWARE_VERSION
+from test.support.devices import FAKE_SOFTWARE_VERSION, fake_node_name
 from test.support.topology import _flexils_gmpls_id
 
 pytestmark = pytest.mark.db
@@ -50,37 +50,37 @@ def _subscription_table(subscription_id: str) -> SubscriptionTable:
 def _flexils_create_user_inputs(
     product_id: str, location_instance_id: str, fqdn: str, interface_ip: str, loopback_ip: str
 ) -> list[dict[str, Any]]:
-    """Return the create form inputs of a Nokia FlexILS node (product, customer, location, management, vendor, summary)."""  # noqa: E501
+    """Return the create form inputs of a Nokia FlexILS node (product, customer, location, vendor, management, identity, summary)."""  # noqa: E501
     return [
         {"product": product_id},
         {"customer_id": CUSTOMER_ID},
         {"location_instance_id": location_instance_id},
+        {"optical_flexils_target_id": fqdn[:20]},
         {
-            "optical_module_node_fqdn": fqdn,
-            "optical_module_node_dcn_interface_ip": interface_ip,
-            "optical_module_node_dcn_loopback_ip": loopback_ip,
+            "optical_module_node_management_ip": interface_ip,
+            "optical_module_node_management_loopback_ip": loopback_ip,
         },
-        {
-            "optical_flexils_gmpls_id": _flexils_gmpls_id(fqdn),
-            "optical_flexils_target_id": fqdn[:20],
-        },
+        {"optical_module_node_name": fqdn},
         {},
     ]
 
 
 def _transponder_create_user_inputs(
-    product_id: str, location_instance_id: str, fqdn: str, interface_ip: str, loopback_ip: str
+    product_id: str, location_instance_id: str, fqdn: str | None, interface_ip: str, loopback_ip: str
 ) -> list[dict[str, Any]]:
-    """Return the create form inputs of a G30 / G42 transponder node (product, customer, location, management, summary)."""  # noqa: E501
+    """Return the create form inputs of a G30 / G42 transponder node (product, customer, location, management, identity, summary).
+
+    Without a name the identity page is submitted empty, which keeps the name read from the device.
+    """  # noqa: E501
     return [
         {"product": product_id},
         {"customer_id": CUSTOMER_ID},
         {"location_instance_id": location_instance_id},
         {
-            "optical_module_node_fqdn": fqdn,
-            "optical_module_node_dcn_interface_ip": interface_ip,
-            "optical_module_node_dcn_loopback_ip": loopback_ip,
+            "optical_module_node_management_ip": interface_ip,
+            "optical_module_node_management_loopback_ip": loopback_ip,
         },
+        {"optical_module_node_name": fqdn} if fqdn else {},
         {},
     ]
 
@@ -117,9 +117,9 @@ def test_create_nokia_flexils_node(
     assert isinstance(block, NokiaFlexIlsBlock)
     # The role is discovered from the (stubbed) device, not taken from the form.
     assert block.optical_node_role == OpticalNodeRole.ROADM
-    assert block.management.optical_module_node_fqdn == fqdn
-    assert block.management.optical_module_node_dcn_interface_ip == "192.0.2.11"
-    assert block.management.optical_module_node_dcn_loopback_ip == "192.0.2.12"
+    assert block.management.optical_module_node_name == fqdn
+    assert block.management.optical_module_node_management_ip == "192.0.2.11"
+    assert block.management.optical_module_node_management_loopback_ip == "192.0.2.12"
     assert block.management.optical_module_node_software_version == FAKE_SOFTWARE_VERSION
     assert block.management.optical_module_node_vendor == Vendor.NOKIA
     assert block.management.optical_module_node_platform == Platform.FLEXILS
@@ -154,12 +154,36 @@ def test_create_nokia_groove_g30_node(
     block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaGrooveG30Block)
     assert block.optical_node_role == OpticalNodeRole.TRANSPONDER
-    assert block.management.optical_module_node_fqdn == fqdn
-    assert block.management.optical_module_node_dcn_interface_ip == "192.0.2.21"
-    assert block.management.optical_module_node_dcn_loopback_ip == "192.0.2.22"
+    assert block.management.optical_module_node_name == fqdn
+    assert block.management.optical_module_node_management_ip == "192.0.2.21"
+    assert block.management.optical_module_node_management_loopback_ip == "192.0.2.22"
     assert block.management.optical_module_node_software_version == FAKE_SOFTWARE_VERSION
     assert block.management.optical_module_node_vendor == Vendor.NOKIA
     assert block.management.optical_module_node_platform == Platform.GROOVE_G30
+
+
+def test_create_groove_g30_node_keeps_the_name_read_from_the_device(
+    run_process,
+    product_id_for,
+    assert_process_completed,
+    subscription_id_of_process,
+    active_location,
+    stub_node_device,
+) -> None:
+    """Submitting the identity page untouched stores the name the (stubbed) device reports."""
+    process_id = run_process(
+        "create_optical_node_nokia_groove_g30",
+        _transponder_create_user_inputs(
+            product_id_for(GROOVE_G30_PRODUCT), active_location, None, "192.0.2.61", "192.0.2.62"
+        ),
+    )
+    assert_process_completed(process_id)
+    subscription_id = subscription_id_of_process(process_id)
+
+    block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
+    # The loopback IP is the first one the node is reached at.
+    assert block.management.optical_module_node_name == fake_node_name("192.0.2.62")
+    assert _subscription_table(subscription_id).description == f"{fake_node_name('192.0.2.62')} ({GROOVE_G30_PRODUCT})"
 
 
 def test_create_nokia_gx_g42_node(
@@ -189,9 +213,9 @@ def test_create_nokia_gx_g42_node(
     block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaGxG42Block)
     assert block.optical_node_role == OpticalNodeRole.TRANSPONDER
-    assert block.management.optical_module_node_fqdn == fqdn
-    assert block.management.optical_module_node_dcn_interface_ip == "192.0.2.31"
-    assert block.management.optical_module_node_dcn_loopback_ip == "192.0.2.32"
+    assert block.management.optical_module_node_name == fqdn
+    assert block.management.optical_module_node_management_ip == "192.0.2.31"
+    assert block.management.optical_module_node_management_loopback_ip == "192.0.2.32"
     assert block.management.optical_module_node_software_version == FAKE_SOFTWARE_VERSION
     assert block.management.optical_module_node_vendor == Vendor.NOKIA
     assert block.management.optical_module_node_platform == Platform.GX_G42
@@ -219,10 +243,10 @@ def test_node_full_lifecycle_g30(
             {"subscription_id": subscription_id},
             {"customer_id": CUSTOMER_ID},
             {
-                "optical_module_node_fqdn": "g30-life-02.optical.test",
-                "optical_module_node_dcn_interface_ip": "192.0.2.41",
-                "optical_module_node_dcn_loopback_ip": "192.0.2.42",
+                "optical_module_node_management_ip": "192.0.2.41",
+                "optical_module_node_management_loopback_ip": "192.0.2.42",
             },
+            {"optical_module_node_name": "g30-life-02.optical.test"},
             {},
         ],
     )
@@ -230,9 +254,9 @@ def test_node_full_lifecycle_g30(
     # The shipped modify workflow updates and persists the block, keeping the subscription ACTIVE.
     block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaGrooveG30Block)
-    assert block.management.optical_module_node_fqdn == "g30-life-02.optical.test"
-    assert block.management.optical_module_node_dcn_interface_ip == "192.0.2.41"
-    assert block.management.optical_module_node_dcn_loopback_ip == "192.0.2.42"
+    assert block.management.optical_module_node_name == "g30-life-02.optical.test"
+    assert block.management.optical_module_node_management_ip == "192.0.2.41"
+    assert block.management.optical_module_node_management_loopback_ip == "192.0.2.42"
     # The shipped description step refreshes the subscription description from the new FQDN.
     assert _subscription_table(subscription_id).description == f"g30-life-02.optical.test ({GROOVE_G30_PRODUCT})"
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
@@ -278,21 +302,20 @@ def test_node_full_lifecycle_flexils(
             {"subscription_id": subscription_id},
             {"customer_id": CUSTOMER_ID},
             {
-                "optical_module_node_fqdn": new_fqdn,
-                "optical_module_node_dcn_interface_ip": "192.0.2.71",
-                "optical_module_node_dcn_loopback_ip": "192.0.2.72",
-            },
-            {
-                "optical_flexils_gmpls_id": _flexils_gmpls_id(new_fqdn),
                 "optical_flexils_target_id": new_fqdn[:20],
             },
+            {
+                "optical_module_node_management_ip": "192.0.2.71",
+                "optical_module_node_management_loopback_ip": "192.0.2.72",
+            },
+            {"optical_module_node_name": new_fqdn},
             {},
         ],
     )
     assert_process_completed(modify_process_id)
     block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaFlexIlsBlock)
-    assert block.management.optical_module_node_fqdn == new_fqdn
+    assert block.management.optical_module_node_name == new_fqdn
     assert _subscription_table(subscription_id).description == f"{new_fqdn} ({FLEXILS_PRODUCT})"
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
 
@@ -335,17 +358,17 @@ def test_node_full_lifecycle_g42(
             {"subscription_id": subscription_id},
             {"customer_id": CUSTOMER_ID},
             {
-                "optical_module_node_fqdn": "g42-life-02.optical.test",
-                "optical_module_node_dcn_interface_ip": "192.0.2.81",
-                "optical_module_node_dcn_loopback_ip": "192.0.2.82",
+                "optical_module_node_management_ip": "192.0.2.81",
+                "optical_module_node_management_loopback_ip": "192.0.2.82",
             },
+            {"optical_module_node_name": "g42-life-02.optical.test"},
             {},
         ],
     )
     assert_process_completed(modify_process_id)
     block = node_block_from_instance(node_instance_id_of_subscription(subscription_id))
     assert isinstance(block, NokiaGxG42Block)
-    assert block.management.optical_module_node_fqdn == "g42-life-02.optical.test"
+    assert block.management.optical_module_node_name == "g42-life-02.optical.test"
     assert _subscription_table(subscription_id).description == f"g42-life-02.optical.test ({GX_G42_PRODUCT})"
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
 

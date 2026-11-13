@@ -3,9 +3,12 @@ r"""Intra-node connectivity of a Nokia FlexILS node: add/drop port -> degree, wi
 The internal topology of a FlexILS node is rebuilt from four TL1 reads:
 
 - ``RTRV-EQPT``: the card type of every card (FRM, FBM, FSM, FMM*), which decides the
-  internal behaviour of the card (see the card rules below);
-- ``RTRV-SCG``: the SCG ports of every card and their ``PROVNBRTP``, i.e. the internal
-  patch from that port to the port of another card (e.g. ``2-A-3-L1 -> 1-A-1-S9``);
+  internal behaviour of the card (see the card rules below), and the equipment ``SERNO``;
+- ``RTRV-SCG``: the SCG ports of every card and their ``PROVNBRTP`` / ``PROVOWREMPTP``,
+  i.e. the patch from that port to the port of another card (e.g. ``2-A-3-L1 -> 1-A-1-S9``,
+  ``1-E1-1-T1A -> MA4621080160/1-A-3-L1``). A neighbor prefixed ``<serial>/`` is internal
+  when the serial is a local ``SERNO`` (the chassis), a patch to another device otherwise
+  (a transponder, another node: ignored);
 - ``RTRV-OTS``: the OTS line ports, i.e. the degrees of the node;
 - ``RTRV-OCRS``: the provisioned optical cross-connections with their ``PASSBANDLIST``,
   traced through the same internal topology to know which frequencies are already used
@@ -22,7 +25,8 @@ Card rules (the single home for the card quirks):
   be bound to a single ``L`` for the entire spectrum: once a cross-connection binds it,
   only that ``L`` is reachable. Every ``L`` is a shared resource.
 - **FMM\\*** (12:1 splitter/combiner): every ``T`` port reaches the ``L`` port, which is a
-  shared resource and is patched to an FBM ``T`` port.
+  shared resource and is patched to an FBM ``T`` port (recorded on the FBM ``T`` as
+  ``PROVOWREMPTP=<chassis SERNO>/<FMM>-L1``).
 
 Intra-card moves are upward only (``T -> L``, ``S -> OTS``); inter-card moves follow the
 ``PROVNBRTP`` patches in both directions. An OTS line port is terminal, so a route never
@@ -56,6 +60,10 @@ _TRIBUTARY = re.compile(r"^T\d+[AB]?$")
 _LINE = re.compile(r"^L\d+$")
 _SYSTEM = re.compile(r"^S\d+$")
 
+#: ``RTRV-SCG`` keys holding the far end of a patch: ``PROVNBRTP`` (e.g. FBM L -> FRM S) and
+#: ``PROVOWREMPTP`` (e.g. FBM T -> ``<chassis SERNO>/<FMM>-L1``, the FMM L has no PROVNBRTP).
+_NEIGHBOR_KEYS: tuple[str, ...] = ("PROVNBRTP", "PROVOWREMPTP")
+
 #: Card families with internal rules, keyed by the prefix of the ``RTRV-EQPT`` TYPE.
 _CARD_FAMILIES: tuple[str, ...] = ("FRM", "FBM", "FSM", "FMM")
 
@@ -76,6 +84,21 @@ def _strip_channel(aid: str) -> str:
     """Strip the ``-<channel>`` suffix of an OCRS endpoint AID (``1-A-1-S4-3`` -> ``1-A-1-S4``)."""
     head, _, tail = aid.rpartition("-")
     return head if head and tail.isdigit() else aid
+
+
+def _internal_neighbor_aid(value: str | None, local_serials: frozenset[str]) -> str | None:
+    """Return the local port AID of a ``PROVNBRTP`` value, or None when the neighbor is external.
+
+    The neighbor is a bare AID (internal), ``<serial>/<aid>`` with the serial of an
+    equipment of this node (internal, e.g. ``MA4621081160/1-A-3-L1``), or
+    ``<serial>/<aid>`` with the serial of another node (external, not an internal patch).
+    """
+    if not value:
+        return None
+    serial, separator, aid = value.rpartition("/")
+    if separator and serial not in local_serials:
+        return None
+    return aid or None
 
 
 def _passbands_of(value: Any) -> list[tuple[int, int]]:
@@ -224,12 +247,15 @@ def build_internal_topology(
             fsm_tributaries.update(_apply_card_rules(topology, card, family, ports))
     topology.fsm_tributaries = frozenset(fsm_tributaries)
 
+    local_serials = frozenset(serial for record in eqpt_records if (serial := _record_value(record, "SERNO")))
     for record in scg_records:
-        aid = _record_value(record, "AID")
-        neighbor = _record_value(record, "PROVNBRTP")
-        if aid and neighbor and neighbor != aid:
-            topology.add_edge(aid, neighbor)
-            topology.add_edge(neighbor, aid)
+        if not (aid := _record_value(record, "AID")):
+            continue
+        for key in _NEIGHBOR_KEYS:
+            neighbor = _internal_neighbor_aid(_record_value(record, key), local_serials)
+            if neighbor and neighbor != aid:
+                topology.add_edge(aid, neighbor)
+                topology.add_edge(neighbor, aid)
 
     logger.debug(
         "Built FlexILS internal topology",

@@ -55,7 +55,7 @@ def _active_subscription_ids_by_description_prefix(prefix: str) -> list[str]:
     """Return the ids of the ACTIVE subscriptions whose description starts with the prefix."""
     with core_db.db.database_scope():
         rows = core_db.db.session.scalars(
-            select(SubscriptionTable).where(SubscriptionTable.description.ilike(f"{prefix} (%"))
+            select(SubscriptionTable).where(SubscriptionTable.description.ilike(f"{prefix} %"))
         ).all()
         return [
             str(row.subscription_id)
@@ -74,9 +74,9 @@ def test_bulk_create_optical_nodes(
     flexils_fqdn = "bulk-flexils-01.optical.test"
     g30_fqdn = "bulk-g30-01.optical.test"
     csv_data = (
-        "location_code,vendor,platform,fqdn,dcn_loopback_ip,dcn_interface_ip,gmpls_id,target_id\n"
-        f"loc-01,Nokia,FlexILS,{flexils_fqdn},192.0.2.1,192.0.2.2,{_flexils_gmpls_id(flexils_fqdn)},bulk-flexils-01.opti\n"
-        f"loc-01,Nokia,Groove G30,{g30_fqdn},192.0.2.11,,,\n"
+        "location_code,vendor,platform,name,dcn_loopback_ip,dcn_interface_ip,target_id\n"
+        f"loc-01,Nokia,FlexILS,{flexils_fqdn},192.0.2.1,192.0.2.2,bulk-flexils-01.opti\n"
+        f"loc-01,Nokia,Groove G30,{g30_fqdn},192.0.2.11,,\n"
     )
     process_id = run_process("bulk_create_optical_nodes", _bulk_user_inputs(csv_data))
     assert_process_completed(process_id)
@@ -85,7 +85,7 @@ def test_bulk_create_optical_nodes(
     assert len(flexils_ids) == 1
     flexils_block = node_block_from_instance(node_instance_id_of_subscription(flexils_ids[0]))
     assert isinstance(flexils_block, NokiaFlexIlsBlock)
-    assert flexils_block.management.optical_module_node_dcn_loopback_ip == "192.0.2.1"
+    assert flexils_block.management.optical_module_node_management_loopback_ip == "192.0.2.1"
     assert flexils_block.optical_flexils_gmpls_id == _flexils_gmpls_id(flexils_fqdn)
     assert flexils_block.optical_flexils_target_id == "bulk-flexils-01.opti"
 
@@ -93,8 +93,8 @@ def test_bulk_create_optical_nodes(
     assert len(g30_ids) == 1
     g30_block = node_block_from_instance(node_instance_id_of_subscription(g30_ids[0]))
     assert isinstance(g30_block, NokiaGrooveG30Block)
-    assert g30_block.management.optical_module_node_dcn_loopback_ip == "192.0.2.11"
-    assert g30_block.management.optical_module_node_dcn_interface_ip is None
+    assert g30_block.management.optical_module_node_management_loopback_ip == "192.0.2.11"
+    assert g30_block.management.optical_module_node_management_ip is None
 
 
 def test_bulk_create_optical_pipes(
@@ -108,10 +108,10 @@ def test_bulk_create_optical_pipes(
     node_b = seed_optical_node(FLEXILS_PRODUCT, "bulk-b.optical.test", "10.9.1.12")
     node_a_block = node_block_from_instance(node_instance_id_of_subscription(node_a))
     node_b_block = node_block_from_instance(node_instance_id_of_subscription(node_b))
-    fqdn_a = node_a_block.management.optical_module_node_fqdn
-    fqdn_b = node_b_block.management.optical_module_node_fqdn
+    fqdn_a = node_a_block.management.optical_module_node_name
+    fqdn_b = node_b_block.management.optical_module_node_name
     csv_data = (
-        "pipe_type,node_a_fqdn,port_a_name,node_b_fqdn,port_b_name,optical_pipe_name,provider_name\n"
+        "pipe_type,node_a_name,port_a_name,node_b_name,port_b_name,optical_pipe_name,provider_name\n"
         f"Span,{fqdn_a},{LINE_PORT},{fqdn_b},{LINE_PORT},bulk-span-01,\n"
         f"Patch,{fqdn_a},{CLIENT_PORT},{fqdn_b},{CLIENT_PORT},bulk-patch-01,\n"
     )
@@ -150,7 +150,7 @@ def test_bulk_create_optical_pipes_amplifier_spans(
     original_retrieve = _fake_retrieve_optical_node_role_and_software_version
 
     def _retrieve_with_amplifiers(block: Any, *args: Any, **kwargs: Any) -> tuple[str, str]:
-        fqdn = str(block.management.optical_module_node_fqdn)
+        fqdn = str(block.management.optical_module_node_name)
         if "ila-" in fqdn:
             return ("Amplifier", FAKE_SOFTWARE_VERSION)
         return original_retrieve(block, *args, **kwargs)
@@ -177,7 +177,7 @@ def test_bulk_create_optical_pipes_amplifier_spans(
         assert blocks[fqdn].optical_node_role == OpticalNodeRole.AMPLIFIER
 
     csv_data = (
-        "pipe_type,node_a_fqdn,port_a_name,node_b_fqdn,port_b_name,optical_pipe_name,provider_name\n"
+        "pipe_type,node_a_name,port_a_name,node_b_name,port_b_name,optical_pipe_name,provider_name\n"
         f"Span,bulk-roadm.optical.test,{LINE_PORT},bulk-ila-1.optical.test,{LINE_PORT},bulk-amp-span-01,\n"
         f"Span,bulk-ila-2.optical.test,{LINE_PORT},bulk-ila-3.optical.test,{LINE_PORT},bulk-amp-span-02,\n"
     )

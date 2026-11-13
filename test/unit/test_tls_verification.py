@@ -41,9 +41,9 @@ def _node_block() -> Any:
     """Duck-typed node block exposing only the management fields read by the client factories."""
     return SimpleNamespace(
         management=SimpleNamespace(
-            optical_module_node_fqdn="node.example.net",
-            optical_module_node_dcn_loopback_ip=None,
-            optical_module_node_dcn_interface_ip="10.0.0.1",
+            optical_module_node_name="node.example.net",
+            optical_module_node_management_loopback_ip=None,
+            optical_module_node_management_ip="10.0.0.1",
         )
     )
 

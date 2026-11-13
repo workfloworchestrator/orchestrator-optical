@@ -34,8 +34,8 @@ def role_and_version(
         raise ValueError(msg)
     return discover_flexils_node(
         optical_flexils_target_id=target_id,
-        optical_management_ip=optical_node_block.management.optical_module_node_dcn_interface_ip,
-        optical_loopback_ip=optical_node_block.management.optical_module_node_dcn_loopback_ip,
+        optical_management_ip=optical_node_block.management.optical_module_node_management_ip,
+        optical_loopback_ip=optical_node_block.management.optical_module_node_management_loopback_ip,
         optical_flexils_gmpls_id=optical_node_block.optical_flexils_gmpls_id,
         location=optical_node_block.location,
     )

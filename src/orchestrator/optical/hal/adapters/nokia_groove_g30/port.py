@@ -51,6 +51,9 @@ _BOOSTER_SUBSLOT_ID = 2
 #: when an OTS with the same id exists and OLS add/drop ports otherwise, while a
 #: transponder exposes transponder line ports (card ports 1 and 2) or transponder client
 #: ports (every other port, subports included).
+#: Roles of the Open Line System ports, whose label is the one of the fiber terminating them.
+_OLS_ROLES = frozenset({OpticalPortRole.OLS_LINE, OpticalPortRole.OLS_ADD_DROP})
+
 _G30_SUPPORTED_ROLES = frozenset(
     {
         OpticalPortRole.OLS_LINE,
@@ -309,6 +312,7 @@ def render_termination(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
     *,
+    label: str = "",
     amplifiers: bool = True,
 ) -> list[Fragment]:
     """Render a Groove G30 port terminating a fiber that leads to the remote port.
@@ -316,11 +320,13 @@ def render_termination(
     A fiber between two ports of the same device is recorded as an internal patch; any
     other one as external connectivity to the remote node and port. The amplifier port
     of a Groove G30 facing another Groove G30 also carries the settings of its booster
-    and preamplifier, found by reading the installed cards.
+    and preamplifier, found by reading the installed cards. An Open Line System port
+    carries the label of the fiber as ``service-label``.
 
     Args:
         optical_port_block: The local port.
         remote_port_block: The remote port the fiber leads to.
+        label: The label of the fiber; the release only needs its path, not its value.
         amplifiers: Whether to render the booster and preamplifier of an amplifier port.
 
     Returns:
@@ -332,11 +338,16 @@ def render_termination(
     host_node, root, port = _host_and_root(optical_port_block)
     remote_host_node = remote_port_block.optical_port_host_node
     remote_port_name = _port_name(remote_port_block)
+    # The label of a transponder port belongs to the service it carries.
+    service_label: dict[str, Any] = (
+        {"service_label": label} if optical_port_block.optical_port_role in _OLS_ROLES else {}
+    )
     external = fragment(
         port,
         external_connectivity="yes",
         connected_to=f"{_node_id(remote_host_node)} {remote_port_name}",
         admin_status="up",
+        **service_label,
     )
 
     match (
@@ -353,6 +364,7 @@ def render_termination(
                         external_connectivity="no",
                         connected_to=f"patched to {remote_port_name}",
                         admin_status="up",
+                        **service_label,
                     )
                 ]
             shelf_id, slot_id, subslot_id, _, _ = g30_ids_from_port_name(_port_name(optical_port_block))
@@ -371,13 +383,15 @@ def render_termination(
 def configure_termination(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
+    *,
+    label: str,
 ) -> dict[str, Any]:
     """Make a Groove G30 port run the configuration of the fiber attached to it; return the applied diff."""
     return apply_config(
         optical_port_block.optical_port_host_node,
         optical_port_block.subscription_instance_id,
         TERMINATION_SCOPE,
-        render_termination(optical_port_block, remote_port_block),
+        render_termination(optical_port_block, remote_port_block, label=label),
     )
 
 
@@ -401,6 +415,8 @@ def factory_reset(
 def check_fiber(
     optical_port_block: AnyOpticalPortBlockProvisioning,
     remote_port_block: AnyOpticalPortBlockProvisioning,
+    *,
+    label: str,
 ) -> None:
     """Check that a Groove G30 port attached to a fiber runs its termination configuration.
 
@@ -414,7 +430,7 @@ def check_fiber(
         optical_port_block.optical_port_host_node,
         optical_port_block.subscription_instance_id,
         TERMINATION_SCOPE,
-        render_termination(optical_port_block, remote_port_block, amplifiers=False),
+        render_termination(optical_port_block, remote_port_block, label=label, amplifiers=False),
     )
 
 

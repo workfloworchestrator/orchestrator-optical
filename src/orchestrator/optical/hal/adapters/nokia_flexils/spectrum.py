@@ -36,6 +36,7 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     snap_passband_to_grid,
 )
 from orchestrator.optical.utils.datadiff import DiffResult, compare_jsons
+from orchestrator.optical.utils.labels import device_label
 
 logger = get_logger(__name__)
 
@@ -327,19 +328,31 @@ def delete_oel(
     return compare_jsons({"OEL": before_oel or {}}, {"OEL": after_oel or {}})
 
 
+def _converge_oel_label(flex: FlexilsClient, aid: str, oel: dict[str, Any], oel_label: str) -> dict[str, Any]:
+    """Make an existing OEL carry the given label (an in-service edit); return its record."""
+    if oel.get("LABEL", "").strip(r"\" ") == oel_label:
+        return oel
+    flex.ed_oel(aid=aid, label=_tl1_quoted(oel_label))
+    return _records(flex.rtrv_oel(aid=aid))[0]
+
+
 def _find_or_create_oel(
     oel_aid: str,
+    oel_label: str,
     source_device: NokiaFlexIlsBlockProvisioning,
     dest_device: NokiaFlexIlsBlockProvisioning,
     omses: list[tuple[AnyOpticalPortBlockProvisioning, AnyOpticalPortBlockProvisioning]],
 ) -> dict[str, Any]:
     """Find an existing OEL (Optical Engineered Lightpath) or create a new one.
 
-    The OEL access identifier is derived from the circuit identifier (the
-    subscription instance id of the circuit) instead of GARR pop codes.
+    The OEL access identifier is the circuit identifier (the subscription instance
+    id of the circuit); its label is the name of the conduit (spectrum or channel).
+    The label of an existing OEL is converged in place (``ED-OEL`` is an in-service
+    edit for the label).
 
     Args:
         oel_aid: The circuit identifier used as OEL AID.
+        oel_label: The label of the OEL.
         source_device: The source Optical Node block.
         dest_device: The destination Optical Node block.
         omses: The OMS port pairs representing the path.
@@ -358,17 +371,16 @@ def _find_or_create_oel(
     flex = _get_flex_client(source_device)
     existing = _rtrv_oel_or_none(flex, aid)
     if existing is not None:
-        return existing
+        return _converge_oel_label(flex, aid, existing, oel_label)
 
     src_name = _node_id(source_device)
     dst_name = _node_id(dest_device)
-    oel_label = f"{src_name}-{dst_name}"
 
     explicit_route = _explicit_route_from_omses(omses)
 
     flex.ent_oel(
         aid=aid,
-        label=oel_label,
+        label=_tl1_quoted(oel_label),
         srcnodename=src_name,
         dstnodename=dst_name,
         explicitroute=_tl1_list(explicit_route),
@@ -1140,6 +1152,7 @@ def ensure(
     dst_flexils_name = _node_id(dst_device)
 
     oel_aid = circuit_identifier[:127]
+    oel_label = device_label(optical_spectrum_name)
     osnc_label = f"{src_flexils_name}_{dst_flexils_name}" if label in (None, "") else label.strip()
     osnc_name = circuit_identifier or optical_spectrum_name.replace(" ", "_")
 
@@ -1147,9 +1160,9 @@ def ensure(
     before_oel = _rtrv_oel_or_none(src_flex, oel_aid)
     if before_oel is None:
         omses = _omses_from_line_ports(express_ports)
-        oel = _find_or_create_oel(oel_aid, src_device, dst_device, omses)
+        oel = _find_or_create_oel(oel_aid, oel_label, src_device, dst_device, omses)
     else:
-        oel = before_oel
+        oel = _converge_oel_label(src_flex, oel_aid, before_oel, oel_label)
 
     for port in add_drop_ports:
         _ensure_manualmode2(port)

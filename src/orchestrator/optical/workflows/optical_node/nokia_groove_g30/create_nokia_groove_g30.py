@@ -40,8 +40,8 @@ from orchestrator.optical.products.product_types.optical_node.nokia_groove_g30 i
     OpticalNodeNokiaGrooveG30SubscriptionInactive,
     OpticalNodeNokiaGrooveG30SubscriptionProvisioning,
 )
-from orchestrator.optical.utils.custom_types.dns import Fqdn
 from orchestrator.optical.utils.custom_types.ip_address import IPAddress
+from orchestrator.optical.utils.custom_types.node_name import OpticalNodeName
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
 from orchestrator.optical.workflows.optical_node.shared import (
@@ -51,8 +51,10 @@ from orchestrator.optical.workflows.optical_node.shared import (
     validate_optical_node_management_fields_uniqueness,
 )
 from orchestrator.optical.workflows.optical_node.shared.forms import (
+    create_optical_node_identity_form,
     create_optical_node_location_form,
     create_optical_node_management_form,
+    discover_new_optical_node,
 )
 from orchestrator.optical.workflows.optical_node.shared.retrieve import (
     retrieve_optical_node_role_and_software_version,
@@ -64,8 +66,10 @@ def create_optical_node_nokia_groove_g30_form_pages(product_name: str) -> FormGe
     """Yield the FormPages of the Nokia Groove G30 create form, in order.
 
     This is the shipped create form as a page sequence: it yields the location
-    page and the management page (shared with the other Optical Node vendors),
-    and returns the collected user input as a flat dict of the ``optical_*``
+    page and the management page (the DCN IPs), connects to the node to read
+    its name, role and software version, and yields the identity page, where
+    the name read from the device is confirmed or changed (pages shared with
+    the other Optical Node vendors). It returns the collected user input as a flat dict of the ``optical_*``
     state keys plus ``location_instance_id``, consumed by the shipped construct step
     (:func:`construct_optical_node_nokia_groove_g30_subscription`). Consumers
     yield from it in one line inside their own create form generator,
@@ -82,6 +86,14 @@ def create_optical_node_nokia_groove_g30_form_pages(product_name: str) -> FormGe
     user_input_dict: dict[str, str | None] = {}
     user_input_dict.update((yield create_optical_node_location_form(product_name)).model_dump())
     user_input_dict.update((yield create_optical_node_management_form(product_name)).model_dump())
+    discovery = discover_new_optical_node(
+        Vendor.NOKIA,
+        Platform.GROOVE_G30,
+        optical_module_node_management_loopback_ip=user_input_dict["optical_module_node_management_loopback_ip"],
+        optical_module_node_management_ip=user_input_dict["optical_module_node_management_ip"],
+    )
+    identity = yield create_optical_node_identity_form(product_name, discovery)
+    user_input_dict["optical_module_node_name"] = identity.optical_module_node_name
     return user_input_dict
 
 
@@ -105,9 +117,9 @@ def create_optical_node_nokia_groove_g30_form_generator(product_name: str) -> Fo
     summary_fields = [
         "customer_id",
         "location_instance_id",
-        "optical_module_node_fqdn",
-        "optical_module_node_dcn_loopback_ip",
-        "optical_module_node_dcn_interface_ip",
+        "optical_module_node_name",
+        "optical_module_node_management_loopback_ip",
+        "optical_module_node_management_ip",
     ]
     yield from create_summary_form(user_input_dict, product_name, summary_fields)
 
@@ -118,9 +130,9 @@ def populate_optical_node_nokia_groove_g30_block(
     optical_module_block: NokiaGrooveG30BlockInactive,
     *,
     location_instance_id: UUIDstr,
-    optical_module_node_fqdn: Fqdn,
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
-    optical_module_node_dcn_interface_ip: IPAddress | None = None,
+    optical_module_node_name: OpticalNodeName,
+    optical_module_node_management_loopback_ip: IPAddress | None = None,
+    optical_module_node_management_ip: IPAddress | None = None,
 ) -> None:
     """Populate a Nokia Groove G30 node block from the create-form state keys.
 
@@ -130,33 +142,33 @@ def populate_optical_node_nokia_groove_g30_block(
     This is the anti-corruption point for consumers that keep their own model:
     call it from their own construct step on the shipped block they compose,
     before their subscription model is transitioned to the PROVISIONING
-    lifecycle. It re-checks the uniqueness of the FQDN and the DCN IPs at
+    lifecycle. It re-checks the uniqueness of the node name and the DCN IPs at
     execution time, so consumers bypassing the create form are still guarded
     against duplicates.
 
     Args:
         optical_module_block: The Nokia Groove G30 node block to populate (any lifecycle variant).
         location_instance_id: Subscription instance id of the Optical Location block hosting the node.
-        optical_module_node_fqdn: Fully qualified domain name of the node.
-        optical_module_node_dcn_loopback_ip: Loopback IP of the node's DCN interface.
-        optical_module_node_dcn_interface_ip: Interface IP of the node's DCN interface.
+        optical_module_node_name: Fully qualified domain name of the node.
+        optical_module_node_management_loopback_ip: Management loopback IP of the node.
+        optical_module_node_management_ip: Management (interface) IP of the node.
 
     Raises:
-        ValueError: If the FQDN or a DCN IP is already in use by another subscription.
+        ValueError: If the node name or a DCN IP is already in use by another subscription.
     """
     exclude_subscription_id = str(optical_module_block.owner_subscription_id)
     validate_optical_node_management_fields_uniqueness(
-        optical_module_node_fqdn,
-        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
-        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        optical_module_node_name,
+        optical_module_node_management_loopback_ip=optical_module_node_management_loopback_ip,
+        optical_module_node_management_ip=optical_module_node_management_ip,
         exclude_subscription_id=exclude_subscription_id,
     )
     populate_abstract_optical_node_fields(
         optical_module_block=optical_module_block,
         location_instance_id=location_instance_id,
-        optical_module_node_fqdn=optical_module_node_fqdn,
-        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
-        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        optical_module_node_name=optical_module_node_name,
+        optical_module_node_management_loopback_ip=optical_module_node_management_loopback_ip,
+        optical_module_node_management_ip=optical_module_node_management_ip,
         optical_module_node_vendor=Vendor.NOKIA,
         optical_module_node_platform=Platform.GROOVE_G30,
     )
@@ -167,9 +179,9 @@ def construct_optical_node_nokia_groove_g30_subscription(
     product: UUIDstr,
     customer_id: UUIDstr,
     location_instance_id: UUIDstr,
-    optical_module_node_fqdn: Fqdn,
-    optical_module_node_dcn_loopback_ip: IPAddress | None = None,
-    optical_module_node_dcn_interface_ip: IPAddress | None = None,
+    optical_module_node_name: OpticalNodeName,
+    optical_module_node_management_loopback_ip: IPAddress | None = None,
+    optical_module_node_management_ip: IPAddress | None = None,
 ) -> State:
     """Construct the PROVISIONING domain subscription model for a Nokia Groove G30 Optical Node.
 
@@ -200,9 +212,9 @@ def construct_optical_node_nokia_groove_g30_subscription(
     populate_optical_node_nokia_groove_g30_block(
         optical_module_block=subscription.optical_node,
         location_instance_id=location_instance_id,
-        optical_module_node_fqdn=optical_module_node_fqdn,
-        optical_module_node_dcn_loopback_ip=optical_module_node_dcn_loopback_ip,
-        optical_module_node_dcn_interface_ip=optical_module_node_dcn_interface_ip,
+        optical_module_node_name=optical_module_node_name,
+        optical_module_node_management_loopback_ip=optical_module_node_management_loopback_ip,
+        optical_module_node_management_ip=optical_module_node_management_ip,
     )
     subscription = OpticalNodeNokiaGrooveG30SubscriptionProvisioning.from_other_lifecycle(
         subscription, SubscriptionLifecycle.PROVISIONING

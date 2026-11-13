@@ -5,6 +5,9 @@ device stubs, topology seeders); this conftest only re-exports them so pytest
 registers them in the ``test/`` scope.
 """
 
+import pytest
+
+from orchestrator.optical.hal.sessions import close_idle_device_sessions
 from test.support.applied_config import applied_config_store  # noqa: F401
 from test.support.db import (  # noqa: F401
     assert_process_completed,
@@ -27,3 +30,9 @@ from test.support.topology import (  # noqa: F401
     active_location,
     seed_optical_node,
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_device_session_outlives_a_test() -> None:
+    """Device sessions stay open between scopes: never let one test reuse the (fake) session of another."""
+    close_idle_device_sessions()
