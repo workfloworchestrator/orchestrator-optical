@@ -19,6 +19,7 @@ from typing import Any
 from g42_8_0_2.data_models.ioa_network_element import (
     PortTypeEnum,
     ServiceTypeEnum,
+    XconItem,
 )
 
 from orchestrator.optical.hal._common import OpticalNodeDiscovery, UnsupportedPortRoleError
@@ -295,34 +296,80 @@ def _xcon_client(xcons: list[Any]) -> Any:
     return _services_client(xcon=_Nav(retrieve=lambda **_: xcons))
 
 
+#: End-points as the SDK reads them from the device: RFC 7951 form, module name as prefix.
+_CLIENT_ENDPOINT = "/ioa-network-element:ne/facilities/ethernet[name='1-4-T1']"
+_LINE_ENDPOINT = "/ioa-network-element:ne/facilities/odu[name='1-4-L1-1-ODUflexi-1']"
+
+
 def test_g42_find_xcon_returns_the_matching_cross_connect(monkeypatch: pytest.MonkeyPatch) -> None:
     match = _Model(
-        source="/client",
-        destination="/line/1-4-L1",
+        source=_CLIENT_ENDPOINT,
+        destination=_LINE_ENDPOINT,
         payload_type="100GBE",
         direction="two-way",
     )
     _patch_g42_client(monkeypatch, _xcon_client([match]))
-    found = _find_xcon(g42_shared.get_g42_client(SimpleNamespace()), "/client", "1-4-L1", "two-way", "100GBE")
+    found = _find_xcon(g42_shared.get_g42_client(SimpleNamespace()), "1-4-T1", "1-4-L1-1", "two-way", "100GBE")
     assert found is match
+
+
+def test_g42_find_xcon_matches_the_end_points_as_the_sdk_reads_them(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The cross-connect just created by ``create-xcon`` is found, whatever the prefix it was requested with."""
+    created = XconItem(name="1", source=_CLIENT_ENDPOINT, destination=_LINE_ENDPOINT, payload_type="400GBE")
+    assert created.source != g42_transponder._client_path("1-4-T1")  # noqa: SLF001
+    _patch_g42_client(monkeypatch, _xcon_client([created]))
+    found = _find_xcon(g42_shared.get_g42_client(SimpleNamespace()), "1-4-T1", "1-4-L1-1", "two-way", "400GBE")
+    assert found is created
+
+
+def test_g42_find_xcon_ignores_the_cross_connects_of_other_clients(monkeypatch: pytest.MonkeyPatch) -> None:
+    other = _Model(
+        source="/ioa-network-element:ne/facilities/ethernet[name='1-4-T11']",
+        destination=_LINE_ENDPOINT,
+        payload_type="100GBE",
+        direction="two-way",
+    )
+    _patch_g42_client(monkeypatch, _xcon_client([other]))
+    assert _find_xcon(g42_shared.get_g42_client(SimpleNamespace()), "1-4-T1", "1-4-L1-1", "two-way", "100GBE") is None
 
 
 def test_g42_find_xcon_rejects_a_tributary_that_is_already_connected(monkeypatch: pytest.MonkeyPatch) -> None:
     other = _Model(
-        source="/client",
-        destination="/line/1-4-L2",
+        source=_CLIENT_ENDPOINT,
+        destination="/ioa-network-element:ne/facilities/odu[name='1-4-L2-1-ODUflexi-1']",
         payload_type="400GBE",
         direction="two-way",
     )
     _patch_g42_client(monkeypatch, _xcon_client([other]))
     with pytest.raises(ValueError, match="already cross-connected"):
-        _find_xcon(g42_shared.get_g42_client(SimpleNamespace()), "/client", "1-4-L1", "two-way", "100GBE")
+        _find_xcon(g42_shared.get_g42_client(SimpleNamespace()), "1-4-T1", "1-4-L1-1", "two-way", "100GBE")
 
 
 def test_g42_find_xcon_returns_none_when_the_device_has_no_xcon(monkeypatch: pytest.MonkeyPatch) -> None:
     """An empty xcon list reads as no data (None) over NETCONF."""
     _patch_g42_client(monkeypatch, _services_client(xcon=_Nav(retrieve=lambda **_: None)))
-    assert _find_xcon(g42_shared.get_g42_client(SimpleNamespace()), "/client", "1-4-L1", "two-way", "100GBE") is None
+    assert _find_xcon(g42_shared.get_g42_client(SimpleNamespace()), "1-4-T1", "1-4-L1-1", "two-way", "100GBE") is None
+
+
+def test_g42_delete_crossconnect_releases_the_ones_found_for_the_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A cross-connect of the client port is released even when it was never recorded."""
+    mine = _Model(name="1", source=_CLIENT_ENDPOINT, destination=_LINE_ENDPOINT, label="svc")
+    other = _Model(
+        name="2",
+        source="/ioa-network-element:ne/facilities/ethernet[name='1-4-T2']",
+        destination=_LINE_ENDPOINT,
+        label="other",
+    )
+    _patch_g42_client(monkeypatch, _services_client(xcon=_Nav("xcon-node", retrieve=lambda **_: [mine, other])))
+    monkeypatch.setattr(g42_transponder, "fragment", lambda node, **leaves: (node, leaves))
+    released: list[Any] = []
+    monkeypatch.setattr(
+        g42_transponder, "release_config", lambda _block, _owner, scope, found: released.append((scope, found)) or {}
+    )
+
+    g42_transponder.delete_transponder_crossconnect(SimpleNamespace(), "1-4-T1", owner_instance_id="owner")
+
+    assert released == [("crossconnect:1-4-T1", [("xcon-node", {"label": "svc"})])]
 
 
 def _super_channel_client(channels: list[Any]) -> Any:

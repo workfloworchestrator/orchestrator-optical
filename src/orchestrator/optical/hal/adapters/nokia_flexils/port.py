@@ -5,10 +5,11 @@ from typing import Any, Literal
 
 from orchestrator.optical.hal._common import (
     UnsupportedPortRoleError,
+    _all_ports,
     _extract_remote_port_id,
     _node_id,
     _port_name,
-    _ports_by_role,
+    _ports_grouped_by_role,
 )
 from orchestrator.optical.hal.adapters.nokia_flexils._sdk import TL1DeniedError
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import (
@@ -40,11 +41,11 @@ def _scg_aids(flex: FlexilsClient) -> list[str]:
         return []
 
 
-def get_device_ports_by_role(
+def get_device_ports_grouped_by_role(
     optical_node_block: NokiaFlexIlsBlockProvisioning,
     roles: list[OpticalPortRole] | None = None,
-) -> list[str]:
-    """Return the device port names of a Nokia FlexILS node for the requested Optical Port roles.
+) -> dict[OpticalPortRole, list[str]]:
+    """Return the device port names of a Nokia FlexILS node for the requested Optical Port roles, keyed by role.
 
     A FlexILS node exposes OLS line ports (OTS AIDs) and OLS add/drop tributary ports (SCG AIDs);
     it cannot enumerate transponder or coherent pluggable ports.
@@ -59,7 +60,15 @@ def get_device_ports_by_role(
         msg = f"Nokia FlexILS does not support port role {role.value}"
         raise UnsupportedPortRoleError(msg)
 
-    return _ports_by_role(_FLEXILS_SUPPORTED_ROLES, port_names_for_role, roles)
+    return _ports_grouped_by_role(_FLEXILS_SUPPORTED_ROLES, port_names_for_role, roles)
+
+
+def get_device_ports_by_role(
+    optical_node_block: NokiaFlexIlsBlockProvisioning,
+    roles: list[OpticalPortRole] | None = None,
+) -> list[str]:
+    """Return the de-duplicated device port names of the node for the requested Optical Port roles."""
+    return _all_ports(get_device_ports_grouped_by_role(optical_node_block, roles))
 
 
 def set_port_description(

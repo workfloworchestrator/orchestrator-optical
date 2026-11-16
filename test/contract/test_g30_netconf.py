@@ -21,6 +21,7 @@ from g30_4_8_0.data_models.ne import (
     CardTypeEnum,
     OduTypeEnum,
 )
+from lxml import etree
 
 from orchestrator.optical.hal._common import OpticalNodeDiscovery
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import _shared as g30_shared
@@ -363,6 +364,9 @@ def _slot(slot_id: int, card_type: CardTypeEnum, subcards: list[CardTypeEnum] | 
     return SimpleNamespace(slot_id=slot_id, card=card)
 
 
+_NE_NS = "http://coriant.com/yang/os/ne"
+
+
 def _shelf_client(
     slots: list[Any],
     fqdn: str = "g30.example.net",
@@ -371,8 +375,13 @@ def _shelf_client(
     """Return a fake G30 client exposing the given slots and no OTS."""
     management = management or SimpleNamespace(optical_module_node_name=fqdn)
     optical_interfaces = SimpleNamespace(ots=[])
+    card_types = etree.Element(f"{{{_NE_NS}}}ne")
+    for slot in slots:
+        for card in (slot.card, *(subslot.subcard for subslot in slot.card.subslot)):
+            etree.SubElement(card_types, f"{{{_NE_NS}}}required-type").text = card.required_type.value
     return SimpleNamespace(
         url=f"https://{fqdn}",
+        retrieve=lambda **_: card_types,
         data=SimpleNamespace(
             ne_ne=SimpleNamespace(
                 shelf=SimpleNamespace(retrieve=lambda **_: [SimpleNamespace(shelf_id=1, slot=slots)]),
@@ -419,6 +428,14 @@ def test_g30_role_follows_the_installed_cards(
 ) -> None:
     _patch_g30_client(monkeypatch, _shelf_client(slots))
     assert g30_node.role(_node()) is expected
+
+
+def test_g30_role_does_not_read_the_shelf_tree(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The role needs the card types only: the shelf configuration tree is never requested."""
+    client = _shelf_client([_slot(1, CardTypeEnum.CHM2)])
+    client.data.ne_ne.shelf.retrieve = lambda **_: pytest.fail("the node role must not read the shelf tree")
+    _patch_g30_client(monkeypatch, client)
+    assert g30_node.role(_node()) is OpticalNodeRole.TRANSPONDER
 
 
 def test_g30_role_with_only_housekeeping_cards_raises(monkeypatch: pytest.MonkeyPatch) -> None:

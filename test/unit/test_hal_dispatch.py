@@ -140,6 +140,7 @@ def test_node_dispatchers_reject_unsupported_platform(call: Any) -> None:
 
 _PORT_UNSUPPORTED_CALLS = [
     pytest.param(lambda node: hal_port.get_device_ports_by_role(node), id="get_device_ports_by_role"),
+    pytest.param(lambda node: hal_port.get_device_ports_grouped_by_role(node), id="get_device_ports_grouped_by_role"),
     pytest.param(lambda node: hal_port.retrieve_transceiver_modes(node, "port-1/2/3"), id="retrieve_transceiver_modes"),
     pytest.param(lambda node: hal_port.set_channel_description(node, "1/1/1", "desc"), id="set_channel_description"),
     pytest.param(lambda node: hal_port.set_port_description(_port(node), "desc"), id="set_port_description"),
@@ -423,6 +424,21 @@ def test_retrieve_ports_spectral_occupations_dispatches_to_flexils(monkeypatch: 
 
     assert hal_node.retrieve_ports_spectral_occupations(block) == {"port-1": [(1, 2)]}
     assert recorder.calls == [((block,), {})]
+
+
+def test_get_device_ports_grouped_by_role_dispatches_per_vendor(monkeypatch: pytest.MonkeyPatch) -> None:
+    roles = [OpticalPortRole.OLS_LINE]
+    flex = _patch(monkeypatch, flexils_port, "get_device_ports_grouped_by_role", {roles[0]: ["flex-port"]})
+    g30 = _patch(monkeypatch, g30_port, "get_device_ports_grouped_by_role", {roles[0]: ["g30-port"]})
+    g42 = _patch(monkeypatch, g42_port, "get_device_ports_grouped_by_role", {roles[0]: ["g42-port"]})
+    flexils_block, g30_block, g42_block = _flexils_node(), _g30_node(), _g42_node()
+
+    assert hal_port.get_device_ports_grouped_by_role(flexils_block, roles) == {roles[0]: ["flex-port"]}
+    assert hal_port.get_device_ports_grouped_by_role(g30_block, roles) == {roles[0]: ["g30-port"]}
+    assert hal_port.get_device_ports_grouped_by_role(g42_block, roles) == {roles[0]: ["g42-port"]}
+    assert flex.calls == [((flexils_block, roles), {})]
+    assert g30.calls == [((g30_block, roles), {})]
+    assert g42.calls == [((g42_block, roles), {})]
 
 
 def test_get_device_ports_by_role_dispatches_per_vendor(monkeypatch: pytest.MonkeyPatch) -> None:

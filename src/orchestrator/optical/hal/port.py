@@ -19,6 +19,7 @@ from orchestrator.optical.hal._common import (
     _as_g42_block,
     _vendor_platform,
 )
+from orchestrator.optical.hal.read_cache import cached_device_read
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
@@ -39,6 +40,7 @@ __all__ = [
     "configure_termination_when_attaching_new_fiber",
     "factory_reset_port_configuration",
     "get_device_ports_by_role",
+    "get_device_ports_grouped_by_role",
     "get_transceiver_capacity_from_mode",
     "is_transponder_line_port",
     "parse_port_identifiers",
@@ -50,6 +52,7 @@ __all__ = [
 ]
 
 
+@cached_device_read
 def get_device_ports_by_role(
     optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     roles: list[OpticalPortRole] | None = None,
@@ -86,6 +89,42 @@ def get_device_ports_by_role(
             raise UnsupportedPlatformError(msg)
 
 
+@cached_device_read
+def get_device_ports_grouped_by_role(
+    optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
+    roles: list[OpticalPortRole] | None = None,
+) -> dict[OpticalPortRole, list[str]]:
+    """Retrieve the device port names of an Optical Node for the requested roles, keyed by role.
+
+    Same enumeration as :func:`get_device_ports_by_role`, for callers that need to know
+    the role of a port: asking once for every candidate role costs a single enumeration
+    of the node, where one call per role repeats the device reads.
+
+    Args:
+        optical_node_block: Optical Node of which the optical ports are to be retrieved.
+        roles: The Optical Port roles to retrieve. ``None`` (the default) retrieves every role the
+            node's vendor/platform supports.
+
+    Returns:
+        The device port names of each requested role.
+
+    Raises:
+        UnsupportedPortRoleError: If a requested role is not supported by the node's vendor/platform.
+        UnsupportedPlatformError: If the Optical Node is not supported by this operation.
+    """
+    match _vendor_platform(optical_node_block):
+        case (Vendor.NOKIA, Platform.FLEXILS):
+            return flexils.get_device_ports_grouped_by_role(_as_flexils_block(optical_node_block), roles)
+        case (Vendor.NOKIA, Platform.GROOVE_G30):
+            return groove_g30.get_device_ports_grouped_by_role(_as_g30_block(optical_node_block), roles)
+        case (Vendor.NOKIA, Platform.GX_G42):
+            return gx_g42.get_device_ports_grouped_by_role(_as_g42_block(optical_node_block), roles)
+        case _:
+            msg = f"get_device_ports_grouped_by_role: {type(optical_node_block).__name__}"
+            raise UnsupportedPlatformError(msg)
+
+
+@cached_device_read
 def retrieve_transceiver_modes(optical_node_block: AnyOpticalNodeBlockProvisioningUnion, port_name: str) -> list[str]:
     """Retrieve the list of supported transceiver modes for a specific port on an Optical Node.
 

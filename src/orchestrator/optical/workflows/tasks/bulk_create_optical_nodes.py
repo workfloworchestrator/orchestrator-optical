@@ -112,7 +112,7 @@ def _one_of(values: Iterable[str]) -> str:
 _NODE_NAME_ADAPTER = TypeAdapter(OpticalNodeName)
 _IP_ADAPTER = TypeAdapter(IPAddress)
 _TARGET_ID_ADAPTER = TypeAdapter(FlexIlsTargetId)
-_INSTRUCTIONS = """## Instructions
+_INSTRUCTIONS = f"""## Instructions
 
 Write **one line per node** below the header line.
 
@@ -125,8 +125,8 @@ Write **one line per node** below the header line.
 | Column | Description |
 | --- | --- |
 | `location_code` | **REQUIRED.** Code of the Optical Location hosting the node. The location must already exist and be active. |
-| `vendor` | **REQUIRED.** {\_one\_of(dict.fromkeys(vendor.value for vendor, \_ in \_NODE\_TARGETS))}. |
-| `platform` | **REQUIRED.** {\_one\_of(platform.value for \_, platform in \_NODE\_TARGETS)}. Must be spelled exactly as specified. |
+| `vendor` | **REQUIRED.** {_one_of(dict.fromkeys(vendor.value for vendor, _ in _NODE_TARGETS))}. |
+| `platform` | **REQUIRED.** {_one_of(platform.value for _, platform in _NODE_TARGETS)}. Must be spelled exactly as specified. |
 | `name` | Optional. Name displayed for the node in the orchestrator. Leave empty to use the name configured on the device. |
 | `dcn_loopback_ip` | IPv4 or IPv6 management address used to reach the node. |
 | `dcn_interface_ip` | IPv4 or IPv6 management address used to reach the node. |
@@ -158,9 +158,11 @@ csv
 
 ```csv
 loc-01,Nokia,FlexILS,,,,FLEX-01
-```
+````
 
-**Groove G30**
+Groove G30
+
+csv
 
 csv
 
@@ -168,7 +170,9 @@ csv
 loc-01,Nokia,Groove G30,g30-01,192.0.2.11,198.51.100.11,
 ```
 
-**GX G42 (name read from the device)**
+GX G42 (name read from the device)
+
+csv
 
 csv
 
@@ -179,8 +183,8 @@ loc-02,Nokia,GX G42,,,198.51.100.22,
 ### ⚠️ Warning
 
 - This task will launch a sub-workflow for each optical node.
-- **Make sure all referenced locations already exist in WFO.** Otherwise, the sub-workflows will fail.
-- You can monitor the progress of each sub-workflow on the **Subscriptions** page."""
+- Make sure all referenced locations already exist in WFO. Otherwise, the sub-workflows will fail.
+- You can monitor the progress of each sub-workflow on the Subscriptions page."""
 
 Markdown = markdown(content=_INSTRUCTIONS)
 Achtung = Annotated[
@@ -559,6 +563,7 @@ class BulkCreateOpticalNodesForm(FormPage):
     when it is required: one label per column, then one example row per
     platform (labels are single lines in the UI).
     """
+
     markdown: Markdown
     csv_data: CsvData
     delimiter: Delimiter

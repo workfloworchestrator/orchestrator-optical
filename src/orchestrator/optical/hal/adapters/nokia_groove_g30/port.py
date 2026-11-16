@@ -9,9 +9,10 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from orchestrator.optical.hal._common import (
+    _all_ports,
     _node_id,
     _port_name,
-    _ports_by_role,
+    _ports_grouped_by_role,
     _retrieve_required,
     _same_node,
 )
@@ -25,9 +26,11 @@ from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     G30Module,
     g30_ids_from_port_name,
     g30_modules,
+    g30_modules_of_shelves,
     g30_och_os_node,
     g30_ots_id,
     g30_port_node,
+    g30_shelves,
     get_g30_client,
 )
 from orchestrator.optical.hal.adapters.nokia_groove_g30.transponder import _get_modulation_and_rate_from_mode
@@ -93,12 +96,12 @@ def _g30_port_role(
 def _g30_port_roles(optical_node_block: NokiaGrooveG30BlockProvisioning) -> dict[str, OpticalPortRole]:
     """Return the role of every port of a Groove G30 node, keyed by the device port name."""
     g30 = get_g30_client(optical_node_block)
-    shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
-
-    modules_by_id = {(module.slot_id, module.subslot_id): module for module in g30_modules(optical_node_block)}
+    shelves = g30_shelves(g30)
+    modules = g30_modules_of_shelves(g30, shelves)
+    modules_by_id = {(module.slot_id, module.subslot_id): module for module in modules}
 
     port_roles: dict[str, OpticalPortRole] = {}
-    for shelf in shelves or []:
+    for shelf in shelves:
         for slot in shelf.slot or []:
             if slot.slot_id > G30_MAX_SLOT_ID or not slot.card:
                 continue
@@ -137,11 +140,11 @@ def _g30_port_roles(optical_node_block: NokiaGrooveG30BlockProvisioning) -> dict
     return port_roles
 
 
-def get_device_ports_by_role(
+def get_device_ports_grouped_by_role(
     optical_node_block: NokiaGrooveG30BlockProvisioning,
     roles: list[OpticalPortRole] | None = None,
-) -> list[str]:
-    """Return the device port names of a Groove G30 node for the requested Optical Port roles.
+) -> dict[OpticalPortRole, list[str]]:
+    """Return the device port names of a Groove G30 node for the requested Optical Port roles, keyed by role.
 
     Each physical port has exactly one role, determined from the device (see
     :func:`_g30_port_roles`): OCC2 card ports are OLS line ports when an OTS with the
@@ -153,7 +156,15 @@ def get_device_ports_by_role(
     def port_names_for_role(role: OpticalPortRole) -> list[str]:
         return [name for name, port_role in port_roles.items() if port_role is role]
 
-    return _ports_by_role(_G30_SUPPORTED_ROLES, port_names_for_role, roles)
+    return _ports_grouped_by_role(_G30_SUPPORTED_ROLES, port_names_for_role, roles)
+
+
+def get_device_ports_by_role(
+    optical_node_block: NokiaGrooveG30BlockProvisioning,
+    roles: list[OpticalPortRole] | None = None,
+) -> list[str]:
+    """Return the de-duplicated device port names of the node for the requested Optical Port roles."""
+    return _all_ports(get_device_ports_grouped_by_role(optical_node_block, roles))
 
 
 def retrieve_transceiver_modes(optical_node_block: NokiaGrooveG30BlockProvisioning, port_name: str) -> list[str]:

@@ -94,8 +94,7 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
 )
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
-    create_optical_spectrum_constraints_form,
-    create_optical_spectrum_waypoints_form,
+    create_optical_spectrum_routing_form,
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     NO_OPTICAL_PATH_FOUND_MSG,
@@ -631,7 +630,7 @@ def create_optical_digital_service_form_pages(product_name: str) -> FormGenerato
     page (name, endpoints and transport channel names — the names ARE the
     new-vs-reuse fork), the client ports page, and then, only for new
     transport channels, the lines page, the channels page (mode), the
-    waypoints page, the constraints page, the path page and the frequencies page.
+    routing page, the path page and the frequencies page.
     It returns the collected user input as a flat dict of the state keys,
     consumed by the shipped construct step
     (:func:`construct_optical_digital_service_subscription`). The customer of
@@ -720,7 +719,7 @@ def _yield_line_ports_pages(
 
 
 def _yield_routing_constraint_pages(product_name: str) -> FormGenerator:
-    """Yield the waypoints and constraints pages shared with the spectrum create form.
+    """Yield the routing page (waypoints and exclusions) shared with the spectrum create form.
 
     Returns the collected input (``intermediate_node_instance_ids``,
     ``exclude_node_instance_ids``, ``exclude_pipe_instance_ids``); the caller merges it.
@@ -729,14 +728,12 @@ def _yield_routing_constraint_pages(product_name: str) -> FormGenerator:
         product_name: Name of the product being created.
 
     Returns:
-        The collected user input of the routing pages.
+        The collected user input of the routing page.
     """
     waypoints_choice = multiple_optical_node_selector(
         roles=LINE_SYSTEM_ROLES,
-        prompt="Which Optical Nodes must the path pass through?",
+        prompt="Which Optical Nodes must the path pass through? [ordered src -> dst]",
     )
-    collected = (yield create_optical_spectrum_waypoints_form(product_name, waypoints_choice)).model_dump()
-
     exclude_nodes_choice = multiple_optical_node_selector(
         roles=LINE_SYSTEM_ROLES,
         prompt="Do *not* pass through these Optical Nodes",
@@ -744,12 +741,10 @@ def _yield_routing_constraint_pages(product_name: str) -> FormGenerator:
     exclude_spans_choice = multiple_optical_pipe_selector(
         prompt="Do *not* pass through these Optical Pipes",
     )
-    collected.update(
-        (
-            yield create_optical_spectrum_constraints_form(product_name, exclude_nodes_choice, exclude_spans_choice)
-        ).model_dump()
+    page = yield create_optical_spectrum_routing_form(
+        product_name, waypoints_choice, exclude_nodes_choice, exclude_spans_choice
     )
-    return collected
+    return page.model_dump()
 
 
 def _yield_new_channel_spec_pages(
@@ -761,7 +756,7 @@ def _yield_new_channel_spec_pages(
     """Yield the new-channel spec pages of the Optical Digital Service create form.
 
     Only shown for new transport channels: the channels page (mode), the
-    waypoints page, the constraints page, the path page (the K shortest paths
+    routing page, the path page (the K shortest paths
     regardless of frequency) and the frequencies page (the free ranges of the
     chosen path). Returns the collected input; the caller merges it.
 

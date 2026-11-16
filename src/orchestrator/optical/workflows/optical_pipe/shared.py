@@ -33,6 +33,7 @@ from orchestrator.optical.hal.port import (
     check_fiber_terminating_port,
     configure_termination_when_attaching_new_fiber,
     get_device_ports_by_role,
+    get_device_ports_grouped_by_role,
 )
 from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import (
@@ -199,7 +200,9 @@ def resolve_port_role(
         ValueError: If the port is not one of the given roles on the node, or if
             it matches more than one of them (the device roles must be disjoint).
     """
-    matching_roles = [role for role in roles if port_name in get_pipe_ports(node_block, [role])]
+    # One enumeration for all the roles: asking role by role repeats the device reads.
+    ports_by_role = get_device_ports_grouped_by_role(node_block, roles)
+    matching_roles = [role for role, port_names in ports_by_role.items() if port_name in port_names]
     if len(matching_roles) == 1:
         return matching_roles[0]
     if len(matching_roles) > 1:
@@ -236,15 +239,13 @@ def optical_pipe_subscription_description(
     Returns:
         The subscription description, e.g. ``"OF-778812 flex.a 1-3-L1 <-> flex.b 1-4-L1"``: the
         name when the user gave one, then the two ends (the product name is already a column
-        of the subscription list). The product name when the pipe has no name yet.
+        of the subscription list). The two ends alone when the pipe has the default name.
 
     Raises:
         ValueError: If the subscription has no Optical Pipe block under the
             ``optical_pipe`` attribute and no block was passed.
     """
     pipe = optical_module_block or subscription.optical_pipe
-    if not pipe.optical_pipe_name:
-        return subscription.product.name
     port_a, port_b, name = _pipe_ends_and_user_name(pipe)
     ends = (
         f"{endpoint(port_a.optical_port_host_node, port_a.optical_port_name)}"
@@ -679,12 +680,7 @@ def new_optical_pipe_subscription(
 def _pipe_ends_and_user_name(pipe_block: Any) -> tuple[Any, Any, str]:
     """Return the two terminations of a pipe and its name without the default identifier."""
     port_a, port_b = pipe_block.optical_pipe_terminations
-    default = default_pipe_identifier(
-        port_a.optical_port_host_node,
-        str(port_a.optical_port_name),
-        port_b.optical_port_host_node,
-        str(port_b.optical_port_name),
-    )
+    default = default_pipe_identifier_of(pipe_block)
     return port_a, port_b, (pipe_block.optical_pipe_name or "").replace(default, "").strip()
 
 
@@ -713,6 +709,17 @@ def default_pipe_identifier(
     return (
         f"{node_a_block.management.optical_module_node_name} {port_a_name}"
         f" --- {node_b_block.management.optical_module_node_name} {port_b_name}"
+    )
+
+
+def default_pipe_identifier_of(pipe_block: Any) -> str:
+    """Return the default identifier of an existing pipe, from its two terminations."""
+    port_a, port_b = pipe_block.optical_pipe_terminations
+    return default_pipe_identifier(
+        port_a.optical_port_host_node,
+        str(port_a.optical_port_name),
+        port_b.optical_port_host_node,
+        str(port_b.optical_port_name),
     )
 
 
@@ -905,7 +912,8 @@ def modify_optical_pipe_form(pipe: AbstractOpticalPipeBlock) -> type[FormPage]:
     """Return the modify FormPage of an Optical Pipe subscription.
 
     The page is prefilled with the current ``optical_pipe_name`` of the
-    block, so unchanged fields remain intact.
+    block, so unchanged fields remain intact. The name may be left empty to
+    go back to the default identifier (see :func:`modify_optical_pipe_form_pages`).
 
     Args:
         pipe: The Optical Pipe block being modified.
@@ -915,7 +923,11 @@ def modify_optical_pipe_form(pipe: AbstractOpticalPipeBlock) -> type[FormPage]:
     """
 
     class ModifyOpticalPipeForm(FormPage):
-        optical_pipe_name: str = pipe.optical_pipe_name
+        optical_pipe_name: str | None = Field(
+            pipe.optical_pipe_name,
+            title="Pipe Identifier",
+            description="Unique pipe ID or code. Leave empty to use the default 'node A port A --- node B port B'.",
+        )
 
     return ModifyOpticalPipeForm
 
@@ -925,8 +937,10 @@ def modify_optical_pipe_form_pages(pipe: AbstractOpticalPipeBlock) -> FormGenera
 
     This is the shipped modify form as a page sequence: it yields the prefilled
     modify page and returns the collected user input as a flat dict of the
-    ``optical_*`` state keys, consumed by the shipped modify steps. The customer
-    of the subscription is collected separately by the consumer (see
+    ``optical_*`` state keys, consumed by the shipped modify steps. A name left
+    empty (or blank) becomes the default identifier of the pipe, as on the
+    create form. The customer of the subscription is collected separately by
+    the consumer (see
     :func:`orchestrator.optical.workflows.customer.customer_choice_form_page`).
 
     Args:
@@ -935,8 +949,10 @@ def modify_optical_pipe_form_pages(pipe: AbstractOpticalPipeBlock) -> FormGenera
     Returns:
         The collected user input of the shipped pages.
     """
-    user_input = yield modify_optical_pipe_form(pipe)
-    return user_input.model_dump()
+    user_input_dict = (yield modify_optical_pipe_form(pipe)).model_dump()
+    name = (user_input_dict["optical_pipe_name"] or "").strip()
+    user_input_dict["optical_pipe_name"] = name or default_pipe_identifier_of(pipe)
+    return user_input_dict
 
 
 def modify_optical_pipe_form_generator(
@@ -984,6 +1000,7 @@ __all__ = [
     "create_optical_pipe_form_generator",
     "create_pipe_form_pages",
     "default_pipe_identifier",
+    "default_pipe_identifier_of",
     "get_pipe_ports",
     "load_optical_pipe_block",
     "modify_optical_pipe_form",

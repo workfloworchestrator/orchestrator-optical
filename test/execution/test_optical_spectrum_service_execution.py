@@ -185,7 +185,7 @@ def _create_user_inputs(
 
     The core injects the product page first; the shipped generator then yields the
     customer page, the identity page, the two-nodes page, the add/drop page, the
-    waypoints page, the constraints page, the path page, the frequency page and the
+    routing page, the path page, the frequency page and the
     summary page.
     """
     return [
@@ -194,8 +194,7 @@ def _create_user_inputs(
         {"optical_spectrum_name": name},
         {"src_optical_node_instance_id": node_a_instance_id, "dst_optical_node_instance_id": node_b_instance_id},
         {"src_optical_port_name": src_port, "dst_optical_port_name": dst_port},
-        {"intermediate_node_instance_ids": []},
-        {"exclude_node_instance_ids": [], "exclude_pipe_instance_ids": []},
+        {"intermediate_node_instance_ids": [], "exclude_node_instance_ids": [], "exclude_pipe_instance_ids": []},
         {"optical_path": optical_path},
         {"frequency_min": passband[0], "frequency_max": passband[1]},
         {},
@@ -337,8 +336,7 @@ def test_full_lifecycle_create_modify_validate_terminate(
             {"subscription_id": subscription_id},
             {"customer_id": CUSTOMER_ID},
             {"optical_spectrum_name": MODIFIED_SPECTRUM_NAME},
-            {"intermediate_node_instance_ids": []},
-            {"exclude_node_instance_ids": [], "exclude_pipe_instance_ids": []},
+            {"intermediate_node_instance_ids": [], "exclude_node_instance_ids": [], "exclude_pipe_instance_ids": []},
             {"optical_path": optical_path},
             {"frequency_min": MODIFIED_PASSBAND[0], "frequency_max": MODIFIED_PASSBAND[1]},
             {},

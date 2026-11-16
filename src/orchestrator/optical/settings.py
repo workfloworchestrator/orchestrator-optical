@@ -87,6 +87,10 @@ class OpticalSettings(BaseSettings):
         device_session_idle_seconds: How long a G30/G42 NETCONF session stays open after
             the workflow step or form submit that used it, to be reused by the next one
             (``OPTICAL_DEVICE_SESSION_IDLE_SECONDS``, default 120; 0 closes it at once).
+        device_read_cache_seconds: How long what an input form read from a device (discovery, ports,
+            connectivity, spectral occupation, transceiver modes) answers the next form submits
+            instead of a new read (``OPTICAL_DEVICE_READ_CACHE_SECONDS``, default 60; 0 always
+            reads). Workflow steps always read the device.
     """
 
     model_config = SettingsConfigDict(env_prefix="OPTICAL_", env_file=".env", extra="ignore")
@@ -109,6 +113,8 @@ class OpticalSettings(BaseSettings):
     path_k: Annotated[int, Field(ge=1)] = 5
 
     device_session_idle_seconds: Annotated[float, Field(ge=0)] = 120
+
+    device_read_cache_seconds: Annotated[float, Field(ge=0)] = 60
 
     @field_validator("flexils_verify_host_key", mode="before")
     @classmethod

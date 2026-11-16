@@ -56,8 +56,8 @@ def _subcard(required_type: CardTypeEnum, ports: list[Any] | None = None) -> Sim
 def _patch_g30_client(monkeypatch: pytest.MonkeyPatch, client: SimpleNamespace) -> None:
     """Patch the client factory in both the port module and the shared module.
 
-    Port enumeration reads the shelf twice: once itself and once through the shared
-    module reader that resolves each port's card, so both lookups must be faked.
+    The port module builds the client for the enumeration and the shared module for
+    the standalone module reader (``g30_modules``), so both lookups are faked.
     """
     monkeypatch.setattr(g30_port, "get_g30_client", lambda *_: client)
     monkeypatch.setattr(g30_shared, "get_g30_client", lambda *_: client)
@@ -191,3 +191,18 @@ def test_each_port_has_exactly_one_role(g30_client: SimpleNamespace) -> None:
         assert not (ports & seen)
         seen |= ports
     assert seen == {"port-1/3.3/1", "port-1/3.1/3", "subport-1/3.1/3", "port-1/2/1", "port-1/2/3"}
+
+
+def test_port_enumeration_reads_the_shelf_tree_once(g30_client: SimpleNamespace) -> None:
+    """The shelf tree is the largest request of the adapter: every role comes from one read of it."""
+    shelves = g30_client.data.ne_ne.shelf.retrieve()
+    reads: list[dict[str, Any]] = []
+    g30_client.data.ne_ne.shelf.retrieve = lambda **kwargs: reads.append(kwargs) or shelves
+
+    ports_by_role = g30_port.get_device_ports_grouped_by_role(SimpleNamespace(), None)
+
+    assert len(reads) == 1
+    assert ports_by_role[OpticalPortRole.OLS_LINE] == ["port-1/3.3/1"]
+    assert ports_by_role[OpticalPortRole.TRANSPONDER_LINE] == ["port-1/2/1"]
+    assert ports_by_role[OpticalPortRole.TRANSPONDER_CLIENT] == ["port-1/2/3"]
+    assert "port-1/3.1/3" in ports_by_role[OpticalPortRole.OLS_ADD_DROP]

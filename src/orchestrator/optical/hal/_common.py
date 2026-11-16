@@ -30,7 +30,7 @@ from orchestrator.optical.products.product_blocks.optical_port.abstracts import 
 from orchestrator.optical.products.product_blocks.optical_port.unions import AnyOpticalPortBlockProvisioning
 
 #: Canonical order of port roles, used to make the "all roles" default of
-#: :func:`_ports_by_role` deterministic regardless of the node's vendor.
+#: :func:`_ports_grouped_by_role` deterministic regardless of the node's vendor.
 ROLE_ORDER: tuple[OpticalPortRole, ...] = (
     OpticalPortRole.OLS_LINE,
     OpticalPortRole.OLS_ADD_DROP,
@@ -235,12 +235,12 @@ class LazyAdapter:
         return getattr(importlib.import_module(self._module_name), name)
 
 
-def _ports_by_role(
+def _ports_grouped_by_role(
     supported_roles: frozenset[OpticalPortRole],
     port_names_for_role: Callable[[OpticalPortRole], list[str]],
     roles: list[OpticalPortRole] | None,
-) -> list[str]:
-    """Return the de-duplicated device port names of a node for the requested roles.
+) -> dict[OpticalPortRole, list[str]]:
+    """Return the device port names of a node for the requested roles, keyed by role.
 
     Args:
         supported_roles: The roles the node's vendor/platform can enumerate.
@@ -248,7 +248,8 @@ def _ports_by_role(
         roles: The roles to collect; ``None`` selects every supported role.
 
     Returns:
-        The port names of the requested roles, de-duplicated, in :data:`ROLE_ORDER`.
+        The port names of each requested role; the roles are in the requested order
+        (:data:`ROLE_ORDER` when ``roles`` is ``None``).
 
     Raises:
         UnsupportedPortRoleError: If an explicitly requested role is not in ``supported_roles``.
@@ -262,10 +263,12 @@ def _ports_by_role(
                 msg = f"Port role {role.value} is not supported by this node"
                 raise UnsupportedPortRoleError(msg)
 
-    port_names: list[str] = []
-    for role in requested:
-        port_names.extend(port_names_for_role(role))
-    return list(dict.fromkeys(port_names))
+    return {role: list(port_names_for_role(role)) for role in requested}
+
+
+def _all_ports(ports_by_role: dict[OpticalPortRole, list[str]]) -> list[str]:
+    """Return the de-duplicated port names of a role-keyed enumeration, in its order."""
+    return list(dict.fromkeys(name for names in ports_by_role.values() for name in names))
 
 
 def _vendor_platform(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> tuple[Vendor, Platform]:

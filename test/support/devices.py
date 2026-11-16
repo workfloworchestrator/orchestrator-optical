@@ -239,6 +239,9 @@ def install_device_stubs(
                 names.extend(client_ports)
         return list(dict.fromkeys(names))
 
+    def _get_device_ports_grouped_by_role(block: Any, roles: Any) -> dict[OpticalPortRole, list[str]]:
+        return {role: _get_device_ports_by_role(block, [role]) for role in roles}
+
     def _retrieve_transceiver_modes(block: Any, port_name: str) -> list[str]:
         return list(modes)
 
@@ -264,6 +267,7 @@ def install_device_stubs(
                 "check_fiber_terminating_port": _fake_check_fiber_terminating_port,
                 "configure_termination_when_attaching_new_fiber": _fake_configure_termination_when_attaching_new_fiber,
                 "get_device_ports_by_role": _get_device_ports_by_role,
+                "get_device_ports_grouped_by_role": _get_device_ports_grouped_by_role,
                 "retrieve_ports_spectral_occupations": _fake_retrieve_ports_spectral_occupations,
             },
             "orchestrator.optical.workflows.optical_pipe.fiber_span.terminate_fiber_span": {

@@ -5,7 +5,8 @@ generators and the ``Choice`` selectors. Database queries live in the neutral
 ``orchestrator/optical/db.py`` module, which the selectors import from.
 """
 
-from collections.abc import Callable, Generator, Sequence
+from collections.abc import Callable, Generator, Iterator, Sequence
+from contextlib import contextmanager
 from functools import wraps
 from typing import Any, cast
 
@@ -32,6 +33,7 @@ from orchestrator.optical.db import (
     subscription_instances_by_block_types_and_resource_values,
 )
 from orchestrator.optical.hal.port import get_device_ports_by_role
+from orchestrator.optical.hal.read_cache import DeviceReads
 from orchestrator.optical.hal.sessions import DeviceSessions
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import AbstractOpticalNodeBlockInactive
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
@@ -45,12 +47,36 @@ def _form_error_message(exc: Exception) -> str:
     return f"{type(exc).__name__}: {exc}. Nothing was changed: fix the cause and submit this page again to retry."
 
 
-def _guarded_page(page: type[FormPage], sessions: DeviceSessions) -> type[FormPage]:
+class _Submit:
+    """What a form submit shares between its pages and validators: the device sessions and the device reads."""
+
+    def __init__(self) -> None:
+        self.sessions = DeviceSessions()
+        self.reads = DeviceReads()
+
+    @contextmanager
+    def active(self) -> Iterator[None]:
+        """Use the sessions and the remembered device reads of the submit within the block."""
+        with self.sessions.active(), self.reads.active():
+            yield
+
+    def rejected(self, *, unexpectedly: bool) -> None:
+        """Note that the submit ends with an error: the next one reads the devices again.
+
+        After an unexpected error the sessions are also closed instead of being left for reuse.
+        """
+        self.reads.forget()
+        if unexpectedly:
+            self.sessions.failed = True
+
+
+def _guarded_page(page: type[FormPage], submit: _Submit) -> type[FormPage]:
     """Return ``page`` with its validators guarded: any unexpected error becomes a validation error of the page.
 
     Pydantic only turns ``ValueError`` / ``AssertionError`` into a validation error; anything else raised by a
     validator (e.g. a device or database error) would escape the form machinery as an HTTP 500. The validators
-    use the device ``sessions`` of the submit.
+    use the device sessions and reads of the ``submit``; a page rejected by its validators (for any reason)
+    makes the next submit read the devices again.
     """
 
     class GuardedPage(page):  # ty: ignore[unsupported-base]
@@ -58,12 +84,13 @@ def _guarded_page(page: type[FormPage], sessions: DeviceSessions) -> type[FormPa
         @classmethod
         def _guard_unexpected_errors(cls, data: Any, handler: Callable[[Any], Any]) -> Any:
             try:
-                with sessions.active():
+                with submit.active():
                     return handler(data)
             except ValidationError:
+                submit.rejected(unexpectedly=False)
                 raise
             except Exception as exc:
-                sessions.failed = True
+                submit.rejected(unexpectedly=True)
                 logger.exception("Unexpected error while validating a form page", page=page.__name__)
                 raise ValueError(_form_error_message(exc)) from exc
 
@@ -88,6 +115,10 @@ def retryable_form[**P](form_generator: Callable[P, FormGenerator]) -> Callable[
     the sessions are left open for the next one (of any form: forms only read from the devices, never write),
     unless it hit an unexpected error.
 
+    What a submit reads from the devices (:class:`~orchestrator.optical.hal.read_cache.DeviceReads`) is
+    remembered for ``OPTICAL_DEVICE_READ_CACHE_SECONDS`` and answers the replays of the following submits; a
+    submit that is rejected forgets it, so that submitting again after fixing the cause reads the devices anew.
+
     Apply it to the outermost generator handed to ``initial_input_form=`` (shipped generators are decorated;
     consumers composing their own generator from the shipped ``*_form_pages`` decorate theirs).
 
@@ -106,27 +137,28 @@ def retryable_form[**P](form_generator: Callable[P, FormGenerator]) -> Callable[
         user_input = None
         # Active only while the generator or a validator runs, never across a yield: the submit ends with the
         # generator suspended on its next page, and closing it (GeneratorExit at the yield) releases the sessions.
-        sessions = DeviceSessions()
+        submit = _Submit()
         try:
             while True:
                 try:
-                    with sessions.active():
+                    with submit.active():
                         page = generator.send(user_input)
                 except StopIteration as stop:
                     return stop.value
                 except FormException:
+                    submit.rejected(unexpectedly=False)
                     raise
                 except Exception as exc:
-                    sessions.failed = True
+                    submit.rejected(unexpectedly=True)
                     logger.exception("Unexpected error in a form generator", form=form_name, page=page_name)
                     cause = ValueError(_form_error_message(exc))
                     details = InitErrorDetails(type="value_error", loc=(), input={}, ctx={"error": cause})
                     error = ValidationError.from_exception_data(page_name, [details])
                     raise FormValidationError(page_name, error, PydanticI18n(translations)) from exc
                 page_name = page.__name__
-                user_input = yield _guarded_page(page, sessions)
+                user_input = yield _guarded_page(page, submit)
         finally:
-            sessions.release()
+            submit.sessions.release()
 
     return wrapper
 

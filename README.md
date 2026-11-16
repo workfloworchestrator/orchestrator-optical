@@ -56,6 +56,12 @@ A NETCONF session to a G30/G42 node is kept open after the workflow step or form
 the next one (never by two at the same time); it is closed after `OPTICAL_DEVICE_SESSION_IDLE_SECONDS` without use
 (default 120; `0` closes it at once).
 
+An input form is replayed from its first page on every submit: what it reads from a device (node discovery, ports,
+internal connectivity, spectral occupation, transceiver modes) is remembered by the process for
+`OPTICAL_DEVICE_READ_CACHE_SECONDS` (default 60; `0` always reads) and answers the following submits. A submit that
+is rejected forgets what it read, so submitting again reads the devices anew. Workflow steps never use it: they
+always read the device.
+
 Each adapter imports its SDK in exactly one module, `hal/adapters/<device>/_sdk.py`, which re-exports the SDK names
 the adapter uses: it is the SDK contract, and the one place to change when moving to another SDK release.
 

@@ -44,6 +44,7 @@ from orchestrator.core.workflow import StepList, begin, step
 from orchestrator.optical.db import (
     node_block_from_instance,
     subscription_instance_values_by_block_type_depending_on_instance_id,
+    subscription_instance_values_by_instance_ids_and_resource_type,
     subscription_instances_by_block_type,
 )
 from orchestrator.optical.hal._common import UnsupportedPlatformError
@@ -1143,6 +1144,31 @@ def reusable_channel_groups(
     return sorted(groups, key=lambda group: group.spare_capacity)
 
 
+def _stored_channel_names() -> dict[str, tuple[str, str]]:
+    """Return the name and owner subscription id of every live transport channel, by instance id.
+
+    The names are read from the stored resource values (two queries however many
+    channels exist): the channels are in any of INITIAL, PROVISIONING or ACTIVE,
+    so no single lifecycle class of the block can load them all.
+    """
+    instances = subscription_instances_by_block_type(
+        cast(str, OpticalTransportChannelBlock.name),
+        [
+            SubscriptionLifecycle.INITIAL,
+            SubscriptionLifecycle.PROVISIONING,
+            SubscriptionLifecycle.ACTIVE,
+        ],
+    )
+    owners = {str(instance.subscription_instance_id): str(instance.subscription_id) for instance in instances}
+    values = subscription_instance_values_by_instance_ids_and_resource_type(
+        list(owners), "optical_transport_channel_name"
+    )
+    return {
+        str(value.subscription_instance_id): (str(value.value), owners[str(value.subscription_instance_id)])
+        for value in values
+    }
+
+
 def channel_names_taken_by_others(own_instance_ids: set[str]) -> dict[str, str]:
     """Return the transport channel names owned by other subscriptions.
 
@@ -1154,23 +1180,11 @@ def channel_names_taken_by_others(own_instance_ids: set[str]) -> dict[str, str]:
         Mapping of channel name to owner subscription id for every channel
         outside ``own_instance_ids`` in INITIAL, PROVISIONING or ACTIVE state.
     """
-    taken: dict[str, str] = {}
-    instances = subscription_instances_by_block_type(
-        cast(str, OpticalTransportChannelBlock.name),
-        [
-            SubscriptionLifecycle.INITIAL,
-            SubscriptionLifecycle.PROVISIONING,
-            SubscriptionLifecycle.ACTIVE,
-        ],
-    )
-    for instance in instances:
-        if str(instance.subscription_instance_id) in own_instance_ids:
-            continue
-        channel = OpticalTransportChannelBlockInactive.from_db(
-            subscription_instance_id=instance.subscription_instance_id
-        )
-        taken[str(channel.optical_transport_channel_name)] = str(channel.owner_subscription_id)
-    return taken
+    return {
+        name: owner
+        for instance_id, (name, owner) in _stored_channel_names().items()
+        if instance_id not in own_instance_ids
+    }
 
 
 def validated_channel_names(
@@ -1264,21 +1278,7 @@ def flattened_section_port_ids(sections: Sequence[Any]) -> list[str]:
 
 def channel_name_in_use(name: str) -> bool:
     """Return whether a transport channel name is already used by any channel."""
-    instances = subscription_instances_by_block_type(
-        cast(str, OpticalTransportChannelBlock.name),
-        [
-            SubscriptionLifecycle.INITIAL,
-            SubscriptionLifecycle.PROVISIONING,
-            SubscriptionLifecycle.ACTIVE,
-        ],
-    )
-    for instance in instances:
-        channel = OpticalTransportChannelBlockInactive.from_db(
-            subscription_instance_id=instance.subscription_instance_id
-        )
-        if str(channel.optical_transport_channel_name) == name:
-            return True
-    return False
+    return any(stored == name for stored, _owner in _stored_channel_names().values())
 
 
 def _host_label(host_block: AnyOpticalNodeBlockProvisioningUnion) -> str:

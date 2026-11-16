@@ -35,7 +35,7 @@ src/orchestrator/optical/
 │   ├── __init__.py           #   public surface: re-exports the area dispatchers below
 │   ├── _common.py            #   vendor/platform dispatch key, block narrowing, shared errors, port-role helpers
 │   ├── node.py               #   client/discovery access + node-level retrieve/validate dispatchers
-│   ├── port.py               #   port enumeration (incl. get_device_ports_by_role) / admin state / fiber-termination
+│   ├── port.py               #   port enumeration (get_device_ports_by_role / _grouped_by_role) / admin state / fiber-termination
 │   │                         #   configure-reset-check keyed by (local port role, pipe type)
 │   ├── spectrum.py           #   FlexILS optical-circuit engine (OEL/OSNC/OCRS); no-ops on G30/G42
 │   ├── connectivity.py       #   intra-node routes add/drop port -> reachable degrees (+ occupancy), IntraNodeEdge;
@@ -45,6 +45,7 @@ src/orchestrator/optical/
 │   │                         #   release on the SDK primitives + the applied-config record (golden config per node)
 │   ├── sessions.py           #   device sessions: one NETCONF session per node within a step / form submit,
 │   │                         #   kept open (idle timeout) and reused by the next step / submit
+│   ├── read_cache.py         #   device reads of the forms remembered across submits (@cached_device_read; never in steps)
 │   └── adapters/             #   per-device implementations: nokia_flexils (TL1) / nokia_groove_g30, nokia_gx_g42 (NETCONF);
 │                             #   each imports its vendor SDK only in `_sdk.py` (the SDK contract); SDK-free helpers
 │                             #   live in naming.py / gne.py / constants.py; G30/G42 `config.py` = client + release rule
@@ -233,6 +234,16 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
 - **Input forms never write to a device** (read-only: discovery, connectivity, validation reads). That is what
   makes a session used by a form reusable by anyone; all device writes belong to workflow steps.
   The factories authenticate by password only (`allow_agent=False`, `look_for_keys=False`).
+- **Form device reads are remembered across submits** (`hal/read_cache.py`): a form is replayed from its first
+  page on every submit, so the read dispatchers marked `@cached_device_read` (`discover_optical_node`,
+  `get_device_ports_by_role` / `_grouped_by_role`, `retrieve_transceiver_modes`, `retrieve_add_drop_connectivity`,
+  `retrieve_ports_spectral_occupations`) keep their result per OS process for
+  `OPTICAL_DEVICE_READ_CACHE_SECONDS` (default 60 from the read, 0 = off). Only a form submit uses it (the
+  `DeviceReads` scope opened by `retryable_form`): **workflow steps always read the device**, never rely on a
+  value a form read. A rejected submit (validation or unexpected error) forgets what it read, so a retry reads
+  anew. Key = dispatcher + arguments (a block counts as its `subscription_instance_id` + management IPs); results
+  are deep-copied, so mark only dispatchers returning plain data, and only pure reads (a hit skips the call).
+  Mark any new read dispatcher a form calls; never add another cache (no `lru_cache` on device reads).
 
 ### Node identity and create-time discovery
 
@@ -368,8 +379,19 @@ uv build                        # package build
 
 - **Not yet verified on a lab device**: that `ne.retrieve(depth=2, content="config")` returns `ne-name` on G30 and
   G42, and that `RTRV-SYS` reports `ROUTERID` on FlexILS (the `RTRV-TOPONODE` entry is the fallback).
-- The form is replayed on every submit, so the node is read again on the identity and summary submits (see
-  "memoizing device reads across form submits" below).
+- The G30 discovery was timed on a lab node (two shelves): role from the `required-type` of the cards and
+  subcards only (`_shared.py::g30_node_functions`, one hand-written subtree filter: 0.2 s, was 18 s for the depth-8
+  shelf tree) and `ne-name` alone (`fields=["ne-name"]`; the first read of `ne` in a session still takes the
+  device 6-8 s whatever is asked, a repeated one 0.1 s instead of 2.6 s for every depth-2 leaf). The
+  inventory list (`inventory-data/inventory`) cannot give the role: its `module-type` is the EEPROM name of a
+  subcard (`O2PAOHIR` for a `PAIROFP2`, `O2CAD8E` for a `CAD8EOFP2`), not the card type. Port enumeration and
+  intra-node connectivity still read the depth-8 shelf tree (a 145 KB subtree filter: the device has no depth
+  support), once per operation: read it with `_shared.py::g30_shelves` and derive the modules with
+  `g30_modules_of_shelves`, never one read per helper. A caller needing the role of a port asks every candidate
+  role at once (`hal.get_device_ports_grouped_by_role`), never one enumeration per role. Narrowing the read with a
+  hand-written filter was ruled out (not maintainable); a smaller request needs the SDK generator.
+- The form is replayed on every submit; the discovery is answered from the form read cache
+  (`hal/read_cache.py`) on the identity and summary submits made within its lifetime, by the same process.
 - The modify forms read the node again like the create forms (identity page prefilled with the device name, the
   stored name shown when it differs; FlexILS GMPLS ID taken from the device). A name typed by hand at creation
   must therefore be typed again on modify. The validate workflows do not compare name / GMPLS ID with the device.
@@ -394,8 +416,13 @@ uv build                        # package build
 - Session reuse (`hal/sessions.py`) not yet timed on a lab device, nor checked against the devices' own idle
   timeout and session limit (an idle session the device dropped is detected only through ncclient's `connected`). Left for later: a connect timeout separate
   from the 60 s RPC timeout (SDK generator: an unreachable loopback IP stalls a full timeout before the interface
-  IP is tried); memoizing device reads across form submits; FlexILS clients are still cached process-wide by
+  IP is tried); FlexILS clients are still cached process-wide by
   the generated SDK (`get_instance`), with the staleness/concurrency exposure that implies.
+- The form read cache (`hal/read_cache.py`) is per process, like the sessions: with several API workers a submit
+  landing on another worker reads again (a shared store, e.g. core's Redis, would need serializable results and
+  was left out). Its hit rate and the 60 s default are not yet timed on real forms. The G30 ports and
+  connectivity dispatchers each still read the depth-8 shelf tree once (per distinct arguments) before being
+  remembered: caching `g30_shelves` itself would share it, but it returns SDK objects.
 
 ### Current status (branch `porting/workflows`)
 

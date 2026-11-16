@@ -20,6 +20,7 @@ from orchestrator.optical.hal._common import (
     _vendor_platform,
 )
 from orchestrator.optical.hal.adapters.nokia_groove_g30.naming import g30_shelf_of_port
+from orchestrator.optical.hal.read_cache import cached_device_read
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 
@@ -33,6 +34,7 @@ else:
 __all__ = ["IntraNodeEdge", "g30_shelf_of_port", "retrieve_add_drop_connectivity"]
 
 
+@cached_device_read
 def retrieve_add_drop_connectivity(
     optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
     add_drop_port_name: str,

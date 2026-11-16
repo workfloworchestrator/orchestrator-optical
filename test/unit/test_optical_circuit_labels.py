@@ -67,3 +67,35 @@ def test_parse_tolerates_legacy_unspaced_plus() -> None:
 def test_parse_legacy_label_yields_empty() -> None:
     """Legacy single-name labels are not composite labels."""
     assert parse_optical_circuit_label("svcA") == ("", [])
+
+
+def test_channel_name_lookups_read_stored_values_in_any_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Names of other services' channels come from the stored values, never from loading the blocks.
+
+    Loading an ACTIVE channel with the Inactive block class is refused by core, which made the
+    modify identity page fail as soon as any channel was active.
+    """
+    from types import SimpleNamespace
+
+    from orchestrator.optical.workflows.optical_digital_service import shared
+
+    instances = [
+        SimpleNamespace(subscription_instance_id="own", subscription_id="sub-own"),
+        SimpleNamespace(subscription_instance_id="other", subscription_id="sub-other"),
+    ]
+    values = [
+        SimpleNamespace(subscription_instance_id="own", value="OCh1"),
+        SimpleNamespace(subscription_instance_id="other", value="OCh2"),
+    ]
+    monkeypatch.setattr(shared, "subscription_instances_by_block_type", lambda _name, _states: instances)
+    monkeypatch.setattr(
+        shared,
+        "subscription_instance_values_by_instance_ids_and_resource_type",
+        lambda ids, resource_type: values
+        if (ids, resource_type) == (["own", "other"], "optical_transport_channel_name")
+        else [],
+    )
+
+    assert shared.channel_names_taken_by_others({"own"}) == {"OCh2": "sub-other"}
+    assert shared.channel_name_in_use("OCh1")
+    assert not shared.channel_name_in_use("OCh3")

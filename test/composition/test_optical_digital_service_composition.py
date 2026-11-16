@@ -162,28 +162,36 @@ def test_modify_form_pages_yield_routing_pages_for_owned_sections(monkeypatch: p
 
     page_3 = generator.send(page_2(optical_transport_mode="opt-a"))
     page_names.append(page_3.__name__)
-    assert set(page_3.model_fields) == {"intermediate_node_instance_ids"}
+    assert set(page_3.model_fields) == {
+        "intermediate_node_instance_ids",
+        "divider1",
+        "exclude_node_instance_ids",
+        "divider2",
+        "exclude_pipe_instance_ids",
+    }
 
-    page_4 = generator.send(page_3(intermediate_node_instance_ids=["opt-a"]))
-    page_names.append(page_4.__name__)
-    assert set(page_4.model_fields) == {"exclude_node_instance_ids", "divider1", "exclude_pipe_instance_ids"}
-
-    page_5 = generator.send(
-        page_4(exclude_node_instance_ids=["opt-a"], exclude_pipe_instance_ids=["opt-b"], divider1=None),
+    page_4 = generator.send(
+        page_3(
+            intermediate_node_instance_ids=["opt-a"],
+            exclude_node_instance_ids=["opt-a"],
+            exclude_pipe_instance_ids=["opt-b"],
+            divider1=None,
+            divider2=None,
+        )
     )
-    page_names.append(page_5.__name__)
-    assert set(page_5.model_fields) == {"optical_path"}
+    page_names.append(page_4.__name__)
+    assert set(page_4.model_fields) == {"optical_path"}
 
-    page_6 = generator.send(page_5(optical_path="p1;p2"))
-    page_names.append(page_6.__name__)
-    assert set(page_6.model_fields) == {"available_frequency_ranges", "frequency_1", "bandwidth_1"}
-    assert page_6.model_fields["frequency_1"].default == FREQUENCY_1
-    assert page_6.model_fields["bandwidth_1"].default == BANDWIDTH_1
+    page_5 = generator.send(page_4(optical_path="p1;p2"))
+    page_names.append(page_5.__name__)
+    assert set(page_5.model_fields) == {"available_frequency_ranges", "frequency_1", "bandwidth_1"}
+    assert page_5.model_fields["frequency_1"].default == FREQUENCY_1
+    assert page_5.model_fields["bandwidth_1"].default == BANDWIDTH_1
     with pytest.raises(ValueError, match="not available"):
-        page_6(frequency_1=194_500_000, bandwidth_1=BANDWIDTH_1)
+        page_5(frequency_1=194_500_000, bandwidth_1=BANDWIDTH_1)
 
     with pytest.raises(StopIteration) as exc_info:
-        generator.send(page_6(frequency_1=FREQUENCY_1, bandwidth_1=BANDWIDTH_1))
+        generator.send(page_5(frequency_1=FREQUENCY_1, bandwidth_1=BANDWIDTH_1))
     result = exc_info.value.value
     assert result["optical_digital_service_name"] == "svcB"
     assert result["channel_name_1"] == "ch-02"
@@ -194,8 +202,7 @@ def test_modify_form_pages_yield_routing_pages_for_owned_sections(monkeypatch: p
     assert page_names == [
         "ModifyOpticalDigitalServiceIdentityForm",
         "ModifyOpticalDigitalServiceForm",
-        "CreateOpticalSpectrumWaypointsForm",
-        "CreateOpticalSpectrumConstraintsForm",
+        "CreateOpticalSpectrumRoutingForm",
         "CreateOpticalDigitalServicePathForm",
         "OpticalDigitalServiceFrequenciesForm",
     ]

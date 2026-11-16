@@ -181,58 +181,38 @@ def create_optical_spectrum_add_drop_form(
     return CreateOpticalSpectrumAddDropForm
 
 
-def create_optical_spectrum_waypoints_form(
+def create_optical_spectrum_routing_form(
     product_name: str,
     waypoints_choice: type[list[Choice]],
+    exclude_nodes_choice: type[list[Choice]],
+    exclude_spans_choice: type[list[Choice]],
 ) -> type[FormPage]:
-    """Return the waypoints FormPage of the Optical Spectrum create form.
+    """Return the routing FormPage of the Optical Spectrum create form.
 
     This is the fourth page of the shipped create form: the Optical Nodes the
-    path must traverse, in order.
+    path must traverse, in order, and the Optical Nodes and the optical pipes it
+    must not traverse.
 
     Args:
         product_name: Name of the product being created, used as the page title.
         waypoints_choice: The multiple ``Choice`` selector of the waypoint nodes.
-
-    Returns:
-        The waypoints FormPage of the shipped create form.
-    """
-
-    class CreateOpticalSpectrumWaypointsForm(FormPage):
-        model_config = ConfigDict(title=product_name)
-
-        intermediate_node_instance_ids: waypoints_choice
-
-    return CreateOpticalSpectrumWaypointsForm
-
-
-def create_optical_spectrum_constraints_form(
-    product_name: str,
-    exclude_nodes_choice: type[list[Choice]],
-    exclude_spans_choice: type[list[Choice]],
-) -> type[FormPage]:
-    """Return the constraints FormPage of the Optical Spectrum create form.
-
-    This is the fifth page of the shipped create form: the Optical Nodes and the
-    fiber spans the path must not traverse.
-
-    Args:
-        product_name: Name of the product being created, used as the page title.
         exclude_nodes_choice: The multiple ``Choice`` selector of the nodes to exclude.
         exclude_spans_choice: The multiple ``Choice`` selector of the spans to exclude.
 
     Returns:
-        The constraints FormPage of the shipped create form.
+        The routing FormPage of the shipped create form.
     """
 
-    class CreateOpticalSpectrumConstraintsForm(FormPage):
+    class CreateOpticalSpectrumRoutingForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        exclude_node_instance_ids: exclude_nodes_choice
+        intermediate_node_instance_ids: waypoints_choice
         divider1: Divider
+        exclude_node_instance_ids: exclude_nodes_choice
+        divider2: Divider
         exclude_pipe_instance_ids: exclude_spans_choice
 
-    return CreateOpticalSpectrumConstraintsForm
+    return CreateOpticalSpectrumRoutingForm
 
 
 def _synthetic_add_drop_port(node: AbstractOpticalNodeBlockInactive) -> OlsAddDropPortBlockInactive:
@@ -305,8 +285,8 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
     """Yield the FormPages of the Optical Spectrum create form, in order.
 
     This is the shipped create form as a page sequence: it yields the identity
-    page, the two-nodes page, the add/drop page, the waypoints page, the
-    constraints page, the path page and the frequency page, and returns the collected user input as
+    page, the two-nodes page, the add/drop page, the routing page, the
+    path page and the frequency page, and returns the collected user input as
     a flat dict of the ``optical_*`` state keys, consumed by the shipped
     construct step (:func:`construct_optical_spectrum_subscription`). The
     dependent choices are computed between the pages (the node selectors, the
@@ -369,10 +349,8 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
 
     waypoints_choice = multiple_optical_node_selector(
         roles=LINE_SYSTEM_ROLES,
-        prompt="Which Optical Nodes must the path pass through?",
+        prompt="Which Optical Nodes must the path pass through? [ordered src -> dst]",
     )
-    user_input_dict.update((yield create_optical_spectrum_waypoints_form(product_name, waypoints_choice)).model_dump())
-
     exclude_nodes_choice = multiple_optical_node_selector(
         roles=LINE_SYSTEM_ROLES,
         prompt="Do *not* pass through these Optical Nodes",
@@ -382,7 +360,9 @@ def create_optical_spectrum_form_pages(product_name: str) -> FormGenerator:
     )
     user_input_dict.update(
         (
-            yield create_optical_spectrum_constraints_form(product_name, exclude_nodes_choice, exclude_spans_choice)
+            yield create_optical_spectrum_routing_form(
+                product_name, waypoints_choice, exclude_nodes_choice, exclude_spans_choice
+            )
         ).model_dump()
     )
 

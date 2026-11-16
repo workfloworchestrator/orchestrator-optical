@@ -6,8 +6,6 @@ from orchestrator.optical.hal._common import OpticalNodeDiscovery, _retrieve_req
 from orchestrator.optical.hal.adapters.nokia_groove_g30._sdk import G30Client
 from orchestrator.optical.hal.adapters.nokia_groove_g30._shared import (
     g30_client_for_hosts,
-    g30_modules,
-    g30_modules_of_client,
     g30_node_functions,
     g30_role,
     get_g30_client,
@@ -51,6 +49,8 @@ def _software_version(g30: G30Client) -> str:
 def role(node: NokiaGrooveG30BlockProvisioning) -> OpticalNodeRole:
     """Determine the node role of a Groove G30 node from its installed cards.
 
+    Only the card types are read from the device, not the whole shelf tree.
+
     A Groove G30 is a transponder, an amplifier, a FOADM or a ROADM depending on the
     cards it carries: a wavelength selector (WSS) makes it a ROADM, a colorless or
     fixed add/drop makes it a FOADM, amplifiers alone make it an amplifier, and the
@@ -68,8 +68,7 @@ def role(node: NokiaGrooveG30BlockProvisioning) -> OpticalNodeRole:
     Raises:
         ValueError: If the node has no role-relevant optical card installed.
     """
-    functions = g30_node_functions(g30_modules(node))
-    return g30_role(functions, node.management.optical_module_node_name)
+    return g30_role(g30_node_functions(get_g30_client(node)), node.management.optical_module_node_name)
 
 
 def discover(hosts: tuple[str, ...]) -> OpticalNodeDiscovery:
@@ -90,10 +89,11 @@ def discover(hosts: tuple[str, ...]) -> OpticalNodeDiscovery:
         ExceptionGroup: If no host is reachable.
     """
     g30 = g30_client_for_hosts(hosts)
-    ne = _retrieve_required(g30.data.ne_ne.retrieve, depth=2, content="config")
+    # Only the name is asked for: every depth-2 leaf of ``ne`` takes the device several seconds.
+    ne = _retrieve_required(g30.data.ne_ne.retrieve, depth=2, content="config", fields=["ne-name"])
     name = (ne.ne_name or "").strip() or None
     return OpticalNodeDiscovery(
         name=name,
-        role=g30_role(g30_node_functions(g30_modules_of_client(g30)), name or g30.host),
+        role=g30_role(g30_node_functions(g30), name or g30.host),
         software_version=_software_version(g30),
     )

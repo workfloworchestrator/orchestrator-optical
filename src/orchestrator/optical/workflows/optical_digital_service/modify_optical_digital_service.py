@@ -89,8 +89,7 @@ from orchestrator.optical.workflows.optical_digital_service.shared import (
 )
 from orchestrator.optical.workflows.optical_pipe.shared import multiple_optical_pipe_selector
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
-    create_optical_spectrum_constraints_form,
-    create_optical_spectrum_waypoints_form,
+    create_optical_spectrum_routing_form,
 )
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     NoOpticalPathFoundError,
@@ -206,8 +205,18 @@ def _current_frequencies(block: OpticalDigitalServiceBlock) -> dict[str, int]:
     return values
 
 
+def _current_channel_values(block: OpticalDigitalServiceBlock) -> dict[str, str]:
+    """Return the "before" values of the summary fields stored on the transport channels, by field name."""
+    channels = block.optical_digital_service_transport_channels
+    values = {name: str(value) for name, value in _current_frequencies(block).items()}
+    values["optical_transport_mode"] = str(channels[0].optical_transport_mode)
+    for index, channel in enumerate(channels, start=1):
+        values[f"channel_name_{index}"] = str(channel.optical_transport_channel_name)
+    return values
+
+
 def _yield_modify_routing_constraint_pages(product_name: str) -> FormGenerator:
-    """Yield the waypoints and constraints pages of the Optical Digital Service modify form.
+    """Yield the routing page (waypoints and exclusions) of the Optical Digital Service modify form.
 
     Returns the collected input (``intermediate_node_instance_ids``,
     ``exclude_node_instance_ids``, ``exclude_pipe_instance_ids``); the caller merges it.
@@ -216,14 +225,12 @@ def _yield_modify_routing_constraint_pages(product_name: str) -> FormGenerator:
         product_name: Name of the product being modified, used as the page title.
 
     Returns:
-        The collected user input of the routing pages.
+        The collected user input of the routing page.
     """
     waypoints_choice = multiple_optical_node_selector(
         roles=LINE_SYSTEM_ROLES,
-        prompt="Which Optical Nodes must the path pass through?",
+        prompt="Which Optical Nodes must the path pass through? [ordered src -> dst]",
     )
-    collected = (yield create_optical_spectrum_waypoints_form(product_name, waypoints_choice)).model_dump()
-
     exclude_nodes_choice = multiple_optical_node_selector(
         roles=LINE_SYSTEM_ROLES,
         prompt="Do *not* pass through these Optical Nodes",
@@ -231,12 +238,10 @@ def _yield_modify_routing_constraint_pages(product_name: str) -> FormGenerator:
     exclude_spans_choice = multiple_optical_pipe_selector(
         prompt="Do *not* pass through these Optical Pipes",
     )
-    collected.update(
-        (
-            yield create_optical_spectrum_constraints_form(product_name, exclude_nodes_choice, exclude_spans_choice)
-        ).model_dump()
+    page = yield create_optical_spectrum_routing_form(
+        product_name, waypoints_choice, exclude_nodes_choice, exclude_spans_choice
     )
-    return collected
+    return page.model_dump()
 
 
 def modify_optical_digital_service_form_pages(
@@ -249,7 +254,7 @@ def modify_optical_digital_service_form_pages(
     This is the shipped modify form as a page sequence: it yields the prefilled
     identity page (service and transport channel names), the prefilled channels
     page (mode), only when the first transport channel is service-owned with
-    deployed OLS sections the waypoints page, the constraints page and the path
+    deployed OLS sections the routing page and the path
     page, and finally the prefilled frequencies page. The optical path is
     recomputed between the fixed line ports of the first channel (endpoints and
     ports never change) regardless of frequency, mirroring the shipped create
@@ -270,7 +275,7 @@ def modify_optical_digital_service_form_pages(
     Args:
         block: The Optical Digital Service block being modified.
         product_name: Name of the product being modified, used as the page title
-            of the reused routing pages.
+            of the reused routing page.
 
     Returns:
         The collected user input of the shipped pages.
@@ -398,7 +403,7 @@ def modify_optical_digital_service_form_generator(
         user_input_dict,
         block,
         summary_fields,
-        extra_before={"customer_id": str(subscription.customer_id)},
+        extra_before={"customer_id": str(subscription.customer_id)} | _current_channel_values(block),
     )
 
     return user_input_dict | {"subscription": subscription}

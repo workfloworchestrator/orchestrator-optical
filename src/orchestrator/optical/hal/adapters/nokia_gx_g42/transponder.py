@@ -59,9 +59,23 @@ def _client_speed_config(speed: OpticalDigitalServiceSpeed) -> tuple[str, str, s
     raise NotImplementedError(msg)
 
 
+def _client_path(client_port_name: str) -> str:
+    """Return the instance-identifier of the ethernet facility of a client port, as sent in ``create-xcon``."""
+    return f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
+
+
+def _is_client_endpoint(path: str, client_port_name: str) -> bool:
+    """Tell whether a cross-connect end-point read from the device is the ethernet facility of a client port.
+
+    The device answers with the module name (``/ioa-network-element:ne/...``) where the
+    request holds the YANG prefix (``/ioa-ne:ne/...``): the leading prefix is not compared.
+    """
+    return path.endswith(f"/facilities/ethernet[name='{client_port_name}']")
+
+
 def _find_xcon(
     g42: G42Client,
-    client: str,
+    client_port_name: str,
     line: str,
     direction: str,
     payload_type: str,
@@ -70,7 +84,7 @@ def _find_xcon(
 
     Args:
         g42: G42 client instance.
-        client: Source client path.
+        client_port_name: The client port name.
         line: Line ID inside the destination ODU string.
         direction: Direction of the cross-connect.
         payload_type: Payload type for the cross-connect.
@@ -85,15 +99,17 @@ def _find_xcon(
     xcons = g42.data.ioa_network_element_ne.services.xcon.retrieve(depth=2, content="config") or []
 
     for xcon in xcons:
-        source_destination_match = (xcon.source == client and line in xcon.destination) or (
-            xcon.destination == client and line in xcon.source
+        source_is_client = _is_client_endpoint(xcon.source, client_port_name)
+        destination_is_client = _is_client_endpoint(xcon.destination, client_port_name)
+        source_destination_match = (source_is_client and line in xcon.destination) or (
+            destination_is_client and line in xcon.source
         )
         payload_type_match = xcon.payload_type == payload_type
         direction_match = xcon.direction == direction
         if source_destination_match and payload_type_match and direction_match:
             return xcon
 
-        if client in (xcon.source, xcon.destination):
+        if source_is_client or destination_is_client:
             msg = (
                 f"Tributary already cross-connected:"
                 f" {xcon.destination}  x  {xcon.source} ."
@@ -206,7 +222,7 @@ def _retrieve_time_slots(g42: G42Client, odu_name: str, speed: Literal["100GBE",
             return f"{start}..{start + minimum_slots_required - 1}"
 
     msg = (
-        f"Not enough available time slots for {g42.host} {odu}. "
+        f"Not enough available time slots for {g42.host} {odu_name}. "
         f"Minimum required: {minimum_slots_required}, "
         f"Available: {available_time_slots}"
     )
@@ -399,17 +415,16 @@ def render_transponder_crossconnect(
         ValueError: If the cross-connect cannot be created.
     """
     g42 = get_g42_client(optical_node_block)
-    client = f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
     och_key = _derive_optical_channel_key(line_port_names)
     direction = "two-way"
     payload_type = _retrieve_payload_type(g42, client_port_name)
 
-    xcon = _find_xcon(g42, client, och_key, direction, payload_type)
+    xcon = _find_xcon(g42, client_port_name, och_key, direction, payload_type)
     if xcon is None and allocate:
         dst_parent_odu = f"{och_key}-ODUCni"
         _create_xcon(
             g42=g42,
-            client=client,
+            client=_client_path(client_port_name),
             dst_parent_odu=dst_parent_odu,
             direction=direction,
             payload_type=payload_type,
@@ -417,7 +432,7 @@ def render_transponder_crossconnect(
             circuit_identifier=circuit_identifier,
             dst_time_slots=_retrieve_time_slots(g42, dst_parent_odu, payload_type),
         )
-        xcon = _find_xcon(g42, client, och_key, direction, payload_type)
+        xcon = _find_xcon(g42, client_port_name, och_key, direction, payload_type)
         if xcon is None:
             msg = f"Unable to create XCON for client {client_port_name} on {_node_id(optical_node_block)}. "
             raise ValueError(msg)
@@ -600,13 +615,12 @@ def delete_transponder_crossconnect(
     were recorded.
     """
     g42 = get_g42_client(optical_node_block)
-    client = f"/ioa-ne:ne/facilities/ethernet[name='{client_port_name}']"
     # An empty list reads as no data over NETCONF.
     xcons = g42.data.ioa_network_element_ne.services.xcon.retrieve(depth=2, content="config") or []
     found = [
         fragment(g42.data.ioa_network_element_ne.services.xcon(xcon.name), label=xcon.label or "")
         for xcon in xcons
-        if client in (xcon.source, xcon.destination)
+        if _is_client_endpoint(xcon.source, client_port_name) or _is_client_endpoint(xcon.destination, client_port_name)
     ]
     return release_config(optical_node_block, owner_instance_id, CROSSCONNECT_SCOPE.format(client_port_name), found)
 

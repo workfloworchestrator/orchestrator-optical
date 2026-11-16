@@ -1,13 +1,14 @@
 """Device-level, cross-area shared helpers for the Nokia Groove G30 adapter.
 
 Besides the client factory and the port-name parsing, this module holds the Groove G30
-card model: the installed cards and subcards are read once
-(:func:`g30_modules`) and mapped to the optical functions they provide
+card model: the cards and subcards are mapped to the optical functions they provide
 (:func:`g30_card_functions`), and that function set is what drives both the node role
 (:func:`g30_role`) and the role of each port (see
 :mod:`orchestrator.optical.hal.adapters.nokia_groove_g30.port`). The node area and the
 port area need the same reading of the hardware, so the reading lives here rather than
-in either of them.
+in either of them. The node role reads the card types only
+(:func:`g30_node_functions`, a small reply); the ports need the shelf tree
+(:func:`g30_modules`, a large one).
 """
 
 from __future__ import annotations
@@ -146,13 +147,23 @@ class G30Module:
         return G30Function.AMPLIFIER in self.functions
 
 
+def g30_shelves(g30: G30Client) -> list[Any]:
+    """Read the whole shelf configuration tree of a Groove G30 node.
+
+    The largest read of the adapter (the device has no depth support, so the SDK sends
+    the depth-limited shelf schema as a subtree filter): read it once per operation and
+    hand the result to :func:`g30_modules_of_shelves`, never once per helper.
+    """
+    return g30.data.ne_ne.shelf.retrieve(depth=8, content="config") or []
+
+
 def g30_modules(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> list[G30Module]:
     """Read the installed cards and subcards of a Groove G30 node from the device.
 
-    This is the single shelf read of the adapter: the node role and the role of every
-    port are both derived from the returned modules, so they cannot disagree about the
-    installed hardware. Every ``OCC2`` subcard is returned as its own module, with the
-    functions of its card type.
+    This reads the whole shelf configuration tree, which the port roles and the
+    intra-node connectivity need; the node role does not (see
+    :func:`g30_node_functions`). A caller that needs the shelf tree as well reads it
+    with :func:`g30_shelves` and calls :func:`g30_modules_of_shelves` instead.
 
     Args:
         optical_node_block: The Groove G30 node block (any lifecycle variant).
@@ -160,19 +171,30 @@ def g30_modules(optical_node_block: AnyOpticalNodeBlockProvisioningUnion) -> lis
     Returns:
         One module per installed card and subcard.
     """
-    return g30_modules_of_client(get_g30_client(optical_node_block))
+    g30 = get_g30_client(optical_node_block)
+    return g30_modules_of_shelves(g30, g30_shelves(g30))
 
 
-def g30_modules_of_client(g30: G30Client) -> list[G30Module]:
-    """Read the installed cards and subcards over an open session (see :func:`g30_modules`)."""
-    shelves = g30.data.ne_ne.shelf.retrieve(depth=8, content="config")
+def g30_modules_of_shelves(g30: G30Client, shelves: list[Any]) -> list[G30Module]:
+    """Return the installed cards and subcards found in an already read shelf tree.
+
+    Every ``OCC2`` subcard is returned as its own module, with the functions of its
+    card type. Only the OTS ids are read from the device here.
+
+    Args:
+        g30: The client of the node.
+        shelves: The shelf tree of the node, as returned by :func:`g30_shelves`.
+
+    Returns:
+        One module per installed card and subcard.
+    """
     optical_interfaces = g30.data.ne_ne.services.optical_interfaces.retrieve(content="config", depth=4)
     ots_ids = frozenset(
         g30_ots_id(ots.ots_name) for ots in (getattr(optical_interfaces, "ots", None) or []) if ots.ots_name
     )
 
     modules: list[G30Module] = []
-    for shelf in shelves or []:
+    for shelf in shelves:
         for slot in shelf.slot or []:
             if slot.slot_id > G30_MAX_SLOT_ID or not slot.card:
                 continue
@@ -204,18 +226,43 @@ def g30_modules_of_client(g30: G30Client) -> list[G30Module]:
     return modules
 
 
+#: Subtree filter selecting only the type of every card and subcard: the whole reply is a
+#: few kilobytes, where the shelf tree read by :func:`g30_modules` takes the device seconds.
+_CARD_TYPES_FILTER: Final = (
+    '<ne xmlns="http://coriant.com/yang/os/ne"><shelf><shelf-id/><slot><slot-id/><card><required-type/>'
+    "<subslot><subslot-id/><subcard><required-type/></subcard></subslot></card></slot></shelf></ne>"
+)
+
+
+def g30_node_functions(g30: G30Client) -> frozenset[G30Function]:
+    """Read the optical functions of the cards and subcards of a Groove G30 node.
+
+    The node role needs the card types only, so this reads the ``required-type`` of
+    every card and subcard with one narrow subtree filter instead of the shelf tree
+    that :func:`g30_modules` needs for the ports. The inventory list cannot be used: it
+    reports the EEPROM name of a subcard (``O2PAOHIR`` for a ``PAIROFP2``), which is
+    not the card type. Card types this adapter does not know contribute no function.
+
+    Args:
+        g30: A client connected to the node.
+
+    Returns:
+        The optical functions of the node, see :func:`g30_role`.
+    """
+    reply = g30.retrieve(filter_xml=_CARD_TYPES_FILTER, content="config")
+    functions: set[G30Function] = set()
+    for required_type in [] if reply is None else reply.iter("{http://coriant.com/yang/os/ne}required-type"):
+        try:
+            card_type = CardTypeEnum((required_type.text or "").strip())
+        except ValueError:
+            continue
+        functions |= g30_card_functions(card_type)
+    return frozenset(functions)
+
+
 def g30_ots_id(ots_name: str) -> str:
     """Return the id shared by an OTS and its ports (e.g. ``1/3.3/1`` for ``ots-1/3.3/1``)."""
     return ots_name.split("-", 1)[-1]
-
-
-def g30_node_functions(modules: list[G30Module]) -> frozenset[G30Function]:
-    """Return the optical functions provided by the given Groove G30 modules.
-
-    The functions of the ``OCC2`` carrier are those of its installed subcards, so the
-    carrier contributes nothing on its own.
-    """
-    return frozenset().union(*(module.functions for module in modules)) if modules else frozenset()
 
 
 def g30_role(functions: frozenset[G30Function], name: str | None = None) -> OpticalNodeRole:

@@ -14,6 +14,7 @@ import pytest
 from orchestrator.optical.hal._common import (
     ROLE_ORDER,
     UnsupportedPortRoleError,
+    _all_ports,
     _as_decimal,
     _as_flexils_block,
     _as_g30_block,
@@ -21,7 +22,7 @@ from orchestrator.optical.hal._common import (
     _extract_remote_port_id,
     _node_id,
     _port_name,
-    _ports_by_role,
+    _ports_grouped_by_role,
     _same_node,
     _vendor_platform,
 )
@@ -67,7 +68,7 @@ def _names_for_role(role: OpticalPortRole) -> list[str]:
 def test_ports_by_role_default_selects_supported_roles_in_role_order() -> None:
     supported = frozenset({OpticalPortRole.TRANSPONDER_LINE, OpticalPortRole.OLS_LINE, OpticalPortRole.OLS_ADD_DROP})
 
-    result = _ports_by_role(supported, _names_for_role, None)
+    result = _all_ports(_ports_grouped_by_role(supported, _names_for_role, None))
 
     assert result == ["port-line", "port-shared", "port-add-drop", "port-line-2"]
 
@@ -75,11 +76,13 @@ def test_ports_by_role_default_selects_supported_roles_in_role_order() -> None:
 def test_ports_by_role_explicit_roles_preserve_requested_order() -> None:
     supported = frozenset(ROLE_ORDER)
 
-    result = _ports_by_role(
-        supported,
-        _names_for_role,
-        [OpticalPortRole.TRANSPONDER_LINE, OpticalPortRole.OLS_LINE],
-    )
+    roles = [OpticalPortRole.TRANSPONDER_LINE, OpticalPortRole.OLS_LINE]
+
+    grouped = _ports_grouped_by_role(supported, _names_for_role, roles)
+
+    assert list(grouped) == roles
+    assert grouped[OpticalPortRole.OLS_LINE] == ["port-line", "port-shared"]
+    result = _all_ports(grouped)
 
     assert result == ["port-line-2", "port-line", "port-shared"]
 
@@ -87,7 +90,7 @@ def test_ports_by_role_explicit_roles_preserve_requested_order() -> None:
 def test_ports_by_role_deduplicates_preserving_first_seen_order() -> None:
     supported = frozenset({OpticalPortRole.OLS_LINE, OpticalPortRole.OLS_ADD_DROP})
 
-    result = _ports_by_role(supported, _names_for_role, None)
+    result = _all_ports(_ports_grouped_by_role(supported, _names_for_role, None))
 
     assert result == ["port-line", "port-shared", "port-add-drop"]
 
@@ -96,7 +99,7 @@ def test_ports_by_role_rejects_explicit_unsupported_role() -> None:
     supported = frozenset({OpticalPortRole.OLS_LINE})
 
     with pytest.raises(UnsupportedPortRoleError, match="not supported"):
-        _ports_by_role(supported, _names_for_role, [OpticalPortRole.TRANSPONDER_LINE])
+        _ports_grouped_by_role(supported, _names_for_role, [OpticalPortRole.TRANSPONDER_LINE])
 
 
 def test_vendor_platform_reads_management_key() -> None:

@@ -167,7 +167,8 @@ def test_g42_create_existing_xcon_is_tolerated(monkeypatch: pytest.MonkeyPatch) 
     )
 
     rpc = next(xml for name, xml in fake.calls if name == "create-xcon")
-    assert "<source>/ioa-ne:ne/facilities/ethernet[name='1-4-T1']</source>" in rpc
+    # The SDK qualifies every step of an instance-identifier on the wire.
+    assert "<source>/ioa-ne:ne/ioa-ne:facilities/ioa-ne:ethernet[ioa-ne:name='1-4-T1']</source>" in rpc
     assert "<dst-parent-odu>x</dst-parent-odu>" in rpc
     assert "<payload-type>100GBE</payload-type>" in rpc
     assert "<circuit-id-suffix>cid</circuit-id-suffix>" in rpc

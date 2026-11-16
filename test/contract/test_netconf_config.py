@@ -25,6 +25,7 @@ from lxml import etree
 
 from orchestrator.optical.hal import reconcile
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import config as g30_config
+from orchestrator.optical.hal.adapters.nokia_groove_g30 import node as g30_node
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import port as g30_port
 from orchestrator.optical.hal.adapters.nokia_groove_g30 import transponder as g30_transponder
 from orchestrator.optical.hal.adapters.nokia_gx_g42 import config as g42_config
@@ -38,6 +39,7 @@ from orchestrator.optical.hal.reconcile import (
     Reset,
     fragment,
 )
+from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPortRole
 from orchestrator.optical.products.product_types.optical_digital_service import OpticalDigitalServiceSpeed
@@ -534,3 +536,49 @@ def test_g42_line_release_deletes_the_super_channel_and_resets_the_ports(
 def test_unsupported_platform_has_no_declarative_configuration(applied_config_store: AppliedConfigStore) -> None:
     with pytest.raises(NotImplementedError):
         reconcile.diff_config(_node(Platform.FLEXILS), UUID(int=1), "x", [])
+
+
+# ---------------------------------------------------------------------------
+# Node role (read-only)
+# ---------------------------------------------------------------------------
+
+
+def test_g30_role_requests_the_card_types_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The role is read with one subtree filter selecting the card types, not the shelf tree."""
+
+    def subslot(subslot_id: int, card_type: str) -> str:
+        return (
+            f"<subslot><subslot-id>{subslot_id}</subslot-id>"
+            f"<subcard><required-type>{card_type}</required-type></subcard></subslot>"
+        )
+
+    def slot(slot_id: int, card_type: str, subslots: str = "") -> str:
+        card = f"<card><required-type>{card_type}</required-type>{subslots}</card>"
+        return f"<slot><slot-id>{slot_id}</slot-id>{card}</slot>"
+
+    device = _g30(
+        monkeypatch,
+        '<ne xmlns="http://coriant.com/yang/os/ne"><shelf><shelf-id>1</shelf-id><slot><slot-id>1</slot-id></slot>'
+        + slot(2, "CHM2T")
+        + slot(3, "OCC2", subslot(1, "CAD8EOFP2") + subslot(2, "BAXOFP2") + subslot(3, "NOT-A-CARD"))
+        + slot(5, "PSU")
+        + "</shelf></ne>",
+    )
+
+    assert g30_node.role(_node(Platform.GROOVE_G30)) is OpticalNodeRole.TRANSPONDER_FOADM
+
+    ((rpc, (_source, (filter_type, selection))),) = device.calls
+    assert (rpc, filter_type) == ("get-config", "subtree")
+    selected = etree.fromstring(selection) if isinstance(selection, str) else selection
+    leaves = sorted(
+        "/".join(etree.QName(node).localname for node in [*reversed(list(leaf.iterancestors())), leaf])
+        for leaf in selected.iter()
+        if len(leaf) == 0
+    )
+    assert leaves == [
+        "ne/shelf/shelf-id",
+        "ne/shelf/slot/card/required-type",
+        "ne/shelf/slot/card/subslot/subcard/required-type",
+        "ne/shelf/slot/card/subslot/subslot-id",
+        "ne/shelf/slot/slot-id",
+    ]

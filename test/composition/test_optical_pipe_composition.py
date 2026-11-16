@@ -388,6 +388,31 @@ def test_default_pipe_name_is_not_repeated_in_labels_and_description() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("submitted", "expected", "description"),
+    [
+        ("", "a.example 1-1-L1 --- b.example 1-2-L1", "a.example 1-1-L1 <-> b.example 1-2-L1"),
+        ("   ", "a.example 1-1-L1 --- b.example 1-2-L1", "a.example 1-1-L1 <-> b.example 1-2-L1"),
+        (None, "a.example 1-1-L1 --- b.example 1-2-L1", "a.example 1-1-L1 <-> b.example 1-2-L1"),
+        ("OF-778812", "OF-778812", "OF-778812 a.example 1-1-L1 <-> b.example 1-2-L1"),
+    ],
+)
+def test_modify_form_empty_name_becomes_the_default_identifier(submitted, expected, description) -> None:
+    """A name left empty on the modify form is the default identifier, never an empty name."""
+    port_a, port_b = _labelled_end("a.example", "1-1-L1"), _labelled_end("b.example", "1-2-L1")
+    block = SimpleNamespace(optical_pipe_name="old-name", optical_pipe_terminations=[port_a, port_b])
+
+    pages = pipe_shared.modify_optical_pipe_form_pages(cast(Any, block))
+    page = next(pages)
+    with pytest.raises(StopIteration) as stop:
+        pages.send(page(optical_pipe_name=submitted))
+
+    assert stop.value.value == {"optical_pipe_name": expected}
+    block.optical_pipe_name = expected
+    subscription = SimpleNamespace(product=SimpleNamespace(name="Fiber Span"))
+    assert pipe_shared.optical_pipe_subscription_description(cast(Any, subscription), cast(Any, block)) == description
+
+
 def test_build_fiber_span_block(monkeypatch) -> None:
     """The anti-corruption block builder wires the two terminations without a database."""
     node_a = _node_block_with("node-a.example.com", Vendor.NOKIA, Platform.FLEXILS)

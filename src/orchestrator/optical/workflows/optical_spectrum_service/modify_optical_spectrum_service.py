@@ -119,58 +119,38 @@ def modify_optical_spectrum_identity_form(
     return ModifyOpticalSpectrumIdentityForm
 
 
-def modify_optical_spectrum_waypoints_form(
+def modify_optical_spectrum_routing_form(
     product_name: str,
     waypoints_choice: type[list[Choice]],
+    exclude_nodes_choice: type[list[Choice]],
+    exclude_spans_choice: type[list[Choice]],
 ) -> type[FormPage]:
-    """Return the waypoints FormPage of the Optical Spectrum modify form.
+    """Return the routing FormPage of the Optical Spectrum modify form.
 
     This is the second page of the shipped modify form: the Optical Nodes the
-    new path must traverse, in order.
+    new path must traverse, in order, and the Optical Nodes and the optical pipes it
+    must not traverse.
 
     Args:
         product_name: Name of the product being modified, used as the page title.
         waypoints_choice: The multiple ``Choice`` selector of the waypoint nodes.
-
-    Returns:
-        The waypoints FormPage of the shipped modify form.
-    """
-
-    class ModifyOpticalSpectrumWaypointsForm(FormPage):
-        model_config = ConfigDict(title=product_name)
-
-        intermediate_node_instance_ids: waypoints_choice
-
-    return ModifyOpticalSpectrumWaypointsForm
-
-
-def modify_optical_spectrum_constraints_form(
-    product_name: str,
-    exclude_nodes_choice: type[list[Choice]],
-    exclude_spans_choice: type[list[Choice]],
-) -> type[FormPage]:
-    """Return the constraints FormPage of the Optical Spectrum modify form.
-
-    This is the third page of the shipped modify form: the Optical Nodes and the
-    fiber spans the new path must not traverse.
-
-    Args:
-        product_name: Name of the product being modified, used as the page title.
         exclude_nodes_choice: The multiple ``Choice`` selector of the nodes to exclude.
         exclude_spans_choice: The multiple ``Choice`` selector of the spans to exclude.
 
     Returns:
-        The constraints FormPage of the shipped modify form.
+        The routing FormPage of the shipped modify form.
     """
 
-    class ModifyOpticalSpectrumConstraintsForm(FormPage):
+    class ModifyOpticalSpectrumRoutingForm(FormPage):
         model_config = ConfigDict(title=product_name)
 
-        exclude_node_instance_ids: exclude_nodes_choice
+        intermediate_node_instance_ids: waypoints_choice
         divider1: Divider
+        exclude_node_instance_ids: exclude_nodes_choice
+        divider2: Divider
         exclude_pipe_instance_ids: exclude_spans_choice
 
-    return ModifyOpticalSpectrumConstraintsForm
+    return ModifyOpticalSpectrumRoutingForm
 
 
 def modify_optical_spectrum_path_form(
@@ -233,7 +213,7 @@ def modify_optical_spectrum_form_pages(
     """Yield the FormPages of the Optical Spectrum modify form, in order.
 
     This is the shipped modify form as a page sequence: it yields the identity
-    page, the waypoints page, the constraints page, the path page (the K
+    page, the routing page, the path page (the K
     shortest paths regardless of frequency) and the frequency page (the free
     ranges of the chosen path, prefilled with the current passband), and returns
     the collected user input as a flat dict of the ``optical_*`` state keys,
@@ -271,10 +251,8 @@ def modify_optical_spectrum_form_pages(
 
     waypoints_choice = multiple_optical_node_selector(
         roles=LINE_SYSTEM_ROLES,
-        prompt="Which Optical Nodes must the path pass through?",
+        prompt="Which Optical Nodes must the path pass through? [ordered src -> dst]",
     )
-    user_input_dict.update((yield modify_optical_spectrum_waypoints_form(product_name, waypoints_choice)).model_dump())
-
     exclude_nodes_choice = multiple_optical_node_selector(
         roles=LINE_SYSTEM_ROLES,
         prompt="Do *not* pass through these Optical Nodes",
@@ -284,7 +262,9 @@ def modify_optical_spectrum_form_pages(
     )
     user_input_dict.update(
         (
-            yield modify_optical_spectrum_constraints_form(product_name, exclude_nodes_choice, exclude_spans_choice)
+            yield modify_optical_spectrum_routing_form(
+                product_name, waypoints_choice, exclude_nodes_choice, exclude_spans_choice
+            )
         ).model_dump()
     )
 
@@ -388,7 +368,11 @@ def modify_optical_spectrum_form_generator(
         user_input_dict,
         block,
         summary_fields,
-        extra_before={"customer_id": subscription.customer_id},
+        extra_before={
+            "customer_id": subscription.customer_id,
+            "frequency_min": str(block.optical_spectrum_passband[0]),
+            "frequency_max": str(block.optical_spectrum_passband[1]),
+        },
     )
 
     return user_input_dict | {"subscription": subscription}

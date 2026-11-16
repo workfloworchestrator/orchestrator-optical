@@ -9,9 +9,10 @@ from typing import Any, Literal
 
 from orchestrator.optical.hal._common import (
     UnsupportedPortRoleError,
+    _all_ports,
     _node_id,
     _port_name,
-    _ports_by_role,
+    _ports_grouped_by_role,
     _retrieve_required,
     _same_node,
 )
@@ -58,11 +59,11 @@ def _g42_line_ports_names(optical_node_block: NokiaGxG42BlockProvisioning) -> li
     ]
 
 
-def get_device_ports_by_role(
+def get_device_ports_grouped_by_role(
     optical_node_block: NokiaGxG42BlockProvisioning,
     roles: list[OpticalPortRole] | None = None,
-) -> list[str]:
-    """Return the device port names of a GX G42 node for the requested Optical Port roles.
+) -> dict[OpticalPortRole, list[str]]:
+    """Return the device port names of a GX G42 node for the requested Optical Port roles, keyed by role.
 
     A GX G42 node exposes only transponder line and client ports; it cannot enumerate OLS or
     coherent pluggable ports.
@@ -83,7 +84,15 @@ def get_device_ports_by_role(
         msg = f"GX G42 does not support port role {role.value}"
         raise UnsupportedPortRoleError(msg)
 
-    return _ports_by_role(_G42_SUPPORTED_ROLES, port_names_for_role, roles)
+    return _ports_grouped_by_role(_G42_SUPPORTED_ROLES, port_names_for_role, roles)
+
+
+def get_device_ports_by_role(
+    optical_node_block: NokiaGxG42BlockProvisioning,
+    roles: list[OpticalPortRole] | None = None,
+) -> list[str]:
+    """Return the de-duplicated device port names of the node for the requested Optical Port roles."""
+    return _all_ports(get_device_ports_grouped_by_role(optical_node_block, roles))
 
 
 def retrieve_transceiver_modes(optical_node_block: NokiaGxG42BlockProvisioning, port_name: str) -> list[str]:

@@ -20,6 +20,8 @@ product block with ``match/case``:
 - :mod:`orchestrator.optical.hal.sessions` — one session per device, shared within a scope
   (``@device_sessions()`` under ``@step``; form submits get one from ``retryable_form``) and kept open, idle,
   for the next scope.
+- :mod:`orchestrator.optical.hal.read_cache` — the device reads of the input forms, remembered for a short
+  time across the submits of a form (``retryable_form``); workflow steps always read the device.
 
 Each area module routes to a per-device adapter under
 :mod:`orchestrator.optical.hal.adapters` (one subpackage per vendor platform).
@@ -45,6 +47,7 @@ from orchestrator.optical.hal.port import (
     configure_termination_when_attaching_new_fiber,
     factory_reset_port_configuration,
     get_device_ports_by_role,
+    get_device_ports_grouped_by_role,
     get_transceiver_capacity_from_mode,
     is_transponder_line_port,
     parse_port_identifiers,
@@ -53,6 +56,7 @@ from orchestrator.optical.hal.port import (
     set_port_admin_state,
     set_port_description,
 )
+from orchestrator.optical.hal.read_cache import DeviceReads, cached_device_read
 from orchestrator.optical.hal.reconcile import (
     ConfigApplyError,
     ConfigConflictError,
@@ -89,11 +93,13 @@ __all__ = [
     "ConfigApplyError",
     "ConfigConflictError",
     "ConfigDriftError",
+    "DeviceReads",
     "DeviceSessions",
     "FlexilsGneProvider",
     "IntraNodeEdge",
     "OpticalNodeDiscovery",
     "align_tx_power_to_target",
+    "cached_device_read",
     "check_fiber_terminating_port",
     "configure_line_transceivers",
     "configure_termination_when_attaching_new_fiber",
@@ -114,6 +120,7 @@ __all__ = [
     "factory_reset_transponder_lines",
     "forget_transponder_lines",
     "get_device_ports_by_role",
+    "get_device_ports_grouped_by_role",
     "get_flex_client",
     "get_g30_client",
     "get_g42_client",

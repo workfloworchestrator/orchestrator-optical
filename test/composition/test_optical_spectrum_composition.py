@@ -80,8 +80,7 @@ EXPECTED_CREATE_PAGE_NAMES = [
     "CreateOpticalSpectrumIdentityForm",
     "CreateOpticalSpectrumNodesForm",
     "CreateOpticalSpectrumAddDropForm",
-    "CreateOpticalSpectrumWaypointsForm",
-    "CreateOpticalSpectrumConstraintsForm",
+    "CreateOpticalSpectrumRoutingForm",
     "CreateOpticalSpectrumPathForm",
     "OpticalPassbandForm",
 ]
@@ -89,8 +88,7 @@ EXPECTED_CREATE_PAGE_NAMES = [
 #: The page classes yielded by the shipped modify page sequence, in order.
 EXPECTED_MODIFY_PAGE_NAMES = [
     "ModifyOpticalSpectrumIdentityForm",
-    "ModifyOpticalSpectrumWaypointsForm",
-    "ModifyOpticalSpectrumConstraintsForm",
+    "ModifyOpticalSpectrumRoutingForm",
     "ModifyOpticalSpectrumPathForm",
     "OpticalPassbandForm",
 ]
@@ -325,28 +323,36 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch: pytest.
 
     page_4 = generator.send(page_3(src_optical_port_name="opt-a", dst_optical_port_name="opt-b"))
     page_names.append(page_4.__name__)
-    assert set(page_4.model_fields) == {"intermediate_node_instance_ids"}
+    assert set(page_4.model_fields) == {
+        "intermediate_node_instance_ids",
+        "divider1",
+        "exclude_node_instance_ids",
+        "divider2",
+        "exclude_pipe_instance_ids",
+    }
 
-    page_5 = generator.send(page_4(intermediate_node_instance_ids=[FAKE_NODE_A]))
-    page_names.append(page_5.__name__)
-    assert set(page_5.model_fields) == {"exclude_node_instance_ids", "divider1", "exclude_pipe_instance_ids"}
-
-    page_6 = generator.send(
-        page_5(exclude_node_instance_ids=[FAKE_NODE_A], exclude_pipe_instance_ids=["opt-b"], divider1=None)
+    page_5 = generator.send(
+        page_4(
+            intermediate_node_instance_ids=[FAKE_NODE_A],
+            exclude_node_instance_ids=[FAKE_NODE_A],
+            exclude_pipe_instance_ids=["opt-b"],
+            divider1=None,
+            divider2=None,
+        )
     )
-    page_names.append(page_6.__name__)
-    assert set(page_6.model_fields) == {"optical_path"}
+    page_names.append(page_5.__name__)
+    assert set(page_5.model_fields) == {"optical_path"}
     # The paths are computed regardless of frequency, between the two add/drop ports.
     (_, (src, dst, *_), _) = calls[0]
     assert (src.add_drop_port_name, dst.add_drop_port_name) == ("opt-a", "opt-b")
 
-    page_7 = generator.send(page_6(optical_path="p1;p2"))
-    page_names.append(page_7.__name__)
-    assert set(page_7.model_fields) == {"available_frequency_ranges", "frequency_min", "frequency_max"}
-    assert "191.3250-196.1250 THz" in page_7.model_fields["available_frequency_ranges"].default
+    page_6 = generator.send(page_5(optical_path="p1;p2"))
+    page_names.append(page_6.__name__)
+    assert set(page_6.model_fields) == {"available_frequency_ranges", "frequency_min", "frequency_max"}
+    assert "191.3250-196.1250 THz" in page_6.model_fields["available_frequency_ranges"].default
     assert calls[1][1] == ("fake-candidates", ["p1", "p2"])
 
-    user_input = finish_form(generator, page_7(frequency_min=FREQUENCY_MIN, frequency_max=FREQUENCY_MAX))
+    user_input = finish_form(generator, page_6(frequency_min=FREQUENCY_MIN, frequency_max=FREQUENCY_MAX))
 
     assert page_names == EXPECTED_CREATE_PAGE_NAMES
     assert "customer_id" not in user_input
@@ -361,6 +367,7 @@ def test_create_form_pages_yield_the_shipped_pages_in_order(monkeypatch: pytest.
         "intermediate_node_instance_ids",
         "exclude_node_instance_ids",
         "divider1",
+        "divider2",
         "exclude_pipe_instance_ids",
         "optical_path",
     }
@@ -384,28 +391,36 @@ def test_modify_form_pages_yield_the_prefilled_pages_in_order(monkeypatch: pytes
 
     page_2 = generator.send(page_1(optical_spectrum_name="spec-02"))
     page_names.append(page_2.__name__)
-    assert set(page_2.model_fields) == {"intermediate_node_instance_ids"}
+    assert set(page_2.model_fields) == {
+        "intermediate_node_instance_ids",
+        "divider1",
+        "exclude_node_instance_ids",
+        "divider2",
+        "exclude_pipe_instance_ids",
+    }
 
-    page_3 = generator.send(page_2(intermediate_node_instance_ids=[FAKE_NODE_A]))
-    page_names.append(page_3.__name__)
-    assert set(page_3.model_fields) == {"exclude_node_instance_ids", "divider1", "exclude_pipe_instance_ids"}
-
-    page_4 = generator.send(
-        page_3(exclude_node_instance_ids=[FAKE_NODE_A], exclude_pipe_instance_ids=["opt-b"], divider1=None)
+    page_3 = generator.send(
+        page_2(
+            intermediate_node_instance_ids=[FAKE_NODE_A],
+            exclude_node_instance_ids=[FAKE_NODE_A],
+            exclude_pipe_instance_ids=["opt-b"],
+            divider1=None,
+            divider2=None,
+        )
     )
-    page_names.append(page_4.__name__)
-    assert set(page_4.model_fields) == {"optical_path"}
+    page_names.append(page_3.__name__)
+    assert set(page_3.model_fields) == {"optical_path"}
 
-    page_5 = generator.send(page_4(optical_path="p1;p2"))
-    page_names.append(page_5.__name__)
-    assert page_5.model_fields["frequency_min"].default == FREQUENCY_MIN
-    assert page_5.model_fields["frequency_max"].default == FREQUENCY_MAX
+    page_4 = generator.send(page_3(optical_path="p1;p2"))
+    page_names.append(page_4.__name__)
+    assert page_4.model_fields["frequency_min"].default == FREQUENCY_MIN
+    assert page_4.model_fields["frequency_max"].default == FREQUENCY_MAX
     # The service's own passband is forgiven on its own ports in the availability computation.
     own_occupancy = calls[1][1][2]
     assert own_occupancy.passbands == ((FREQUENCY_MIN, FREQUENCY_MAX),)
     assert own_occupancy.port_ids == frozenset({"port-a", "port-b"})
 
-    user_input = finish_form(generator, page_5(frequency_min=FREQUENCY_MIN, frequency_max=FREQUENCY_MAX))
+    user_input = finish_form(generator, page_4(frequency_min=FREQUENCY_MIN, frequency_max=FREQUENCY_MAX))
 
     assert page_names == EXPECTED_MODIFY_PAGE_NAMES
     assert "customer_id" not in user_input
@@ -416,6 +431,7 @@ def test_modify_form_pages_yield_the_prefilled_pages_in_order(monkeypatch: pytes
         "intermediate_node_instance_ids",
         "exclude_node_instance_ids",
         "divider1",
+        "divider2",
         "exclude_pipe_instance_ids",
         "optical_path",
     }

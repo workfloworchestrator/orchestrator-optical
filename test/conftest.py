@@ -7,6 +7,7 @@ registers them in the ``test/`` scope.
 
 import pytest
 
+from orchestrator.optical.hal.read_cache import clear_device_read_cache
 from orchestrator.optical.hal.sessions import close_idle_device_sessions
 from test.support.applied_config import applied_config_store  # noqa: F401
 from test.support.db import (  # noqa: F401
@@ -36,3 +37,9 @@ from test.support.topology import (  # noqa: F401
 def _no_device_session_outlives_a_test() -> None:
     """Device sessions stay open between scopes: never let one test reuse the (fake) session of another."""
     close_idle_device_sessions()
+
+
+@pytest.fixture(autouse=True)
+def _no_device_read_outlives_a_test() -> None:
+    """Forms remember what they read from a device: never let one test be answered from the (fake) device of another."""
+    clear_device_read_cache()

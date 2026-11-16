@@ -21,6 +21,7 @@ from orchestrator.optical.hal._common import (
     _vendor_platform,
 )
 from orchestrator.optical.hal.adapters.nokia_flexils.gne import FlexilsGneProvider
+from orchestrator.optical.hal.read_cache import cached_device_read
 from orchestrator.optical.products.product_blocks.optical_node.abstracts import OpticalNodeRole
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.products.product_blocks.optical_node_management import Platform, Vendor
@@ -94,6 +95,7 @@ def discover_flexils_node(
     )
 
 
+@cached_device_read
 def discover_optical_node(
     vendor: Vendor,
     platform: Platform,
@@ -252,6 +254,7 @@ def retrieve_omses_terminating_on_device(
             raise UnsupportedPlatformError(msg)
 
 
+@cached_device_read
 def retrieve_ports_spectral_occupations(
     optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
 ) -> dict[str, list[tuple[int, int]]]:
