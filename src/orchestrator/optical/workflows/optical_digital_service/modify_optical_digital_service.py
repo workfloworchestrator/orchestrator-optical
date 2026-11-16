@@ -346,7 +346,14 @@ def modify_optical_digital_service_form_pages(
 
     user_input_dict.update((yield create_optical_digital_service_path_form(path_choice)).model_dump())
     optical_path = decode_optical_path(user_input_dict["optical_path"])
-    available = optical_digital_service_available_passbands(candidates, optical_path, own_occupancy)
+    available = optical_digital_service_available_passbands(
+        candidates,
+        optical_path,
+        own_occupancy,
+        line_port_ids=[
+            str(port.subscription_instance_id) for channel in channels for port in channel.optical_transport_line_ports
+        ],
+    )
     user_input_dict.update(
         (
             yield optical_digital_service_frequencies_form(

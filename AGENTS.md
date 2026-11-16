@@ -262,6 +262,23 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
 - A FlexILS node looked up by Target ID only must match its `NENAME` exactly (the lenient substring match of
   `_find_node_entry` is refused by `_discover_via_client` when no GMPLS ID is given).
 
+### Leased passbands of a Leased Spectrum
+
+- `optical_leased_passbands` (Leased Spectrum block, revision `a4d7e1b92c05`) are the frequency ranges leased on the
+  pipe; an empty list means the lease is not restricted (every subscription created before the field). They are
+  asked on the create (provider page) and modify forms as one text field, `leased_passbands`, in THz
+  (`"191.325-193.000, 194.000-196.125"`; `utils/custom_types/frequencies.py::parse_passbands_thz` /
+  `passbands_to_thz_text`); the state carries that text, the steps parse it.
+- They are **never copied to the ports**: `optical_passbands` of an OLS port stays what the device reports as used.
+  The frequency pages apply them when the free ranges are computed
+  (`optical_spectrum_service/shared.py::restrict_to_leased_passbands`, called by `available_passbands_for_path` and
+  `optical_digital_service_available_passbands`), finding the pipes from the ports of the path with one query
+  (`db.py::leased_passbands_of_ports`, no block load). Any new page computing free frequencies must go through it.
+- Open points: the modify form does not check a narrower lease against the services already routed through the
+  pipe; the workflow steps do not re-check the lease (only the forms do); `bulk_create_optical_pipes` has no
+  `leased_passbands` column; two coherent pluggables joined directly by a Leased Spectrum are not restricted
+  (the pipe holds copies of the pluggable blocks, so the service's line ports do not match its terminations).
+
 ### Workflows
 
 - The module ships the **ready-to-use workflows of the shipped product types**: one module-level

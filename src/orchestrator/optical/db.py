@@ -8,7 +8,7 @@ shared contracts between the layers; subscription ids are input parameters
 only, never model dependencies.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, cast
 from uuid import UUID
 
@@ -39,12 +39,14 @@ from orchestrator.optical.products.product_blocks.optical_node.optical_packet_no
     OpticalModulePacketNodeBlockInactive,
 )
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockUnion
+from orchestrator.optical.utils.custom_types.frequencies import parse_if_string
 
 __all__ = [
     "OpticalAppliedConfigTable",
     "applied_config",
     "applied_config_of_other_owners",
     "forget_applied_config",
+    "leased_passbands_of_ports",
     "location_block_from_instance",
     "lock_node_config",
     "node_applied_config",
@@ -305,6 +307,42 @@ def subscription_instance_values_by_instance_ids_and_resource_type(
         .where(SubscriptionInstanceValueTable.subscription_instance_id.in_(instance_ids))
         .where(ResourceTypeTable.resource_type == resource_type)
     )
+
+
+def leased_passbands_of_ports(port_instance_ids: Sequence[str]) -> dict[str, list[tuple[int, int]]]:
+    """Return the leased passbands of the Leased Spectrum blocks terminated on the given ports.
+
+    Single query: the blocks using any of the ports are joined with their stored
+    ``optical_leased_passbands`` values, so no block is loaded. A Leased Spectrum block
+    without stored passbands (an unrestricted lease) has no row and is not returned.
+
+    Args:
+        port_instance_ids: Subscription instance ids of Optical Port blocks (any role).
+
+    Returns:
+        ``{leased spectrum block instance id: [(start, end), ...]}`` in MHz, sorted.
+    """
+    if not port_instance_ids:
+        return {}
+    rows = db.session.execute(
+        select(SubscriptionInstanceRelationTable.in_use_by_id, SubscriptionInstanceValueTable.value)
+        .join(
+            SubscriptionInstanceValueTable,
+            SubscriptionInstanceValueTable.subscription_instance_id == SubscriptionInstanceRelationTable.in_use_by_id,
+        )
+        .join(
+            ResourceTypeTable,
+            SubscriptionInstanceValueTable.resource_type_id == ResourceTypeTable.resource_type_id,
+        )
+        .where(SubscriptionInstanceRelationTable.depends_on_id.in_(port_instance_ids))
+        .where(ResourceTypeTable.resource_type == "optical_leased_passbands")
+        .distinct()
+    ).all()
+    leased: dict[str, set[tuple[int, int]]] = {}
+    for pipe_instance_id, value in rows:
+        start, end = parse_if_string(value)
+        leased.setdefault(str(pipe_instance_id), set()).add((int(start), int(end)))
+    return {pipe_instance_id: sorted(passbands) for pipe_instance_id, passbands in leased.items()}
 
 
 def subscription_instances_by_block_names(

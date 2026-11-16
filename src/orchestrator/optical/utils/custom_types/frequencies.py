@@ -14,10 +14,12 @@
 """Frequency, bandwidth and passband types plus passband arithmetic helpers."""
 
 import ast
+import re
 from collections.abc import Iterable, Sequence
+from decimal import Decimal, InvalidOperation
 from typing import Annotated
 
-from pydantic import AfterValidator, BeforeValidator, Field
+from pydantic import AfterValidator, BeforeValidator, Field, TypeAdapter, ValidationError
 from typing_extensions import Doc
 
 Frequency = Annotated[
@@ -289,6 +291,29 @@ def free_intervals(
     return subtract_intervals([band], merge_intervals(used))
 
 
+def intersect_intervals(
+    intervals: Iterable[tuple[int, int] | list[int]],
+    allowed: Iterable[tuple[int, int] | list[int]],
+) -> list[tuple[int, int]]:
+    """Return the parts of the given ``[start, end)`` intervals lying within the allowed ones.
+
+    Args:
+        intervals: The intervals to restrict, in any order, possibly overlapping.
+        allowed: The intervals to keep within, in any order, possibly overlapping.
+
+    Returns:
+        The sorted disjoint intersection.
+    """
+    allowed_merged = merge_intervals(allowed)
+    intersection: list[tuple[int, int]] = []
+    for start, end in merge_intervals(intervals):
+        for allowed_start, allowed_end in allowed_merged:
+            low, high = max(start, allowed_start), min(end, allowed_end)
+            if low < high:
+                intersection.append((low, high))
+    return intersection
+
+
 def passband_within_any(passband: tuple[int, int] | list[int], intervals: Sequence[tuple[int, int]]) -> bool:
     """Return whether the passband lies entirely within one of the given intervals."""
     start, end = int(passband[0]), int(passband[1])
@@ -332,3 +357,65 @@ def available_to_used_passbands(
             used_passbands.append(current_used_passband)
 
     return used_passbands
+
+
+_THZ_RANGE = re.compile(r"^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)(?:\s*THz)?$", re.IGNORECASE)
+_MHZ_PER_THZ = 1_000_000
+
+
+def passbands_to_thz_text(passbands: Iterable[tuple[int, int] | list[int]]) -> str:
+    """Return the passbands as the exact text :func:`parse_passbands_thz` reads back.
+
+    Args:
+        passbands: The ``(start, end)`` passbands in MHz.
+
+    Returns:
+        E.g. ``"191.325-193, 194.00625-196.125"`` (THz, no rounding); ``""`` for no passband.
+    """
+    return ", ".join(
+        f"{Decimal(int(start)) / _MHZ_PER_THZ:f}-{Decimal(int(end)) / _MHZ_PER_THZ:f}" for start, end in passbands
+    )
+
+
+def parse_passbands_thz(text: str) -> list[tuple[int, int]]:
+    """Parse a list of frequency ranges typed in THz into sorted, merged passbands in MHz.
+
+    The ranges are ``start-end`` pairs separated by commas, semicolons or new lines, with an
+    optional ``THz`` suffix (e.g. ``"191.325-193.000, 194.000-196.125 THz"``). Every edge
+    must be a valid :data:`Frequency`. Overlapping and edge-touching ranges are merged.
+
+    Args:
+        text: The typed ranges; empty or blank for no passband.
+
+    Returns:
+        The sorted disjoint ``(start, end)`` passbands in MHz.
+
+    Raises:
+        ValueError: If a range is malformed, out of band, off the frequency grid or not in order.
+    """
+    passbands: list[tuple[int, int]] = []
+    for chunk in re.split(r"[,;\n]", text):
+        item = chunk.strip()
+        if not item:
+            continue
+        match = _THZ_RANGE.match(item)
+        if match is None:
+            msg = f"Cannot read the frequency range {item!r}: expected 'start-end' in THz, e.g. '191.325-193.000'"
+            raise ValueError(msg)
+        try:
+            edges = [Decimal(value) * _MHZ_PER_THZ for value in match.groups()]
+        except InvalidOperation as exc:  # pragma: no cover - the pattern only admits decimals
+            raise ValueError(str(exc)) from exc
+        if any(edge != edge.to_integral_value() for edge in edges):
+            msg = f"The frequency range {item!r} is finer than 1 MHz"
+            raise ValueError(msg)
+        try:
+            passbands.append(_PASSBAND_ADAPTER.validate_python((int(edges[0]), int(edges[1]))))
+        except ValidationError as exc:
+            reasons = "; ".join(error["msg"] for error in exc.errors())
+            msg = f"Invalid frequency range {item!r}: {reasons}"
+            raise ValueError(msg) from exc
+    return merge_intervals(passbands)
+
+
+_PASSBAND_ADAPTER: TypeAdapter[tuple[int, int]] = TypeAdapter(Passband)

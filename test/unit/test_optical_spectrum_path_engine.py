@@ -289,6 +289,9 @@ def test_available_passbands_for_path_unions_ports_and_internal_routes(monkeypat
     port_b = _ols_line(node, passbands=[foreign])
     ports = {_pid(port_a): port_a, _pid(port_b): port_b}
     monkeypatch.setattr(shared, "_load_ols_port", lambda port_id: ports[port_id])
+    leased: dict[str, list[tuple[int, int]]] = {}
+    asked: list[list[str]] = []
+    monkeypatch.setattr(shared, "leased_passbands_of_ports", lambda ids: asked.append(list(ids)) or leased)
     src_edge = IntraNodeEdge("T1", "port-line", ((194_000_000, 194_050_000), own))
 
     available = available_passbands_for_path([_pid(port_a), _pid(port_b)], src_edge, None)
@@ -310,6 +313,28 @@ def test_available_passbands_for_path_unions_ports_and_internal_routes(monkeypat
     ensure_passband_available((191_400_000, 191_500_000), available)
     with pytest.raises(ValueError, match="not available"):
         ensure_passband_available((192_050_000, 192_150_000), available)
+
+    # Every leased spectrum crossed by the path limits the free ranges to its leased passbands.
+    assert asked[-1] == sorted([_pid(port_a), _pid(port_b)])
+    leased["pipe-1"] = [(191_500_000, 192_050_000), (192_900_000, 193_500_000)]
+    leased["pipe-2"] = [(OLS_BAND[0], 193_200_000)]
+    assert available_passbands_for_path([_pid(port_a), _pid(port_b)], src_edge, None) == [
+        (191_500_000, own[0]),
+        (192_900_000, foreign[0]),
+        (foreign[1], 193_200_000),
+    ]
+
+
+def test_restrict_to_leased_passbands_ignores_values_that_are_not_instance_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The placeholder of a direct connection never reaches the database query."""
+    port_id = str(uuid4())
+    asked: list[list[str]] = []
+    monkeypatch.setattr(shared, "leased_passbands_of_ports", lambda ids: asked.append(list(ids)) or {})
+
+    assert shared.restrict_to_leased_passbands([OLS_BAND], ["direct_connection", "", port_id]) == [OLS_BAND]
+    assert asked == [[port_id]]
     ensure_passband_available((192_050_000, 192_150_000), None)
 
 

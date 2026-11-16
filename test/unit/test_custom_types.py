@@ -24,8 +24,11 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     available_to_used_passbands,
     disjoint_intervals_overlap_search,
     ensure_passband_aligned_to_grid,
+    intersect_intervals,
     is_passband_aligned_to_grid,
+    parse_passbands_thz,
     passband_overlaps_excluding_ignored,
+    passbands_to_thz_text,
     snap_passband_to_grid,
     subtract_intervals,
 )
@@ -389,3 +392,41 @@ def test_port_number_rejects_invalid(value: int) -> None:
 
 def test_address_space_values() -> None:
     assert {space.value for space in AddressSpace} == {"PRIVATE", "PUBLIC"}
+
+
+def test_parse_passbands_thz_reads_sorts_and_merges_the_ranges() -> None:
+    text = "194.000-196.125 THz; 191.325 - 193.000,\n193.000-193.00625"
+    assert parse_passbands_thz(text) == [(191_325_000, 193_006_250), (194_000_000, 196_125_000)]
+    assert parse_passbands_thz("  ") == []
+
+
+def test_passbands_to_thz_text_is_read_back_unchanged() -> None:
+    passbands = [(191_325_000, 193_006_250), (194_000_000, 196_125_000)]
+    text = passbands_to_thz_text(passbands)
+    assert text == "191.325-193.00625, 194-196.125"
+    assert parse_passbands_thz(text) == passbands
+    assert passbands_to_thz_text([]) == ""
+
+
+@pytest.mark.parametrize(
+    ("text", "reason"),
+    [
+        ("191.325", "expected 'start-end'"),
+        ("193.0-192.0", "Start frequency must be less than end frequency"),
+        ("100.0-193.0", "greater than or equal to"),
+        ("191.3251-193.0", "multiple of"),
+        ("191.3250001-193.0", "finer than 1 MHz"),
+    ],
+)
+def test_parse_passbands_thz_rejects_invalid_ranges(text: str, reason: str) -> None:
+    with pytest.raises(ValueError, match=reason):
+        parse_passbands_thz(text)
+
+
+def test_intersect_intervals_keeps_the_common_parts() -> None:
+    assert intersect_intervals([(100, 300), (400, 500)], [(250, 450), (480, 600)]) == [
+        (250, 300),
+        (400, 450),
+        (480, 500),
+    ]
+    assert intersect_intervals([(100, 200)], []) == []

@@ -1,4 +1,11 @@
-"""Product Blocks of Leased Spectrum Optical Pipes."""
+"""Product Blocks of Leased Spectrum Optical Pipes.
+
+``optical_leased_passbands`` are the frequency ranges the provider leases on the pipe:
+nothing may be transmitted through the pipe outside of them. An empty list means the
+lease is not restricted (the whole band may be used).
+"""
+
+from pydantic import Field
 
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import (
@@ -8,6 +15,7 @@ from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import 
     FiberSides,
     OpticalPipeType,
 )
+from orchestrator.optical.products.product_blocks.optical_port.abstracts import OpticalPassbandList
 from orchestrator.optical.products.product_blocks.optical_port.unions import (
     LeasedSpectrumPortBlock,
     LeasedSpectrumPortBlockInactive,
@@ -20,6 +28,7 @@ class OpticalLeasedSpectrumBlockInactive(AbstractOpticalPipeBlockInactive, produ
 
     optical_pipe_type: OpticalPipeType = OpticalPipeType.LEASED_SPECTRUM
     optical_pipe_name: str | None = None
+    optical_leased_passbands: OpticalPassbandList = Field(default_factory=list)
     optical_pipe_terminations: FiberSides[LeasedSpectrumPortBlockInactive]
 
 
@@ -32,6 +41,7 @@ class OpticalLeasedSpectrumBlockProvisioning(
 
     optical_pipe_type: OpticalPipeType = OpticalPipeType.LEASED_SPECTRUM
     optical_pipe_name: str | None
+    optical_leased_passbands: OpticalPassbandList
     optical_pipe_terminations: FiberSides[LeasedSpectrumPortBlockProvisioning]
 
 
@@ -44,4 +54,5 @@ class OpticalLeasedSpectrumBlock(
 
     optical_pipe_type: OpticalPipeType = OpticalPipeType.LEASED_SPECTRUM
     optical_pipe_name: str
+    optical_leased_passbands: OpticalPassbandList
     optical_pipe_terminations: FiberSides[LeasedSpectrumPortBlock]

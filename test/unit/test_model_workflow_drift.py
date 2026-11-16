@@ -54,7 +54,10 @@ from orchestrator.optical.products.product_blocks.optical_node.nokia_gx_g42 impo
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import AbstractOpticalPipeBlockProvisioning
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_patch import OpticalFiberPatchBlockInactive
 from orchestrator.optical.products.product_blocks.optical_pipe.fiber_span import OpticalFiberSpanBlockInactive
-from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import OpticalLeasedSpectrumBlockInactive
+from orchestrator.optical.products.product_blocks.optical_pipe.leased_spectrum import (
+    OpticalLeasedSpectrumBlockInactive,
+    OpticalLeasedSpectrumBlockProvisioning,
+)
 from orchestrator.optical.products.product_blocks.optical_port.abstracts import (
     AbstractOpticalOlsPortBlockProvisioning,
     AbstractOpticalPortBlockInactive,
@@ -120,6 +123,9 @@ from orchestrator.optical.workflows.optical_pipe.fiber_patch.create_fiber_patch 
 from orchestrator.optical.workflows.optical_pipe.fiber_span.create_fiber_span import build_fiber_span_block
 from orchestrator.optical.workflows.optical_pipe.leased_spectrum.create_leased_spectrum import (
     build_leased_spectrum_block,
+)
+from orchestrator.optical.workflows.optical_pipe.leased_spectrum.modify_leased_spectrum import (
+    update_leased_spectrum_passbands,
 )
 from orchestrator.optical.workflows.optical_pipe.shared import new_pipe_port_block, update_optical_pipe_block
 from orchestrator.optical.workflows.optical_spectrum_service.create_optical_spectrum_service import (
@@ -273,7 +279,16 @@ WRITERS = [
     # --- Optical Pipe family ---
     _entry(build_fiber_span_block, OpticalFiberSpanBlockInactive, ("optical_pipe_name",)),
     _entry(build_fiber_patch_block, OpticalFiberPatchBlockInactive, ("optical_pipe_name",)),
-    _entry(build_leased_spectrum_block, OpticalLeasedSpectrumBlockInactive, ("optical_pipe_name",)),
+    _entry(
+        build_leased_spectrum_block,
+        OpticalLeasedSpectrumBlockInactive,
+        ("optical_pipe_name", "optical_leased_passbands"),
+    ),
+    _entry(
+        update_leased_spectrum_passbands,
+        OpticalLeasedSpectrumBlockProvisioning,
+        ("optical_leased_passbands",),
+    ),
     _entry(update_optical_pipe_block, AbstractOpticalPipeBlockProvisioning, ("optical_pipe_name",)),
     _entry(
         new_pipe_port_block,

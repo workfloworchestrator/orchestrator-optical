@@ -39,7 +39,7 @@ from orchestrator.core.forms import FormPage
 from orchestrator.core.forms.validators import Label
 from orchestrator.core.types import SubscriptionLifecycle
 from orchestrator.core.workflow import step
-from orchestrator.optical.db import pipe_blocks_all
+from orchestrator.optical.db import leased_passbands_of_ports, pipe_blocks_all
 from orchestrator.optical.hal.connectivity import IntraNodeEdge, g30_shelf_of_port, retrieve_add_drop_connectivity
 from orchestrator.optical.hal.node import retrieve_ports_spectral_occupations
 from orchestrator.optical.hal.port import retrieve_transceiver_modes
@@ -78,6 +78,7 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     Passband,
     ensure_passband_aligned_to_grid,
     free_intervals,
+    intersect_intervals,
     merge_intervals,
     passband_within_any,
     snap_passband_to_grid,
@@ -1083,7 +1084,44 @@ def available_passbands_for_path(
         if own_occupancy is not None:
             edge_used = subtract_intervals(merge_intervals(edge_used), own_occupancy.passbands)
         used.extend(edge_used)
-    return free_intervals(used)
+    return restrict_to_leased_passbands(free_intervals(used), path)
+
+
+def restrict_to_leased_passbands(
+    available: Sequence[tuple[int, int]],
+    port_ids: Iterable[UUIDstr],
+) -> list[tuple[int, int]]:
+    """Keep only the frequency ranges that every Leased Spectrum crossed by the ports allows.
+
+    A Leased Spectrum pipe may be leased for some passbands only
+    (``optical_leased_passbands``): nothing is transmitted through it outside of them.
+    The pipes are found from their terminating ports, whatever the role (OLS port,
+    transponder line port, coherent pluggable); a pipe without leased passbands does not
+    restrict.
+
+    Args:
+        available: The free ``[start, end)`` ranges (MHz).
+        port_ids: Subscription instance ids of the ports of the path; anything that is
+            not an instance id (e.g. the placeholder of a direct connection) is ignored.
+
+    Returns:
+        The sorted free ranges within the leased passbands of every pipe crossed.
+    """
+    restricted = [(int(start), int(end)) for start, end in available]
+    for leased in leased_passbands_of_ports(sorted(_instance_ids(port_ids))).values():
+        restricted = intersect_intervals(restricted, leased)
+    return restricted
+
+
+def _instance_ids(values: Iterable[UUIDstr]) -> set[str]:
+    """Return the values that are subscription instance ids (UUIDs), as strings."""
+    ids: set[str] = set()
+    for value in values:
+        try:
+            ids.add(str(UUID(str(value))))
+        except ValueError:
+            continue
+    return ids
 
 
 def candidate_available_passbands(

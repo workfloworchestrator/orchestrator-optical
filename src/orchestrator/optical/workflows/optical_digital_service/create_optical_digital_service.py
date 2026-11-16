@@ -110,6 +110,7 @@ from orchestrator.optical.workflows.optical_spectrum_service.shared import (
     format_passbands_thz,
     human_readable_transport_channel_path_selector,
     multiple_optical_node_selector,
+    restrict_to_leased_passbands,
 )
 from orchestrator.optical.workflows.shared import create_summary_form, optical_port_selector, retryable_form
 
@@ -602,25 +603,32 @@ def optical_digital_service_available_passbands(
     candidates: OpticalPathCandidates | None,
     optical_path: list[UUIDstr],
     own_occupancy: OwnOccupancy | None = None,
+    *,
+    line_port_ids: Sequence[UUIDstr] = (),
 ) -> list[tuple[int, int]]:
     """Return the free frequency ranges of a chosen digital service path.
 
     The chosen path is wrapped with the add/drop ports (see
     :func:`optical_digital_service_path_choice`): the OLS interior and the endpoint
     internal routes decide the availability. A direct connection (no candidates) has
-    the whole band available.
+    the whole band available. Either way the result is limited to the leased passbands
+    of every Leased Spectrum crossed, including the ones attaching the line ports (see
+    :func:`orchestrator.optical.workflows.optical_spectrum_service.shared.restrict_to_leased_passbands`).
 
     Args:
         candidates: The candidates the path was chosen from, or ``None`` for a direct connection.
         optical_path: The chosen path, as decoded port instance ids.
         own_occupancy: The service's own current circuits (modify workflows).
+        line_port_ids: Subscription instance ids of the line ports of the service.
 
     Returns:
         The sorted free ``[start, end)`` ranges of the OLS band (MHz).
     """
     if candidates is None:
-        return free_intervals([])
-    return candidate_available_passbands(candidates, optical_path[1:-1], own_occupancy)
+        available = free_intervals([])
+    else:
+        available = candidate_available_passbands(candidates, optical_path[1:-1], own_occupancy)
+    return restrict_to_leased_passbands(available, [*line_port_ids, *optical_path])
 
 
 def create_optical_digital_service_form_pages(product_name: str) -> FormGenerator:
@@ -792,7 +800,9 @@ def _yield_new_channel_spec_pages(
 
     collected.update((yield create_optical_digital_service_path_form(path_choice)).model_dump())
     optical_path = _decode_optical_path(collected["optical_path"])
-    available = optical_digital_service_available_passbands(candidates, optical_path)
+    available = optical_digital_service_available_passbands(
+        candidates, optical_path, line_port_ids=[*src_line_ids, *dst_line_ids]
+    )
     collected.update(
         (yield optical_digital_service_frequencies_form(product_name, num_channels, available)).model_dump()
     )

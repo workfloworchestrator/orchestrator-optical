@@ -348,7 +348,8 @@ def test_fiber_patch_and_leased_spectrum_step_lists_compose() -> None:
 
     leased_workflow: Workflow = modify_leased_spectrum
     names = [step.name for step in leased_workflow.steps]
-    assert names.index("Updating Optical Pipe block") < names.index("Persist optical module block")
+    assert names.index("Updating Optical Pipe block") < names.index("Updating the leased passbands")
+    assert names.index("Updating the leased passbands") < names.index("Persist optical module block")
 
 
 def _labelled_end(fqdn: str, port_name: str) -> SimpleNamespace:

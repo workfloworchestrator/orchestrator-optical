@@ -21,7 +21,7 @@ from pydantic_forms.exceptions import FormValidationError
 import orchestrator.core.db as core_db
 from orchestrator.core.db import SubscriptionTable
 from orchestrator.core.types import SubscriptionLifecycle
-from orchestrator.optical.db import pipe_blocks_by_types
+from orchestrator.optical.db import leased_passbands_of_ports, pipe_blocks_by_types
 from orchestrator.optical.products import ProductName
 from orchestrator.optical.products.product_blocks.optical_pipe.abstracts import OpticalPipeType
 from orchestrator.optical.products.product_blocks.optical_port.ols_add_drop import OlsAddDropPortBlock
@@ -35,6 +35,7 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
     optical_pipe_selector,
     pipe_termination_label,
 )
+from orchestrator.optical.workflows.optical_spectrum_service.shared import restrict_to_leased_passbands
 from test.support.db import CUSTOMER_ID, node_instance_id_of_subscription
 from test.support.devices import FAKE_CLIENT_PORTS, FAKE_LINE_PORTS
 
@@ -71,6 +72,7 @@ def _create_pipe_user_inputs(
     port_b_name: str,
     pipe_name: str | None = None,
     provider_name: str | None = None,
+    leased_passbands: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return the pipe create form inputs: product, ends, terminations, [provider], summary.
 
@@ -89,7 +91,10 @@ def _create_pipe_user_inputs(
         terminations,
     ]
     if provider_name is not None:
-        pages.append({"provider_name": provider_name})
+        provider: dict[str, Any] = {"provider_name": provider_name}
+        if leased_passbands is not None:
+            provider["leased_passbands"] = leased_passbands
+        pages.append(provider)
     pages.append({})
     return pages
 
@@ -97,6 +102,11 @@ def _create_pipe_user_inputs(
 def _terminate_pipe_user_inputs(subscription_id: str) -> list[dict[str, Any]]:
     """Return the pipe terminate form inputs: subscription selector, TERMINATE confirmation."""
     return [{"subscription_id": subscription_id}, {"warning": "TERMINATE", "subscription_id": subscription_id}]
+
+
+def _termination_ids(pipe: Any) -> list[str]:
+    """Return the subscription instance ids of the two terminating ports of a pipe."""
+    return [str(port.subscription_instance_id) for port in pipe.optical_pipe_terminations]
 
 
 def _assert_pipe_terminations(pipe: Any, name_a: str, name_b: str, port_name: str, port_block_class: Any) -> None:
@@ -307,6 +317,9 @@ def test_leased_spectrum_create_validate_terminate(
 
     leased_spectrum = OpticalLeasedSpectrumSubscription.from_subscription(subscription_id)
     assert leased_spectrum.optical_pipe.optical_pipe_name == "Acme Telecom circuit-77"
+    # No leased passbands asked: the lease is not restricted.
+    assert leased_spectrum.optical_pipe.optical_leased_passbands == []
+    assert leased_passbands_of_ports(_termination_ids(leased_spectrum.optical_pipe)) == {}
     _assert_pipe_terminations(
         leased_spectrum.optical_pipe, "lease-a.optical.test", "lease-b.optical.test", CLIENT_PORT, OlsAddDropPortBlock
     )
@@ -371,7 +384,7 @@ def test_leased_spectrum_modify(
     seed_optical_node,
     stub_pipe_device,
 ) -> None:
-    """The shipped Optical Leased Spectrum modify workflow renames the pipe and keeps it ACTIVE."""
+    """The shipped Optical Leased Spectrum modify workflow renames the pipe, sets its leased passbands, stays ACTIVE."""
     node_a = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "lease-mod-a.optical.test", "10.9.0.71")
     node_b = _seed_node_instance(seed_optical_node, FLEXILS_NODE_PRODUCT, "lease-mod-b.optical.test", "10.9.0.72")
 
@@ -385,21 +398,36 @@ def test_leased_spectrum_modify(
             CLIENT_PORT,
             "circuit-mod-01",
             provider_name="Acme Telecom",
+            leased_passbands="194.000-195.000 THz, 191.325-192.000",
         ),
     )
     assert_process_completed(create_process_id)
     subscription_id = subscription_id_of_process(create_process_id)
+    created = [(191_325_000, 192_000_000), (194_000_000, 195_000_000)]
+    pipe = OpticalLeasedSpectrumSubscription.from_subscription(subscription_id).optical_pipe
+    assert pipe.optical_leased_passbands == created
+    # The frequency pages find the lease from any of the terminating ports, without loading the block.
+    pipe_id = str(pipe.subscription_instance_id)
+    assert leased_passbands_of_ports(_termination_ids(pipe)) == {pipe_id: created}
+    assert leased_passbands_of_ports(_termination_ids(pipe)[:1]) == {pipe_id: created}
+    assert restrict_to_leased_passbands([(191_900_000, 194_100_000)], _termination_ids(pipe)) == [
+        (191_900_000, 192_000_000),
+        (194_000_000, 194_100_000),
+    ]
 
     modify_process_id = run_process(
         "modify_leased_spectrum",
         [
             {"subscription_id": subscription_id},
             {"customer_id": CUSTOMER_ID},
-            {"optical_pipe_name": "Acme Telecom circuit-mod-02"},
+            {"optical_pipe_name": "Acme Telecom circuit-mod-02", "leased_passbands": "191.325-193.000"},
             {},
         ],
     )
     assert_process_completed(modify_process_id)
+    modified = OpticalLeasedSpectrumSubscription.from_subscription(subscription_id).optical_pipe
+    assert modified.optical_leased_passbands == [(191_325_000, 193_000_000)]
+    assert leased_passbands_of_ports(_termination_ids(modified)) == {pipe_id: [(191_325_000, 193_000_000)]}
     _assert_description(_subscription_table(subscription_id).description, "Acme Telecom circuit-mod-02")
     assert SubscriptionLifecycle(_subscription_table(subscription_id).status) == SubscriptionLifecycle.ACTIVE
     assert (

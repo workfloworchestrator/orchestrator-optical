@@ -30,12 +30,19 @@ The subscription model has no dedicated provider field: the ``provider_name``
 collected by the form is always persisted by prefixing it to the
 ``optical_pipe_name`` (``"<provider> <circuit id or default>"``), so that no
 input is silently dropped.
+
+The provider page also collects the leased passbands (``leased_passbands``, the
+frequency ranges typed in THz, see :func:`leased_passbands_field`): they are
+stored on the block as ``optical_leased_passbands`` and limit the frequencies
+offered to the services routed through the pipe. Left empty, the lease is not
+restricted.
 """
 
-from typing import cast
+from collections.abc import Sequence
+from typing import Any, cast
 from uuid import UUID, uuid4
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 from pydantic_forms.types import FormGenerator, State, UUIDstr
 
 from orchestrator.core.forms import FormPage
@@ -54,6 +61,7 @@ from orchestrator.optical.products.product_types.optical_pipe.leased_spectrum im
     OpticalLeasedSpectrumSubscriptionInactive,
     OpticalLeasedSpectrumSubscriptionProvisioning,
 )
+from orchestrator.optical.utils.custom_types.frequencies import parse_passbands_thz, passbands_to_thz_text
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.optical_pipe.shared import (
     OPTICAL_MODULE_BLOCK_STATE_KEY,
@@ -71,11 +79,46 @@ from orchestrator.optical.workflows.optical_pipe.shared import (
 from orchestrator.optical.workflows.shared import retryable_form
 
 
+def leased_passbands_field(default: str = "") -> Any:
+    """Return the form field collecting the leased passbands of a Leased Spectrum pipe.
+
+    The value is a text listing the leased frequency ranges in THz; pair the field with
+    :func:`normalize_leased_passbands` as its validator, as the shipped create and modify
+    pages do.
+
+    Args:
+        default: The prefilled text (modify forms, see
+            :func:`orchestrator.optical.utils.custom_types.frequencies.passbands_to_thz_text`).
+
+    Returns:
+        The pydantic ``Field`` of the ``leased_passbands`` form key.
+    """
+    return Field(
+        default,
+        title="Leased Passbands (THz)",
+        description=(
+            "Frequency ranges leased on this pipe, as 'start-end' in THz separated by commas, e.g. "
+            "'191.325-193.000, 194.000-196.125'. Nothing is transmitted through the pipe outside of them. "
+            "Leave empty when the lease is not restricted to some frequencies."
+        ),
+    )
+
+
+def normalize_leased_passbands(value: str | None) -> str:
+    """Validate the typed leased passbands and return them sorted, merged and in the exact THz text.
+
+    Raises:
+        ValueError: If a range cannot be read or is not a valid passband.
+    """
+    return passbands_to_thz_text(parse_passbands_thz(value or ""))
+
+
 def create_leased_spectrum_provider_form(product_name: str) -> type[FormPage]:
     """Return the provider FormPage of the Optical Leased Spectrum create form.
 
     This is a dedicated page of the shipped create form that collects the
-    third-party provider name of the leased spectrum pipe. It is a building
+    third-party provider name of the leased spectrum pipe and the passbands
+    leased on it (see :func:`leased_passbands_field`). It is a building
     block for consumers that compose their own create form generator: the
     shipped page sequence (:func:`create_leased_spectrum_form_pages`) yields it
     after the shared pipe pages.
@@ -91,6 +134,9 @@ def create_leased_spectrum_provider_form(product_name: str) -> type[FormPage]:
         model_config = ConfigDict(title=f"{product_name} - Provider")
 
         provider_name: str = Field(..., title="Third-Party Provider Name", min_length=1)
+        leased_passbands: str = leased_passbands_field()
+
+        _normalize_leased_passbands = field_validator("leased_passbands")(normalize_leased_passbands)
 
     return CreateLeasedSpectrumProviderForm
 
@@ -101,7 +147,8 @@ def create_leased_spectrum_form_pages(product_name: str) -> FormGenerator:
     This is the shipped create form as a page sequence: it yields the shared
     Optical Pipe pages (the two-nodes page and the terminations page, from
     :func:`create_pipe_form_pages`) and a dedicated provider page that collects
-    the third-party provider name (:func:`create_leased_spectrum_provider_form`),
+    the third-party provider name and the leased passbands
+    (:func:`create_leased_spectrum_provider_form`),
     and returns the collected user input as a flat dict of the ``optical_*``
     state keys, consumed by the shipped construct step
     (:func:`construct_leased_spectrum_subscription`). A Leased Spectrum pipe is
@@ -143,6 +190,7 @@ def create_leased_spectrum_form_generator(product_name: str) -> FormGenerator:
             [
                 "customer_id",
                 "provider_name",
+                "leased_passbands",
                 "optical_pipe_name",
                 "node_a_instance_id",
                 "port_a_name",
@@ -161,6 +209,7 @@ def build_leased_spectrum_block(
     port_b_name: str,
     provider_name: str,
     optical_pipe_name: str,
+    optical_leased_passbands: Sequence[tuple[int, int]] = (),
 ) -> OpticalLeasedSpectrumBlockInactive:
     """Build the Optical Leased Spectrum block of a subscription from the create-form keys.
 
@@ -181,6 +230,8 @@ def build_leased_spectrum_block(
         provider_name: Name of the third-party provider; it is stripped and prefixed
             to the pipe name.
         optical_pipe_name: Name (circuit id or provider reference) of the pipe.
+        optical_leased_passbands: The ``(start, end)`` passbands (MHz) leased on the
+            pipe; empty when the lease is not restricted.
 
     Returns:
         The inactive Optical Leased Spectrum block with its two terminations.
@@ -211,6 +262,7 @@ def build_leased_spectrum_block(
     if provider_name:
         optical_pipe_name = f"{provider_name} {optical_pipe_name}"
     pipe_block.optical_pipe_name = optical_pipe_name
+    pipe_block.optical_leased_passbands = [(int(start), int(end)) for start, end in optical_leased_passbands]
 
     return pipe_block
 
@@ -226,6 +278,7 @@ def construct_leased_spectrum_subscription(
     port_a_name: str,
     port_b_name: str,
     optical_pipe_name: str,
+    leased_passbands: str = "",
 ) -> State:
     """Construct the PROVISIONING domain subscription model for an Optical Leased Spectrum pipe.
 
@@ -255,6 +308,7 @@ def construct_leased_spectrum_subscription(
         port_b_name,
         provider_name,
         optical_pipe_name,
+        parse_passbands_thz(leased_passbands),
     )
 
     subscription = new_optical_pipe_subscription(
@@ -316,4 +370,7 @@ __all__ = [
     "build_leased_spectrum_block",
     "create_leased_spectrum",
     "create_leased_spectrum_form_pages",
+    "create_leased_spectrum_provider_form",
+    "leased_passbands_field",
+    "normalize_leased_passbands",
 ]

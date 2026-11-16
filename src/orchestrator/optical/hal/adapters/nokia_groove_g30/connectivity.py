@@ -40,15 +40,18 @@ logger = get_logger(__name__)
 ModuleKey = tuple[int, int, int | None]
 
 _OLS_FUNCTIONS = frozenset({G30Function.WAVELENGTH_SELECTOR, G30Function.ADD_DROP, G30Function.AMPLIFIER})
-_XPATH_KEY = re.compile(r"ne:(shelf|slot|subslot|port|subport)-id='(\d+)'")
+#: A list key of an endpoint. The device prefixes every name (``ne:shelf[ne:shelf-id='2']``);
+#: the SDK models hold the RFC 7951 form, prefixed on the first node only (``shelf[shelf-id='2']``).
+_XPATH_KEY = re.compile(r"\[(?:ne:)?(shelf|slot|subslot|port|subport)-id='(\d+)'\]")
 
 
 def g30_port_name_from_xpath(xpath: str) -> str:
     """Return the G30 port name of a fiber-connection endpoint XPath.
 
     Args:
-        xpath: The endpoint, e.g. ``/ne:ne/ne:shelf[ne:shelf-id='2']/ne:slot[ne:slot-id='3']/ne:card/
-            ne:subslot[ne:subslot-id='3']/ne:subcard/ne:port[ne:port-id='3']``.
+        xpath: The endpoint, as the SDK models hold it (``/ne:ne/shelf[shelf-id='2']/slot[slot-id='3']/card/
+            subslot[subslot-id='3']/subcard/port[port-id='3']``) or as the device writes it (every name
+            prefixed with ``ne:``).
 
     Returns:
         The port name, e.g. ``port-2/3.3/3`` (``port-1/2/3`` without a subslot and

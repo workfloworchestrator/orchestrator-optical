@@ -114,7 +114,7 @@ def _monkeypatch_modify_selectors(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(digital_modify, "multiple_optical_pipe_selector", _fake_multiple_choice)
     monkeypatch.setattr(digital_modify, "optical_digital_service_path_choice", _fake_path_choice)
     monkeypatch.setattr(digital_modify, "channel_names_taken_by_others", lambda _ids: {})
-    monkeypatch.setattr(digital_modify, "optical_digital_service_available_passbands", lambda *_a: FAKE_AVAILABLE)
+    monkeypatch.setattr(digital_modify, "optical_digital_service_available_passbands", lambda *_a, **_k: FAKE_AVAILABLE)
 
 
 def test_modify_block_steps_have_the_expected_order() -> None:

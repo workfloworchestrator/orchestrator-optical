@@ -205,6 +205,14 @@ def test_g30_port_name_from_xpath() -> None:
         )
         == "port-1/4/7"
     )
+    # The form the SDK models hold (RFC 7951: only the first node is prefixed).
+    assert (
+        g30_connectivity.g30_port_name_from_xpath(
+            "/ne:ne/shelf[shelf-id='1']/slot[slot-id='3']/card/subslot[subslot-id='1']/subcard/port[port-id='1']"
+            "/subport[subport-id='4']"
+        )
+        == "port-1/3.1/1.4"
+    )
     with pytest.raises(ValueError, match="Unparsable"):
         g30_connectivity.g30_port_name_from_xpath("/ne:ne/ne:shelf[ne:shelf-id='1']")
 
