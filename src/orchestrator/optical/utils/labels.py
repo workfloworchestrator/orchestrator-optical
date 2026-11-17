@@ -8,30 +8,50 @@ pipe name a user typed) followed by where the other end is:
 - ``"<ch1> + <ch2>"`` on bundles of channels (:func:`conduits_label`).
 
 The name always comes first, so the same token can be searched on the device and in the
-orchestrator. Identifiers (OEL AID, ``CKTIDSUFFIX``, ``circuit-id-suffix``) are never
-built here: they are subscription instance ids. Free-form descriptions never reach a
-device; they belong in the subscription description only.
+orchestrator. Identifiers are never built here: the FlexILS OEL AID and ``CKTIDSUFFIX``
+come from :mod:`orchestrator.optical.utils.identifiers`, the others are subscription
+instance ids. Free-form descriptions never reach a device; they belong in the
+subscription description only.
+
+The FlexILS optical circuit objects carry what does not fit their short identifiers:
+
+- ``"<spectrum name> <hop1><hop2>...<hopN>"`` on an OEL (:func:`oel_label`);
+- ``"<svc1><svc2>... <hop1><hop2>...<hopN>"`` on an OSNC (:func:`osnc_label`);
+
+the hops being the location codes of the nodes of the whole spectrum path, amplifiers
+left out (:func:`path_location_codes`). Inside a group the tokens are joined without a
+separator: a substring search finds them all the same and more of them fit.
 
 When a label is longer than :data:`DEVICE_LABEL_MAX_LENGTH` the far-end part is dropped
 first (a truncated port name would be misleading), then the name is cut.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import Any, Final
 
 __all__ = [
     "DEVICE_LABEL_MAX_LENGTH",
+    "FLEXILS_CIRCUIT_LABEL_MAX_LENGTH",
     "conduits_label",
     "device_label",
     "endpoint",
     "label_name",
     "node_name",
+    "oel_label",
+    "osnc_label",
+    "path_location_codes",
     "via_label",
 ]
 
 #: Longest label written on a device. Not yet checked against every vendor reference:
 #: lower it if a device rejects a label.
 DEVICE_LABEL_MAX_LENGTH: Final = 64
+
+#: Longest label of a FlexILS OEL or OSNC (tested on a node).
+FLEXILS_CIRCUIT_LABEL_MAX_LENGTH: Final = 120
+
+#: Role of the nodes left out of the hops of a path (``OpticalNodeRole.AMPLIFIER``).
+_AMPLIFIER_ROLE: Final = "Amplifier"
 
 #: Separates the name from the far end in a device label.
 FAR_END_SEPARATOR: Final = " > "
@@ -96,3 +116,53 @@ def via_label(name: str, conduits: Iterable[str], *, max_length: int = DEVICE_LA
     if not channels:
         return name[:max_length]
     return _fit(f"{name} via {channels}", name, max_length)
+
+
+def path_location_codes(sections: Sequence[Any]) -> list[str]:
+    """Return the location codes of the nodes of a whole spectrum path, in path order.
+
+    The path is every section's source add/drop port, express ports and destination
+    add/drop port. Amplifier nodes are left out and consecutive ports at the same
+    location count once.
+
+    Args:
+        sections: The Optical Spectrum Section blocks of the spectrum, in path order.
+
+    Returns:
+        The location codes: the first is the source of the path, the last its destination.
+    """
+    codes: list[str] = []
+    for section in sections:
+        source, destination = section.optical_spectrum_section_add_drop_ports
+        for port in (source, *section.optical_spectrum_section_express_ports, destination):
+            node = port.optical_port_host_node
+            if str(getattr(node, "optical_node_role", "") or "") == _AMPLIFIER_ROLE:
+                continue
+            code = str(node.location.location_code)
+            if not codes or codes[-1] != code:
+                codes.append(code)
+    return codes
+
+
+def _grouped_label(head: str, hops: Iterable[str]) -> str:
+    return f"{head} {''.join(hops)}".strip()[:FLEXILS_CIRCUIT_LABEL_MAX_LENGTH].rstrip()
+
+
+def oel_label(spectrum_name: str, hops: Iterable[str]) -> str:
+    """Return the OEL label ``"<spectrum name> <hop1><hop2>...<hopN>"``, cut from the right."""
+    return _grouped_label(spectrum_name.strip(), hops)
+
+
+def osnc_label(service_names: Iterable[str], hops: Iterable[str]) -> str:
+    """Return the OSNC label ``"<svc1><svc2>... <hop1><hop2>...<hopN>"``, cut from the right.
+
+    Args:
+        service_names: Names of the digital services carried (none for a bare spectrum):
+            written sorted, without duplicates.
+        hops: Location codes of the nodes of the path, see :func:`path_location_codes`.
+
+    Returns:
+        The label; the hops alone when no service is carried.
+    """
+    services = "".join(sorted({name.strip() for name in service_names if name.strip()}))
+    return _grouped_label(services, hops)

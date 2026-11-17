@@ -58,6 +58,7 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     Passband,
     snap_passband_to_grid,
 )
+from orchestrator.optical.utils.labels import osnc_label, path_location_codes
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import save_optical_module_block
 from orchestrator.optical.workflows.customer import customer_choice_form_page
@@ -532,6 +533,8 @@ def modify_optical_sections(
 
     old_sections = [load_spectrum_section(section_id) for section_id in old_section_ids]
     new_sections = list(block.optical_spectrum_sections)
+    hops = path_location_codes(new_sections)
+    label = osnc_label((), hops)
 
     results: dict[str, Any] = {}
     if _sections_signature(old_sections) == _sections_signature(new_sections):
@@ -543,8 +546,9 @@ def modify_optical_sections(
                 optical_spectrum_name=spectrum_name,
                 passband=passband,
                 carrier=carrier,
-                label=spectrum_name,
+                label=label,
                 circuit_identifier=circuit_identifier,
+                hops=hops,
             )
         state: State = {"configuration_results": results}
         if snapped_changed:
@@ -571,8 +575,9 @@ def modify_optical_sections(
             spectrum_name,
             passband,
             carrier,
-            label=spectrum_name,
+            label=label,
             circuit_identifier=circuit_identifier,
+            hops=hops,
         )
 
     state = {"configuration_results": results}

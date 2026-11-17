@@ -462,6 +462,7 @@ def _make_section(add_drop_ids: list[str], express_ids: list[str]) -> SimpleName
         node = SimpleNamespace(
             subscription_instance_id=f"node-{port_id}",
             management=SimpleNamespace(optical_module_node_name=f"{port_id}.example.com"),
+            location=SimpleNamespace(location_code=port_id),
         )
         return SimpleNamespace(subscription_instance_id=port_id, optical_port_host_node=node)
 
@@ -542,9 +543,9 @@ def test_modify_optical_sections_redeploys_when_path_changed(monkeypatch: pytest
 def test_delete_optical_spectrum_sections_deletes_each_node_oel_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every section is deleted, but a shared source node's OEL is deleted only once."""
+    """Every section is deleted, but the OEL between two nodes is deleted only once."""
     section_a = _make_section(["shared-ad", "ad-2"], ["exp-1"])
-    section_b = _make_section(["shared-ad", "ad-3"], ["exp-2"])
+    section_b = _make_section(["shared-ad", "ad-2"], ["exp-2"])
     calls: dict[str, list] = {"delete": [], "delete_oel": []}
 
     def record(name: str):

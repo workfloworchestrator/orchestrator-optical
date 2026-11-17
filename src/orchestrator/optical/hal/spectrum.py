@@ -11,6 +11,7 @@ not have internal optical cross-connections. The FlexILS implementation lives in
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from orchestrator.optical.hal._common import (
@@ -54,6 +55,7 @@ def ensure_optical_circuit(
     carrier: tuple[Frequency, Bandwidth],
     label: str | None = None,
     circuit_identifier: str = "",
+    hops: Sequence[str] = (),
 ) -> DiffResult:
     """Ensure the optical circuit of the given section exists and converges to the desired state.
 
@@ -70,9 +72,12 @@ def ensure_optical_circuit(
         optical_spectrum_name: The user-facing name of the optical spectrum.
         passband: Frequency range allowed for transmission.
         carrier: Tuple of (center frequency, bandwidth) for the carrier signal.
-        label: Optional label for the circuit.
-        circuit_identifier: The subscription instance id of the circuit; used to derive the
-            device-side OEL AID and OSNC CKTIDSUFFIX.
+        label: The OSNC label (see :func:`orchestrator.optical.utils.labels.osnc_label`).
+        circuit_identifier: The subscription instance id of the Optical Spectrum block; used
+            to derive the device-side OEL AID and OSNC CKTIDSUFFIX (see
+            :mod:`orchestrator.optical.utils.identifiers`).
+        hops: Location codes of the nodes of the whole spectrum path (see
+            :func:`orchestrator.optical.utils.labels.path_location_codes`).
 
     Returns:
         The difference between the circuit configuration before and after the call.
@@ -92,6 +97,7 @@ def ensure_optical_circuit(
                 carrier,
                 label,
                 circuit_identifier,
+                hops,
             )
         case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
             return compare_jsons({}, {})
@@ -117,7 +123,7 @@ def delete_optical_circuit(
         optical_spectrum_section_block: The optical spectrum section configuration.
         optical_spectrum_name: The user-facing name of the optical spectrum.
         passband: Frequency range allowed for transmission.
-        circuit_identifier: The subscription instance id of the circuit; used as the OSNC CKTIDSUFFIX.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block; the OSNC is found by it.
 
     Returns:
         The difference between the circuit configuration before and after the
@@ -144,6 +150,7 @@ def delete_optical_circuit(
 
 def delete_optical_circuit_oel(
     optical_node_block: AnyOpticalNodeBlockProvisioningUnion,
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     circuit_identifier: str,
 ) -> DiffResult:
     """Delete the OEL of the given circuit on the node, when no other OSNC uses it.
@@ -153,8 +160,10 @@ def delete_optical_circuit_oel(
     node still references it, the OEL is left in place.
 
     Args:
-        optical_node_block: The Optical Node hosting the OEL.
-        circuit_identifier: The subscription instance id of the circuit; used as the OEL AID.
+        optical_node_block: The Optical Node hosting the OEL (source of the section).
+        optical_spectrum_section_block: The optical spectrum section the OEL routes.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block; the
+            OEL is found by it and by the two nodes of the section.
 
     Returns:
         The difference between the OEL configuration before and after the deletion.
@@ -165,7 +174,9 @@ def delete_optical_circuit_oel(
     """
     match _vendor_platform(optical_node_block):
         case (Vendor.NOKIA, Platform.FLEXILS):
-            return flexils.delete_oel(_as_flexils_block(optical_node_block), circuit_identifier)
+            return flexils.delete_oel(
+                _as_flexils_block(optical_node_block), optical_spectrum_section_block, circuit_identifier
+            )
         case (Vendor.NOKIA, Platform.GROOVE_G30) | (Vendor.NOKIA, Platform.GX_G42):
             return compare_jsons({}, {})
         case _:
@@ -191,7 +202,7 @@ def validate_optical_circuit(
         passband: Frequency range allowed for transmission.
         carrier: Tuple of (center frequency, bandwidth) for the carrier signal.
         label: Service label to validate.
-        circuit_identifier: The subscription instance id of the circuit; used as the OSNC CKTIDSUFFIX.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block; the OSNC is found by it.
 
     Raises:
         ValueError: If the configuration is invalid.
@@ -226,10 +237,8 @@ def set_optical_circuit_label(
 ) -> DiffResult:
     """Overwrite the OSNC label of the given optical spectrum section with the full label.
 
-    The composite digital-service circuit label (``"<channel>: <svcA> + <svcB>"``) is
-    always written in full, so reused channels converge and reconcile repairs drift.
-    The label is double-quoted on the TL1 wire so the ``":"`` separator survives
-    command framing. Label-only writes never touch the admin state; for
+    The label (``"<svc1><svc2>... <hop1><hop2>..."``) is always written in full, so
+    reused channels converge and reconcile repairs drift. Label-only writes never touch the admin state; for
     create/modify/reconcile paths (including healing a missing OSNC) use
     :func:`ensure_optical_circuit` instead.
 
@@ -239,7 +248,7 @@ def set_optical_circuit_label(
         optical_spectrum_name: The user-facing name of the optical spectrum.
         passband: Frequency range allowed for transmission.
         label: The full label to write.
-        circuit_identifier: The subscription instance id of the circuit; used as the OSNC CKTIDSUFFIX.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block; the OSNC is found by it.
 
     Returns:
         The difference between the OSNC configuration before and after the update.

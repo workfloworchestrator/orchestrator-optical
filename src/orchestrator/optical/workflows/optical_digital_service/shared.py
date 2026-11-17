@@ -118,7 +118,7 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     passband_from,
     snap_passband_to_grid,
 )
-from orchestrator.optical.utils.labels import device_label, endpoint, via_label
+from orchestrator.optical.utils.labels import device_label, endpoint, osnc_label, path_location_codes, via_label
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.optical_spectrum_service.shared import (
@@ -154,10 +154,9 @@ OPTICAL_CIRCUIT_LABEL_SERVICE_SEPARATOR = " + "
 def ensure_circuit_label_token_valid(name: str, kind: str) -> str:
     """Validate a digital service or transport channel name for use in a circuit label.
 
-    The composite OLS circuit label (``"<channel>: <svcA> + <svcB>"``) uses ``": "``
-    and ``"+"`` as structural separators, and the label is double-quoted on the
-    TL1 wire, so names containing them, a double quote, or blank names would make
-    the label ambiguous or corrupt the TL1 command.
+    The names are written on the devices in labels and circuit identifiers that are
+    double-quoted on the TL1 wire and use ``":"`` / ``"+"`` as separators on some
+    platforms, so names containing them, a double quote, or blank names are refused.
 
     Args:
         name: The user-facing service or channel name to validate.
@@ -186,56 +185,6 @@ def ensure_circuit_label_token_valid(name: str, kind: str) -> str:
             )
             raise ValueError(msg)
     return stripped
-
-
-def build_optical_circuit_label(channel_name: str, service_names: list[str]) -> str:
-    """Build the composite OLS optical circuit label of a transport channel.
-
-    The label carries both the conduit (own transport channel name) and all the
-    carried digital services: ``"<channel>: <svcA> + <svcB>"`` with digitals
-    deduped and sorted, so reverse-multiplexed pairs read ``"ch1: svc"`` /
-    ``"ch2: svc"`` (own conduit only) and a normally muxed channel reads
-    ``"ch: svcA + svcB"``.
-
-    Args:
-        channel_name: User-facing name of the transport channel (the conduit).
-        service_names: User-facing names of all non-terminated digital services carried.
-
-    Returns:
-        The composite label, e.g. ``"ch-01: svcA + svcB"``.
-
-    Raises:
-        ValueError: If the channel name or the service list is blank/ambiguous.
-    """
-    conduit = ensure_circuit_label_token_valid(channel_name, "transport channel")
-    cleaned = sorted({ensure_circuit_label_token_valid(name, "digital service") for name in service_names})
-    if not cleaned:
-        msg = "At least one digital service name is required in an optical circuit label"
-        raise ValueError(msg)
-    return f"{conduit}{OPTICAL_CIRCUIT_LABEL_CONDUIT_SEPARATOR}{OPTICAL_CIRCUIT_LABEL_SERVICE_SEPARATOR.join(cleaned)}"
-
-
-def parse_optical_circuit_label(label: str) -> tuple[str, list[str]]:
-    """Split a composite OLS optical circuit label into conduit and digital names.
-
-    The split is tolerant: services are separated on ``"+"`` with surrounding
-    whitespace stripped, so both the shipped ``"a + b"`` form and legacy
-    unspaced ``"a+b"`` labels parse.
-
-    Args:
-        label: A label previously built by :func:`build_optical_circuit_label`.
-
-    Returns:
-        The ``(channel_name, sorted_service_names)`` pair; unknown/legacy labels
-        yield ``("", [])`` instead of raising, so device-read-merge stays best-effort.
-    """
-    if OPTICAL_CIRCUIT_LABEL_CONDUIT_SEPARATOR not in label:
-        return ("", [])
-    conduit, _, services = label.partition(OPTICAL_CIRCUIT_LABEL_CONDUIT_SEPARATOR)
-    names = sorted({name.strip() for name in services.split("+") if name.strip()})
-    if not conduit.strip() or not names:
-        return ("", [])
-    return (conduit.strip(), names)
 
 
 def optical_digital_service_block_from_state(
@@ -899,11 +848,12 @@ def expected_optical_circuit_label(
     exclude_digital_instance_id: str | None = None,
     own_digital_instance_id: UUID | UUIDstr | None = None,
 ) -> str:
-    """Return the composite OLS optical circuit label expected for a channel.
+    """Return the OLS optical circuit (OSNC) label expected for a channel.
 
-    The label carries the conduit (own transport channel name) and every carried
-    digital service: ``"<channel>: <svcA> + <svcB>"``. Each reverse-multiplexed
-    channel of one service gets its own conduit with the shared digital name.
+    The label carries every digital service the channel carries and the location
+    codes of the nodes of its path: ``"<svcA><svcB> <hop1><hop2>..."`` (see
+    :func:`orchestrator.optical.utils.labels.osnc_label`). The channel name is in
+    the circuit identifier, not in the label.
 
     Args:
         channel: The transport channel whose circuit label is derived.
@@ -917,9 +867,8 @@ def expected_optical_circuit_label(
             database name instead of duplicating it.
 
     Returns:
-        The composite label, e.g. ``"ch-01: svcA+svcB"``.
+        The label, e.g. ``"svcAsvcB mil01bol01rom02"``.
     """
-    channel_name = str(channel.optical_transport_channel_name)
     service_name = str(block.optical_digital_service_name)
     if own_digital_instance_id is None:
         own_digital_instance_id = block.subscription_instance_id
@@ -933,7 +882,7 @@ def expected_optical_circuit_label(
         # The channel always carries at least the in-flight service except while
         # pruning the last client (whose circuits are deleted right after).
         names = [service_name.strip()]
-    return build_optical_circuit_label(channel_name, names)
+    return osnc_label(names, path_location_codes(channel.optical_transport_spectrum.optical_spectrum_sections))
 
 
 def channel_spare_capacity(channel: OpticalTransportChannelBlock) -> int | None:
@@ -1953,6 +1902,7 @@ def _ensure_channel_circuits(
             snapped_any = True
         circuit_identifier = str(spectrum.subscription_instance_id)
         label = expected_optical_circuit_label(channel, block)
+        hops = path_location_codes(spectrum.optical_spectrum_sections)
         for section in spectrum.optical_spectrum_sections:
             src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
             key = f"{spectrum_name} {src_node.management.optical_module_node_name}"
@@ -1964,6 +1914,7 @@ def _ensure_channel_circuits(
                 carrier,
                 label=label,
                 circuit_identifier=circuit_identifier,
+                hops=hops,
             )
     return results, snapped_any
 
@@ -1976,7 +1927,7 @@ def provision_optical_digital_sections(optical_module_block: OpticalDigitalServi
     Operates only on the Optical Digital Service block found in the state under
     ``OPTICAL_MODULE_BLOCK_STATE_KEY``. Reused channels are skipped: they are covered
     by :func:`ensure_optical_digital_sections`. The ensure primitive recreates a
-    missing OSNC and converges a stale composite label (``"<channel>: <svcA> + <svcB>"``)
+    missing OSNC and converges a stale composite label (``"<svcA><svcB> <hop1><hop2>..."``)
     without duplicating, so this step is safe to retry and to run after borrowers exist.
 
     Args:
@@ -2082,7 +2033,7 @@ def sync_reused_channel_labels(optical_module_block: OpticalDigitalServiceBlockI
     backward compatibility (consumers may still reference this step): new code should
     use :func:`ensure_optical_digital_sections`, which covers every channel. The ensure
     primitive recreates a missing shared OSNC instead of raising, then converges the
-    composite label (``"<channel>: <svcA> + <svcB>"``).
+    composite label (``"<svcA><svcB> <hop1><hop2>..."``).
 
     Args:
         optical_module_block: The Optical Digital Service block in the state under
@@ -2155,7 +2106,7 @@ def prune_departing_service_channel_labels(optical_module_block: OpticalDigitalS
         spectrum = channel.optical_transport_spectrum
         spectrum_name = spectrum.optical_spectrum_name or block.optical_digital_service_name
         circuit_identifier = str(spectrum.subscription_instance_id)
-        label = build_optical_circuit_label(str(channel.optical_transport_channel_name), remaining)
+        label = osnc_label(remaining, path_location_codes(spectrum.optical_spectrum_sections))
         for section in spectrum.optical_spectrum_sections:
             src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
             key = f"{spectrum_name} {src_node.management.optical_module_node_name}"
@@ -2313,7 +2264,7 @@ def verify_optical_digital_sections(optical_module_block: OpticalDigitalServiceB
 
     Operates only on the Optical Digital Service block found in the state under
     ``OPTICAL_MODULE_BLOCK_STATE_KEY``. The step is read-only. Every circuit must
-    carry the composite label (``"<channel>: <svcA> + <svcB>"``) with exact match:
+    carry the composite label (``"<svcA><svcB> <hop1><hop2>..."``) with exact match:
     all carried digital services and the conduit channel.
 
     Args:
@@ -2434,7 +2385,7 @@ def modify_optical_digital_sections(
     with the single idempotent optical-circuit primitive (missing circuits are
     healed, drifted passbands/carriers/OEL references are edited in place, the
     label is rewritten to the composite label
-    (``"<channel>: <svcA> + <svcB>"``)), so no old passband is needed to find
+    (``"<svcA><svcB> <hop1><hop2>..."``), so no old passband is needed to find
     them.
 
     When the path of a service-owned channel changed (detected against the
@@ -2674,7 +2625,6 @@ __all__ = [
     "ChannelSpec",
     "align_optical_digital_tx_power",
     "append_reused_channel_labels",
-    "build_optical_circuit_label",
     "build_optical_digital_service_block",
     "channel_name_in_use",
     "channel_names_taken_by_others",
@@ -2704,7 +2654,6 @@ __all__ = [
     "optical_digital_endpoint_selector",
     "optical_digital_service_block_from_state",
     "optical_digital_service_subscription_description",
-    "parse_optical_circuit_label",
     "populate_optical_digital_service_block",
     "port_ids_used_by_digital_services",
     "provision_optical_digital_sections",

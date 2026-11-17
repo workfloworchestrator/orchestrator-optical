@@ -85,7 +85,7 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     subtract_intervals,
 )
 from orchestrator.optical.utils.datadiff import DiffResult
-from orchestrator.optical.utils.labels import endpoint
+from orchestrator.optical.utils.labels import endpoint, osnc_label, path_location_codes
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
 from orchestrator.optical.workflows.block import rehydrate_optical_module_block
 from orchestrator.optical.workflows.shared import active_instance_selector_by_block_type, used_port_names_on_node
@@ -373,6 +373,7 @@ def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlock
         passband = snapped
     carrier = (int(0.5 * (passband[0] + passband[1])), passband[1] - passband[0])
     circuit_identifier = str(block.subscription_instance_id)
+    hops = path_location_codes(block.optical_spectrum_sections)
     results = {}
     for section in block.optical_spectrum_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
@@ -382,8 +383,9 @@ def provision_optical_sections(optical_module_block: OpticalSpectrumServiceBlock
             spectrum_name,
             passband,
             carrier,
-            label=spectrum_name,
+            label=osnc_label((), hops),
             circuit_identifier=circuit_identifier,
+            hops=hops,
         )
 
     state: State = {"configuration_results": results}
@@ -462,6 +464,7 @@ def verify_optical_spectrum_sections(optical_module_block: OpticalSpectrumServic
         bandwidth,
     )
     circuit_identifier = str(block.subscription_instance_id)
+    label = osnc_label((), path_location_codes(block.optical_spectrum_sections))
     for section in block.optical_spectrum_sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
         validate_optical_circuit(
@@ -470,7 +473,7 @@ def verify_optical_spectrum_sections(optical_module_block: OpticalSpectrumServic
             spectrum_name,
             passband,
             carrier,
-            label=spectrum_name,
+            label=label,
             circuit_identifier=circuit_identifier,
         )
 
@@ -495,15 +498,15 @@ def delete_optical_spectrum_sections(
     references it: an OEL may be shared by more than one OSNC on FlexILS, so while
     another OSNC still needs it the OEL is left in place (see
     :func:`orchestrator.optical.hal.spectrum.delete_optical_circuit_oel`, a no-op on
-    platforms without OELs). The node's OEL is deleted at most once even when several
-    sections share the source node.
+    platforms without OELs). The OEL between two nodes is deleted at most once even
+    when several sections join them.
 
     Args:
         sections: The optical spectrum sections to delete.
         passband: The passband the circuits were deployed with.
         spectrum_name: The user-facing name of the optical spectrum.
-        circuit_identifier: The subscription instance id of the circuit; used as the
-            OSNC CKTIDSUFFIX and as the OEL AID.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block;
+            the OSNC and the OEL are found by it.
 
     Returns:
         The diff of each source node's OSNC keyed by its node name and the diff of the OEL
@@ -520,15 +523,17 @@ def delete_optical_spectrum_sections(
             circuit_identifier=circuit_identifier,
         )
 
-    seen_oel_nodes: set[str] = set()
+    seen_oel_nodes: set[tuple[str, str]] = set()
     for section in sections:
         src_node = section.optical_spectrum_section_add_drop_ports[0].optical_port_host_node
-        node_id = str(src_node.subscription_instance_id)
-        if node_id in seen_oel_nodes:
+        dst_node = section.optical_spectrum_section_add_drop_ports[1].optical_port_host_node
+        node_ids = (str(src_node.subscription_instance_id), str(dst_node.subscription_instance_id))
+        if node_ids in seen_oel_nodes:
             continue
-        seen_oel_nodes.add(node_id)
+        seen_oel_nodes.add(node_ids)
         results[f"{src_node.management.optical_module_node_name}:OEL"] = delete_optical_circuit_oel(
             src_node,
+            section,
             circuit_identifier,
         )
 

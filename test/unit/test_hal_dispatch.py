@@ -311,7 +311,7 @@ def test_set_channel_description_is_not_applicable_for_flexils() -> None:
             id="delete_optical_circuit",
         ),
         pytest.param(
-            lambda node: hal_spectrum.delete_optical_circuit_oel(node, "cid"),
+            lambda node: hal_spectrum.delete_optical_circuit_oel(node, _SECTION, "cid"),
             id="delete_optical_circuit_oel",
         ),
         pytest.param(
@@ -564,10 +564,11 @@ def test_ensure_optical_circuit_dispatches_to_flexils(monkeypatch: pytest.Monkey
     recorder = _patch(monkeypatch, flexils_spectrum, "ensure", {"ensured": True})
     block = _flexils_node()
 
-    result = hal_spectrum.ensure_optical_circuit(block, _SECTION, "spec", _PASSBAND, _CARRIER, "label", "cid")
+    hops = ("mil01", "rom02")
+    result = hal_spectrum.ensure_optical_circuit(block, _SECTION, "spec", _PASSBAND, _CARRIER, "label", "cid", hops)
 
     assert result == {"ensured": True}
-    assert recorder.calls == [((block, _SECTION, "spec", _PASSBAND, _CARRIER, "label", "cid"), {})]
+    assert recorder.calls == [((block, _SECTION, "spec", _PASSBAND, _CARRIER, "label", "cid", hops), {})]
 
 
 def test_delete_optical_circuit_dispatches_to_flexils(monkeypatch: pytest.MonkeyPatch) -> None:

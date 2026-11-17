@@ -190,11 +190,20 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
 ### Hard rules (generalization invariants)
 
 - **No** `.garr.net`, pop codes, `fXXXcYY` naming, `garrxdb_id`/`netbox_id`/`nms_uuid` — anywhere.
-- Device-side identifiers (OEL/OSNC/OCRS AIDs, CKTIDSUFFIX, `optical_transport_channel_name`) are
-  `subscription_instance_id` **UUID strings**; user-provided free-form names go to the device **label** fields.
+- Device-side identifiers (OCRS CKTIDSUFFIX, G42 `circuit-id-suffix`) are `subscription_instance_id` **UUID
+  strings**; user-provided free-form names go to the device **label** fields. The FlexILS OEL and OSNC are the
+  exception: their identifiers are short, readable and searchable, built only by `utils/identifiers.py` from the
+  Optical Spectrum block and **never stored**: OEL AID `<src>-<dst>-<id8>` (max 64), OSNC CKTIDSUFFIX
+  `<spectrum name> <id8>` (max 48), where `src`/`dst` are the location codes of the ends of the whole spectrum
+  path and `id8` the first 8 characters of the block's `subscription_instance_id`. An object is ours by its `id8`
+  ending only (an OEL also by the two nodes of its section): a renamed spectrum or location is converged in
+  service, never lost. An OEL/OSNC with any other identifier (a legacy UUID one, a hand-made one) is not ours: it
+  is never adopted, edited or replaced, and an OSNC in the way is a conflict on create and reconcile alike.
 - Device labels and subscription descriptions are built only with `utils/labels.py`: `"<name> > <far node> <far
-  port>"` on ports/facilities, `"<svc> via <ch1> + <ch2>"` on cross-connects, `"<ch1> + <ch2>"` on bundles (the OSNC
-  keeps the composite `"<ch>: <svcA> + <svcB>"`); node names are the device-side ones (FlexILS TID, else `optical_module_node_name`).
+  port>"` on ports/facilities, `"<svc> via <ch1> + <ch2>"` on cross-connects, `"<ch1> + <ch2>"` on bundles; on
+  FlexILS (max 120, `FLEXILS_CIRCUIT_LABEL_MAX_LENGTH`) `"<spectrum name> <hop1><hop2>..."` on an OEL and
+  `"<svc1><svc2>... <hop1><hop2>..."` on an OSNC, the hops being the location codes of the nodes of the whole
+  spectrum path without amplifiers, joined with no separator and cut from the right; node names are the device-side ones (FlexILS TID, else `optical_module_node_name`).
   A line-side label depends on its channel only (never on the services carried): shared channels render one value.
   Descriptions never repeat the product name (a column of the subscription list). Labels are capped at 64 characters
   (`DEVICE_LABEL_MAX_LENGTH`, not yet checked against every vendor reference). Labels are **never stored on blocks**:
@@ -385,6 +394,12 @@ uv build                        # package build
   `_shared.py::_all_records(flex.rtrv_x)`; `RTRV-OEL`/`RTRV-OSNC` unfiltered reads may need the same if hit.
 - The OEL label (the conduit name) is converged with `ED-OEL:...:::LABEL=...` while the OEL is in service: not yet
   checked on a node that this edit needs no lock.
+- The OSNC CKTIDSUFFIX holds a blank and is sent double-quoted (`CKTIDSUFFIX="<name> <id8>"`), on `ENT-OSNC` and
+  `ED-OSNC`: not yet checked on a node that it is read back without the quotes, nor that the signalled OCRS
+  (found by `id8` in `delta_rx_power_vs_target`) follows a CKTIDSUFFIX edit. `RTRV-OEL` is now read unfiltered.
+- Circuits created before the readable identifiers (UUID OEL AID / CKTIDSUFFIX) are not recognised any more:
+  validate fails to find them, terminate leaves them on the node, and reconcile is denied by the node because
+  the old OSNC occupies the spectrum. They must be deleted on the node by hand before a reconcile recreates them.
 - `RTRV-SCG` is sent without the card-type filter in `_find_fbm_port_if_fmm_port` (the previous client silently
   dropped it); `rtrv_scg(ctype="FBM")` would narrow the read but was never sent to a node.
 

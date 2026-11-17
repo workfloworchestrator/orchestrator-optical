@@ -29,6 +29,7 @@ from orchestrator.optical.products.product_blocks.optical_port.unions import Any
 from orchestrator.optical.products.product_blocks.optical_spectrum_section import (
     OpticalSpectrumSectionBlockProvisioning,
 )
+from orchestrator.optical.utils import identifiers, labels
 from orchestrator.optical.utils.custom_types.frequencies import (
     Bandwidth,
     Frequency,
@@ -36,7 +37,6 @@ from orchestrator.optical.utils.custom_types.frequencies import (
     snap_passband_to_grid,
 )
 from orchestrator.optical.utils.datadiff import DiffResult, compare_jsons
-from orchestrator.optical.utils.labels import device_label
 
 logger = get_logger(__name__)
 
@@ -90,8 +90,8 @@ class _OsncNotFoundError(ValueError):
 def _tl1_label(label: str) -> str:
     """Quote an OSNC label for the TL1 wire.
 
-    A label containing ``":"`` (the composite ``"<channel>: <svcA> + <svcB>"`` form),
-    commas or semicolons would corrupt the command framing if sent bare. Double-quoting
+    A label containing blanks, colons, commas or semicolons would corrupt the
+    command framing if sent bare. Double-quoting
     the value keeps it a single TL1 parameter; retrieval already strips surrounding
     quotes, so the round-trip is transparent. Idempotent: pre-quoted input is not quoted twice.
 
@@ -169,6 +169,42 @@ def _rtrv_oel_or_none(flex: FlexilsClient, aid: str) -> dict[str, Any] | None:
         return None
     records = _records(response)
     return records[0] if records else None
+
+
+def _clean(value: Any) -> str:
+    """Return a retrieved TL1 value without its surrounding quotes and blanks."""
+    return str(value or "").strip(r"\" ")
+
+
+def _find_oel(
+    flex: FlexilsClient,
+    circuit_identifier: str,
+    src_node_name: str,
+    dst_node_name: str,
+) -> dict[str, Any] | None:
+    """Return the OEL of the given circuit between two nodes, ``None`` when the node has none.
+
+    The OEL is recognised by the ``-<id8>`` ending of its AID (see
+    :mod:`orchestrator.optical.utils.identifiers`) together with its source and
+    destination nodes, never by the whole AID: a renamed location does not lose it.
+
+    Args:
+        flex: TL1 client of the node hosting the OEL (the source of the section).
+        circuit_identifier: The subscription instance id of the Optical Spectrum block.
+        src_node_name: TID of the source node of the section.
+        dst_node_name: TID of the destination node of the section.
+
+    Returns:
+        The OEL record, or ``None``.
+    """
+    for record in _all_records(flex.rtrv_oel):
+        if (
+            identifiers.is_own_oel_aid(_clean(record.get("AID")), circuit_identifier)
+            and _clean(record.get("SRCNODENAME")) == src_node_name
+            and _clean(record.get("DSTNODENAME")) == dst_node_name
+        ):
+            return record
+    return None
 
 
 def _rtrv_ocrs_or_none(
@@ -281,15 +317,9 @@ def _delete_oel_if_unused(flex: FlexilsClient, oel_aid: str) -> None:
         flex: TL1 client of the node hosting the OEL.
         oel_aid: Access identifier of the OEL.
     """
-    aid = oel_aid[:127]
-    try:
-        osncs = _records(flex.rtrv_osnc())
-    except TL1DeniedError as e:
-        if not _is_object_missing(e):
-            raise
-        osncs = []
-    for record in osncs:
-        if record.get("OELAID", "").strip(r"\" ") == aid[:64]:
+    aid = oel_aid
+    for record in _rtrv_all_osnc_or_empty(flex):
+        if _clean(record.get("OELAID")) == aid:
             return
     # The generated surface names the admin-state slot of ED-OEL ``srcnodename`` (as the reference prints it).
     flex.ed_oel(aid=aid, srcnodename="OOS")
@@ -298,6 +328,7 @@ def _delete_oel_if_unused(flex: FlexilsClient, oel_aid: str) -> None:
 
 def delete_oel(
     optical_node_block: NokiaFlexIlsBlockProvisioning,
+    optical_spectrum_section_block: OpticalSpectrumSectionBlockProvisioning,
     circuit_identifier: str,
 ) -> DiffResult:
     """Delete the OEL of the given circuit on the node, when no other OSNC uses it.
@@ -311,21 +342,27 @@ def delete_oel(
     teardown is safe (idempotent).
 
     Args:
-        optical_node_block: The Optical Node block hosting the OEL.
-        circuit_identifier: The circuit identifier used as OEL AID.
+        optical_node_block: The Optical Node block hosting the OEL (source of the section).
+        optical_spectrum_section_block: The optical spectrum section the OEL routes.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block;
+            the OEL is found by it and by the two nodes of the section.
 
     Returns:
         The difference between the OEL configuration before and after the
         deletion: a deleted OEL shows up as a removal, while an OEL kept because
         another OSNC still references it (or already absent) yields an empty diff.
     """
-    oel_aid = circuit_identifier[:127]
+    add_drop_ports = optical_spectrum_section_block.optical_spectrum_section_add_drop_ports
+    src_name = _node_id(_as_flexils_block(add_drop_ports[0].optical_port_host_node))
+    dst_name = _node_id(_as_flexils_block(add_drop_ports[1].optical_port_host_node))
     flex = _get_flex_client(optical_node_block)
-    before_oel = _rtrv_oel_or_none(flex, oel_aid)
-    if before_oel is not None:
-        _delete_oel_if_unused(flex, circuit_identifier)
-    after_oel = _rtrv_oel_or_none(flex, oel_aid)
-    return compare_jsons({"OEL": before_oel or {}}, {"OEL": after_oel or {}})
+    before_oel = _find_oel(flex, circuit_identifier, src_name, dst_name)
+    if before_oel is None:
+        return compare_jsons({"OEL": {}}, {"OEL": {}})
+    aid = _clean(before_oel.get("AID"))
+    _delete_oel_if_unused(flex, aid)
+    after_oel = _rtrv_oel_or_none(flex, aid)
+    return compare_jsons({"OEL": before_oel}, {"OEL": after_oel or {}})
 
 
 def _converge_oel_label(flex: FlexilsClient, aid: str, oel: dict[str, Any], oel_label: str) -> dict[str, Any]:
@@ -345,13 +382,12 @@ def _find_or_create_oel(
 ) -> dict[str, Any]:
     """Find an existing OEL (Optical Engineered Lightpath) or create a new one.
 
-    The OEL access identifier is the circuit identifier (the subscription instance
-    id of the circuit); its label is the name of the conduit (spectrum or channel).
     The label of an existing OEL is converged in place (``ED-OEL`` is an in-service
-    edit for the label).
+    edit for the label). An OEL holding the AID between other nodes is not ours to
+    reuse: the route of an OEL cannot be edited.
 
     Args:
-        oel_aid: The circuit identifier used as OEL AID.
+        oel_aid: The OEL AID, see :func:`orchestrator.optical.utils.identifiers.oel_aid`.
         oel_label: The label of the OEL.
         source_device: The source Optical Node block.
         dest_device: The destination Optical Node block.
@@ -361,20 +397,21 @@ def _find_or_create_oel(
         The OEL configuration data.
 
     Raises:
-        ValueError: If the circuit identifier is empty or the FlexILS commands fail.
+        ValueError: If the AID is empty, if an OEL with that AID exists between other
+            nodes, or if the FlexILS commands fail.
     """
     if not oel_aid:
         msg = "An OEL access identifier is required to create or retrieve an OEL"
         raise ValueError(msg)
 
-    aid = oel_aid[:127]
+    aid = oel_aid
     flex = _get_flex_client(source_device)
-    existing = _rtrv_oel_or_none(flex, aid)
-    if existing is not None:
-        return _converge_oel_label(flex, aid, existing, oel_label)
-
     src_name = _node_id(source_device)
     dst_name = _node_id(dest_device)
+    existing = _rtrv_oel_or_none(flex, aid)
+    if existing is not None:
+        _check_oel_nodes(existing, aid, src_name, dst_name)
+        return _converge_oel_label(flex, aid, existing, oel_label)
 
     explicit_route = _explicit_route_from_omses(omses)
 
@@ -393,7 +430,20 @@ def _find_or_create_oel(
     if not records:
         msg = f"RTRV-OEL returned no data for aid {aid}"
         raise ValueError(msg)
+    # ENT-OEL denied with "already exists" does not raise: make sure the OEL read back is the one entered.
+    _check_oel_nodes(records[0], aid, src_name, dst_name)
     return records[0]
+
+
+def _check_oel_nodes(oel: dict[str, Any], aid: str, src_name: str, dst_name: str) -> None:
+    """Raise when the given OEL record runs between other nodes than the expected ones."""
+    actual = (_clean(oel.get("SRCNODENAME", src_name)), _clean(oel.get("DSTNODENAME", dst_name)))
+    if actual != (src_name, dst_name):
+        msg = (
+            f"OEL {aid!r} already exists between {actual[0]} and {actual[1]}; "
+            f"cannot use it between {src_name} and {dst_name}"
+        )
+        raise ValueError(msg)
 
 
 def _oteintf_from_port_name(device: NokiaFlexIlsBlockProvisioning, port_name: str) -> str:
@@ -480,12 +530,13 @@ def _match_osnc(
     """Return the first OSNC of the given records matching the requested circuit.
 
     The match is by tributary ports (the ``-<id>`` suffix stripped), remote node and
-    circuit identifier, optionally narrowed by label, OEL reference, passband and
-    carrier. Pure function over pre-fetched records: no device access.
+    the ``<id8>`` ending of the CKTIDSUFFIX, optionally narrowed by label, OEL
+    reference, passband and carrier. Pure function over pre-fetched records: no
+    device access.
 
     Args:
         existing_osncs: The OSNC records to search.
-        circuit_identifier: The expected OSNC CKTIDSUFFIX.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block.
         src_port_name: The local tributary port name (without superchannel suffix).
         dst_port_name: The remote tributary port name (without superchannel suffix).
         dst_node_name: The expected remote node name.
@@ -505,12 +556,12 @@ def _match_osnc(
         ):
             continue
 
-        if osnc.get("CKTIDSUFFIX", "").strip(r"\" ") != circuit_identifier:
+        if not identifiers.is_own_cktid(_clean(osnc.get("CKTIDSUFFIX")), circuit_identifier):
             continue
 
         if osnc_label is not None and osnc_label not in osnc.get("LABEL", ""):
             continue
-        if oel_aid is not None and osnc.get("OELAID", "").strip(r"\" ") != oel_aid[:64]:
+        if oel_aid is not None and _clean(osnc.get("OELAID")) != oel_aid:
             continue
 
         if passband is not None:
@@ -588,11 +639,13 @@ def _find_or_create_osnc(
     dst_port_name: str,
     passband: Passband,
     carrier: tuple[Frequency, Bandwidth],
+    osnc_name: str,
 ) -> tuple[dict[str, Any], bool]:
     """Find an existing OSNC on the source device or create a new one.
 
-    The OSNC CKTIDSUFFIX is the circuit identifier (the subscription instance id
-    of the circuit) instead of the spectrum name.
+    The OSNC is entered with ``osnc_name`` as CKTIDSUFFIX (see
+    :func:`orchestrator.optical.utils.identifiers.osnc_cktid`) and recognised by the
+    ``<id8>`` ending of it.
 
     The new endpoint ids avoid every ``<port>-<id>`` AID already used as an OSNC
     endpoint on either node (not just the existing superchannels): the same tributary
@@ -620,8 +673,6 @@ def _find_or_create_osnc(
 
     _src_node_name, src_flex, src_port_name = _get_flexils_name_client_tributary(src_device, src_port_name)
     dst_node_name, dst_flex, dst_port_name = _get_flexils_name_client_tributary(dst_device, dst_port_name)
-
-    oel_aid = oel_aid[:127]
 
     src_osncs = _rtrv_all_osnc_or_empty(src_flex)
     osnc = _match_osnc(
@@ -652,7 +703,7 @@ def _find_or_create_osnc(
         remnodetid=dst_node_name,
         remendpoint=dst_endpoint,
         oelaid=oel_aid,
-        cktidsuffix=circuit_identifier,
+        cktidsuffix=_tl1_quoted(osnc_name),
         passbandlist=_tl1_list(passband),
         carrierlist=_tl1_list(carrier),
         **_OSNC_DEFAULTS,
@@ -665,13 +716,13 @@ def _find_or_create_osnc(
         msg = f"RTRV-OSNC returned no data for aid {src_endpoint}"
         raise ValueError(msg)
     created = records[0]
-    if created.get("CKTIDSUFFIX", "").strip(r"\" ") != circuit_identifier:
-        occupant = created.get("CKTIDSUFFIX", "").strip(r"\" ")
-        occupant_label = created.get("LABEL", "").strip(r"\" ")
+    occupant = _clean(created.get("CKTIDSUFFIX"))
+    if not identifiers.is_own_cktid(occupant, circuit_identifier):
+        occupant_label = _clean(created.get("LABEL"))
         msg = (
             f"OSNC endpoint {src_endpoint} is occupied by another circuit "
             f"(CKTIDSUFFIX={occupant!r}, LABEL={occupant_label!r}); "
-            f"cannot create circuit {circuit_identifier!r} there"
+            f"cannot create circuit {osnc_name!r} there"
         )
         raise ValueError(msg)
     return created, True
@@ -733,11 +784,12 @@ def _find_flexils_osnc(
 ) -> tuple[FlexilsClient, dict[str, Any]]:
     """Find an existing OSNC between the two FlexILS devices of the given section.
 
-    The OSNC is matched by its CKTIDSUFFIX, which is the circuit identifier (the
-    subscription instance id of the circuit) when provided; otherwise the
-    spectrum name is used as a fallback, plus the local/remote endpoints and the
-    remote node. The passband is deliberately *not* part of the match: the
-    circuit identifier already identifies the OSNC uniquely, while the passband
+    The OSNC is matched by the ``<id8>`` ending of its CKTIDSUFFIX (the first 8
+    characters of the subscription instance id of the Optical Spectrum block), plus
+    the local/remote endpoints and the remote node. The spectrum name in the
+    CKTIDSUFFIX and the passband are deliberately *not* part of the match: the
+    ``<id8>`` already identifies the OSNC, a renamed spectrum must still be found
+    to be converged, and the passband
     stored in the subscription can legitimately differ from the device during a
     retried modify (the device is updated before the database transaction is
     committed, see :func:`modify`), so matching on it would make retries fail to
@@ -747,7 +799,7 @@ def _find_flexils_osnc(
         optical_spectrum_name: The user-facing name of the optical spectrum.
         optical_spectrum_section: The optical spectrum section block.
         passband: The passband of the optical spectrum, used only in the error message.
-        circuit_identifier: The subscription instance id of the circuit; used as the CKTIDSUFFIX.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block.
 
     Returns:
         The FlexILS client of the device controlling the OSNC and the OSNC configuration.
@@ -767,12 +819,12 @@ def _find_flexils_osnc(
     src_node_name, src_flex, src_port = _get_flexils_name_client_tributary(src_device, src_port_raw)
     dst_node_name, dst_flex, dst_port = _get_flexils_name_client_tributary(dst_device, dst_port_raw)
 
-    osnc_name = circuit_identifier if circuit_identifier else optical_spectrum_name.replace(" ", "_").strip(r"\" ")
+    osnc_name = identifiers.osnc_cktid(optical_spectrum_name, circuit_identifier)
 
     # Attempt A -> Z
     osnc = _find_matching_osnc_on_flexils(
         client=src_flex,
-        circuit_identifier=osnc_name,
+        circuit_identifier=circuit_identifier,
         src_port_name=src_port,
         dst_port_name=dst_port,
         dst_node_name=dst_node_name,
@@ -783,7 +835,7 @@ def _find_flexils_osnc(
     # Attempt Z -> A (swap src and dst parameters)
     osnc = _find_matching_osnc_on_flexils(
         client=dst_flex,
-        circuit_identifier=osnc_name,
+        circuit_identifier=circuit_identifier,
         src_port_name=dst_port,
         dst_port_name=src_port,
         dst_node_name=src_node_name,  # Notice dst is now src_node_name
@@ -812,14 +864,14 @@ def _osnc_matches(
         osnc: The OSNC record retrieved from the device.
         passband: The desired frequency range allowed for transmission.
         carrier: The desired ``(central frequency, bandwidth)`` carrier signal.
-        oel_aid: The desired OEL access identifier (full length; compared truncated to 64 chars).
+        oel_aid: The desired OEL access identifier.
         label: The desired OSNC label (unquoted; compared stripped of surrounding quotes/whitespace).
 
     Returns:
         A triple of booleans telling whether the OEL reference, the
         passband/carrier pair and the label already match the desired state.
     """
-    matches_oel = osnc.get("OELAID", "").strip(r"\" ") == oel_aid[:64]
+    matches_oel = _clean(osnc.get("OELAID")) == oel_aid
     osnc_passband = osnc.get("PASSBANDLIST", [])
     osnc_carrier = osnc.get("CARRIERLIST", [])
     matches_spectrum = (
@@ -872,8 +924,8 @@ def _converge_osnc(
     bare ``ED-OSNC:::OOS`` and only then edits the drifted OOS params (each sent
     only when it drifted) while locked. ``CKTIDSUFFIX``/``LABEL`` are
     in-service edits applied in the final ``ED-OSNC … :IS`` step, which also
-    unlocks the circuit; a label-only drift therefore stays a single
-    in-service command. When the OOS edit fails, the lock is best-effort
+    unlocks the circuit; a label or CKTIDSUFFIX drift (a renamed spectrum)
+    therefore stays a single in-service command. When the OOS edit fails, the lock is best-effort
     restored to ``IS`` before the original error propagates.
 
     Args:
@@ -890,10 +942,11 @@ def _converge_osnc(
 
     Returns:
         The ``(oel, spectrum, label)`` match flags, for the caller to decide
-        whether a re-read is needed.
+        whether a re-read is needed; the label flag also covers the CKTIDSUFFIX.
     """
     passband = _snap_passband_for_device(passband, carrier, circuit_identifier)
     matches_oel, matches_spectrum, matches_label = _osnc_matches(osnc, passband, carrier, oel_aid, osnc_label)
+    matches_label = matches_label and _clean(osnc.get("CKTIDSUFFIX")) == osnc_name
     oos_drift = not matches_oel or not matches_spectrum
     logger.debug(
         "Converging FlexILS optical circuit",
@@ -903,7 +956,7 @@ def _converge_osnc(
         matches_spectrum=matches_spectrum,
         matches_label=matches_label,
         actual_oelaid=osnc.get("OELAID", ""),
-        expected_oelaid=oel_aid[:64],
+        expected_oelaid=oel_aid,
         actual_passband=osnc.get("PASSBANDLIST", []),
         expected_passband=list(passband),
     )
@@ -939,7 +992,7 @@ def _converge_osnc(
     if oos_drift or not matches_label:
         flex.ed_osnc(
             aid=osnc["AID"],
-            cktidsuffix=osnc_name,
+            cktidsuffix=_tl1_quoted(osnc_name),
             pst="IS",
             label=_tl1_label(osnc_label),
         )
@@ -1002,7 +1055,7 @@ def validate(
         passband: Frequency range allowed for transmission.
         carrier: Tuple of (center frequency, bandwidth) for the carrier signal.
         label: Service label to validate.
-        circuit_identifier: The subscription instance id of the circuit; used as the OSNC CKTIDSUFFIX.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block; the OSNC is found by it.
 
     Raises:
         ValueError: If the configuration is invalid.
@@ -1054,10 +1107,9 @@ def set_label(
 ) -> DiffResult:
     """Overwrite the OSNC label of the given optical spectrum section.
 
-    The composite digital-service circuit label (``"<channel>: <svcA> + <svcB>"``)
-    is always written in full, so reused channels converge to the expected value
-    and reconcile repairs drift instead of accumulating tokens. The label is
-    double-quoted on the TL1 wire so the ``":"`` separator survives command framing.
+    The label (``"<svc1><svc2>... <hop1><hop2>..."``) is always written in full, so
+    reused channels converge to the expected value and reconcile repairs drift
+    instead of accumulating tokens. The label is double-quoted on the TL1 wire.
 
     Args:
         source_optical_node_block: The source Optical Node of the section.
@@ -1065,7 +1117,7 @@ def set_label(
         optical_spectrum_name: The user-facing name of the optical spectrum.
         passband: Frequency range allowed for transmission.
         label: The full label to write.
-        circuit_identifier: The subscription instance id of the circuit; used as the OSNC CKTIDSUFFIX.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block; the OSNC is found by it.
 
     Returns:
         The difference between the OSNC configuration before and after the update.
@@ -1098,14 +1150,19 @@ def ensure(
     carrier: tuple[Frequency, Bandwidth],
     label: str | None = None,
     circuit_identifier: str = "",
+    hops: Sequence[str] = (),
 ) -> DiffResult:
     """Ensure the optical circuit of a section exists and converges to the desired state.
 
     This is the single idempotent primitive for every FlexILS optical-circuit
     write: create, modify and reconcile all flow through it. The OSNC is looked
-    up by identity only (circuit identifier plus endpoints, either direction,
-    see :func:`_find_flexils_osnc`): the label, passband, carrier and OEL
-    reference are convergent attributes, never part of the identity. A missing
+    up by identity only (``<id8>`` ending of the CKTIDSUFFIX plus endpoints, either
+    direction, see :func:`_find_flexils_osnc`) and so is the OEL (``<id8>`` ending
+    of the AID plus the two nodes of the section, see :func:`_find_oel`): the
+    label, spectrum name, passband, carrier and OEL reference are convergent
+    attributes, never part of the identity. An OSNC or OEL holding other
+    identifiers is not ours: it is never adopted nor replaced, and an OSNC in the
+    way makes the device deny ``ENT-OSNC``. A missing
     OEL or OSNC is created (lock-free: ``ENT-OSNC`` needs no admin-state
     transition); a present OSNC whose attributes drifted is edited in place;
     shutters are reopened when closed. A circuit already in the desired state
@@ -1132,16 +1189,23 @@ def ensure(
         optical_spectrum_name: The user-facing name of the optical spectrum.
         passband: Frequency range allowed for transmission.
         carrier: Tuple of (center frequency, bandwidth) for the carrier signal.
-        label: Optional label for the circuit.
-        circuit_identifier: The subscription instance id of the circuit; used to derive the
-            device-side OEL AID and OSNC CKTIDSUFFIX.
+        label: The OSNC label (see :func:`orchestrator.optical.utils.labels.osnc_label`);
+            the hops alone when not given.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block; used
+            to derive the device-side OEL AID and OSNC CKTIDSUFFIX.
+        hops: Location codes of the nodes of the whole spectrum path (see
+            :func:`orchestrator.optical.utils.labels.path_location_codes`): its ends name
+            the OEL AID, all of them go in the labels.
 
     Returns:
         The difference between the circuit configuration before and after the call.
 
     Raises:
-        ValueError: If the circuit identifier is empty or the FlexILS commands fail.
+        ValueError: If the circuit identifier or the hops are empty or the FlexILS commands fail.
     """
+    if not hops:
+        msg = "The location codes of the spectrum path are required to name its optical circuit"
+        raise ValueError(msg)
     passband = _snap_passband_for_device(passband, carrier, circuit_identifier)
     add_drop_ports = optical_spectrum_section_block.optical_spectrum_section_add_drop_ports
     express_ports = optical_spectrum_section_block.optical_spectrum_section_express_ports
@@ -1151,18 +1215,20 @@ def ensure(
     src_flexils_name = _node_id(src_device)
     dst_flexils_name = _node_id(dst_device)
 
-    oel_aid = circuit_identifier[:127]
-    oel_label = device_label(optical_spectrum_name)
-    osnc_label = f"{src_flexils_name}_{dst_flexils_name}" if label in (None, "") else label.strip()
-    osnc_name = circuit_identifier or optical_spectrum_name.replace(" ", "_")
+    circuit_oel_label = labels.oel_label(optical_spectrum_name, hops)
+    circuit_osnc_label = label.strip() if label and label.strip() else labels.osnc_label((), hops)
+    osnc_name = identifiers.osnc_cktid(optical_spectrum_name, circuit_identifier)
 
     src_flex = _get_flex_client(src_device)
-    before_oel = _rtrv_oel_or_none(src_flex, oel_aid)
+    before_oel = _find_oel(src_flex, circuit_identifier, src_flexils_name, dst_flexils_name)
     if before_oel is None:
         omses = _omses_from_line_ports(express_ports)
-        oel = _find_or_create_oel(oel_aid, oel_label, src_device, dst_device, omses)
+        oel = _find_or_create_oel(
+            identifiers.oel_aid(hops[0], hops[-1], circuit_identifier), circuit_oel_label, src_device, dst_device, omses
+        )
     else:
-        oel = _converge_oel_label(src_flex, oel_aid, before_oel, oel_label)
+        oel = _converge_oel_label(src_flex, _clean(before_oel.get("AID")), before_oel, circuit_oel_label)
+    circuit_oel_aid = _clean(oel.get("AID"))
 
     for port in add_drop_ports:
         _ensure_manualmode2(port)
@@ -1176,12 +1242,13 @@ def ensure(
             src_device=src_device,
             dst_device=dst_device,
             circuit_identifier=circuit_identifier,
-            osnc_label=osnc_label,
-            oel_aid=oel_aid,
+            osnc_label=circuit_osnc_label,
+            oel_aid=circuit_oel_aid,
             src_port_name=_port_name(add_drop_ports[0]),
             dst_port_name=_port_name(add_drop_ports[1]),
             passband=passband,
             carrier=carrier,
+            osnc_name=osnc_name,
         )
         sleep(5)
         _open_shutter(src_device, created["AID"])
@@ -1197,9 +1264,9 @@ def ensure(
     matches_oel, matches_spectrum, matches_label = _converge_osnc(
         flex,
         osnc,
-        oel_aid,
+        circuit_oel_aid,
         osnc_name,
-        osnc_label,
+        circuit_osnc_label,
         passband,
         carrier,
         circuit_identifier,

@@ -3,6 +3,7 @@
 from orchestrator.optical.hal._common import _node_id
 from orchestrator.optical.hal.adapters.nokia_flexils._shared import _get_flex_client, _records
 from orchestrator.optical.products.product_blocks.optical_node.nokia_flexils import NokiaFlexIlsBlockProvisioning
+from orchestrator.optical.utils.identifiers import id8
 
 
 def delta_rx_power_vs_target(
@@ -15,7 +16,8 @@ def delta_rx_power_vs_target(
     Args:
         optical_node_block: The FlexILS Optical Node to compute for.
         optical_spectrum_name: The optical spectrum name; used as the CKTIDSUFFIX fallback.
-        circuit_identifier: The subscription instance id of the circuit; used as the CKTIDSUFFIX.
+        circuit_identifier: The subscription instance id of the Optical Spectrum block; the
+            channel is found by the ``<id8>`` its CKTIDSUFFIX holds.
 
     Returns:
         The delta target received power in dB.
@@ -31,7 +33,7 @@ def delta_rx_power_vs_target(
     # >> RTRV-SCH AID=INTERMEDIATESCHCTP
     # >> save TARGETOPR
     # >> RTRV-PM-SCH AID=INTERMEDIATESCHCTP
-    cktidsuffix = circuit_identifier or optical_spectrum_name.replace(" ", "_")
+    cktidsuffix = id8(circuit_identifier) if circuit_identifier else optical_spectrum_name.replace(" ", "_")
 
     ocrs = _records(flex.rtrv_ocrs(sigtype="SIGNALED"))
     ocr = next(

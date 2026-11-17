@@ -85,6 +85,8 @@ COMMANDS: dict[str, tuple[Callable[[FlexilsClient], Any], str]] = {
     "rtrv-ots": (lambda c: c.rtrv_ots(), _wire("RTRV-OTS:")),
     "rtrv-ots-aid": (lambda c: c.rtrv_ots(aid=LINE), _wire(f"RTRV-OTS:{LINE}")),
     "rtrv-oel": (lambda c: c.rtrv_oel(aid="cid"), _wire("RTRV-OEL:cid")),
+    # Unfiltered: an OEL is found by the ending of its AID and its nodes, never by the whole AID.
+    "rtrv-oel-all": (lambda c: c.rtrv_oel(), _wire("RTRV-OEL:")),
     "rtrv-osnc": (lambda c: c.rtrv_osnc(), _wire("RTRV-OSNC:", ":::")),
     "rtrv-osnc-aid": (lambda c: c.rtrv_osnc(aid=SCH), _wire(f"RTRV-OSNC:{SCH}", ":::")),
     "rtrv-sch": (lambda c: c.rtrv_sch(aid=SCH), _wire(f"RTRV-SCH:{SCH}")),
@@ -161,6 +163,13 @@ COMMANDS: dict[str, tuple[Callable[[FlexilsClient], Any], str]] = {
     "ed-osnc-unlock": (
         lambda c: c.ed_osnc(aid=SCH, cktidsuffix="cid", pst="IS", label=_tl1_quoted("ch: a + b")),
         _wire(f"ED-OSNC:{SCH}", ':::LABEL="ch: a + b",CKTIDSUFFIX=cid:IS'),
+    ),
+    # The CKTIDSUFFIX ("<spectrum name> <id8>") holds a blank: it travels quoted, like a label.
+    "ed-osnc-cktid": (
+        lambda c: c.ed_osnc(
+            aid=SCH, cktidsuffix=_tl1_quoted("CH-193.1 3fa85f64"), pst="IS", label=_tl1_quoted("svc mil01rom02")
+        ),
+        _wire(f"ED-OSNC:{SCH}", ':::LABEL="svc mil01rom02",CKTIDSUFFIX="CH-193.1 3fa85f64":IS'),
     ),
     "ed-osnc-label": (
         lambda c: c.ed_osnc(aid=SCH, label=_tl1_quoted("ch: a + b")),
