@@ -61,6 +61,7 @@ from orchestrator.optical.hal.reconcile import (
     ConfigApplyError,
     ConfigConflictError,
     ConfigDriftError,
+    config_overrides,
     golden_config,
 )
 from orchestrator.optical.hal.sessions import DeviceSessions, device_sessions
@@ -101,6 +102,7 @@ __all__ = [
     "align_tx_power_to_target",
     "cached_device_read",
     "check_fiber_terminating_port",
+    "config_overrides",
     "configure_line_transceivers",
     "configure_termination_when_attaching_new_fiber",
     "configure_transceiver_client",

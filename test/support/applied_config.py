@@ -40,6 +40,14 @@ class AppliedConfigStore:
             if row_node == node and row_owner != owner
         }
 
+    def golden_config_of_other_owners(self, node_instance_id: Any, owner_instance_id: Any) -> dict[str, Any]:
+        node, owner = UUID(str(node_instance_id)), UUID(str(owner_instance_id))
+        return {
+            path: value
+            for (row_node, path, row_owner), (_, value) in self.rows.items()
+            if row_node == node and row_owner not in (owner, node)
+        }
+
     def node_applied_config(self, node_instance_id: Any) -> dict[str, Any]:
         node = UUID(str(node_instance_id))
         return {path: value for (row_node, path, _), (_, value) in sorted(self.rows.items()) if row_node == node}
@@ -67,6 +75,7 @@ def applied_config_store(monkeypatch: pytest.MonkeyPatch) -> AppliedConfigStore:
         "lock_node_config",
         "applied_config",
         "applied_config_of_other_owners",
+        "golden_config_of_other_owners",
         "node_applied_config",
         "replace_applied_config",
         "forget_applied_config",

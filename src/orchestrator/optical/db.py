@@ -46,6 +46,7 @@ __all__ = [
     "applied_config",
     "applied_config_of_other_owners",
     "forget_applied_config",
+    "golden_config_of_other_owners",
     "leased_passbands_of_ports",
     "location_block_from_instance",
     "lock_node_config",
@@ -720,6 +721,22 @@ def applied_config_of_other_owners(
         select(OpticalAppliedConfigTable)
         .where(OpticalAppliedConfigTable.node_instance_id == _uuid(node_instance_id))
         .where(OpticalAppliedConfigTable.owner_instance_id != _uuid(owner_instance_id))
+    )
+    return {row.path: row.value[_VALUE] for row in rows}
+
+
+def golden_config_of_other_owners(
+    node_instance_id: UUID | UUIDstr, owner_instance_id: UUID | UUIDstr
+) -> dict[str, Any]:
+    """Return ``{path: value}`` applied on an Optical Node by the product blocks but the given one and the node.
+
+    The rows of the node block itself are its configuration overrides, which never
+    conflict with what the other product blocks apply.
+    """
+    rows = _all(
+        select(OpticalAppliedConfigTable)
+        .where(OpticalAppliedConfigTable.node_instance_id == _uuid(node_instance_id))
+        .where(OpticalAppliedConfigTable.owner_instance_id.not_in([_uuid(owner_instance_id), _uuid(node_instance_id)]))
     )
     return {row.path: row.value[_VALUE] for row in rows}
 

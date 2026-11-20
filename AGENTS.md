@@ -131,12 +131,30 @@ This rule is fully applied: all 19 concrete block chains redeclare every inherit
   to the rendered paths (so `removed` is always empty) and builds releases itself from the adapter's
   `release_rule(path)`: `Reset(value)` (factory value of a leaf), `DeleteEntry(path)` (a list entry the module
   created: G30 `CRS`, G42 `xcon` / `super-channel`) or `None` (leave alone).
+- **Configuration override** (`hal/reconcile.py::apply_config_override`, workflows
+  `modify_optical_node_<platform>_config_override`, parts in `workflows/optical_node/shared/config_override.py`): the
+  NOC changes a node with `<marker> path: value` lines (always a value, leaves only): `+` set and own, `-` remove
+  (the value must be the running one), `#` stop overriding (the value must be the recorded override; the golden
+  value is written back if a service holds the path, otherwise the device keeps it). Overrides are the rows of the
+  **node block** under the `override` scope (the node block owns nothing else) and take precedence: services still
+  record their golden value on an overridden path but never push, verify or release it
+  (`_instance_diff(..., overridden)`), and an override never conflicts with them
+  (`db.golden_config_of_other_owners` leaves the node rows out). `-` on a service's golden path is refused.
+  `golden_config()` returns the services' `{path: v}`, `config_overrides()` the node's `{path: v}`.
+- This is the one exception to the rule above: the `-` leaves are dropped from the **whole** running map (never a
+  restricted one) before `diff_instances(running, edited)`, so the SDK collapses them into leaf / list-entry /
+  container removals on purpose, and the collapse is kept as the SDK computes it. Golden and overridden leaves stay
+  in the edited map, so no removal reaches them; leaves the adapter does not read or sifts out (G30
+  `running_config`: `_RUNNING_FIELDS`, device-owned leaves) are invisible to it and go with their container. The
+  review page shows the removals and the edit before anything is sent.
 - Every apply is recorded in the `optical_applied_config` table, one row per **(node, path, owner block)** plus the
   `scope` (rendering unit of the owner: `line`, `client:<port>`, `crossconnect:<port>`, `tx-power:<port>`,
-  `termination`, `description`, `admin-state`). Rows mean *applied*, never *desired* (always re-rendered from the
-  blocks); they are written only after the device converged. The rows of a node are its golden config
-  (`hal.golden_config`). A path may be held by several owners with the same value (released from the device when
-  the last one releases it); a different value from another owner is a `ConfigConflictError` before any edit.
+  `termination`, `description`, `admin-state`; `override` for the node block's overrides). Rows mean *applied*,
+  never *desired* (always re-rendered from the blocks); they are written only after the device converged. The one
+  exception: a service row on a path the node overrides holds the service's value, not applied while the override
+  exists. The rows of a node are its golden config (`hal.golden_config`). A path may be held by several owners with
+  the same value (released from the device when the last one releases it); a different value from another service
+  is a `ConfigConflictError` before any edit.
 - Owners: the Optical Port block for port-level config (`hal/port.py`, signatures unchanged), the Optical Digital
   Service block for transponder config (`owner_instance_id=` keyword of the `hal/transport_channel.py` dispatchers).
 - Fragment key leaves are dropped (the SDK edit builder would emit them twice); `stage=` orders the edits for
@@ -442,6 +460,11 @@ uv build                        # package build
 - Subscriptions provisioned before the table existed have no rows: run their reconcile workflow once to record
   them. Releases also cover what the block still renders, and `is_last_client_for_channels` still guards shared
   line ports, so terminating an unrecorded service behaves as before.
+- Configuration override: only tested against the fake NETCONF manager. Not yet checked on a lab device: the size and
+  time of the full running read on a loaded G30 (fields-restricted, `exclude_unset`) and on a G42 (still the whole
+  `/ioa-network-element:ne`, no field list nor sifting yet); that an override pinned over a service path survives
+  that service's modify/reconcile/terminate as expected end to end. The form read cache may show a running config
+  up to `OPTICAL_DEVICE_READ_CACHE_SECONDS` old; the `-`/`#` values are re-checked by the step.
 - The recorded TX power (`tx-power:<port>` scope) is stored but not yet re-verified by the validate workflows.
 - G30 amplifier settings are applied with the termination but excluded from `check_fiber` and from the release
   (they are tuned on the device afterwards).

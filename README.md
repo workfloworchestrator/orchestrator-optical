@@ -77,6 +77,11 @@ The Groove G30 and GX G42 configuration is declarative: the module renders the d
 applies only the difference, and records what it applied in `optical_applied_config`, one row per
 (node, device path, owner product block). The rows of a node are its golden configuration, i.e. the part of the
 device configuration the orchestrator manages (`orchestrator.optical.hal.golden_config(node_block)`).
+The NOC changes a node by hand with the `modify_optical_node_<platform>_config_override` workflows, as
+`<marker> path: value` lines: `+` sets a value and overrides the path (also over the golden configuration of a
+subscription), `-` removes a leaf from the device, `#` stops overriding (the golden value is written back if there is
+one). The overrides are rows of the node block under the `override` scope; `golden_config()` and `config_overrides()`
+return the golden configuration and the overrides as two `{path: value}` maps (an overridden path is in both).
 
 The table ships as its own Alembic revision (`7c1d5e9a4b20`, branch label `optical_applied_config`), independent of
 the catalog: add the shipped `versions/schema` directory to your Alembic `version_locations` (see

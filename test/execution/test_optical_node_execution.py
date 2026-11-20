@@ -10,7 +10,7 @@ every vendor and the FQDN uniqueness check of the create form.
 """
 
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic_forms.exceptions import FormValidationError
@@ -466,7 +466,7 @@ def test_validate_shows_the_applied_configuration_of_the_node(
     )
     node_id = node_instance_id_of_subscription(subscription_id)
     applied = {"/ne/shelf[shelf-id='1']/admin-status": "up"}
-    optical_db.replace_applied_config(node_id, node_id, "admin-state", applied)
+    optical_db.replace_applied_config(node_id, uuid4(), "admin-state", applied)
     core_db.db.session.commit()
 
     process_id = run_process(
@@ -480,7 +480,8 @@ def test_validate_shows_the_applied_configuration_of_the_node(
         .where(ProcessStepTable.process_id == UUID(process_id))
         .where(ProcessStepTable.name == "Show applied configuration")
     ).one()
-    assert shown.state["golden_config"] == applied
+    assert shown.state["golden_config"] == {"/ne/shelf[shelf-id='1']/admin-status": "up"}
+    assert shown.state["config_overrides"] == {}
 
 
 def test_optical_node_selector_of_roles_offers_descriptions_filtered_by_role(

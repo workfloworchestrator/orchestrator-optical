@@ -6,7 +6,7 @@ from pydantic_forms.types import State
 
 from orchestrator.core.domain import SubscriptionModel
 from orchestrator.core.workflow import StepList, begin, step
-from orchestrator.optical.hal.reconcile import golden_config
+from orchestrator.optical.hal.reconcile import config_overrides, golden_config
 from orchestrator.optical.hal.sessions import device_sessions
 from orchestrator.optical.products.product_blocks.optical_node.unions import AnyOpticalNodeBlockProvisioningUnion
 from orchestrator.optical.workflows import OPTICAL_MODULE_BLOCK_STATE_KEY
@@ -48,17 +48,19 @@ def load_initial_state_optical_node(subscription: SubscriptionModel) -> State:
 def show_optical_node_applied_configuration(
     optical_module_block: AnyOpticalNodeBlockProvisioningUnion | dict[str, Any] | None,
 ) -> State:
-    """Put the golden configuration of the node in the state, so it is visible in the process detail.
+    """Put the golden configuration and the overrides of the node in the state, visible in the process detail.
 
-    The golden configuration is every ``{path: value}`` the orchestrator applied on the node
-    (the ``optical_applied_config`` rows of all its owners). It is read from the database, not
-    from the device, and it is empty for the nodes that are not configured declaratively (FlexILS).
+    ``golden_config`` is every ``{path: value}`` the product blocks applied on the node and
+    ``config_overrides`` every ``{path: value}`` the NOC set on it (an overridden path is in
+    both). They are read from the database, not from the device, and they are empty for the
+    nodes that are not configured declaratively (FlexILS).
 
     Raises:
         ValueError: If there is no Optical Node block in the state under
             ``OPTICAL_MODULE_BLOCK_STATE_KEY``.
     """
-    return {"golden_config": golden_config(optical_node_block_from_state(optical_module_block))}
+    block = optical_node_block_from_state(optical_module_block)
+    return {"golden_config": golden_config(block), "config_overrides": config_overrides(block)}
 
 
 #: Validation step list shared by every Optical Node product: the software

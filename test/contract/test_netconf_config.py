@@ -321,6 +321,7 @@ def test_apply_on_a_converged_device_sends_nothing_but_still_records(
     assert device.edits() == []
     assert result["added"] == result["changed"] == {}
     assert reconcile.golden_config(node) == {f"{G30_PORT}/admin-status": "down"}
+    assert reconcile.config_overrides(node) == {}
 
 
 def test_apply_fails_when_the_device_does_not_converge(
@@ -582,3 +583,404 @@ def test_g30_role_requests_the_card_types_only(monkeypatch: pytest.MonkeyPatch) 
         "ne/shelf/slot/card/subslot/subslot-id",
         "ne/shelf/slot/slot-id",
     ]
+
+
+# ---------------------------------------------------------------------------
+# Configuration override
+# ---------------------------------------------------------------------------
+
+G30_CARD = "/ne:ne/shelf[shelf-id='1']/slot[slot-id='2']/card"
+
+
+def _g30_config_xml(*, second_port: bool = False, **leaves: str) -> str:
+    """The whole configuration of a Groove G30: a card with port 1 (``leaves``) and, optionally, port 2."""
+    body = "".join(f"<{name}>{value}</{name}>" for name, value in leaves.items())
+    port2 = "<port><port-id>2</port-id><admin-status>up</admin-status></port>" if second_port else ""
+    return (
+        '<ne xmlns="http://coriant.com/yang/os/ne"><shelf><shelf-id>1</shelf-id><slot><slot-id>2</slot-id>'
+        f"<card><required-type>CHM2T</required-type><port><port-id>1</port-id>{body}</port>{port2}</card>"
+        "</slot></shelf></ne>"
+    )
+
+
+def _g42_config_xml(**leaves: str) -> str:
+    """The whole configuration of a GX G42 with one port (its card carries its mandatory leaves)."""
+    body = "".join(f"<{name}>{value}</{name}>" for name, value in leaves.items())
+    return (
+        '<ne xmlns="http://infinera.com/yang/ioa/ne"><equipment><card><name>1-4</name><chassis-name>1</chassis-name>'
+        f"<slot-name>1-4</slot-name><required-type>CHM6</required-type><port><name>L1</name>{body}</port>"
+        "</card></equipment></ne>"
+    )
+
+
+def _overrides(store: AppliedConfigStore, node: Any) -> dict[str, Any]:
+    return store.applied_config(node.subscription_instance_id, node.subscription_instance_id, reconcile.OVERRIDE_SCOPE)
+
+
+def _override(store: AppliedConfigStore, node: Any, config: dict[str, Any]) -> None:
+    store.replace_applied_config(
+        node.subscription_instance_id, node.subscription_instance_id, reconcile.OVERRIDE_SCOPE, config
+    )
+
+
+def _change(lines: str) -> reconcile.ConfigOverride:
+    return reconcile.parse_override_lines(lines)
+
+
+def test_running_config_is_the_whole_configuration_read_from_the_device(monkeypatch: pytest.MonkeyPatch) -> None:
+    _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up", "service-label": "x y"}))
+
+    running = reconcile.running_config(_node(Platform.GROOVE_G30))
+
+    assert running[f"{G30_PORT}/admin-status"] == "up"
+    assert running[f"{G30_PORT}/service-label"] == "x y"
+    assert running[f"{G30_CARD}/required-type"] == "CHM2T"
+
+
+def test_override_diff_shows_the_change_and_the_edit_without_sending_it(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    device = _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up"}))
+
+    diff, edit = reconcile.diff_config_override(_node(Platform.GROOVE_G30), _change(f"+ {G30_PORT}/admin-status: down"))
+
+    assert diff.changed == {f"{G30_PORT}/admin-status": ("up", "down")}
+    assert "<admin-status>down</admin-status>" in edit
+    assert device.edits() == []
+    assert applied_config_store.rows == {}
+
+
+def test_set_lines_are_applied_and_recorded_as_overrides_of_the_node_block(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    device = _g30(
+        monkeypatch,
+        _g30_config_xml(**{"admin-status": "up"}),
+        _g30_config_xml(**{"admin-status": "down", "service-label": "noc"}),
+    )
+    node = _node(Platform.GROOVE_G30)
+
+    result = reconcile.apply_config_override(
+        node, _change(f"+ {G30_PORT}/admin-status: down\n+ {G30_PORT}/service-label: noc")
+    )
+
+    (edit,) = device.edits()
+    assert "<admin-status>down</admin-status>" in edit
+    assert result["changed"] == {f"{G30_PORT}/admin-status": {"running": "up", "desired": "down"}}
+    assert result["added"] == {f"{G30_PORT}/service-label": "noc"}
+    assert applied_config_store.locked == [node.subscription_instance_id]
+    assert _overrides(applied_config_store, node) == {
+        f"{G30_PORT}/admin-status": "down",
+        f"{G30_PORT}/service-label": "noc",
+    }
+
+
+def test_a_set_line_the_device_already_runs_is_recorded_and_nothing_is_sent(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    device = _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up"}))
+    node = _node(Platform.GROOVE_G30)
+
+    reconcile.apply_config_override(node, _change(f"+ {G30_PORT}/admin-status: up"))
+
+    assert device.edits() == []
+    assert _overrides(applied_config_store, node) == {f"{G30_PORT}/admin-status": "up"}
+
+
+def test_no_lines_change_nothing_and_keep_the_overrides(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    device = _g30(monkeypatch, _g30_config_xml(**{"admin-status": "down"}))
+    node = _node(Platform.GROOVE_G30)
+    _override(applied_config_store, node, {f"{G30_PORT}/admin-status": "down"})
+
+    reconcile.apply_config_override(node, _change(""))
+
+    assert device.edits() == []
+    assert _overrides(applied_config_store, node) == {f"{G30_PORT}/admin-status": "down"}
+
+
+def test_an_override_wins_over_the_golden_configuration_of_a_service(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up"}), _g30_config_xml(**{"admin-status": "down"}))
+    node = _node(Platform.GROOVE_G30)
+    service = uuid4()
+    applied_config_store.replace_applied_config(
+        node.subscription_instance_id, service, "admin-state", {f"{G30_PORT}/admin-status": "up"}
+    )
+
+    reconcile.apply_config_override(node, _change(f"+ {G30_PORT}/admin-status: down"))
+
+    assert reconcile.golden_config(node) == {f"{G30_PORT}/admin-status": "up"}
+    assert reconcile.config_overrides(node) == {f"{G30_PORT}/admin-status": "down"}
+
+
+def test_a_service_never_pushes_verifies_or_releases_an_overridden_path(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    device = _g30(monkeypatch, _g30_port_xml(**{"admin-status": "down"}))
+    node = _node(Platform.GROOVE_G30)
+    port = _port("port-1/2/1", node)
+    _override(applied_config_store, node, {f"{G30_PORT}/admin-status": "down"})
+
+    g30_port.set_port_admin_state(port, "up")
+
+    assert device.edits() == []
+    assert reconcile.golden_config(node) == {f"{G30_PORT}/admin-status": "up"}
+    assert reconcile.config_overrides(node) == {f"{G30_PORT}/admin-status": "down"}
+
+    reconcile.release_config(node, port.subscription_instance_id, "admin-state")
+
+    assert device.edits() == []
+    assert _overrides(applied_config_store, node) == {f"{G30_PORT}/admin-status": "down"}
+
+
+def test_stopping_an_override_writes_the_golden_value_back(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    device = _g30(monkeypatch, _g30_config_xml(**{"admin-status": "down"}), _g30_config_xml(**{"admin-status": "up"}))
+    node = _node(Platform.GROOVE_G30)
+    applied_config_store.replace_applied_config(
+        node.subscription_instance_id, uuid4(), "admin-state", {f"{G30_PORT}/admin-status": "up"}
+    )
+    _override(applied_config_store, node, {f"{G30_PORT}/admin-status": "down"})
+
+    reconcile.apply_config_override(node, _change(f"# {G30_PORT}/admin-status: down"))
+
+    (edit,) = device.edits()
+    assert "<admin-status>up</admin-status>" in edit
+    assert _overrides(applied_config_store, node) == {}
+
+
+def test_stopping_an_override_without_golden_value_keeps_the_device_as_it_is(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    device = _g30(monkeypatch, _g30_config_xml(**{"service-label": "noc"}))
+    node = _node(Platform.GROOVE_G30)
+    _override(applied_config_store, node, {f"{G30_PORT}/service-label": "noc", f"{G30_CARD}/required-type": "CHM2T"})
+
+    reconcile.apply_config_override(node, _change(f"# {G30_PORT}/service-label: noc"))
+
+    assert device.edits() == []
+    assert _overrides(applied_config_store, node) == {f"{G30_CARD}/required-type": "CHM2T"}
+
+
+def test_stopping_an_override_needs_the_overridden_value(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    _g30(monkeypatch, _g30_config_xml(**{"service-label": "noc"}))
+    node = _node(Platform.GROOVE_G30)
+    _override(applied_config_store, node, {f"{G30_PORT}/service-label": "noc"})
+
+    with pytest.raises(ValueError, match="is overridden with noc"):
+        reconcile.diff_config_override(node, _change(f"# {G30_PORT}/service-label: other"))
+    with pytest.raises(ValueError, match="is not overridden"):
+        reconcile.diff_config_override(node, _change(f"# {G30_PORT}/admin-status: up"))
+
+
+def test_removing_a_list_entry_sends_one_entry_removal_and_drops_its_overrides(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    device = _g30(
+        monkeypatch,
+        _g30_config_xml(second_port=True, **{"admin-status": "up"}),
+        _g30_config_xml(**{"admin-status": "up"}),
+    )
+    node = _node(Platform.GROOVE_G30)
+    port2 = f"{G30_CARD}/port[port-id='2']"
+    _override(applied_config_store, node, {f"{port2}/admin-status": "up"})
+
+    result = reconcile.apply_config_override(node, _change(f"- {port2}/port-id: 2\n- {port2}/admin-status: up"))
+
+    (edit,) = device.edits()
+    assert edit.count('operation="remove"') == 1
+    assert "<port-id>2</port-id>" in edit
+    assert result["deleted"] == [port2]
+    assert _overrides(applied_config_store, node) == {}
+
+
+def test_removing_a_leaf_sends_a_leaf_removal(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up", "service-label": "a"}))
+
+    diff, edit = reconcile.diff_config_override(_node(Platform.GROOVE_G30), _change(f"- {G30_PORT}/service-label: a"))
+
+    assert diff.deleted == (f"{G30_PORT}/service-label",)
+    assert '<service-label xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" nc:operation="remove"/>' in edit
+
+
+def test_removing_every_leaf_of_a_container_removes_the_container(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up"}))
+    lines = "\n".join(
+        [
+            f"- {G30_CARD}/required-type: CHM2T",
+            f"- {G30_PORT}/port-id: 1",
+            f"- {G30_PORT}/admin-status: up",
+        ]
+    )
+
+    diff, edit = reconcile.diff_config_override(_node(Platform.GROOVE_G30), _change(lines))
+
+    assert diff.deleted == (G30_CARD,)
+    assert edit.count('operation="remove"') == 1
+
+
+def test_a_removed_leaf_must_run_the_given_value(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up"}))
+    node = _node(Platform.GROOVE_G30)
+
+    with pytest.raises(ValueError, match="runs .*admin-status: up, not down"):
+        reconcile.diff_config_override(node, _change(f"- {G30_PORT}/admin-status: down"))
+    with pytest.raises(ValueError, match="is not on"):
+        reconcile.diff_config_override(node, _change(f"- {G30_PORT}/service-label: x"))
+
+
+def test_removing_golden_configuration_of_a_service_is_refused(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    device = _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up"}))
+    node = _node(Platform.GROOVE_G30)
+    applied_config_store.replace_applied_config(
+        node.subscription_instance_id, uuid4(), "admin-state", {f"{G30_PORT}/admin-status": "up"}
+    )
+
+    with pytest.raises(ConfigConflictError, match="override it with"):
+        reconcile.apply_config_override(node, _change(f"- {G30_PORT}/admin-status: up"))
+
+    assert device.edits() == []
+
+
+def test_a_removal_the_device_does_not_carry_out_fails(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up", "service-label": "a"}))
+
+    with pytest.raises(ConfigApplyError, match="did not converge"):
+        reconcile.apply_config_override(_node(Platform.GROOVE_G30), _change(f"- {G30_PORT}/service-label: a"))
+
+    assert applied_config_store.rows == {}
+
+
+def test_an_override_value_takes_the_type_of_its_leaf(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up"}))
+
+    with pytest.raises(ValueError, match="is an integer"):
+        reconcile.diff_config_override(
+            _node(Platform.GROOVE_G30), _change("+ /ne:ne/shelf[shelf-id='1']/shelf-id: one")
+        )
+
+
+def test_g42_override_edits_the_candidate_and_commits(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    device = _g42(monkeypatch, _g42_config_xml(**{"admin-state": "unlock"}), _g42_config_xml(**{"admin-state": "lock"}))
+    node = _node(Platform.GX_G42)
+
+    reconcile.apply_config_override(node, _change(f"+ {G42_PORT}/admin-state: lock"))
+
+    names = device.names()
+    (edit,) = device.edits()
+    assert names.index("edit-config") < names.index("commit")
+    assert "<admin-state>lock</admin-state>" in edit
+    assert _overrides(applied_config_store, node) == {f"{G42_PORT}/admin-state": "lock"}
+
+
+def test_config_override_form_shows_the_running_configuration_then_the_difference_and_the_edit(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    from orchestrator.optical.workflows.optical_node.shared.config_override import config_override_form_pages
+    from test.support.forms import finish_form
+
+    device = _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up", "service-label": "x"}))
+    node = _node(Platform.GROOVE_G30)
+    lines = f"+ {G30_PORT}/admin-status: down\n- {G30_PORT}/service-label: x"
+
+    generator = config_override_form_pages(node)
+    edit_page = next(generator)
+    running = edit_page.model_fields["running_configuration"].default
+    assert f"{G30_PORT}/admin-status: up" in running.splitlines()
+    assert edit_page.model_fields["configuration_override"].default == ""
+
+    review_page = generator.send(edit_page(running_configuration=running, configuration_override=lines))
+    difference = review_page.model_fields["difference_with_the_device"].default
+    edit = review_page.model_fields["edit_sent_to_the_device"].default
+    assert difference.splitlines() == [
+        f"{G30_PORT}/admin-status: up -> down (overridden)",
+        f"{G30_PORT}/service-label (removed)",
+    ]
+    assert "<admin-status>down</admin-status>" in edit
+
+    result = finish_form(generator, review_page(difference_with_the_device=difference, edit_sent_to_the_device=edit))
+    assert result == {
+        "optical_node_config_override": {
+            "+": {f"{G30_PORT}/admin-status": "down"},
+            "-": {f"{G30_PORT}/service-label": "x"},
+            "#": {},
+        }
+    }
+    assert device.edits() == []
+    assert applied_config_store.rows == {}
+
+
+def test_config_override_form_refuses_a_malformed_line(
+    monkeypatch: pytest.MonkeyPatch, applied_config_store: AppliedConfigStore
+) -> None:
+    from pydantic import ValidationError
+
+    from orchestrator.optical.workflows.optical_node.shared.config_override import config_override_form_pages
+
+    _g30(monkeypatch, _g30_config_xml(**{"admin-status": "up"}))
+    edit_page = next(config_override_form_pages(_node(Platform.GROOVE_G30)))
+    running = edit_page.model_fields["running_configuration"].default
+
+    with pytest.raises(ValidationError, match="is not '<"):
+        edit_page(running_configuration=running, configuration_override=f"{G30_PORT}/admin-status: down")
+
+
+class _StubData:
+    """The ``data`` of a client whose root read returns ``instances``, recording what it was asked."""
+
+    def __init__(self, instances: dict[str, Any]) -> None:
+        self.instances = instances
+        self.asked: dict[str, Any] = {}
+
+    def retrieve(self, **kwargs: Any) -> Any:
+        self.asked = kwargs
+        return SimpleNamespace(model_dump_instances=lambda *_, **__: dict(self.instances))
+
+
+def test_g30_running_config_reads_the_managed_containers_without_the_leaves_the_device_owns() -> None:
+    chm1 = "/ne:ne/shelf[shelf-id='1']/slot[slot-id='3']"
+    chm2 = "/ne:ne/shelf[shelf-id='1']/slot[slot-id='2']"
+    on_chm1 = """/ne:ne/services/CRS[src-tp="ne:shelf[ne:shelf-id='1']/ne:slot[ne:slot-id='3']/x"]"""
+    on_chm2 = """/ne:ne/services/CRS[src-tp="ne:shelf[ne:shelf-id='1']/ne:slot[ne:slot-id='2']/x"]"""
+    data = _StubData(
+        {
+            f"{chm1}/card/required-type": "CHM1",
+            f"{chm2}/card/required-type": "CHM2T",
+            f"{chm2}/card/port[port-id='1']/odutype": "ODU4",
+            "/ne:ne/system/security/session[session-id='7']/user": "admin",
+            f"{on_chm1}/alias-name": "generated",
+            f"{on_chm1}/admin-status": "up",
+            f"{on_chm2}/alias-name": "mine",
+        }
+    )
+
+    running = g30_config.running_config(SimpleNamespace(data=data))
+
+    assert running == {
+        f"{chm1}/card/required-type": "CHM1",
+        f"{chm2}/card/required-type": "CHM2T",
+        f"{on_chm1}/admin-status": "up",
+        f"{on_chm2}/alias-name": "mine",
+    }
+    assert data.asked["fields"] == list(g30_config._RUNNING_FIELDS)  # noqa: SLF001
+    assert (data.asked["content"], data.asked["depth"]) == ("config", "unbounded")

@@ -35,7 +35,6 @@ from orchestrator.optical.products.product_blocks.optical_spectrum_section impor
 )
 from test.support.tl1 import deny, records_response
 
-
 #: Location codes of the spectrum path handed to ``ensure``.
 HOPS = ("mil01", "rom02")
 

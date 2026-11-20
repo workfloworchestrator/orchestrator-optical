@@ -1,15 +1,15 @@
-"""Nokia GX G42 side of the declarative configuration: the client and the release rule.
+"""Nokia GX G42 side of the declarative configuration: the client, the running configuration and the release rule.
 
 See :mod:`orchestrator.optical.hal.reconcile`. The rule says how a path this module
 applied is taken off a GX G42 once no product block renders it any more.
 """
 
-from typing import Final
+from typing import Any, Final
 
 from orchestrator.optical.hal.adapters.nokia_gx_g42._shared import get_g42_client
 from orchestrator.optical.hal.reconcile import DeleteEntry, Reset, leaf_name, parent_name, split_instance_path
 
-__all__ = ["get_g42_client", "release_rule"]
+__all__ = ["get_g42_client", "release_rule", "running_config"]
 
 #: Factory value of the leaves of the GX G42 objects that outlive a service.
 _RESETS: Final[dict[str, str]] = {
@@ -24,6 +24,14 @@ _RESET_PARENTS: Final = frozenset({"port", "tom", "trib-ptp", "ethernet", "super
 
 #: The list entries created for a service, deleted with it.
 _DELETED_ENTRIES: Final = ("xcon[", "super-channel[")
+
+
+def running_config(client: Any) -> dict[str, Any]:
+    """Return the running configuration of a GX G42 as ``{path: value}`` (only the leaves the device reports)."""
+    config = client.data.retrieve(content="config", depth="unbounded", fields=["/ioa-network-element:ne"])
+    if config is None:
+        return {}
+    return dict(config.model_dump_instances("/", content="config", exclude_unset=True))
 
 
 def release_rule(path: str) -> Reset | DeleteEntry | None:
